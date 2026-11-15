@@ -363,22 +363,24 @@ index 2411340d..76985e46 100644
                          alternatives.add(beamSA);
                      } else if (keyword.startsWith("Flashback")) {
 diff --git a/forge-game/src/main/java/forge/game/GameRules.java b/forge-game/src/main/java/forge/game/GameRules.java
-index 2a2d5583..390344bc 100644
+index 2a2d5583..f099b8c3 100644
 --- a/forge-game/src/main/java/forge/game/GameRules.java
 +++ b/forge-game/src/main/java/forge/game/GameRules.java
-@@ -8,6 +8,11 @@ public class GameRules {
+@@ -8,6 +8,13 @@ public class GameRules {
      private boolean manaBurn;
      private boolean orderCombatants;
      private int poisonCountersToLose = 10; // is commonly 10, but turns into 15 for 2HG
 +    private int commanderDamageToLose = 21;
 +    // CR 810.4, 810.9: teammates share one life total and one poison count (Two-Headed Giant)
 +    private boolean sharedTeamLife = false;
++    // house rule (2HG): with shared team life, a teammate's life gain or loss also counts as the player's own
++    private boolean teamLifeEvents = false;
 +    // house rule (Juggernaut): the registered player who goes first, -1 for the usual roll
 +    private int startingPlayer = -1;
      private int gamesPerMatch = 3;
      private int gamesToWinMatch = 2;
      private boolean playForAnte = false;
-@@ -61,6 +66,27 @@ public class GameRules {
+@@ -61,6 +68,34 @@ public class GameRules {
          this.poisonCountersToLose = amount;
      }
  
@@ -403,6 +405,13 @@ index 2a2d5583..390344bc 100644
 +        this.sharedTeamLife = shared;
 +    }
 +
++    public boolean hasTeamLifeEvents() {
++        return sharedTeamLife && teamLifeEvents;
++    }
++    public void setTeamLifeEvents(final boolean shared) {
++        this.teamLifeEvents = shared;
++    }
++
      public int getGamesPerMatch() {
          return gamesPerMatch;
      }
@@ -419,7 +428,7 @@ index c7208809..e3fd8f03 100644
          for (int j = 0; j < origPlayer.getSpellsCastThisTurn(); j++) {
              newPlayer.addSpellCastThisTurn();
 diff --git a/forge-game/src/main/java/forge/game/ability/AbilityUtils.java b/forge-game/src/main/java/forge/game/ability/AbilityUtils.java
-index 9d90c5c3..bab67686 100644
+index 9d90c5c3..c24df83d 100644
 --- a/forge-game/src/main/java/forge/game/ability/AbilityUtils.java
 +++ b/forge-game/src/main/java/forge/game/ability/AbilityUtils.java
 @@ -2311,6 +2311,10 @@ public class AbilityUtils {
@@ -433,6 +442,26 @@ index 9d90c5c3..bab67686 100644
          if (sq[0].equals("YouScryThisTurn")) {
              return doXMath(player.getScryThisTurn(), expr, c, ctb);
          }
+@@ -2355,16 +2359,16 @@ public class AbilityUtils {
+         }
+ 
+         if (sq[0].contains("LifeYouLostThisTurn")) {
+-            return doXMath(player.getLifeLostThisTurn(), expr, c, ctb);
++            return doXMath(player.getTeamLifeLostThisTurn(), expr, c, ctb);
+         }
+         if (sq[0].contains("LifeYouGainedThisTurn")) {
+-            return doXMath(player.getLifeGainedThisTurn(), expr, c, ctb);
++            return doXMath(player.getTeamLifeGainedThisTurn(), expr, c, ctb);
+         }
+         if (sq[0].contains("LifeYourTeamGainedThisTurn")) {
+             return doXMath(player.getLifeGainedByTeamThisTurn(), expr, c, ctb);
+         }
+         if (sq[0].contains("LifeYouGainedTimesThisTurn")) {
+-            return doXMath(player.getLifeGainedTimesThisTurn(), expr, c, ctb);
++            return doXMath(player.getTeamLifeGainedTimesThisTurn(), expr, c, ctb);
+         }
+         if (sq[0].contains("LifeOppsLostThisTurn")) {
+             return doXMath(player.getOpponentLostLifeThisTurn(), expr, c, ctb);
 @@ -2439,6 +2443,10 @@ public class AbilityUtils {
              return doXMath(player.getTurn(), expr, c, ctb);
          }
@@ -444,6 +473,24 @@ index 9d90c5c3..bab67686 100644
          if (sq[0].equals("NotedNumber")) {
              return doXMath(player.getNotedNumberForName(c.getName()), expr, c, ctb);
          }
+@@ -3523,14 +3531,14 @@ public class AbilityUtils {
+         }
+ 
+         if (value.contains("LifeLostThisTurn")) {
+-            return doXMath(player.getLifeLostThisTurn(), m, source, ctb);
++            return doXMath(player.getTeamLifeLostThisTurn(), m, source, ctb);
+         }
+         if (value.contains("LifeLostLastTurn")) {
+-            return doXMath(player.getLifeLostLastTurn(), m, source, ctb);
++            return doXMath(player.getTeamLifeLostLastTurn(), m, source, ctb);
+         }
+ 
+         if (value.contains("LifeGainedThisTurn")) {
+-            return doXMath(player.getLifeGainedThisTurn(), m, source, ctb);
++            return doXMath(player.getTeamLifeGainedThisTurn(), m, source, ctb);
+         }
+ 
+         if (value.contains("LifeGainedByTeamThisTurn")) {
 @@ -3724,6 +3732,22 @@ public class AbilityUtils {
              return doXMath(countCardTypesFromList(paidList, def.startsWith("CardTypesPermanent")), CardFactoryUtil.extractOperators(def), source, ctb);
          }
@@ -868,7 +915,7 @@ index 4a3a94df..33871e93 100644
              if (game.getStack().isEmpty()) {
                  if (playerTurn.hasLost()) {
 diff --git a/forge-game/src/main/java/forge/game/player/Player.java b/forge-game/src/main/java/forge/game/player/Player.java
-index 4cbb6deb..83bc8568 100644
+index 4cbb6deb..15de6d64 100644
 --- a/forge-game/src/main/java/forge/game/player/Player.java
 +++ b/forge-game/src/main/java/forge/game/player/Player.java
 @@ -107,6 +107,7 @@ public class Player extends GameEntity implements Comparable<Player> {
@@ -900,15 +947,17 @@ index 4cbb6deb..83bc8568 100644
      }
  
      /**
-@@ -467,6 +480,7 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -467,7 +480,8 @@ public class Player extends GameEntity implements Comparable<Player> {
          int oldLife = life;
          life += lifeGain;
          view.updateLife(this);
+-        boolean firstGain = lifeGainedTimesThisTurn == 0;
 +        shareLifeWithTeam();
-         boolean firstGain = lifeGainedTimesThisTurn == 0;
++        boolean firstGain = getTeamLifeGainedTimesThisTurn() == 0;
          lifeGainedThisTurn += lifeGain;
          lifeGainedTimesThisTurn++;
-@@ -488,7 +502,41 @@ public class Player extends GameEntity implements Comparable<Player> {
+ 
+@@ -488,7 +502,64 @@ public class Player extends GameEntity implements Comparable<Player> {
      }
  
      public final boolean canGainLife() {
@@ -926,6 +975,29 @@ index 4cbb6deb..83bc8568 100644
 +            }
 +        }
 +        return true;
++    }
++
++    // house rule (2HG): the players whose life gains and losses count as this player's own (only itself without it)
++    public final PlayerCollection lifeEventTeam() {
++        if (game.getRules().hasTeamLifeEvents()) {
++            return sharedLifeTeam();
++        }
++        PlayerCollection self = new PlayerCollection();
++        self.add(this);
++        return self;
++    }
++
++    public final int getTeamLifeGainedThisTurn() {
++        return Aggregates.sum(lifeEventTeam(), p -> p.lifeGainedThisTurn);
++    }
++    public final int getTeamLifeGainedTimesThisTurn() {
++        return Aggregates.sum(lifeEventTeam(), p -> p.lifeGainedTimesThisTurn);
++    }
++    public final int getTeamLifeLostThisTurn() {
++        return Aggregates.sum(lifeEventTeam(), p -> p.lifeLostThisTurn);
++    }
++    public final int getTeamLifeLostLastTurn() {
++        return Aggregates.sum(lifeEventTeam(), p -> p.lifeLostLastTurn);
 +    }
 +
 +    // CR 810.9: the players whose life total and poison counters this player shares (only itself outside 2HG)
@@ -951,7 +1023,7 @@ index 4cbb6deb..83bc8568 100644
      }
  
      public final int loseLife(int toLose, final boolean damage, final boolean manaBurn, final SpellAbility cause) {
-@@ -525,6 +573,7 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -525,13 +596,14 @@ public class Player extends GameEntity implements Comparable<Player> {
  
          life -= toLose;
          view.updateLife(this);
@@ -959,7 +1031,15 @@ index 4cbb6deb..83bc8568 100644
          if (manaBurn) {
              game.fireEvent(new GameEventManaBurn(PlayerView.get(this), true, toLose));
          } else {
-@@ -544,13 +593,29 @@ public class Player extends GameEntity implements Comparable<Player> {
+             game.fireEvent(new GameEventPlayerLivesChanged(this, oldLife, life));
+         }
+ 
+-        boolean firstLost = lifeLostThisTurn == 0;
++        boolean firstLost = getTeamLifeLostThisTurn() == 0;
+         lifeLostThisTurn += toLose;
+ 
+         final Map<AbilityKey, Object> runParams = AbilityKey.mapFromPlayer(this);
+@@ -544,13 +616,29 @@ public class Player extends GameEntity implements Comparable<Player> {
      }
  
      public final boolean canLoseLife() {
@@ -990,7 +1070,7 @@ index 4cbb6deb..83bc8568 100644
          return lifePayment <= 0 || !StaticAbilityCantGainLosePayLife.anyCantPayLife(this, effect, cause);
      }
  
-@@ -834,6 +899,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -834,6 +922,14 @@ public class Player extends GameEntity implements Comparable<Player> {
          if (StaticAbilityCantPutCounter.anyCantPutCounter(this, type)) {
              return false;
          }
@@ -1005,7 +1085,7 @@ index 4cbb6deb..83bc8568 100644
          return true;
      }
  
-@@ -919,6 +992,17 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -919,6 +1015,17 @@ public class Player extends GameEntity implements Comparable<Player> {
          int old = getCounters(counterType);
          setCounters(counterType, num);
          view.updateCounters(this);
@@ -1023,7 +1103,7 @@ index 4cbb6deb..83bc8568 100644
          if (fireEvents) {
              getGame().fireEvent(new GameEventPlayerCounters(this, counterType, old, num));
              if (counterType.is(CounterEnumType.POISON)) {
-@@ -1101,6 +1185,16 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1101,6 +1208,16 @@ public class Player extends GameEntity implements Comparable<Player> {
          scryThisTurn++;
      }
  
@@ -1040,7 +1120,7 @@ index 4cbb6deb..83bc8568 100644
      public boolean canMulligan() {
          return !getZone(ZoneType.Hand).isEmpty();
      }
-@@ -1803,6 +1897,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1803,6 +1920,14 @@ public class Player extends GameEntity implements Comparable<Player> {
          stats.nextTurn();
      }
  
@@ -1055,7 +1135,7 @@ index 4cbb6deb..83bc8568 100644
      public final int getLastTurnNr() {
          return this.lastTurnNr;
      }
-@@ -1972,6 +2074,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1972,6 +2097,14 @@ public class Player extends GameEntity implements Comparable<Player> {
      }
  
      public final boolean loseConditionMet(final GameLossReason state, final String spellName) {
@@ -1070,7 +1150,7 @@ index 4cbb6deb..83bc8568 100644
          if (state != GameLossReason.OpponentWon) {
              Map<AbilityKey, Object> repParams = AbilityKey.mapFromAffected(this);
              repParams.put(AbilityKey.LoseReason, state);
-@@ -1983,6 +2093,12 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1983,6 +2116,12 @@ public class Player extends GameEntity implements Comparable<Player> {
          return true;
      }
  
@@ -1083,7 +1163,7 @@ index 4cbb6deb..83bc8568 100644
      public final void concede() { // No cantLose checks - just lose
          setOutcome(PlayerOutcome.concede());
      }
-@@ -2016,7 +2132,13 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2016,7 +2155,13 @@ public class Player extends GameEntity implements Comparable<Player> {
      }
  
      public final boolean cantWin() {
@@ -1098,7 +1178,7 @@ index 4cbb6deb..83bc8568 100644
      }
  
      public final boolean checkLoseCondition() {
-@@ -2044,13 +2166,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2044,13 +2189,14 @@ public class Player extends GameEntity implements Comparable<Player> {
  
          // Rule 704.5c - If a player has ten or more poison counters, he or she loses the game.
          // 704.6b In a Two-Headed Giant game, if a team has fifteen or more poison counters, that team loses the game. See rule 810, “Two-Headed Giant Variant.”
@@ -1115,7 +1195,7 @@ index 4cbb6deb..83bc8568 100644
                      return true;
                  }
              }
-@@ -2387,6 +2510,12 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2387,6 +2533,12 @@ public class Player extends GameEntity implements Comparable<Player> {
          return controller.getLobbyPlayer();
      }
  
@@ -1128,7 +1208,7 @@ index 4cbb6deb..83bc8568 100644
      public final RegisteredPlayer getRegisteredPlayer() {
          return game.getMatch().getPlayers().get(game.getRegisteredPlayers().indexOf(this));
      }
-@@ -2477,6 +2606,7 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2477,6 +2629,7 @@ public class Player extends GameEntity implements Comparable<Player> {
          investigatedThisTurn = 0;
          scryThisTurn = 0;
          surveilThisTurn = 0;
@@ -1136,7 +1216,7 @@ index 4cbb6deb..83bc8568 100644
          resetDiscardedThisTurn();
          resetSacrificedThisTurn();
          resetVenturedThisTurn();
-@@ -2842,6 +2972,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2842,6 +2995,14 @@ public class Player extends GameEntity implements Comparable<Player> {
      public Iterable<Entry<Card, Integer>> getCommanderDamage() {
          return commanderDamage.entrySet();
      }
@@ -1151,6 +1231,19 @@ index 4cbb6deb..83bc8568 100644
      public int getCommanderDamage(Card commander) {
          Integer damage = commanderDamage.get(commander);
          return damage == null ? 0 : damage;
+diff --git a/forge-game/src/main/java/forge/game/player/PlayerProperty.java b/forge-game/src/main/java/forge/game/player/PlayerProperty.java
+index e69e396e..38e75548 100644
+--- a/forge-game/src/main/java/forge/game/player/PlayerProperty.java
++++ b/forge-game/src/main/java/forge/game/player/PlayerProperty.java
+@@ -195,7 +195,7 @@ public class PlayerProperty {
+                 final String rightString = compareAndValue.substring(2);
+                 value = AbilityUtils.calculateAmount(source, rightString, spellAbility);
+             }
+-            if (!Expressions.compare(player.getLifeLostThisTurn(), comparator, value)) {
++            if (!Expressions.compare(player.getTeamLifeLostThisTurn(), comparator, value)) {
+                 return false;
+             }
+         } else if (property.equals("TappedLandForManaThisTurn")) {
 diff --git a/forge-game/src/main/java/forge/game/player/PlayerStatistics.java b/forge-game/src/main/java/forge/game/player/PlayerStatistics.java
 index 70f867b9..91ecc5ec 100644
 --- a/forge-game/src/main/java/forge/game/player/PlayerStatistics.java
@@ -1218,6 +1311,39 @@ index 21c84a69..d3c6cb42 100644
                  return false;
              }
          }
+diff --git a/forge-game/src/main/java/forge/game/replacement/ReplaceGainLife.java b/forge-game/src/main/java/forge/game/replacement/ReplaceGainLife.java
+index 983636f7..9711a147 100644
+--- a/forge-game/src/main/java/forge/game/replacement/ReplaceGainLife.java
++++ b/forge-game/src/main/java/forge/game/replacement/ReplaceGainLife.java
+@@ -21,6 +21,7 @@ import java.util.Map;
+ 
+ import forge.game.ability.AbilityKey;
+ import forge.game.card.Card;
++import forge.game.player.Player;
+ import forge.game.spellability.SpellAbility;
+ 
+ /** 
+@@ -42,12 +43,19 @@ public class ReplaceGainLife extends ReplacementEffect {
+     /* (non-Javadoc)
+      * @see forge.card.replacement.ReplacementEffect#canReplace(java.util.HashMap)
+      */
++    // house rule (2HG): a teammate's life gain counts as the controller's own
++    private boolean gainedByTeammate(final Object o) {
++        final Player you = getHostCard().getController();
++        return o instanceof Player p && p != you && you != null && p.lifeEventTeam().contains(you)
++                && matchesValidParam("ValidPlayer", you);
++    }
++
+     @Override
+     public boolean canReplace(Map<AbilityKey, Object> runParams) {
+         if (((int)runParams.get(AbilityKey.LifeGained)) <= 0) {
+             return false;
+         }
+-        if (!matchesValidParam("ValidPlayer", runParams.get(AbilityKey.Affected))) {
++        if (!matchesValidParam("ValidPlayer", runParams.get(AbilityKey.Affected)) && !gainedByTeammate(runParams.get(AbilityKey.Affected))) {
+             return false;
+         }
+         if (!matchesValidParam("ValidSource", runParams.get(AbilityKey.SourceSA))) {
 diff --git a/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java b/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java
 index 42c36fb2..5f35f204 100644
 --- a/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java
@@ -1296,6 +1422,27 @@ index 91d34317..c4c32924 100644
              }
          }
          return i;
+diff --git a/forge-game/src/main/java/forge/game/trigger/Trigger.java b/forge-game/src/main/java/forge/game/trigger/Trigger.java
+index 34215d42..780693fc 100644
+--- a/forge-game/src/main/java/forge/game/trigger/Trigger.java
++++ b/forge-game/src/main/java/forge/game/trigger/Trigger.java
+@@ -496,6 +496,16 @@ public abstract class Trigger extends TriggerReplacementBase {
+      */
+     public abstract boolean performTest(Map<AbilityKey, Object> runParams);
+ 
++    // house rule (2HG): a life gain or loss by a teammate of this trigger's controller counts as the controller's own
++    protected final boolean matchesValidLifePlayer(final Object o) {
++        if (matchesValidParam("ValidPlayer", o)) {
++            return true;
++        }
++        final Player you = getHostCard().getController();
++        return o instanceof Player p && p != you && you != null && p.lifeEventTeam().contains(you)
++                && matchesValidParam("ValidPlayer", you);
++    }
++
+     /**
+      * <p>
+      * setTriggeringObjects.
 diff --git a/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java b/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
 index 627c7d49..380a4355 100644
 --- a/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
@@ -1312,6 +1459,45 @@ index 627c7d49..380a4355 100644
      public void clearWaitingTriggers() {
          waitingTriggers.clear();
      }
+diff --git a/forge-game/src/main/java/forge/game/trigger/TriggerLifeGained.java b/forge-game/src/main/java/forge/game/trigger/TriggerLifeGained.java
+index b27e131d..c989497b 100644
+--- a/forge-game/src/main/java/forge/game/trigger/TriggerLifeGained.java
++++ b/forge-game/src/main/java/forge/game/trigger/TriggerLifeGained.java
+@@ -53,7 +53,7 @@ public class TriggerLifeGained extends Trigger {
+      * @param runParams*/
+     @Override
+     public final boolean performTest(final Map<AbilityKey, Object> runParams) {
+-        if (!matchesValidParam("ValidPlayer", runParams.get(AbilityKey.Player))) {
++        if (!matchesValidLifePlayer(runParams.get(AbilityKey.Player))) {
+             return false;
+         }
+ 
+diff --git a/forge-game/src/main/java/forge/game/trigger/TriggerLifeLost.java b/forge-game/src/main/java/forge/game/trigger/TriggerLifeLost.java
+index 2920ee45..10a94160 100644
+--- a/forge-game/src/main/java/forge/game/trigger/TriggerLifeLost.java
++++ b/forge-game/src/main/java/forge/game/trigger/TriggerLifeLost.java
+@@ -55,7 +55,7 @@ public class TriggerLifeLost extends Trigger {
+      * @param runParams*/
+     @Override
+     public final boolean performTest(final Map<AbilityKey, Object> runParams) {
+-        if (!matchesValidParam("ValidPlayer", runParams.get(AbilityKey.Player))) {
++        if (!matchesValidLifePlayer(runParams.get(AbilityKey.Player))) {
+             return false;
+         }
+ 
+diff --git a/forge-game/src/main/java/forge/game/trigger/TriggerLifeLostAll.java b/forge-game/src/main/java/forge/game/trigger/TriggerLifeLostAll.java
+index 3186ef11..5f4cac73 100644
+--- a/forge-game/src/main/java/forge/game/trigger/TriggerLifeLostAll.java
++++ b/forge-game/src/main/java/forge/game/trigger/TriggerLifeLostAll.java
+@@ -94,7 +94,7 @@ public class TriggerLifeLostAll extends Trigger {
+     private Map<Player, Integer> filteredMap(Map<Player, Integer> map) {
+         Map<Player, Integer> passMap = Maps.newHashMap();
+         for (final Map.Entry<Player, Integer> e : map.entrySet()) {
+-            if (matchesValidParam("ValidPlayer", e.getKey())) {
++            if (matchesValidLifePlayer(e.getKey())) {
+                 if (hasParam("ValidAmountEach")) {
+                     final String comp = getParam("ValidAmountEach");
+                     final int value = AbilityUtils.calculateAmount(getHostCard(), comp.substring(2), this);
 diff --git a/forge-gui/res/cardsfolder/a/aetherling.txt b/forge-gui/res/cardsfolder/a/aetherling.txt
 index f6e89bab..88978a3b 100644
 --- a/forge-gui/res/cardsfolder/a/aetherling.txt
