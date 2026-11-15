@@ -360,6 +360,9 @@ On top of §5.3:
    the attack is checked as a whole (805.10b). `declareAttackersTurnBasedAction` (`PhaseHandler.java:537-550`) asks each
    teammate in turn.
 4. **Triggers:** the active team's triggers go on the stack first, in an order the team picks (805.7).
+   **805.2 primary player (owner decision, 2026-11-15):** the team's furthest-right seat from the team's view. On the
+   4-player table that is White for team 1 and Yellow for team 2, i.e. the team's first seat in turn order
+   (`GameAction.teamLead`), which `PhaseHandler.getPrimaryPlayer` returns and the checks assume. Built in engine1117.
 5. **"Attacking player" / "defending player"** on cards: one specific player, chosen per creature (805.10c, 805.10e):
    check `getAttackingPlayer()` (14 calls in `forge-game`, 8 in `forge-ai`) and `getDefendingPlayer` (9 and 6).
 6. **AI:** Forge's attack and block AI plan for one attacking player. A Forge AI teammate in a shared turn is the
@@ -537,8 +540,10 @@ out the second partner's third from the already lowered team total (team 30: 10 
   `sharedTeamTurns`) so Level 1 stays as is. `GameAction.teamLead` is the team's first seat in turn order, i.e. where a team
   turn would start; `PhaseHandler.isStartingTeamsFirstDraw` counts the starting team's first turns, which becomes "the
   team's first turn" once a turn is the team's (805.4b, 103.8b).
-- Harness: questions still go to the player Forge asks (§5.5); the primary player (805.2) is `teamLead`'s mirror image
-  (rightmost seat) and is not computed yet.
+- Harness: questions still go to the player Forge asks (§5.5). The primary player (805.2) is the team's furthest-right
+  seat from the team's view, which is `teamLead` itself, the team's first seat in turn order (White, Yellow), not its
+  mirror image (owner decision, 2026-11-15). engine1117 computes it (`PhaseHandler.getPrimaryPlayer`) for the team's
+  trigger order.
 - Bridge: `teams.teamsProblem`'s side-by-side rule exists only because Level 1 plays the team's turns back to back.
   `gameConfig` would carry the new rule (`teamRules: "sharedTurns"` or a separate field).
 - Table: the phase bar's team tag already names the team on either partner's turn.
