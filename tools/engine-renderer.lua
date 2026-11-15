@@ -3442,6 +3442,10 @@ function engineRender(m)
   engineBoardDiff(m)
   detectPending(m)
   if engineMarkSpecial ~= nil then pcall(engineMarkSpecial, m) end
+  if enginePeekIndex ~= nil then
+    local okPk, errPk = pcall(enginePeekIndex, m)
+    if not okPk then print("[MTG] face-down peek: " .. tostring(errPk)) end
+  end
   if engineMillDetect ~= nil then pcall(engineMillDetect, m) end
   -- (an answered combat question's picks are drawn until the engine's next board says what came of them)
   if m ~= lastTable then engineCombatHeld = {} end
@@ -4087,7 +4091,7 @@ local function cornerXml(c)
     .. '<Button id="eng_big3_' .. c .. '" onClick="onMtgBig3" visibility="' .. c .. '" width="280" height="44" rectAlignment="LowerRight" offsetXY="-20 190" color="' .. ENGINE_GROUP_COLOR .. '" textColor="#ffffff" fontSize="18" active="false"> </Button>\n'
     .. '<Button id="eng_big2_' .. c .. '" onClick="onMtgBig2" visibility="' .. c .. '" width="280" height="44" rectAlignment="LowerRight" offsetXY="-20 140" color="#2e3a59" textColor="#ffffff" fontSize="18" active="false"> </Button>\n'
     .. '<Button id="eng_big_' .. c .. '" onClick="onMtgBig" visibility="' .. c .. '" width="280" height="64" rectAlignment="LowerRight" offsetXY="-20 70" color="#e8711a" textColor="#ffffff" fontSize="26" fontStyle="Bold" active="false"> </Button>\n'
-    .. engineAbPanelXml(c)
+    .. engineAbPanelXml(c) .. enginePeekPanelXml(c)
 end
 -- The actions of the card you point at, as big buttons on the screen (engineAbPanelShow): the buttons on the card are
 -- a few pixels tall at the usual camera, and its right-click menu opened under the top bars (hp-07, 2026-10-27). Since
@@ -4106,6 +4110,17 @@ function engineAbPanelXml(c)
     .. '<Button id="eng_abpg_' .. c .. '" onClick="onMtgAbPanel" preferredHeight="30" fontSize="13" color="#333333" textColor="#ffffff" active="false"> </Button>'
     .. '</VerticalLayout>'
     .. '<Button id="eng_abpx_' .. c .. '" onClick="onMtgAbPanel" width="28" height="28" rectAlignment="UpperRight" offsetXY="-6 -6" color="#333333" textColor="#ffffff" fontSize="15" fontStyle="Bold" tooltip="Close">X</Button></Panel>\n'
+end
+-- Your own face-down card's face, on the screen while you point at it or at the card it lies under (enginePeekHover):
+-- left of the ability panel, for your colour only. Screen UI, as the card's own overlay (enginePeekShow) didn't do it:
+-- a card's UI draws under the card, so the picture inside its outline never showed, and a hideaway card lies half
+-- size under its land, which covers the name tag too (Mosswort Bridge, real game 2026-11-14).
+function enginePeekPanelXml(c)
+  return '<Panel id="eng_peekp_' .. c .. '" visibility="' .. c .. '" width="250" height="400" rectAlignment="LowerRight" offsetXY="-480 340" color="#161616F0" raycastTarget="false" active="false">'
+    .. '<VerticalLayout padding="8 8 8 8" spacing="6" childForceExpandHeight="false">'
+    .. '<Text id="eng_peekpt_' .. c .. '" preferredHeight="48" fontSize="14" fontStyle="Bold" color="#FFD27A" alignment="MiddleCenter" raycastTarget="false"> </Text>'
+    .. '<Image id="eng_peekpi_' .. c .. '" preferredHeight="320" preserveAspect="true" color="#FFFFFF" raycastTarget="false"></Image>'
+    .. '</VerticalLayout></Panel>\n'
 end
 
 -- A spell or ability going on the stack pops up for everyone, with its picture and text (Arena-style).
@@ -8362,7 +8377,8 @@ end
 -- else carries the name: the card's name and hover text stay "Face-down card". Laid on the side facing up: a card lying
 -- face down has the frame's place turned over with it (about its length: z and the turn mirrored, as updateBadge's
 -- "=under" buttons are), one its owner flipped face up (engineFlipped) the frame's own. Picture and tag positions are
--- estimates, to check on the real table with tools/tts-shot.ps1.
+-- estimates, to check on the real table with tools/tts-shot.ps1. (On the real table this showed nothing for a hideaway
+-- card under its land, 2026-11-14: the face is on the screen as well while you point at it, enginePeekHover.)
 enginePeekSig = {} -- engine card id -> { o = the object, sig = what its overlay shows, "" none }
 function enginePeekXml(pk, lyingDown)
   local function esc(s)
@@ -8397,6 +8413,69 @@ function enginePeekShow(o, c, zone)
   enginePeekSig[c.id] = { o = o, sig = want }
   local x = engineXmlWithout(tostring(o.UI.getXml() or ""), "eng_peek")
   o.UI.setXml(x .. (xml or ""))
+end
+-- The same faces on the screen (enginePeekPanelXml), shown while you point at the card or at the card it lies under:
+-- enginePeekBy, card id -> its pk, and enginePeekUnder, host id -> the ids of the face-down cards exiled with it, from
+-- each board (enginePeekIndex); enginePeekFor, colour -> the card id that colour's panel was shown for.
+enginePeekBy, enginePeekUnder, enginePeekFor = {}, {}, {}
+function enginePeekIndex(m)
+  local by, under = {}, {}
+  for _, pl in ipairs(m.players or {}) do
+    for _, z in ipairs({ "battlefield", "exile" }) do
+      for _, c in ipairs(pl[z] or {}) do
+        if c.n == nil and type(c.pk) == "table" and c.pk.n ~= nil then
+          by[c.id] = c.pk
+          if z == "exile" and c.ew ~= nil then
+            under[c.ew] = under[c.ew] or {}
+            table.insert(under[c.ew], c.id)
+          end
+        end
+      end
+    end
+  end
+  -- (the permanent's name, for the panel's line: under.host)
+  for _, pl in ipairs(m.players or {}) do
+    for _, c in ipairs(pl.battlefield or {}) do if under[c.id] ~= nil then under[c.id].host = c.n end end
+  end
+  enginePeekBy, enginePeekUnder = by, under
+  -- (a panel shown for a card that has gone, or that this colour may no longer look at: drawn again from the new board)
+  for color, id in pairs(enginePeekFor) do enginePeekHover(color, id) end
+end
+-- Whether colour may look at pk (its v lists that colour)
+function enginePeekMay(pk, color)
+  for _, col in ipairs(type(pk) == "table" and pk.v or {}) do if col == color then return true end end
+  return false
+end
+-- Shows colour's panel for card id (a face-down card it may look at, or a permanent with such cards under it), or
+-- hides it when id has none (nil: the pointer left the cards)
+function enginePeekHover(color, id)
+  if Player[color] == nil then return end
+  local faces = {}
+  if id ~= nil and enginePeekMay(enginePeekBy[id], color) then faces[1] = enginePeekBy[id] end
+  local host = nil
+  if id ~= nil and #faces == 0 then
+    local under = enginePeekUnder[id] or {}
+    for _, u in ipairs(under) do
+      if enginePeekMay(enginePeekBy[u], color) then faces[#faces + 1] = enginePeekBy[u] end
+    end
+    if #faces > 0 then host = tostring(under.host or (engineStatic[id] or {}).n or "this card") end
+  end
+  if #faces == 0 then
+    if enginePeekFor[color] ~= nil then setAttr("eng_peekp_" .. color, "active", "false") end
+    enginePeekFor[color] = nil
+    return
+  end
+  local names = {}
+  for _, pk in ipairs(faces) do names[#names + 1] = tostring(pk.n) end
+  local head = host ~= nil and ("Face down under " .. host .. ", only you see it:") or "Face down, only you see it:"
+  setText("eng_peekpt_" .. color, head .. "\n" .. table.concat(names, ", "))
+  local f = faces[1].f
+  if type(f) == "string" and f ~= "" then
+    setAttr("eng_peekpi_" .. color, "active", "true")
+    engineSetImage("eng_peekpi_" .. color, engineUiImage(f))
+  else setAttr("eng_peekpi_" .. color, "active", "false") end
+  enginePeekFor[color] = id
+  setAttr("eng_peekp_" .. color, "active", "true")
 end
 function engineFramePump()
   local q = engineFrameQueue
@@ -9822,6 +9901,9 @@ function engineAbilityReset()
   for c in pairs(engineAbPanelFor or {}) do setAttr("eng_abp_" .. c, "active", "false") end
   engineAbilityWant, engineAbilityOn, engineAbPanelFor, engineRedrawSoon = {}, {}, {}, {}
   engineAbShown, engineAbPage = {}, {}
+  -- (and the face-down peek's panel: enginePeekHover)
+  for c in pairs(enginePeekFor or {}) do setAttr("eng_peekp_" .. c, "active", "false") end
+  enginePeekBy, enginePeekUnder, enginePeekFor = {}, {}, {}
 end
 -- one short line per ability: its cost and the start of what it does ("{1}{G}: Put a +1/+1…"); the button's tooltip
 -- has the whole text
@@ -10229,8 +10311,12 @@ do
 local before = onObjectHover
 function onObjectHover(color, obj)
   if before ~= nil then before(color, obj) end
-  if not ENGINE_MODE or obj == nil or Player[color] == nil then return end
-  local id = tostring(obj.getGMNotes()):match("^engine:(engine%-card%-%d+)$")
+  if not ENGINE_MODE or Player[color] == nil then return end
+  local id = obj ~= nil and tostring(obj.getGMNotes()):match("^engine:(engine%-card%-%d+)$") or nil
+  -- (your own face-down card's face, or the ones under the permanent you point at; pointing elsewhere hides it)
+  local okPk, errPk = pcall(enginePeekHover, color, id)
+  if not okPk then print("[MTG] face-down peek: " .. tostring(errPk)) end
+  if obj == nil then return end
   -- (a card pointed at afresh starts at its first page)
   if id ~= nil and engineAbPanelFor[color] ~= id then engineAbPage[color] = nil engineAbPanelShow(color, id) end
 end
