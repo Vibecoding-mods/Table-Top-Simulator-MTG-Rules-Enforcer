@@ -32,7 +32,7 @@ const FRAMES = (mark, frames) => lua(`local out = {}
       local inv = rawget(o, "__d").invisibleTo or {}
       out[#out + 1] = { c = c, guid = o.getGUID(), x = p.x, z = p.z, ry = o.getRotation().y, sx = d.Transform and d.Transform.scaleX, sz = d.Transform and d.Transform.scaleZ,
         img = d.CustomImage and d.CustomImage.ImageURL, stretch = d.CustomImage and d.CustomImage.CustomTile and d.CustomImage.CustomTile.Stretch,
-        name = o.getName(), memo = o.memo or "", xml = o.UI.getXml(), assets = assets, shown = shown, hold = o.UI.getAttribute("gifhold_" .. c, "active"),
+        name = o.getName(), memo = o.memo or "", xml = o.UI.getXml(), assets = assets, shown = shown, hold = o.UI.getAttribute("gifhold_" .. c, "active") or tostring(o.UI.getXml()):match('id="gifhold_' .. c .. '"[^>]-active="(%a+)"'),
         onMat = l ~= nil and math.abs(l.x) <= 0.5 and math.abs(l.z) <= 0.5, inv = table.concat(inv, ","), handRot = Player[c].getHandTransform() and Player[c].getHandTransform().rotation.y }
     end
   end
@@ -43,8 +43,7 @@ const raw = (r, mark) => (r.steps.find((x) => x.step === mark) || {}).value;
 const fxOf = (r, mark) => (r.steps.find((x) => x.step === mark) || {}).fx || [];
 const byC = (v, c) => (v?.list || []).find((f) => f.c === c);
 const CHAT = (who, text, mark) => lua(`return tostring(engineChat(${JSON.stringify(text)}, Player.${who}))`, mark);
-// (as on TTS: the click is on the frame its id names, which must still exist when the click ends)
-const CLICK = (who, id, mark) => lua(`__sim.clicking = engineGif.frames[${JSON.stringify(id.replace(/^.*_/, ""))}] engineGifUiClick(Player.${who}, "-1", ${JSON.stringify(id)}) __sim.clicking = nil if __sim.clickBroke then __sim.clickBroke = nil error("Object reference not set to an instance of an object (the frame was destroyed in its own UI click)") end return "ok"`, mark);
+const CLICK = (who, id, mark) => lua(`engineGifUiClick(Player.${who}, "-1", ${JSON.stringify(id)}) return "ok"`, mark);
 const ACT = (who, action, c, mark) => lua(`local f = engineGif.frames.${c} return tostring(onPlayerAction(Player.${who}, Player.Action.${action}, { f }))`, mark);
 const CONFIG = (on) => msg("gif_config", { on, credit: "Powered By GIPHY", why: on ? "" : "No GIPHY key yet: get one at developers.giphy.com" });
 const SEATED = ["White", "Blue"];
@@ -89,6 +88,10 @@ const SEATED = ["White", "Blue"];
     CHAT("Grey", "mtg gif cats", "spectator"),
   ] });
   ok("main: no errors", !r.errors.length, r.errors.join(" | "));
+  // (an error inside a timer: real TTS shows it in red in everyone's chat; live 2026-11-14 every pick raised "Object reference
+  // not set", the new frame's first XML and an attribute in one frame)
+  const waitErrs = r.steps.flatMap((s) => (s.fx || []).filter((l) => /ERROR/.test(l)));
+  ok("main: no error in a timer (a pick, the new frame's first draw)", waitErrs.length === 0, waitErrs.slice(0, 3).join(" | "));
   // before the bridge's word
   const sentOff = val(r, "sent off")?.list || [];
   ok("off: mtg gif is answered, the line hidden", raw(r, "chat while off") === "false");

@@ -10690,12 +10690,12 @@ function engineGif.redraw(c)
   o.setInvisibleTo(hiders)
 end
 -- the GIF plays for PLAY_S seconds, then the still covers it
-function engineGif.play(c)
+function engineGif.play(c, fresh)
   local G = engineGif
   if G.state[c] == nil or G.state[c].collapsed == true then return end
   G.playing[c] = true
   local o = G.frames[c]
-  if G.alive(o) then o.UI.setAttribute("gifhold_" .. c, "active", "false") end
+  if G.alive(o) and not fresh then o.UI.setAttribute("gifhold_" .. c, "active", "false") end
   if G.holdWait[c] ~= nil then Wait.stop(G.holdWait[c]) end
   G.holdWait[c] = Wait.time(function()
     G.holdWait[c] = nil
@@ -10744,9 +10744,7 @@ function engineGif.spawn(c)
   if G.alive(old) then
     pos, rotY = old.getPosition() + Vector(0, 0.1, 0), old.getRotation().y
     G.frames[c] = nil
-    -- (a frame later: a pick, Clear, Hide or Show is a click on the old frame's own UI, and real TTS raises "Object
-    -- reference not set to an instance of an object" when that object is gone as the click ends, live 2026-11-14)
-    Wait.frames(function() if G.alive(old) then old.destruct() end end, 1)
+    old.destruct()
   else
     pos = G.freeSpot(c, g)
   end
@@ -10779,7 +10777,9 @@ function engineGif.spawn(c)
       G.loaded[c] = id
       if G.dirty[c] then G.dirty[c] = nil return G.spawn(c) end
       if not G.same(G.frames[c], obj) then return end
-      Wait.frames(function() G.redraw(c) if G.playing[c] then G.play(c) end end, 2)
+      -- (fresh: the XML just set already shows it playing; an attribute set in the same frame as a new object's first
+      -- XML raises "Object reference not set to an instance of an object" on real TTS, live 2026-11-14 at every pick)
+      Wait.frames(function() G.redraw(c) if G.playing[c] then G.play(c, true) end end, 2)
     end,
   })
 end
