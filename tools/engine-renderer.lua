@@ -3115,6 +3115,14 @@ do
     FX.start("eng_fx_1", { spot = spot, seat = seat, phases = { { t = 0, img = kind or "ring", col = "#FFFFFFE6", size = 1.0 } }, stop = 3, text = "×3" }, 0)
     return "shown"
   end
+  -- the kinds "mtg fx test <kind>" takes (the host's chat command for the two-player check, docs/two-player-check.md):
+  -- every effect-bundle kind, and "wave"; sorted
+  function engineFxTestKinds()
+    local out = { "wave" }
+    for k in pairs(FX.RIG_NAME) do out[#out + 1] = k end
+    table.sort(out)
+    return out
+  end
   -- Route B: the trigger effect `name` of the sound object (GM notes "engine:sounds", the mtg-sounds bundle) played;
   -- false when there is none on the table, its bundle is still loading or has no effect of that name. With none on the
   -- table, one look over every object each 5 s at most (not one per board); one being retired is passed over.

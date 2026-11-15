@@ -315,6 +315,57 @@ sharing a link share a clip (`treasurespend*` = death's), 52 clips. Index with e
 - The licences are the clips' own (below): the bundle carries the same audio as the links, so publishing it is
   publishing them.
 
+## Kenney CC0 candidates for countered and knockout (made 2026-11-15; not uploaded, not heard)
+
+Why: the repo is public, and `countered` plays the user's `If a spell is countered.ogg`, whose source and licence are
+unknown (**not cleared**, "Flags" below). These are cleared replacements to choose from. `knockout` is ours and
+already cleared; its two Kenney candidates are only an alternative if the user prefers a real explosion. Nothing on
+the table changes until a candidate is uploaded and its link pasted in: the slots `engineSounds.countered` and
+`engineSounds.knockout` already exist (an empty or nil slot is silent, no error: `mtg sounds test <kind>` says "No
+sound picked").
+
+**Sources** (downloaded 2026-11-15 from kenney.nl itself, into `assets/sounds/kenney-cc0/download/`, gitignored; the
+packs' `License.txt` read: "Creative Commons Zero, CC0 ... Credit (Kenney or www.kenney.nl) would be nice but is not
+mandatory"):
+
+| Pack | Page | Zip | sha256 |
+|---|---|---|---|
+| Digital Audio, Kenney Vleugels | https://kenney.nl/assets/digital-audio | `kenney_digital-audio.zip` (990,367 bytes) | `24e6ce28b76a6d8c89cff4d331e0965ff5c3de8a73c612028e9d363cc64e4f06` |
+| Sci-fi Sounds, Kenney Vleugels | https://kenney.nl/assets/sci-fi-sounds | `kenney_sci-fi-sounds.zip` (5,875,104 bytes) | `119340f351a5098ad814f78719438c0da355a9ce8a4c8a3af6a8d48aa3d49e04` |
+
+**How they were made**: `node tools/make-kenney-sounds.js <packDir> <outDir> <uploadDir> <workDir>` (run from the
+worktree with the main checkout's `assets/sounds/kenney-cc0/download`, `assets/sounds/tts`, `tmp/upload7`,
+`tmp/sounds-kenney-work`). Treasure's recipe (above): low-passed at 18.6 kHz, trimmed at -60 dBFS, loudest 400 ms at
+-13 LUFS on the mp3, peaks under -1 dBFS (6 dB of limiting at most), **cut at 1.75 s**, 80 ms fade-out, padded to
+2 s, libmp3lame 192 kbps, 44.1 kHz, ID3v2.3, title "MTG effect countered" / "MTG effect knockout". Because every file is
+2.00 s, none needs an `engineSoundLen` entry. Two runs made the same four sha256s.
+
+| File (`tmp/upload7/`, also `assets/sounds/tts/`) | For | From | Sound | Limited | sha256 |
+|---|---|---|---|---|---|
+| mtg5-countered-kenney-a.mp3 | countered | Digital Audio `phaserDown3.ogg`: a falling phaser, the spell fizzling | 0.44 s | 0.1 dB | `adf63b02e48986c27864f061aeaf3159ede579f7f8cbc01427ce269a0c4be818` |
+| mtg5-countered-kenney-b.mp3 | countered | Digital Audio `lowDown.ogg`: a low falling tone | 0.65 s | no | `fe1be2d33361ce63602e42809a51959cede0ba23a9281d1a23756abfaa39ea98` |
+| mtg5-knockout-kenney-a.mp3 | knockout | Sci-fi Sounds `explosionCrunch_004.ogg`: a crunching explosion (its last 0.23 s faded off) | 1.75 s | 3.2 dB | `5c4acf5826bab8be4530d59c2c050871aeb706586a6701e624536152928f6cc6` |
+| mtg5-knockout-kenney-b.mp3 | knockout | Sci-fi Sounds `lowFrequency_explosion_000.ogg`: a deep boom (its last 0.25 s faded off) | 1.75 s | no | `3c306d36dc8b6947a078d04d04af8c6cd456c9c131558e96f3b922e87230184a` |
+
+**What the user does** (one per kind, or none to keep today's):
+
+1. Listen to the four files in `C:\Users\bruhm\mtg-tts\tmp\upload7\` and pick (say `countered-kenney-a`; for
+   knockout, keep ours or pick one).
+2. In TTS: Modding → Cloud Manager → upload the picked mp3 (any folder). Right-click it → copy the link.
+3. Paste the link where the kind's link is now, replacing it:
+   - `tools/engine-renderer.lua`, in `engineSounds = engineSounds or {`: the line `countered = "https://..."` (or
+     `knockout = "https://..."`);
+   - this file, the first table: the `mtg-countered.mp3` (or `mtg-knockout.mp3`) row's Link, and its "Original file"
+     to the Kenney file's name; and the licence table below: the row moves to "Kenney, CC0".
+   Or just send Claude the link and which file it is: Claude downloads it back, checks it against the sha256 above,
+   and does both edits.
+4. The route B sound bundle (`mtg-sounds.unity3d`, "The sound bundle" above) holds the old clip for that key, so
+   `tests/test_table_effects.js` fails until it is rebuilt (`node tools/make-sound-bundle-clips.js`, then the Unity
+   build, `docs/m5-assetbundle-build.md` section 4); until then that key plays its link, which is the new one.
+5. Deploy, then as the host `mtg sounds test countered` / `mtg sounds test knockout`.
+
+Credit line, should one be used (a courtesy, not required): "Countered / knockout sound: Kenney (www.kenney.nl), CC0".
+
 ## Licences and sources (checked 2026-11-11)
 
 The user supplied the six as files, with no source pages (session uploads `Health_gain.aif`,

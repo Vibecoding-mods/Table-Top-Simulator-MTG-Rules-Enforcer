@@ -1171,6 +1171,37 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
   ok("rig engineFxTest: plays the named effect on a rig", t.step("fx test").value === "shown" && JSON.stringify(one(14)) === '["exile"]', JSON.stringify([t.step("fx test").value, since(14)]));
 }
 
+// "mtg fx test <kind> [colour]" (host; docs/two-player-check.md): engineFxTest from chat, at the card under the host's
+// pointer, else the colour's seat, else the host's own; an unknown kind lists the kinds; a guest is told no
+{
+  const s0 = base();
+  const chat = (text, who, mark) => lua(`engineChat("${text}", Player.${who}) return "x"`, mark, 150);
+  const hover = (id) => lua(`local g = nil for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:${id}" then g = o.getGUID() end end
+    __sim.hover = { Blue = g } return g or ""`, "hover", 1);
+  const t = run([
+    rigs(3, RIG_NAMES), send(s0, "first board"), RIGQ, posOf(["b1"]),
+    lua(`local p = enginePlayerSpot("White") return JSON.encode({ x = p.x, z = p.z })`, "white spot", 1),
+    lua(`local p = enginePlayerSpot("Blue") return JSON.encode({ x = p.x, z = p.z })`, "blue spot", 1),
+    hover("b1"), chat("mtg fx test exile", "Blue", "on card"), RIGQ,
+    chat("mtg fx test death white", "Blue", "at white"), RIGQ,
+    lua(`__sim.hover = nil return "x"`, "unhover", 1), chat("mtg fx test knockout", "Blue", "at host"), RIGQ,
+    hover("fx"), chat("mtg fx test lifegain", "Blue", "on a rig"), RIGQ,
+    chat("mtg fx test boom", "Blue", "unknown"), chat("mtg fx test death", "White", "guest"), chat("mtg fx test death purple", "Blue", "no seat"), RIGQ,
+  ]);
+  ok("fx test chat: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
+  const q = t.all("rigq").map((s) => JSON.parse(s.value || "[]"));
+  const since = (i) => playedSince(q[i - 1], q[i], RIG_NAMES);
+  const b1 = t.value("pos").b1, white = t.value("white spot"), blue = t.value("blue spot");
+  const told = (mark) => t.fx(mark).filter((l) => l.includes('"Player.broadcast"')).join(" | ");
+  ok("fx test chat: plays the kind at the card under the host's pointer", since(1).length === 1 && since(1)[0].name === "exile" && near(since(1)[0].x, b1.x) && near(since(1)[0].z, b1.z) && told("on card").includes("fx test exile: shown"), JSON.stringify({ p: since(1), b1, told: told("on card") }));
+  ok("fx test chat: a colour named plays at that seat, not the hovered card", since(2).length === 1 && since(2)[0].name === "death" && near(since(2)[0].x, white.x) && near(since(2)[0].z, white.z), JSON.stringify({ p: since(2), white }));
+  ok("fx test chat: no card hovered, no colour: the host's own seat", since(3).length === 1 && since(3)[0].name === "knockout" && near(since(3)[0].x, blue.x) && near(since(3)[0].z, blue.z), JSON.stringify({ p: since(3), blue }));
+  ok("fx test chat: an engine object that is no card falls back to the seat", since(4).length === 1 && since(4)[0].name === "lifegain" && near(since(4)[0].x, blue.x), JSON.stringify({ p: since(4), blue }));
+  ok("fx test chat: an unknown kind lists the kinds", told("unknown").includes("with one of: burn, counter, counter_minus, countered, damage, death, exile, knockout, lifegain, player, wave, wipe. Point at a card"), told("unknown"));
+  ok("fx test chat: a guest is told only the host can", told("guest").includes("Only the host can test the table's particle effects"), told("guest"));
+  ok("fx test chat: a colour with no seat says so and plays nothing", told("no seat").includes("no such card or colour on the table") && since(5).length === 0, JSON.stringify({ told: told("no seat"), p: since(5) }));
+}
+
 // a bundle with only "death": the rest fall back (a wipe plays "death"; a counter takes a slot; an exile shows nothing)
 {
   const s0 = base();

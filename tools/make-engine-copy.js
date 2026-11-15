@@ -354,11 +354,40 @@ function engineChat(message, pl)
     if not pl.host then pl.broadcast("[MTG] Only the host can turn the table's animations on or off (everyone sees them).")
     else engineSetAnimations(rest ~= "off", pl.steam_name) end
   elseif cmd == "fx" then
-    -- the table's particle effects (docs/particle-fx-spec.md): shared, so the host's switch; saved with the game
-    if rest == "on" or rest == "low" or rest == "off" then
+    -- the table's particle effects (docs/particle-fx-spec.md): shared, so the host's switch; saved with the game.
+    -- "mtg fx test <kind> [colour] [W|U|B|R|G|C|M]" (host): one effect now (engineFxTest), for the two-player check
+    -- (docs/two-player-check.md): at the card under the host's pointer, else at the colour's seat, else the host's;
+    -- wave sweeps from that seat in the colour key (B when none)
+    local test = rest:match("^test%s*(.*)$")
+    if test ~= nil then
+      local kinds = engineFxTestKinds ~= nil and engineFxTestKinds() or {}
+      local kind, seat, key = nil, nil, nil
+      for w in test:gmatch("%a+") do
+        if kind == nil then kind = w
+        elseif #w == 1 and ("wubrgcm"):find(w, 1, true) then key = w:upper()
+        else seat = w:sub(1, 1):upper() .. w:sub(2) end -- (engineFxTest says when it is no seat's colour)
+      end
+      local known = false
+      for _, k in ipairs(kinds) do if k == kind then known = true end end
+      if not isHost then pl.broadcast("[MTG] Only the host can test the table's particle effects (everyone sees them).")
+      elseif not known then pl.broadcast("[MTG] Type  mtg fx test <effect> [colour]  with one of: " .. table.concat(kinds, ", ") .. ". Point at a card first to play it there.")
+      else
+        local o = pl.getHoverObject()
+        -- (an engine object's GM notes are "engine:<its id>"; one that isn't a card, a rig say, falls back to the seat)
+        local id = seat == nil and o ~= nil and tostring(o.getGMNotes()):match("^engine:(.+)$") or nil
+        local at = seat or pl.color
+        local said
+        if kind == "wave" then said = engineFxTest("wave", at, key or "B")
+        else
+          said = id and engineFxTest(kind, id)
+          if not id or said == "no such card or colour on the table" then said = engineFxTest(kind, at) end
+        end
+        pl.broadcast("[MTG] fx test " .. kind .. ": " .. tostring(said) .. ".", {1, 0.85, 0.4})
+      end
+    elseif rest == "on" or rest == "low" or rest == "off" then
       if not isHost then pl.broadcast("[MTG] Only the host can change the table's particle effects (everyone sees them).")
       else engineSetFxMode(rest, pl.steam_name) end
-    else pl.broadcast("[MTG] Table particle effects: " .. tostring(engineFxMode) .. ". Type  mtg fx on ,  mtg fx low  (a wipe's wave without each card's own effect, no bolts) or  mtg fx off  (host).", {1, 0.85, 0.4}) end
+    else pl.broadcast("[MTG] Table particle effects: " .. tostring(engineFxMode) .. ". Type  mtg fx on ,  mtg fx low  (a wipe's wave without each card's own effect, no bolts) or  mtg fx off  (host); mtg fx test <effect> [colour]  plays one now (host).", {1, 0.85, 0.4}) end
   elseif cmd == "concede" then
     -- out for good, so it asks once more: "mtg concede" twice within 15 seconds
     engineConcedeAsk = engineConcedeAsk or {}
