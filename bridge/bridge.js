@@ -2230,6 +2230,8 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
     bp, bt,
     ctr: Object.fromEntries(Object.entries(c.counters || {}).filter(([, k]) => k)), dmg: c.damage || 0,
     att: c.attachedTo || null, tok: !!c.identity.isToken, sick: !!c.summoningSick, ctl: game.slotColor[c.controllerId] || null,
+    // (a battle's protector, by colour: the table's attack line names it, engineAttackTargetName)
+    ...(c.protectorId && game.slotColor[c.protectorId] ? { prot: game.slotColor[c.protectorId] } : {}),
     // in combat: attacking (and at whom), blocking (from the game's blocker list)
     atk: !!c.isAttacking, atkT: c.isAttacking ? (game.slotColor[c.attackTargetId] || c.attackTargetId || null) : null,
     blk: !!(blockers && blockers.has(c.id)), blkOf: blockers?.get?.(c.id) || null, // (the attackers it blocks: lines)
@@ -2291,6 +2293,31 @@ function statusLists(c, marks) {
   return { ...(kw.length ? { kw } : {}), ...((kw.length || c.phasedOut) && own.length ? { ow: own } : {}) };
 }
 
+// A battle (CR 310) in words, for its status box, hover note, attack question and log: null for any other card.
+// { name, ctl: its controller's name, prot: its protector's name (null before one is chosen), defense: its defense
+// counters (null when it shows none), siege: a Siege (CR 310.11: its controller attacks it too, and when defeated
+// exiles it and may cast it transformed), back: its back face's name when known (Scryfall's, otherSide) }. A real
+// game 2026-11-14: "invasion of ikoria is confusing needs to be explained".
+function battleFacts(c) {
+  if (!c || !(c.types || []).includes("Battle")) return null;
+  const name = c.identity?.name || "This battle";
+  const n = Object.entries(c.counters || {}).find(([k]) => /^defense$/i.test(k))?.[1];
+  const siege = (c.subtypes || []).includes("Siege");
+  return { name, ctl: nameOf(c.controllerId) || "its controller", prot: c.protectorId ? nameOf(c.protectorId) : null,
+    defense: n == null ? null : Number(n), siege, back: siege ? otherSide(c, name)?.name || null : null };
+}
+// The battle's rules as one hover note (CR 310.6 defense counters, 310.8 the protector, 508.1b who may attack it,
+// 509.1a its protector blocks for it, 704.5v defeated at 0, 310.11 a Siege's controller and back face)
+function battleNote(c) {
+  const b = battleFacts(c);
+  if (!b) return null;
+  const left = b.defense == null ? "" : ` (${b.defense} left)`;
+  const prot = b.prot ? ` ${b.prot} protects it: only ${b.prot}'s creatures can block for it, and ${b.prot} can't attack it.` : "";
+  const who = b.prot ? (b.siege ? ` Anyone else can attack it, ${b.ctl} too.` : " Anyone else can attack it.") : "";
+  const end = b.siege ? `${b.ctl} exiles it and may cast ${b.back || "its back face"} free` : "it goes to the graveyard";
+  return `Battle: attack it like a player. Each 1 damage to it takes off a defense counter${left}.${prot}${who} With no defense counters left it is defeated: ${end}.`;
+}
+
 // The states Forge keeps on a permanent that its picture doesn't show, as status box words (engine1112: CardDto
 // exerted, skipsNextUntap, monstrous, saddled/saddledBy, harnessed, solved, unlockedDoors, pairedWith, protectorId,
 // cantAttack, cantBlock, mustAttack; docs/readability-audit-2026-11-12.md E3-E5). An older engine sends none of the new
@@ -2311,6 +2338,8 @@ function cardStateWords(c) {
   if (doors.length) out.push(doors.length > 1 ? "Both doors unlocked" : `Unlocked: ${doors[0]}`);
   if (c.pairedWith) out.push(`Paired with ${card(c.pairedWith)}`);
   if (c.protectorId) out.push(`Protected by ${nameOf(c.protectorId)}`);
+  const bt = battleFacts(c);
+  if (bt) out.push(bt.siege ? `At 0 defense: ${bt.ctl} may cast ${bt.back || "its back face"} free` : "At 0 defense: defeated");
   if (c.attachedToPlayer) out.push(`Attached to ${nameOf(c.attachedToPlayer)}`);
   // (Forge flags a creature with defender as unable to attack: its own keyword says so already. A suspected creature's
   // line says it can't block.)
@@ -2403,11 +2432,14 @@ const delayedWordsOf = (id) => game?.delayedNow?.cards.get(id) || [];
 
 // What a card in a graveyard or exile can still do, and its counters in exile (suspend's time counters, Dauthi
 // Voidwalker's void counters): the table puts these in its hover text and on its pile, as the cards inside a pile deck
-// show no status box
+// show no status box; and a battle on the battlefield, what it is (battleNote)
 // row: the card is drawn in a seat's playable row (playNote; a graveyard card says it came from there)
 function cardNotes(c, zone, row = false) {
   const nt = [];
   if (zone === "graveyard" && row) nt.push("From the graveyard");
+  // (a battle on the battlefield: what it is and how it ends, in its hover text)
+  const battle = zone === "battlefield" ? battleNote(c) : null;
+  if (battle) nt.push(battle);
   if (zone === "graveyard" && c.flashbackCost) {
     const cost = keywordCostText(c, "Flashback", c.flashbackCost);
     nt.push(cost ? `Flashback ${cost}` : "Has flashback");
@@ -3007,6 +3039,9 @@ function logSnapshot(pub, prev = null) {
         ...(c.isPlotted ? { plotted: true } : {}), ...(c.attachedTo ? { att: c.attachedTo } : {}),
         // (the Ring-bearer, for the Ring's tempt line: readability audit C7)
         ...(c.isRingBearer ? { rb: true } : {}),
+        // (a battle and its protector, for the attack line: "Red attacks Invasion of Ikoria (Red)" read as Red's own
+        // permanent attacked, real game 2026-11-14)
+        ...((c.types || []).includes("Battle") ? { bat: true, ...(c.protectorId ? { prot: c.protectorId } : {}) } : {}),
         ...(c.exiledWith ? { ew: c.exiledWith, rl: !!c.returnsWhenHostLeaves } : {}),
         // (a prepared creature's spell copy: its creature, for the prepare and cast lines; notePrepared)
         ...(z.zone === "exile" && prepared.has(c.id) ? { prep: prepared.get(c.id).host, prepBy: prepared.get(c.id).hostName } : {}),
@@ -5176,6 +5211,7 @@ function logEvents(prev, cur, pub, facts = null) {
     if (!id) return null;
     if (/^player-/.test(id)) return who(id);
     const d = cur.cards[id] || prev.cards[id];
+    if (d?.bat) return `${d.name} (${who(d.ctl)}'s battle${d.prot ? `, protected by ${who(d.prot)}` : ""})`;
     return d ? `${d.name} (${who(d.ctl)})` : null;
   };
   const attackLines = Object.values(attackers).map(({ ctl, target, names }) => {
@@ -6408,7 +6444,11 @@ function defenderWords(gv, input, id) {
   const c = cardIndex(gv)[id];
   const kind = (input.attackTargets || []).find((t) => t.id === id)?.kind || ((c?.types || []).includes("Battle") ? "battle" : "planeswalker");
   const label = c?.identity?.name || (input.attackTargets || []).find((t) => t.id === id)?.label || id;
-  return c?.controllerId ? `${label} (${nameOf(c.controllerId)}'s ${kind})` : label;
+  // (a battle with its defense and protector: "Invasion of Ikoria (Red's battle)" didn't say who defends it, real game
+  // 2026-11-14)
+  const b = kind === "battle" ? battleFacts(c) : null;
+  const more = b ? `${b.defense != null ? `, ${b.defense} defense` : ""}${b.prot ? `, protected by ${b.prot}` : ""}` : "";
+  return c?.controllerId ? `${label} (${nameOf(c.controllerId)}'s ${kind}${more})` : label;
 }
 
 // What the attack question reminds the player of before they pick (docs/attack-reminder-spec.md part 2; the user
@@ -6551,6 +6591,15 @@ function attackReminder(gv, input, slot) {
     } else {
       lines.push(`Can't attack ${defenderWords(gv, input, d)}: ${missing.map((a, i) => `${name(byId[a.attackerId] || { id: a.attackerId })}${reasons[i] ? ` (${reasons[i]})` : ""}`).join(", ")}.`);
     }
+  }
+  // (each battle that can be attacked, what attacking it does: a real game 2026-11-14 found Invasion of Ikoria
+  // confusing, its protector named nowhere)
+  for (const d of defenders) {
+    const b = battleFacts(byId[d]);
+    if (!b) continue;
+    const left = b.defense != null ? ` (${b.defense} left)` : "";
+    const end = b.siege ? `${b.ctl} may cast ${b.back || "its back face"} free` : "it is defeated";
+    lines.push(`${b.name} is a battle: damage to it takes off defense counters${left}${b.prot ? `, and ${b.prot} protects it (can block)` : ""}. At 0, ${end}.`);
   }
   const note = notes.length ? `${taxed.length ? "Attack tax: " : ""}${notes.join("; ")}.` : "";
   return { lines, note: note.charAt(0).toUpperCase() + note.slice(1), cantAttack, taxAt };
@@ -6759,6 +6808,11 @@ function yesNoWords(title, src, input) {
   let m;
   if ((m = q.match(/^Cancel Search\? Up to (\d+) more card\(s\) can be selected\.?$/i))) {
     q = "Stop searching?"; more = `You can still choose ${m[1]} more card${m[1] === "1" ? "" : "s"}.`; yes = "Stop searching"; no = "Keep searching";
+  } else if ((m = q.match(/^Would you like to search your library with this ability\? If you do, your library will be shuffled\.(?: (\d+) cards? match your searching type in Alternate Zones\.)?\??$/i))) {
+    // (Forge's search of a library "and/or graveyard", Invasion of Ikoria's: "... 1 cards match your searching type in
+    // Alternate Zones.?", real game 2026-11-14; the graveyard is asked next)
+    q = "Search your library?"; yes = "Search"; no = "Don't search";
+    more = `Your library is shuffled after.${m[1] && m[1] !== "0" ? ` ${m[1]} card${m[1] === "1" ? "" : "s"} outside your library fit too (asked next).` : ""}`;
   } else if ((m = q.match(/^\[Explore\] Put (.+?) in your graveyard\?$/i))) {
     // (Forge's "[Explore] Put X in your graveyard?" with Yes / No, hp-06 #17 2026-10-28)
     q = `Explore: put ${m[1]} into your graveyard?`; yes = "Graveyard"; no = "Keep on top";
@@ -6791,6 +6845,14 @@ function yesNoWords(title, src, input) {
     // hp-25 T11 T17 2026-10-27; Forge's raw "Apply replacement effect of X?\r\n<its text>" reaches here as it is)
     q = src ? `${src}: ${m[1]}?` : `${m[1][0].toUpperCase()}${m[1].slice(1)}?`;
     more = String(input.abilityText).trim();
+  } else if ((m = q.match(/^Do you want to play (.+?) transformed\?$/i))) {
+    // (a defeated Siege's cast, CR 310.11b: "Cast Invasion of Ikoria transformed?" named neither the back face nor that
+    // it is free, real game 2026-11-14)
+    const back = otherSide({}, m[1])?.name;
+    const defeated = /\bis defeated\b/i.test(String(input.abilityText || ""));
+    q = defeated ? `${m[1]} is defeated: cast ${back || "its back face"} free?` : `Cast ${m[1]} transformed${back ? `, as ${back}` : ""}?`;
+    yes = "Cast it"; no = defeated ? "Leave it exiled" : "Don't cast";
+    if (defeated) more = `Its last defense counter is gone, so it was exiled. Cast it as ${back || "its back face"} without paying its mana cost, or it stays in exile.`;
   } else if ((m = q.match(/^Do you want to play (.+?)\?$/i))) {
     // (Madness: "Cast Emrakul, the World Anew?" said neither the cost nor where it goes otherwise, hp-06 2026-10-28)
     const madness = String(input.abilityText || "").match(/^Play Madness ((?:\{[^}]+\})+)/i);
@@ -9122,8 +9184,12 @@ function onPrompt(seat, prompt) {
       if (input.options.length === 1 && (input.minTotal ?? 0) >= 1) { seat.respond(prompt.promptId, type, { type: "selectionDecision", chosenIndices: [0] }); return; }
       // nor the order of one card's own enter effects, which all apply ("enters tapped", "Graft 1 (... enters with a
       // +1/+1 counter ...)"): Llanowar Reborn asked "choose one" over them, hp-18
-      if (input.maxTotal === 1 && (input.minTotal ?? 0) === 1 && /^(?:Play land|Cast )/i.test(String(prompt.sourceAbilityText || ""))
-        && input.options.length > 1 && input.options.every((o) => /\benters\b/i.test(String(o.label || "")))) {
+      // (and with no ability text, when each is the card's own: a Siege's "(As a Siege enters, choose an opponent to
+      // protect it. ...)" and "Invasion of Ikoria enters with six defense counters on it." read "choose one: Choice 1 |
+      // ...", real game 2026-11-14; both apply, the protector is asked next)
+      const ownEnter = (l) => (src && l.includes(`${src} enters`)) || /^\(As an? [A-Z][\w-]* enters\b/.test(l);
+      if (input.maxTotal === 1 && (input.minTotal ?? 0) === 1 && input.options.length > 1 && input.options.every((o) => /\benters\b/i.test(String(o.label || "")))
+        && (/^(?:Play land|Cast )/i.test(String(prompt.sourceAbilityText || "")) || (!prompt.sourceAbilityText && input.options.every((o) => ownEnter(String(o.label || "")))))) {
         seat.respond(prompt.promptId, type, { type: "selectionDecision", chosenIndices: [0] }); return;
       }
       // Arena: "Choose one —". A title that is just the card's name (or "Choose") says what to do; counter kinds read
@@ -9182,6 +9248,20 @@ function onPrompt(seat, prompt) {
           if (game && damageOrder) game.orderAnswer = { turn: gv.turn, step: gv.step, first: labels[Number(a[0])] == null ? null : whose(labels[Number(a[0])]) };
           return { type: "selectionDecision", chosenIndices: a.map(Number) };
         };
+        break;
+      }
+      // a battle's protector (CR 310.8; Forge's description "Choose an opponent to protect this battle" under the card's
+      // name): "Invasion of Ikoria: choose one: Blue | White | Yellow" said nothing of what the pick does, real game
+      // 2026-11-14. Asked over the opponents' names, with what it means.
+      if (/\bprotect this battle\b/i.test(String(input.presentation?.description || "")) || (title === src && (prompt.sourceCard?.types || []).includes("Battle")
+        && input.options.length && input.options.every((o) => (game?.playerOrder || []).includes(String(o.label ?? ""))))) {
+        const b = battleFacts(prompt.sourceCard) || { name: src || "This battle", siege: true, back: null };
+        const end = b.siege ? `you exile it and may cast ${b.back || "its back face"} free` : "it is defeated";
+        ui = { title: `${b.name}: which opponent protects this battle?`, mode: "single",
+          text: "They defend it: only their creatures can block for it. You and the other players can attack it. Each 1 damage takes off a defense counter."
+            + ` When the last one is gone, ${end}.`,
+          options: input.options.map((o, i) => ({ id: i, label: displayText(String(o.label ?? "")) })) };
+        toOutput = (a) => ({ type: "selectionDecision", chosenIndices: a.map(Number) });
         break;
       }
       // players and permanents to choose from, no target (see entityChoiceIds): asked as a target question, so a life
@@ -9306,7 +9386,9 @@ function onPrompt(seat, prompt) {
       const az = (x, y) => String(x).localeCompare(String(y), undefined, { numeric: true });
       for (const at of [...input.attackers].sort((x, y) => az(attackerLabel(x.attackerId), attackerLabel(y.attackerId)))) {
         if (many(at)) pairs.push({ id: `${at.attackerId}|?`, label: `${attackerLabel(at.attackerId)} → whom? (asked next)` });
-        const targets = at.validTargetIds.map((tid) => ({ id: `${at.attackerId}|${tid}`, label: `${attackerLabel(at.attackerId)} → ${cname(tid)}` }));
+        // (a battle says so, and who protects it: "→ Invasion of Ikoria" alone read as any permanent, real game 2026-11-14)
+        const battleOf = (tid) => { const b = battleFacts(byId[tid]); return b ? ` (battle${b.prot ? `, ${b.prot} protects it` : ""})` : ""; };
+        const targets = at.validTargetIds.map((tid) => ({ id: `${at.attackerId}|${tid}`, label: `${attackerLabel(at.attackerId)} → ${cname(tid)}${battleOf(tid)}` }));
         pairs.push(...targets.sort((x, y) => az(x.label, y.label)));
       }
       const must = input.attackers.filter((a) => a.mustAttack && a.validTargetIds.length);
@@ -9381,7 +9463,15 @@ function onPrompt(seat, prompt) {
       const attackerLabel = numberedLabels(input.attackers.map((at) => at.attackerId), byId, cname);
       for (const at of input.attackers) for (const b of at.validBlockerIds) pairs.push({ id: `${b}|${at.attackerId}`,
         label: `${blockerLabel(b)} blocks ${attackerLabel(at.attackerId)}${at.minBlockers > 1 ? ` (needs ${at.minBlockers}+ blockers)` : ""}${at.mustBeBlocked ? " (must be blocked)" : ""}` });
-      ui = { title: "Choose blockers", mode: "multi", min: 0, max: pairs.length, options: pairs, text: input.error };
+      // (a battle the blocking player protects, attacked: which attackers go at it and what their damage does, CR 509.1a)
+      const atBattle = new Map();
+      for (const at of input.attackers) {
+        const b = battleFacts(byId[byId[at.attackerId]?.attackTargetId]);
+        if (b) atBattle.set(b.name, [...(atBattle.get(b.name) || []), attackerLabel(at.attackerId)]);
+      }
+      const battleLines = [...atBattle].map(([name, who]) => `${who.join(", ")} ${who.length === 1 ? "attacks" : "attack"} ${name}, the battle you protect. Damage that gets through takes off its defense counters.`);
+      const blockText = [input.error, ...battleLines].filter(Boolean).join("\n");
+      ui = { title: "Choose blockers", mode: "multi", min: 0, max: pairs.length, options: pairs, text: blockText || input.error };
       toOutput = (a) => {
         const byBlocker = {};
         for (const v of a) { const [b, at] = v.split("|"); byBlocker[b] = at; }
@@ -9504,8 +9594,10 @@ function onPrompt(seat, prompt) {
         const said = displayText(`${src ? `${src}: ` : ""}${String(title || "").split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean).join(". ")}`);
         // (a vote: "AI 1 vote Errant (141)", "Current Votes:{Errant (141)=[White, AI 1]}" -> "AI 1 voted for Errant", "Votes: Errant: White, AI 1";
         // said so in the game log too, and Forge's "Money =[" with no space before the colon, hp-22 #10 2026-10-28)
+        // (a battle's protector picked: "Invasion of Ikoria: Red picked Yellow" said what was picked for, real game 2026-11-14)
+        const protects = (prompt.sourceCard?.types || []).includes("Battle") && / picked [^:]+$/.test(said) ? " to protect it" : "";
         const plain = said.replace(/ \(\d+\)/g, "").replace(/\b(\w[\w ]*?) vote (?!for)/g, "$1 voted for ")
-          .replace(/Current Votes:\{(.*)\}/, (m, v) => `Votes: ${v.replace(/\s*=\[([^\]]*)\]/g, ": $1").replace(/, (?=[^:]*:)/g, "; ")}`);
+          .replace(/Current Votes:\{(.*)\}/, (m, v) => `Votes: ${v.replace(/\s*=\[([^\]]*)\]/g, ": $1").replace(/, (?=[^:]*:)/g, "; ")}`) + protects;
         const toMe = plain.split(`${me} `).join("You ").replace(/: You /, ": you ");
         chat(`[MTG] ${toMe}`, seat.color);
         // (a player's own pick by a card: "White saw: Incarnation Technique: White picked AI 1", hp-23 gap)
@@ -9520,7 +9612,7 @@ function onPrompt(seat, prompt) {
         // not "<seat> saw:" once per human seat, readability audit C8; any other notice as each seat is shown it)
         const vote = !mine && !flip && !roller && / voted for |\bVotes: /.test(plain);
         if (vote) tableNotice(`vote|${plain}`, seat.color, plain);
-        else if (game) gameLogLine(mine && mine[2] === me ? `${me} chooses ${mine[3]} (${mine[1]})`
+        else if (game) gameLogLine(mine && mine[2] === me ? (protects ? `${me} chooses ${mine[3].slice(0, -protects.length)} to protect ${mine[1]}` : `${me} chooses ${mine[3]} (${mine[1]})`)
           : flip ? `${me} ${flip[2]}s the flip${flip[1] ? ` (${flip[1]})` : ""}`
             : roller ? `${roller} rolls ${roll[3]}${roll[1] ? ` (${roll[1]})` : ""}` : `${seat.color} saw: ${plain}`);
         seat.respond(prompt.promptId, type, { type: "revealCardsAcknowledged" });

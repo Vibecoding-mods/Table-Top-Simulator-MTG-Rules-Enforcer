@@ -6579,7 +6579,8 @@ function engineBlockerName(color, b)
   return (at and l:sub(1, at - 1)) or (x ~= nil and not x.isDestroyed() and x.getName():match("^[^\n]*")) or "It"
 end
 -- What an attack's target reads as in the chat that confirms it: a player by name ("AI 1"), a planeswalker by its name
--- and its controller's ("Jace Beleren (AI 1)"), from the board last drawn
+-- and its controller's ("Jace Beleren (AI 1)"), a battle with its protector ("Invasion of Ikoria (Red's battle,
+-- protected by Yellow)": "(Red)" alone read as Red's own permanent, real game 2026-11-14), from the board last drawn
 function engineAttackTargetName(target)
   local players = (lastTable and lastTable.players) or {}
   for _, pl in ipairs(players) do
@@ -6589,9 +6590,14 @@ function engineAttackTargetName(target)
     for _, c in ipairs(pl.battlefield or {}) do
       if c.id == target then
         local ctl = c.ctl or pl.color
-        local owner = ctl
-        for _, q in ipairs(players) do if q.color == ctl then owner = q.name or q.color end end
-        return tostring((engineStatic[target] or {}).n or c.n or "That planeswalker") .. " (" .. tostring(owner) .. ")"
+        local owner, prot = ctl, c.prot
+        for _, q in ipairs(players) do
+          if q.color == ctl then owner = q.name or q.color end
+          if c.prot ~= nil and q.color == c.prot then prot = q.name or q.color end
+        end
+        local name = tostring((engineStatic[target] or {}).n or c.n or "That planeswalker")
+        if prot ~= nil then return name .. " (" .. tostring(owner) .. "'s battle, protected by " .. tostring(prot) .. ")" end
+        return name .. " (" .. tostring(owner) .. ")"
       end
     end
   end
