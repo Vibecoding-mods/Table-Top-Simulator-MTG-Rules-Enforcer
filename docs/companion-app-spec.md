@@ -210,8 +210,13 @@ The package ships no table (Steam Subscriber Agreement 2.G/6.B), only the patche
 - the made save's hash is compared with `version.json` `save` (made from the packager's copy): equal is green;
   different is amber ("Your Workshop copy of the table isn't the one this package was checked with ...") but still
   installed, and `stack\deployed.json` `table` is set to the built stamp (the old one kept as `tablePackage`), so the TTS light expects the stamp actually installed;
-- the 6-player table (2293586471) has a slot in `make-table.js` `TABLES["6p"]` with no patcher yet; nothing uses it
-  until one exists.
+- the 6-player table (2293586471) has a slot in `make-table.js` `TABLES["6p"]` with no patcher yet: `version.json`
+  `tables` lists it (`optional: true`, `makeable: false`) and the READMEs give its Workshop link, but nothing makes
+  it until a patcher exists.
+- the builders refuse to write a package that holds a table (`tableCopies`: a JSON under `table\`, a file named
+  like a TTS save or a Workshop id, or any file that parses as a TTS save, read whole); `node
+  tests/test_friend_package.js <zip>` checks a built zip the same way, and byte for byte against this PC's Workshop
+  copy and the table made from it.
 
 Then it installs the made file:
 `Logic.PlanSave` (`Logic.cs:413-443`) never writes over a file the app did not install:

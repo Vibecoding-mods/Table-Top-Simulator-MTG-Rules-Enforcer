@@ -29,6 +29,9 @@ const TABLES = {
   "6p": { id: "2293586471", players: 6, saveName: "MTG Table 6 players (rules engine)", file: "MTG Table 6p.json", patcher: null, optional: true },
 };
 for (const t of Object.values(TABLES)) t.url = workshopUrl(t.id);
+// The package's version.json "tables": every table, the ones without a patcher listed (optional, makeable false) so
+// the host sees its Workshop link, but never made
+const versionTables = () => Object.entries(TABLES).map(([key, t]) => ({ key, id: t.id, url: t.url, saveName: t.saveName, file: t.file, optional: t.optional, makeable: !!t.patcher }));
 // what the patcher needs beside it (make-engine-copy.js appends both scripts to the table's Global script)
 const PATCHER_FILES = ["make-table.js", "make-engine-copy.js", "engine-json.lua", "engine-renderer.lua"];
 
@@ -57,7 +60,7 @@ function renameSave(raw, name) {
 function finish(engineRaw, saveName) {
   const old = JSON.parse(engineRaw).LuaScript;
   if (typeof old !== "string") throw new Error("the engine save has no table script");
-  const { stamp } = stamped(lf(old)); const script = lf(old);
+  const { stamp, script } = stamped(lf(old));
   const oldJson = JSON.stringify(old);
   if (engineRaw.split(oldJson).length !== 2) throw new Error("the table script isn't in the engine save once");
   const out = engineRaw.split(oldJson).join(JSON.stringify(old.includes("\r\n") ? script.replace(/\n/g, "\r\n") : script));
@@ -121,4 +124,4 @@ function main(argv) {
 }
 
 if (require.main === module) process.exitCode = main(process.argv.slice(2));
-module.exports = { TABLES, PATCHER_FILES, workshopUrl, stamped, renameSave, finish, build, writeTable, main, sha8 };
+module.exports = { TABLES, PATCHER_FILES, versionTables, workshopUrl, stamped, renameSave, finish, build, writeTable, main, sha8 };

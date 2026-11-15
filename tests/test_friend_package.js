@@ -1,6 +1,7 @@
 // The friend package's builder (tools/make-friend-package.js), its pure parts: the save's stamp and new name, the
 // refusals when the deploy record disagrees, the compose file, and reading a docker save tar.
-//   node tests/test_friend_package.js
+//   node tests/test_friend_package.js [dist/MTG-Table-....zip ...]
+// With zips: each built package is unzipped and checked to hold no table (builtZip below).
 const { Readable } = require("stream");
 const pack = require("../tools/make-friend-package");
 
@@ -96,6 +97,11 @@ const save = '{\r\n  "SaveName": "Mock MTGA 4 player",\r\n  "GameMode": "MTG",\r
     fs.writeFileSync(path.join(pkg, "decks", "b.json"), `{\n  "SaveName": "x",\n  "ObjectStates": []\n}`);
     same("a package folder: a TTS save under another name is caught by its content", pack.tableCopies(pack.packageEntries(pkg)), ["decks/b.json"]);
     fs.rmSync(path.join(pkg, "decks", "b.json"));
+    // (the Workshop file's ObjectStates comes after a 130 KB script: the whole file is read, whatever its extension)
+    fs.writeFileSync(path.join(pkg, "decks", "c.txt"), `﻿{"SaveName": "x", "LuaScript": "${"-".repeat(200000)}", "ObjectStates": [{}]}`);
+    same("a package folder: a save whose ObjectStates is past 64 KB, as .txt with a BOM, is caught", pack.tableCopies(pack.packageEntries(pkg)), ["decks/c.txt"]);
+    fs.rmSync(path.join(pkg, "decks", "c.txt"));
+    ok("isTtsSave: a deck list, a record or a non-object is not a save", !pack.isTtsSave('{"name":"a","cards":[]}') && !pack.isTtsSave("[1]") && !pack.isTtsSave("x") && !pack.isTtsSave(undefined));
     ok("the table folder's README says where the table comes from", /holds no table/.test(pack.tableReadme()) && pack.tableReadme().includes("https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369"));
 
     // finish(): the ENGINE MODE save's script stamped as a deploy stamps it, CRLF as patch-save leaves it, renamed
@@ -271,7 +277,47 @@ const save = '{\r\n  "SaveName": "Mock MTGA 4 player",\r\n  "GameMode": "MTG",\r
     same("bridge: another relay too", outOfStep({ ...now, node: "sha256:bbb", relay: "sha256:fff" }, rec), ["The relay isn't the deployed image."]);
     same("bridge: no config ids in the repo's record: a config id is another image", outOfStep({ ...now, bridge: "b1", node: "sha256:ddd", relay: "sha256:aaa" }, dep), ["The engine isn't the deployed image."]);
   }).catch((e) => ok("tar", false, e.stack)).finally(() => {
+    for (const zip of process.argv.slice(2)) builtZip(require("path").resolve(zip));
     process.stdout.write(failed ? `\n${failed} friend package checks failed (${passed} passed)\n` : `all ${passed} friend package checks pass\n`);
     process.exit(failed ? 1 : 0);
   });
+}
+
+// A built package (the zip a friend gets) holds NO table: no file named like a TTS save, the Workshop file or a
+// table/ JSON, no file that is a TTS save (a JSON object with ObjectStates) under any name, and no file byte for byte
+// the Workshop copy on this PC or the table made from it. Each offender is named. The images tar is only listed.
+function builtZip(zip) {
+  const fs = require("fs"), os = require("os"), path = require("path"), crypto = require("crypto");
+  const { execFileSync } = require("child_process");
+  const mt = require("../tools/make-table");
+  const TAR = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe");
+  const tag = path.basename(zip);
+  if (!fs.existsSync(zip)) { ok(`${tag}: the zip is there`, false, zip); return; }
+  const names = execFileSync(TAR, ["-t", "-f", zip], { encoding: "utf8", maxBuffer: 1 << 26 }).split(/\r?\n/).filter(Boolean);
+  const top = names[0].split("/")[0];
+  ok(`${tag}: one folder at the top`, names.every((n) => n.split("/")[0] === top), top);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "mtg-zip-check-"));
+  try {
+    execFileSync(TAR, ["-x", "-f", zip, "-C", tmp, "--exclude", `${top}/images/*`], { stdio: "pipe", timeout: 600000 });
+    const root = path.join(tmp, top);
+    const entries = pack.packageEntries(root);
+    const unread = names.filter((n) => n.startsWith(`${top}/images/`) && !n.endsWith("/")).map((n) => ({ rel: n.slice(top.length + 1) }));
+    same(`${tag}: no copy of a Workshop table in it (by name or content)`, pack.tableCopies([...entries, ...unread]), []);
+    // byte for byte: this PC's Workshop copies and the table made from the 4-player one
+    const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
+    const known = {};
+    const ws4 = pack.WORKSHOP;
+    for (const t of Object.values(mt.TABLES)) {
+      const f = path.join(path.dirname(ws4), `${t.id}.json`);
+      if (fs.existsSync(f)) known[sha(fs.readFileSync(f))] = `the Workshop file ${t.id}.json`;
+    }
+    if (fs.existsSync(ws4)) { try { known[sha(mt.build(ws4).bytes)] = "the table made from it"; } catch { /* the patcher refused: nothing to compare */ } }
+    if (!Object.keys(known).length) process.stdout.write(`SKIP ${tag}: byte-for-byte check (no Workshop copy on this PC)\n`);
+    const same8 = entries.filter((e) => known[sha(fs.readFileSync(path.join(root, e.rel)))]).map((e) => `${e.rel} = ${known[sha(fs.readFileSync(path.join(root, e.rel)))]}`);
+    same(`${tag}: no file is byte for byte this PC's Workshop table or the table made from it`, same8, []);
+    const table = fs.existsSync(path.join(root, "table")) ? fs.readdirSync(path.join(root, "table")).sort() : [];
+    same(`${tag}: table/ holds only the patcher and its README`, table, [...mt.PATCHER_FILES, "README.txt"].sort());
+    const v = JSON.parse(fs.readFileSync(path.join(root, "version.json"), "utf8"));
+    ok(`${tag}: version.json names the Workshop table (and the 6-player one as optional)`, v.workshop?.id === "2296042369" && v.tables?.[0]?.id === "2296042369" && v.tables.some((t) => t.id === "2293586471" && t.optional === true), JSON.stringify(v.tables));
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }

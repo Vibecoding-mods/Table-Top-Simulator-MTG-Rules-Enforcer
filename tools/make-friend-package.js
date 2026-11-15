@@ -79,24 +79,41 @@ function stampOf(saveText) {
 const renameSave = tables.renameSave; // (tools/make-table.js: the companion renames with the same code)
 
 // What in a package would be a copy of a Workshop table, as package paths ([] when none): by name, a JSON under
-// table/, a file named after a Workshop id or a TTS save; by content, a JSON file that is a whole TTS save.
-// entries: [{ rel, text? }] (text: the file's start, for .json files)
+// table/, a file named after a Workshop id or a TTS save; by content, any file that is a TTS save (a JSON object with
+// an ObjectStates list, whatever its name: in the Workshop file ObjectStates comes after a 130 KB script, so the whole
+// text is read, not its start).
+// entries: [{ rel, text? }] (text: the whole file, for files that start like JSON: jsonText())
 const WORKSHOP_IDS = Object.values(tables.TABLES).map((t) => t.id);
+function isTtsSave(text) {
+  if (typeof text !== "string") return false;
+  const t = text.replace(/^﻿/, "");
+  try { const o = JSON.parse(t); return !!o && typeof o === "object" && Array.isArray(o.ObjectStates); }
+  catch { return /^\s*\{/.test(t) && /"ObjectStates"\s*:\s*\[/.test(t); } // (a cut or broken save is still one)
+}
 function tableCopies(entries) {
   return entries.filter(({ rel, text }) => {
     const base = rel.split("/").pop();
     if (/^table\/.*\.json$/i.test(rel) || /^TS_Save_\d+\.json$/i.test(base)) return true;
-    if (WORKSHOP_IDS.some((id) => base.startsWith(`${id}.`))) return true;
-    return /\.json$/i.test(rel) && typeof text === "string" && /"SaveName"\s*:/.test(text) && /"ObjectStates"\s*:/.test(text);
+    if (WORKSHOP_IDS.some((id) => base.includes(id))) return true;
+    return isTtsSave(text);
   }).map((e) => e.rel);
 }
-// every file under a folder as { rel, text? } for tableCopies (a .json file's first 64 KB: a save starts with SaveName)
+// a file's whole text when it starts like JSON ("{" after a BOM or spaces), else undefined (the images tar, exes,
+// pictures: never read past their first bytes)
+const JSON_TEXT_MAX = 256 * 1024 * 1024;
+function jsonText(head, size, readAll) {
+  if (!/^(﻿)?\s*\{/.test(head.toString("utf8")) || size > JSON_TEXT_MAX) return undefined;
+  return readAll().toString("utf8");
+}
+// every file under a folder as { rel, text? } for tableCopies
 function packageEntries(root, rel = "") {
   const p = path.join(root, rel);
-  if (!fs.statSync(p).isDirectory()) {
-    let text;
-    if (/\.json$/i.test(rel)) { const fd = fs.openSync(p, "r"); try { const b = Buffer.alloc(65536); text = b.subarray(0, fs.readSync(fd, b, 0, b.length, 0)).toString("utf8"); } finally { fs.closeSync(fd); } }
-    return [{ rel, text }];
+  const st = fs.statSync(p);
+  if (!st.isDirectory()) {
+    const fd = fs.openSync(p, "r");
+    let head;
+    try { const b = Buffer.alloc(64); head = b.subarray(0, fs.readSync(fd, b, 0, b.length, 0)); } finally { fs.closeSync(fd); }
+    return [{ rel, text: jsonText(head, st.size, () => fs.readFileSync(p)) }];
   }
   return fs.readdirSync(p).flatMap((f) => packageEntries(root, rel ? `${rel}/${f}` : f));
 }
@@ -644,7 +661,7 @@ async function main() {
     // (what the companion makes the table from: the Workshop item, and the hash of the copy this package was checked
     // with; a host's copy with another hash was updated by its author and may or may not still patch)
     workshop: { id: TABLE.id, url: TABLE.url, sha8: made4p.workshop },
-    tables: [{ key: "4p", id: TABLE.id, url: TABLE.url, saveName: TABLE.saveName, file: TABLE.file, optional: false }],
+    tables: tables.versionTables(),
     built: new Date().toISOString(), gitCommit: gitCommit(),
     // (beyond the contract's keys) the deploy this was cut from, and both ids of each image: Docker's containerd store
     // reports `id`, the classic store `config`
@@ -785,4 +802,4 @@ function releaseFinish({ tag, dir, partVersions, previous, plan }, pkg, zip, inf
 }
 
 if (require.main === module) main().catch((e) => stop(e.stack || e.message));
-module.exports = { companionSource, stampOf, renameSave, tableCopies, packageEntries, tableReadme, hostRequirements, readTable, WORKSHOP, refusals, composeYaml, tarRead, tarImages, tarMismatch, deployedRecord, readmeText, treeHash, imagesVersion, planRelease, releaseManifest, releaseRefusals, pointedAt, appVersion, validTag, signManifest, publicKeyText, releaseKey, RELEASE_PARTS, UPDATE_FORMAT, APP_UNVERSIONED, APP_EXCLUDED, IMAGES, DATA_DIRS, PROJECT, SAVE_NAME, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };
+module.exports = { companionSource, stampOf, renameSave, tableCopies, isTtsSave, jsonText, packageEntries, tableReadme, hostRequirements, readTable, WORKSHOP, refusals, composeYaml, tarRead, tarImages, tarMismatch, deployedRecord, readmeText, treeHash, imagesVersion, planRelease, releaseManifest, releaseRefusals, pointedAt, appVersion, validTag, signManifest, publicKeyText, releaseKey, RELEASE_PARTS, UPDATE_FORMAT, APP_UNVERSIONED, APP_EXCLUDED, IMAGES, DATA_DIRS, PROJECT, SAVE_NAME, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };
