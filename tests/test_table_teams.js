@@ -56,7 +56,7 @@ const chats = (r, mark) => fxOf(r, mark).filter((l) => /broadcast/.test(l)).join
     q('engineStartSentAt = nil engineChat("mtg start ai 2", Player.Blue) return "again"', "start ffa", 10),
   ]);
   ok("commands: no errors", !r.errors.length, r.errors.join(" | "));
-  ok("commands: a team before 2HG is refused", valueOf(r, "team before mode") === "nil" && /mtg mode 2hg  first/.test(chats(r, "team before mode")), chats(r, "team before mode"));
+  ok("commands: a team before 2HG is refused", valueOf(r, "team before mode") === "nil" && /type  mtg mode 2hg  or  mtg mode 2v2  first/.test(chats(r, "team before mode")), chats(r, "team before mode"));
   ok("commands: only the host sets 2HG", valueOf(r, "not host") === "nil" && /Only the host/.test(chats(r, "not host")), chats(r, "not host"));
   ok("commands: 2hg sets the long sides, White + Red vs Yellow + Blue", valueOf(r, "mode 2hg") === "1122" && /White \+ Red vs Yellow \+ Blue/.test(chats(r, "mode 2hg")), `${valueOf(r, "mode 2hg")} ${chats(r, "mode 2hg")}`);
   ok("commands: mtg team moves one seat", valueOf(r, "moved") === "1212" && /put Yellow on team 1: White \+ Yellow vs Red \+ Blue/.test(chats(r, "moved")), `${valueOf(r, "moved")} ${chats(r, "moved")}`);

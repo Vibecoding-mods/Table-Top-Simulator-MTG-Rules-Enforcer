@@ -8,7 +8,7 @@ const path = require("path");
 const { execFile } = require("child_process");
 const delta = require("./state-delta");
 const versions = require("./versions");
-const teams2hg = require("./teams"); // Two-Headed Giant (docs/game-modes-spec.md §5, Level 1)
+const teams2hg = require("./teams"); // the team modes: Two-Headed Giant, 2v2, Juggernaut (docs/game-modes-spec.md §4-§6)
 const home = require("./home"); // where the data and logs are (MTG_HOME, MTG_LOG_DIR; unset: the repo)
 
 const arg = (name, def) => {
@@ -1469,6 +1469,7 @@ function saveResume() {
       // (each deck's own pictures: every Plains keeps its printing after a restart, imagesFor)
       pictures: game.pictures, ...(customArt.off ? { artOff: true } : {}), // (and the host's "mtg art off", onArt)
       ...modeField(), // (a Standard game stays one: the table hides the commander pieces, startGame's mode)
+      ...(game.teamMode ? { teamMode: game.teamMode } : {}), // (a team game's mode: the board's Juggernaut, teamsField)
       // (who went out when, and each library as last seen in the game: a true deck-out is still said after a restart,
       // noteOuts; and the printed P/T seen for each name, so a copy's badge stays as it was, notePrinted)
       outOrder: game.outOrder, outStamp: game.outStamp, outWhere: game.outWhere, inLibrary: game.inLibrary, emptyAt: game.emptyAt, printedPT: game.printedPT,
@@ -1530,8 +1531,9 @@ const forgeBotCount = () => game.bots - (game.harmlessWanted || []).length;
 
 // fromTable: the group's table draws the game (default: games whose decks come from the table)
 // mode: "commander" | "standard" (MODES; the table's, sent with the start)
-// teams: the table's Two-Headed Giant teams ({ White: 1, ... }, teams2hg.teamsOf), null for free-for-all; either mode
-function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0, mode = gameMode.mode, teams = null) {
+// teams: the table's teams ({ White: 1, ... }, teams2hg.setupOf), null for free-for-all; either mode. teamMode: "2hg"
+// (the default with teams), "2v2" or "juggernaut"; jugg: the Juggernaut's settings (teams2hg.juggOf)
+function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0, mode = gameMode.mode, teams = null, teamMode = "2hg", jugg = null) {
   if (game) { chat('[MTG] A game is already set up. Type "mtg reset" first.'); return; }
   const std = mode === "standard";
   // (a deck checked for the other mode is no deck for this one: checked again with Ready)
@@ -1545,7 +1547,8 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   if (!seatList.length) { chat("[MTG] Nobody is seated."); return; }
   // the table has a playmat per colour (TABLE_COLORS); a 5th player had no colour and no zones (5-8 players: PLAN M6)
   if (total < 2 || total > TABLE_COLORS.length) { chat(`[MTG] Need 2-${TABLE_COLORS.length} players total (seated ${seatList.length} + ${bots} AI).`); return; }
-  const teamProblem = teams && teams2hg.teamsProblem(teams, total);
+  if (teams && teamMode === "juggernaut") { jugg = teams2hg.juggOf(jugg); teams = teams2hg.juggTeams(jugg.color); }
+  const teamProblem = teams && teams2hg.teamsProblem(teams, total, teamMode);
   if (teamProblem) { chat(`[MTG] Not started: ${teamProblem}`); return; }
   const aiTable = aiSeats.filter((c) => readyFor(c, mode) && !preset.includes(c)).slice(0, bots - preset.length); // (empty seats' ready decks, in order: see below)
   // (a debug scenario with "planechase" turns it on for this game with its own planes, debugPlanechase)
@@ -1557,7 +1560,8 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   for (const n of pool?.names || []) cachedImage(n);
   game = { seats: new Map(), bots, total, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false, fromTable, setupAt: Date.now(), pendingPlays: [],
     friendly: friendlyCount(friendly), mode,
-    teams: teams || null, // (Two-Headed Giant: sent to the engine as gameConfig before StartGame, onRoomUpdate)
+    teams: teams || null, // (a team mode: sent to the engine as gameConfig before StartGame, onRoomUpdate)
+    ...(teams ? { teamMode, ...(teamMode === "juggernaut" ? { jugg } : {}) } : {}),
     // (Planechase: the planar pool, sent in the first seated player's deck, onRoomUpdate)
     planes: pool?.names || null, planeSeat: pool ? seatList[0] : null,
     // decks put in empty seats' library zones (checked by "mtg ready" like a player's) are played by the AI; the seat
@@ -1578,7 +1582,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   const harmlessN = game.harmlessWanted.length, forgeN = forgeBotCount();
   chat(`[MTG] Setting up${std ? ` ${modeWords(mode, total)}` : ""}: ${seatList.join(", ")}${forgeN ? ` + ${forgeN} Forge AI` : ""}${harmlessN ? ` + ${harmlessN} harmless bot${harmlessN > 1 ? "s" : ""}` : ""}...`);
   if (preset.length) chat(`[MTG] AI seats: ${aiSeatsText(preset)}.`);
-  if (teams) { const s = teams2hg.sides(teams); chat(`[MTG] Two-Headed Giant: ${teams2hg.teamWords(s[1])} vs ${teams2hg.teamWords(s[2])} (shared life, poison 15; each player takes their own turn, the team's back to back).`); }
+  if (teams) chat(`[MTG] ${teams2hg.setupWords(teamMode, teams, jugg, std)}`);
   log(`setup: seats ${seatList.join(", ")}, bots ${bots}, relay ${RELAY}`);
 }
 
@@ -1643,10 +1647,10 @@ function onRoomUpdate(seat, room) {
   if (!game.startSent && room.status === "Lobby" && ready >= game.total) {
     game.startSent = true;
     const order = clockwiseOrder(room);
-    // (Two-Headed Giant: the teams first, which the node keeps for the game it starts next, host.rs gameConfig)
+    // (a team mode: the teams first, which the node keeps for the game it starts next, host.rs gameConfig)
     if (game.teams) controllerOf(room, seats).send({ type: "BroadcastState", state: {
       kind: "roomRelay", protocol: "self-hosted-node", version: 1, messageId: `tts-${Date.now()}-teams`, roomId: seat.roomId,
-      payload: teams2hg.gameConfig(game.teams, order, game.seatColors) } });
+      payload: teams2hg.gameConfig(game.teams, order, game.seatColors, game.teamMode, game.jugg, game.mode === "standard") } });
     controllerOf(room, seats).send({ type: "StartGame", format: MODES[game.mode || "commander"].format, seat_order: order });
   }
 }
@@ -5721,7 +5725,7 @@ function sendTable() {
     winner: pub.winnerId ? game.slotColor[pub.winnerId] || nameOf(pub.winnerId) : null, players, stack, cards: statics,
     rewind, // restore points and the open vote (in the board update: a message of its own doubled the traffic)
     ...(planes.length || planar ? { planes, planar } : {}), // (Planechase: planarRow)
-    ...teams2hg.teamsField(pub, game.slotColor), // (Two-Headed Giant: the sides, the team's poison limit and who won)
+    ...teams2hg.teamsField(pub, game.slotColor, game.teamMode), // (a team game: the sides, 2HG's poison limit, the Juggernaut, who won)
     ...(game.fix ? { fix: fixState() } : {}), // (a manual fix under way, PLAN M7)
   };
   // An update identical to the last one costs TTS a decode and a redraw for nothing (and feeds its GC pauses).
@@ -5868,7 +5872,7 @@ function gameEndWords(gv) {
   const lost = [lossReasons(gv), decked.length ? `${andList(decked)} drew from an empty library` : null,
     conceded.length ? `${andList(conceded)} conceded` : null, other.length ? `${andList(other)} lost the game` : null].filter(Boolean).join(", ") || null;
   // (Two-Headed Giant: the winning team, "White + Red win")
-  const team = gv?.winnerId ? teams2hg.teamsField(gv, game?.slotColor || {}).teams?.won : null;
+  const team = gv?.winnerId ? teams2hg.teamsField(gv, game?.slotColor || {}, game?.teamMode).teams?.won : null;
   const won = team ? teams2hg.teamWinWords(team, (c) => nameOf((game && slotOfColor(c)) || c)) : gv?.winnerId ? `${nameOf(gv.winnerId)} wins` : null;
   if (lost) return won ? `${lost}. ${won}` : lost;
   // (a draw only when the engine says the game is over: a gameOver question with a board still playing tells nothing)
@@ -10464,7 +10468,7 @@ function onTTS(m) {
       noteStamp(m);
       warnIfOutOfStep();
       const go = () => {
-        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m), teams2hg.teamsOf(m.teams));
+        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m), ...(({ teams, mode, jugg }) => [teams, mode || "2hg", jugg])(teams2hg.setupOf(m)));
         if (game && m.autoplay) game.autoplay = true;
       };
       // the table's Start button (autoReset): a game left over from before is reset first, and a room that is still

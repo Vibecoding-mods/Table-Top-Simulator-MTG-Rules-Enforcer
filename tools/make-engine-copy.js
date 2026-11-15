@@ -264,7 +264,8 @@ function engineStartGame(pl, rest, cleared)
   if engineStartSentAt ~= nil and os.clock() - engineStartSentAt < 5 then return false end
   engineStartSentAt = os.clock()
   engineSendDecks(read, pl.color)
-  engineSend("start", { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true, friendly = engineFriendly, mode = engineModeSent(), teams = engineTeamsSent ~= nil and engineTeamsSent() or nil })
+  engineSend("start", { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true, friendly = engineFriendly, mode = engineModeSent(), teams = engineTeamsSent ~= nil and engineTeamsSent() or nil,
+    teamMode = engineTeamModeSent ~= nil and engineTeamModeSent() or nil, juggernaut = engineJuggSent ~= nil and engineJuggSent() or nil })
 end
 
 -- All "mtg ..." chat commands. Returns false (hide the line) when handled, nil otherwise.
@@ -278,7 +279,7 @@ function engineChat(message, pl)
   -- (a player the table promoted for engine mode, enginePromoteSeated, is not a host here: the host-only commands stay the
   -- host's and their own promoted players')
   local isHost = pl.host or ((pl.admin or pl.promoted) and not (ENGINE_PROMOTED or {})[tostring(pl.steam_id)])
-  -- (Two-Headed Giant's "mtg mode 2hg|ffa" and "mtg team ...": engineTeamChat, engine-renderer.lua)
+  -- (the team modes' "mtg mode 2hg|2v2|juggernaut|ffa", "mtg team ..." and "mtg juggernaut ...": engineTeamChat, engine-renderer.lua)
   if engineTeamChat ~= nil and engineTeamChat(cmd, rest, pl, isHost) then return false end
   -- engine mode, starting a game, friendly mulligans and clearing a finished one: anyone, seated or not (playtest
   -- 2026-10-25: "allow non host to turn the engine on and off and to start games"; 2026-11-10: "allow anyone to
@@ -368,9 +369,11 @@ function engineChat(message, pl)
       engineSend("concede", { color = pl.color })
     else
       engineConcedeAsk[pl.color] = os.clock()
-      -- (Two-Headed Giant: a player concedes for the team, 810.8b)
+      -- (Two-Headed Giant: a player concedes for the team, 810.8b; not in 2v2 or Juggernaut, rule "teams", where the
+      -- team plays on)
       -- (engineTable: the renderer's last board; its local lastTable is declared after this chunk)
-      local team = engineTeamOf ~= nil and engineTable ~= nil and engineTeamOf(engineTable(), pl.color) or nil
+      local board = engineTable ~= nil and engineTable() or nil
+      local team = engineTeamOf ~= nil and board ~= nil and not (board.teams and board.teams.rule == "teams") and engineTeamOf(board, pl.color) or nil
       pl.broadcast(team ~= nil and ("[MTG] Concede for your team (" .. engineTeamWords(team) .. ")? You are both out for good. Type  mtg concede  again within 15 seconds to confirm.")
         or "[MTG] Concede the game? You are out for good. Type  mtg concede  again within 15 seconds to confirm.", {1, 0.6, 0.3})
     end
@@ -429,7 +432,7 @@ function engineChat(message, pl)
     else engineSend("planes", { color = pl.color, text = rest }) end
   elseif cmd == "mode" then
     -- the next games' mode (host): mtg mode standard / mtg mode commander (docs/game-modes-spec.md §3.4); "mtg mode" says it
-    if rest == "" then pl.broadcast("[MTG] Game mode: " .. (ENGINE_GAME_MODE == "standard" and "Standard" or "Commander") .. (ENGINE_TEAMS ~= nil and engineTeamsText ~= nil and (", Two-Headed Giant (" .. engineTeamsText() .. ")") or "") .. ". The host changes it:  mtg mode standard  or  mtg mode commander  (or the Game mode button); Two-Headed Giant:  mtg mode 2hg  or  mtg mode ffa.")
+    if rest == "" then pl.broadcast("[MTG] Game mode: " .. (ENGINE_GAME_MODE == "standard" and "Standard" or "Commander") .. (ENGINE_TEAMS ~= nil and engineTeamsText ~= nil and (", " .. (ENGINE_TEAM_NAMES[ENGINE_TEAM_MODE or "2hg"] or "Two-Headed Giant") .. " (" .. engineTeamsText() .. ")") or "") .. ". The host changes it:  mtg mode standard  or  mtg mode commander  (or the Game mode button); teams:  mtg mode 2hg,  mtg mode 2v2,  mtg mode juggernaut  or  mtg mode ffa  (or the Teams button).")
     elseif not isHost then pl.broadcast("[MTG] Only the host can change the game mode (everyone plays it).")
     elseif rest == "standard" or rest == "commander" then engineSetGameMode(rest, pl)
     else pl.broadcast("[MTG] Use:  mtg mode standard  (60-card decks, 20 life, no commander) or  mtg mode commander") end
@@ -460,7 +463,7 @@ function engineChat(message, pl)
     engineSend("reset", {})
     if ENGINE_MODE then engineClear() end -- don't wait for the bridge's "clear" (it may be down)
   else
-    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg mode standard|commander (host) - the next games' format: Standard (60 cards, 20 life, no commander) or Commander\\n mtg mode 2hg / mtg mode ffa (host) - Two-Headed Giant (White + Red vs Yellow + Blue) or free-for-all, in either format; mtg team <colour> 1|2 (host) - move a seat\\n mtg commander - hover your commander first\\n mtg clear deck - remove your own deck and commander from your seat (not during a game)\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg ai <colour> harmless|forge [deck] / mtg ai <colour> off (host) - who plays an empty seat, every game\\n mtg friendly 0|1|2 - free mulligans each, for everyone (the rules' free one included)\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg hand <card>, <card> ... (debug tools on, against the AI) - your next game's starting hand, the rest dealt from your deck; mtg hand off\\n mtg planechase on|off (host) - Planechase in the next games; mtg planes random [N] / mtg planes <name>; <name> - the planar decks\\n mtg art off|on (host) - the players' own card pictures (1 Sol Ring #https://... in the deck list) or the normal ones, for everyone\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <knockout|wipe|bighit|death|exile|countered|playerhit|damage|lifegain|treasure|treasurespend|sorcery|instant|counter> [N] (N at once); mtg animations on/off (host) - also under Settings\\n mtg fx on/low/off (host) - the table's particle effects\\n mtg gif <words> / mtg gif off - your GIF frame (once the host has a GIPHY key); mtg gifs hide/show - on your screen; mtg gif help - every GIF command")
+    pl.broadcast("[MTG] Commands:\\n mtg ready / mtg ready all (host) - check decks\\n mtg mode standard|commander (host) - the next games' format: Standard (60 cards, 20 life, no commander) or Commander\\n mtg mode 2hg / 2v2 / juggernaut / ffa (host) - Two-Headed Giant or 2v2 Team Commander (White + Red vs Yellow + Blue), Juggernaut (one against three) or free-for-all, in either format; mtg team <colour> 1|2 (host) - move a seat; mtg juggernaut <colour> / life|hand|draw|land <n> / cmd 21|42 / order first|after (host) - the Juggernaut\\n mtg commander - hover your commander first\\n mtg clear deck - remove your own deck and commander from your seat (not during a game)\\n mtg start [ai N] - start the engine game, optionally with N Forge AI players\\n mtg ai <colour> harmless|forge [deck] / mtg ai <colour> off (host) - who plays an empty seat, every game\\n mtg friendly 0|1|2 - free mulligans each, for everyone (the rules' free one included)\\n mtg reset - put the imported decks back once the game is over (host: also mid-game)\\n mtg undo [N] - rewind (the others vote); mtg vote yes/no\\n mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)\\n mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off\\n mtg hand <card>, <card> ... (debug tools on, against the AI) - your next game's starting hand, the rest dealt from your deck; mtg hand off\\n mtg planechase on|off (host) - Planechase in the next games; mtg planes random [N] / mtg planes <name>; <name> - the planar decks\\n mtg art off|on (host) - the players' own card pictures (1 Sol Ring #https://... in the deck list) or the normal ones, for everyone\\n mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)\\n mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)\\n mtg timer [seconds] / mtg timer off (host) - turn timers for everyone\\n mtg concede - leave the game; mtg winner <colour> (host, Treachery)\\n mtg engine on/off\\n mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <knockout|wipe|bighit|death|exile|countered|playerhit|damage|lifegain|treasure|treasurespend|sorcery|instant|counter> [N] (N at once); mtg animations on/off (host) - also under Settings\\n mtg fx on/low/off (host) - the table's particle effects\\n mtg gif <words> / mtg gif off - your GIF frame (once the host has a GIPHY key); mtg gifs hide/show - on your screen; mtg gif help - every GIF command")
   end
   return false
 end

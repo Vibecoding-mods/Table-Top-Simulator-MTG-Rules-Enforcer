@@ -66,7 +66,7 @@ const r = simulate({ save, seated: ["Blue", "White"], host: "Blue", steps: [{ lu
 ] });
 
 ok("no Lua errors", r.errors.length === 0, r.errors.join(" / "));
-ok("load: Commander, the button says so", valueOf(r, "at load") === "commander|commander" && /,Game mode\nCommander$/.test(String(valueOf(r, "tile at load"))), `${valueOf(r, "at load")} ${valueOf(r, "tile at load")}`);
+ok("load: Commander, the button says so", valueOf(r, "at load") === "commander|commander" && /,Game mode\nCommander(,|$)/.test(String(valueOf(r, "tile at load"))), `${valueOf(r, "at load")} ${valueOf(r, "tile at load")}`);
 const atLoad = String(valueOf(r, "pieces at load")).split("|");
 ok("load: the 12 commander damage trackers on the table", atLoad[0].split(";").length === 12 && atLoad[0].split(";").every((p) => /^[0-9.]+#nil#0#/.test(p)), valueOf(r, "pieces at load"));
 ok("mtg mode: says the mode", /Game mode: Commander\. The host changes it/.test(told(r, "asked")), told(r, "asked"));
@@ -74,7 +74,7 @@ ok("mtg mode: only the host changes it", valueOf(r, "after white") === "commande
 ok("mtg mode: another word gets the usage", valueOf(r, "after bad word") === "commander|commander" && /Use:  mtg mode standard/.test(told(r, "bad word")), told(r, "bad word"));
 ok("mtg mode standard: the host sets it", valueOf(r, "after blue") === "standard|standard" && /set the game mode: Standard/.test(told(r, "blue sets")), told(r, "blue sets"));
 ok("mtg mode standard: sent to the bridge", /^mode \{.*"mode":"standard"/.test(String(valueOf(r, "blue sent"))) && /"color":"Blue"/.test(String(valueOf(r, "blue sent"))), valueOf(r, "blue sent"));
-ok("mode button: says Standard", /,Game mode\nStandard$/.test(String(valueOf(r, "tile standard"))), valueOf(r, "tile standard"));
+ok("mode button: says Standard", /,Game mode\nStandard(,|$)/.test(String(valueOf(r, "tile standard"))), valueOf(r, "tile standard"));
 const std = String(valueOf(r, "pieces standard")).split("|");
 const memo = /^enginemode:-?[0-9.]+,-?[0-9.]+,-?[0-9.]+,(true|false)$/;
 ok("Standard: every commander damage tracker under the table, hidden, locked, its spot on it", std[0].split(";").length === 12
@@ -88,7 +88,7 @@ ok("mtg mode standard again: already Standard, nothing sent or moved", /already 
   `${told(r, "again")} / ${valueOf(r, "again sent")}`);
 ok("Standard: the deck check says Standard", /^decks \{.*"mode":"standard"/.test(String(valueOf(r, "decks sent"))), String(valueOf(r, "decks sent")).slice(0, 300));
 ok("Standard: the start says Standard", /^start \{.*"mode":"standard"/m.test(String(valueOf(r, "start sent"))), String(valueOf(r, "start sent")).slice(0, 300));
-ok("mode button: back to Commander, sent", valueOf(r, "after button") === "commander|commander" && /^mode \{.*"mode":"commander"/.test(String(valueOf(r, "button sent"))) && /,Game mode\nCommander$/.test(String(valueOf(r, "tile commander"))), `${valueOf(r, "button sent")} ${valueOf(r, "tile commander")}`);
+ok("mode button: back to Commander, sent", valueOf(r, "after button") === "commander|commander" && /^mode \{.*"mode":"commander"/.test(String(valueOf(r, "button sent"))) && /,Game mode\nCommander(,|$)/.test(String(valueOf(r, "tile commander"))), `${valueOf(r, "button sent")} ${valueOf(r, "tile commander")}`);
 const back = String(valueOf(r, "pieces back")).split("|");
 ok("Commander again: the trackers back where they were, shown, with their own lock", back[0] === atLoad[0], `${back[0]}\nwant ${atLoad[0]}`);
 ok("Commander again: the tax labels show their number again", taxSet("button back").every((l) => l === '"0"'), taxSet("button back"));

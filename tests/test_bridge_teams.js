@@ -190,7 +190,8 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
     ok("free-for-all: no teams, no partner's hand", !msg?.teams && !rowOf(msg, "White")?.teamHand && !rowOf(msg, "Blue")?.teamHand, JSON.stringify({ t: msg?.teams, w: rowOf(msg, "White")?.teamHand }));
   });
   await run(async (h) => {
-    // a teams game without shared life (the engine sends teamRules "teams" too, spec §5.9): no 2HG board
+    // a teams game without shared life (2v2 or Juggernaut: the engine sends teamRules "teams"): the sides, none of
+    // Two-Headed Giant's pieces (no poison limit, no commander limit)
     const v = views({ shared: false });
     for (const x of [v.blueView, v.whiteView]) {
       x.gameView.teamRules = { rule: "teams", poisonToLose: 10 };
@@ -200,7 +201,8 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
     h.B.sendTable();
     await h.flush();
     const msg = tables(h).pop();
-    ok("teams without shared life: no 2HG sides or poison limit", !msg?.teams, JSON.stringify(msg?.teams));
+    same("teams without shared life: the sides, no 2HG poison limit", msg?.teams, { rule: "teams", sides: [["Blue", "White"]] });
+    ok("teams without shared life: no team life tip, no partner's hand", !/Team life/.test(rowOf(msg, "Blue")?.lifeTip || "") && !rowOf(msg, "White")?.teamHand, JSON.stringify(rowOf(msg, "White")?.teamHand));
   });
   await run(async (h) => {
     // the end: an engine win for Blue (player-0) is the team's

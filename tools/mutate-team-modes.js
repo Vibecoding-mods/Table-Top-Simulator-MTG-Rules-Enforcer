@@ -1,0 +1,92 @@
+// Break-it for 2v2 Team Commander and Juggernaut (tests/test_bridge_team_modes.js, tests/test_table_team_modes.js): each
+// mutation switches one piece of the team-mode code off, runs both tests, lists the checks that failed by name, then
+// puts the file back and checks it by sha256. A mutation no check catches is printed as SURVIVED. The Two-Headed Giant
+// pieces they share are tools/mutate-teams.js's.
+//   node tools/mutate-team-modes.js
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+const { spawnSync } = require("child_process");
+
+const ROOT = path.join(__dirname, "..");
+const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
+const TESTS = ["tests/test_bridge_team_modes.js", "tests/test_table_team_modes.js"];
+
+// [label, file, from, to]: `from` must occur exactly once
+const MUTATIONS = [
+  ["setupOf: Juggernaut's teams as sent", "bridge/teams.js", "return { teams: juggTeams(jugg.color), mode: \"juggernaut\", jugg };", "return { teams: teamsOf(m.teams), mode: \"juggernaut\", jugg };"],
+  ["teamModeOf: every mode is 2HG", "bridge/teams.js", "(Object.prototype.hasOwnProperty.call(TEAM_MODES, raw) ? raw : \"2hg\")", "(\"2hg\")"],
+  ["TEAM_MODES: 2v2 shares life", "bridge/teams.js", "\"2v2\": { rule: \"teams\",", "\"2v2\": { rule: \"sharedLife\","],
+  ["juggOf: any colour", "bridge/teams.js", "if (TEAM_COLORS.includes(r.color)) out.color = r.color;", "if (r.color) out.color = r.color;"],
+  ["juggOf: no limits", "bridge/teams.js", "if (r[k] != null && Number.isInteger(n) && n >= lo && n <= hi) out[k] = n;", "if (r[k] != null) out[k] = n;"],
+  ["juggOf: order always first", "bridge/teams.js", "if (r.order === \"after\") out.order = \"after\";", ""],
+  ["juggLife: Standard 80 too", "bridge/teams.js", "jugg.life ?? (std ? 40 : 80)", "jugg.life ?? 80"],
+  ["juggTeams: Juggernaut with the three", "bridge/teams.js", "[c, c === color ? 1 : 2]", "[c, 2]"],
+  ["juggPerks: no extra draw", "bridge/teams.js", "  if (jugg.draw > 0) {\n", "  if (false) {\n"],
+  ["juggPerks: no extra land", "bridge/teams.js", "  if (jugg.land > 0) lines.push(", "  if (false) lines.push("],
+  ["juggPerks: no turn order", "bridge/teams.js", "  if (jugg.order === \"after\") {\n    lines.push(", "  if (false) {\n    lines.push("],
+  ["juggPerks: the turn order skips extra turns too", "bridge/teams.js", "ValidPlayer$ You | ExtraTurn$ False | Skip$ True", "ValidPlayer$ You | Skip$ True"],
+  ["teamsProblem: Juggernaut with any count", "bridge/teams.js", "if (mode === \"juggernaut\") return total === 4 ? null :", "if (mode === \"juggernaut\") return true ? null :"],
+  ["teamsProblem: 2v2 with any count", "bridge/teams.js", "if (total !== 4) return `2v2 needs", "if (false) return `2v2 needs"],
+  ["teamsProblem: 2v2 with any split", "bridge/teams.js", "return s[1].length === 2 && s[2].length === 2 ? null : `2v2 needs", "return true ? null : `2v2 needs"],
+  ["gameConfig: 2v2 shares life", "bridge/teams.js", "const rule = TEAM_MODES[teamModeOf(mode)].rule;", "const rule = \"sharedLife\";"],
+  ["gameConfig: the Juggernaut a plain player", "bridge/teams.js", "if (mode !== \"juggernaut\" || !jugg || colors[i] !== jugg.color) return p;", "return p;"],
+  ["gameConfig: the Juggernaut not first", "bridge/teams.js", "commanderDamageToLose: jugg.cmd } : {}), goesFirst: true };", "commanderDamageToLose: jugg.cmd } : {}) };"],
+  ["gameConfig: no commander limit", "bridge/teams.js", "...(jugg.cmd !== 21 ? { commanderDamageToLose: jugg.cmd } : {})", "...{}"],
+  ["boardTeams: the lone Juggernaut dropped", "bridge/teams.js", "if (p.teamNumber == null && rules.rule === \"sharedLife\") continue;", "if (p.teamNumber == null) continue;"],
+  ["teamsField: no Juggernaut named", "bridge/teams.js", "...(lone ? { juggernaut: lone[0] } : {})", "...{}"],
+  ["teamsField: the lone winner's side not found", "bridge/teams.js", "(winner.teamNumber != null || t.rule === \"teams\")", "(winner.teamNumber != null)"],
+  ["start: Juggernaut teams as sent", "bridge/bridge.js", "if (teams && teamMode === \"juggernaut\") { jugg = teams2hg.juggOf(jugg); teams = teams2hg.juggTeams(jugg.color); }", ""],
+  ["start: the mode not passed on", "bridge/bridge.js", "...(({ teams, mode, jugg }) => [teams, mode || \"2hg\", jugg])(teams2hg.setupOf(m))", "...(({ teams }) => [teams])(teams2hg.setupOf(m))"],
+  ["table: 2v2 not a mode", "tools/engine-renderer.lua", "(rest == \"2hg\" or rest == \"2v2\" or rest == \"juggernaut\" or rest == \"ffa\")", "(rest == \"2hg\" or rest == \"juggernaut\" or rest == \"ffa\")"],
+  ["table: Juggernaut keeps the old teams", "tools/engine-renderer.lua", "    ENGINE_TEAM_MODE = \"juggernaut\"\n    ENGINE_TEAMS = engineJuggTeams()\n", "    ENGINE_TEAM_MODE = \"juggernaut\"\n    ENGINE_TEAMS = ENGINE_TEAMS or {}\n"],
+  ["table: Juggernaut's teams kept after the colour moves", "tools/engine-renderer.lua", "    if playing then ENGINE_TEAMS = engineJuggTeams() end\n", ""],
+  ["table: Juggernaut settings unchecked", "tools/engine-renderer.lua", "and math.floor(tonumber(value)) == tonumber(value) and tonumber(value) >= ENGINE_JUGG_LIMITS[key][1] and tonumber(value) <= ENGINE_JUGG_LIMITS[key][2] then", "then"],
+  ["table: mtg team moves the Juggernaut's teams", "tools/engine-renderer.lua", "  if ENGINE_TEAM_MODE == \"juggernaut\" then pl.broadcast(\"[MTG] In Juggernaut the teams follow", "  if false then pl.broadcast(\"[MTG] In Juggernaut the teams follow"],
+  ["table: Start sends no mode", "tools/engine-renderer.lua", "function engineTeamModeSent() return ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil end", "function engineTeamModeSent() return nil end"],
+  ["table: Start sends no Juggernaut", "tools/engine-renderer.lua", "function engineJuggSent() return (ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE == \"juggernaut\") and ENGINE_JUGG or nil end", "function engineJuggSent() return nil end"],
+  ["table: the button skips 2v2", "tools/engine-renderer.lua", "m == \"2hg\" and \"2v2\" or m == \"2v2\" and \"juggernaut\"", "m == \"2hg\" and \"juggernaut\" or m == \"2v2\" and \"juggernaut\""],
+  ["table: the button's label says None", "tools/engine-renderer.lua", "  if m == \"juggernaut\" then return \"Juggernaut\\n\" .. ENGINE_JUGG.color end\n", ""],
+  ["table: no Juggernaut tag", "tools/engine-renderer.lua", "  if t.teams.juggernaut ~= nil and t.active == t.teams.juggernaut then\n", "  if false then\n"],
+  ["table: a lone winner's banner says WIN", "tools/engine-renderer.lua", "(#won == 1 and \" WINS THE GAME\" or \" WIN THE GAME\")", "\" WIN THE GAME\""],
+  ["table: no gold for the Juggernaut", "tools/engine-renderer.lua", "    if not shared and #side == 1 and side[1] == m.teams.juggernaut then k = 3 end\n", ""],
+  ["table: a teams game draws only pairs", "tools/engine-renderer.lua", "    if #side == 2 or not shared then\n", "    if #side == 2 then\n"],
+  ["table: a teams game gets the life panel", "tools/engine-renderer.lua", "  local shared = sides ~= nil and m.teams.rule ~= \"teams\"\n", "  local shared = sides ~= nil\n"],
+  ["table: concede for the team in 2v2", "tools/make-engine-copy.js", "board ~= nil and not (board.teams and board.teams.rule == \"teams\") and engineTeamOf(board, pl.color)", "board ~= nil and engineTeamOf(board, pl.color)"],
+  ["table: Start sends no mode (message)", "tools/make-engine-copy.js", "    teamMode = engineTeamModeSent ~= nil and engineTeamModeSent() or nil, juggernaut", "    juggernaut"],
+];
+
+function runTests() {
+  const failed = [];
+  for (const t of TESTS) {
+    const r = spawnSync(process.execPath, [t], { cwd: ROOT, encoding: "utf8", timeout: 600000 });
+    const out = (r.stdout || "") + (r.stderr || "");
+    for (const line of out.split("\n")) {
+      const m = line.match(/^\s*FAIL[: ]\s*(.+)$/);
+      if (m && !/^test_/.test(m[1])) failed.push(m[1].slice(0, 110));
+    }
+    if (r.status !== 0 && !failed.length) failed.push(`${t} exit ${r.status}: ${out.split("\n").slice(-3).join(" ").slice(0, 160)}`);
+  }
+  return failed;
+}
+
+const only = process.argv[2] ? new RegExp(process.argv[2], "i") : null; // (a label pattern: just those mutations)
+const base = runTests();
+console.log(base.length ? `BASELINE FAILS: ${base.join(" | ")}` : "baseline: green");
+if (base.length) process.exit(1);
+let survived = 0;
+const list = MUTATIONS.filter(([label]) => !only || only.test(label));
+for (const [label, rel, from, to] of list) {
+  const file = path.join(ROOT, rel);
+  const before = sha(file);
+  const text = fs.readFileSync(file, "utf8");
+  if (text.split(from).length !== 2) { console.log(`?? ${label}: the code to break is not there once`); survived++; continue; }
+  fs.writeFileSync(file, text.replace(from, () => to));
+  let failed;
+  try { failed = runTests(); } finally { fs.writeFileSync(file, text); }
+  const ok = sha(file) === before;
+  if (!failed.length) survived++;
+  console.log(`${failed.length ? "caught" : "SURVIVED"}: ${label}${failed.length ? ` -> ${failed.join(" | ")}` : ""}${ok ? "" : "  RESTORE MISMATCH"}`);
+}
+console.log(survived ? `${survived} of ${list.length} survived` : `all ${list.length} caught, every file restored`);
+process.exit(survived ? 1 : 0);
