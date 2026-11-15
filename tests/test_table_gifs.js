@@ -28,7 +28,7 @@ const FRAMES = (mark, frames) => lua(`local out = {}
       local l = data[c] and data[c].playmat and data[c].playmat.positionToLocal(p)
       local assets = {} for _, a in ipairs(o.UI.getCustomAssets() or {}) do assets[#assets + 1] = a.name .. "=" .. a.url end
       -- (what each asset name really shows on real TTS: its first link on this object, BLANK once it was given another)
-      local blank = rawget(o, "__d").uiBlank or {} local shown = {} for n, u in pairs(rawget(o, "__d").uiLoaded or {}) do shown[n] = (u and not blank[n]) and u or "BLANK" end
+      local blank = rawget(o, "__d").uiBlank or {} for n in pairs(rawget(o, "__d").uiDup or {}) do blank[n] = true end local shown = {} for n, u in pairs(rawget(o, "__d").uiLoaded or {}) do shown[n] = (u and not blank[n]) and u or "BLANK" end
       local inv = rawget(o, "__d").invisibleTo or {}
       out[#out + 1] = { c = c, guid = o.getGUID(), x = p.x, z = p.z, ry = o.getRotation().y, sx = d.Transform and d.Transform.scaleX, sz = d.Transform and d.Transform.scaleZ,
         img = d.CustomImage and d.CustomImage.ImageURL, stretch = d.CustomImage and d.CustomImage.CustomTile and d.CustomImage.CustomTile.Stretch,
@@ -43,7 +43,8 @@ const raw = (r, mark) => (r.steps.find((x) => x.step === mark) || {}).value;
 const fxOf = (r, mark) => (r.steps.find((x) => x.step === mark) || {}).fx || [];
 const byC = (v, c) => (v?.list || []).find((f) => f.c === c);
 const CHAT = (who, text, mark) => lua(`return tostring(engineChat(${JSON.stringify(text)}, Player.${who}))`, mark);
-const CLICK = (who, id, mark) => lua(`engineGifUiClick(Player.${who}, "-1", ${JSON.stringify(id)}) return "ok"`, mark);
+// (as on TTS: the click is on the frame its id names, which must still exist when the click ends)
+const CLICK = (who, id, mark) => lua(`__sim.clicking = engineGif.frames[${JSON.stringify(id.replace(/^.*_/, ""))}] engineGifUiClick(Player.${who}, "-1", ${JSON.stringify(id)}) __sim.clicking = nil if __sim.clickBroke then __sim.clickBroke = nil error("Object reference not set to an instance of an object (the frame was destroyed in its own UI click)") end return "ok"`, mark);
 const ACT = (who, action, c, mark) => lua(`local f = engineGif.frames.${c} return tostring(onPlayerAction(Player.${who}, Player.Action.${action}, { f }))`, mark);
 const CONFIG = (on) => msg("gif_config", { on, credit: "Powered By GIPHY", why: on ? "" : "No GIPHY key yet: get one at developers.giphy.com" });
 const SEATED = ["White", "Blue"];

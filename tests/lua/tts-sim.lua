@@ -325,6 +325,11 @@ local function makeObj(d)
       local new = {}
       for _, a in ipairs(t) do if before[a.name] ~= a.url then new[a.name] = true end end
       if next(new) ~= nil then o.__d.uiNew = new o.__d.uiLoadingUntil = SIM.frame + 20 end
+      -- uiDup: a link listed under a second name in one list: real TTS loads it under the first name only, the second
+      -- shows a blank card (live 2026-11-14, a starred result on the Favourites tab)
+      local byUrl, dup = {}, {}
+      for _, a in ipairs(t) do if byUrl[a.url] ~= nil and byUrl[a.url] ~= a.name then dup[a.name] = true else byUrl[a.url] = a.name end end
+      o.__d.uiDup = dup
       o.__d.uiAssets = t
       o.__d.uiLoaded = o.__d.uiLoaded or {}
       for _, a in ipairs(t) do
@@ -395,7 +400,16 @@ function M.setColorTint(o, c) o.__d.tint = c fx("setColorTint", o, c) end
 -- (the alpha only when one was set: TTS's Color has one, a = 1 when none was given)
 function M.getColorTint(o) local c = o.__d.tint or { 1, 1, 1 } return { r = c.r or c[1], g = c.g or c[2], b = c.b or c[3], a = c.a or c[4] } end
 function M.isDestroyed(o) return o.__d.destroyed == true end
-function M.destruct(o) if not o.__d.destroyed then kill(o) fx("destruct", o) end return true end
+-- (destroying the object whose own UI button is being clicked, inside that click: real TTS then raises "Object reference
+-- not set to an instance of an object" when it finishes the click, live 2026-11-14 a GIF pick; __sim.clicking is the
+-- object a test's click is on)
+function M.destruct(o)
+  if not o.__d.destroyed then
+    if __sim ~= nil and __sim.clicking == o then __sim.clickBroke = true end
+    kill(o) fx("destruct", o)
+  end
+  return true
+end
 function M.isSmoothMoving(o) return false end
 function M.getVelocity(o) return (o.__d.vel or vec({ x = 0, y = 0, z = 0 })):copy() end
 function M.setVelocity(o, v) o.__d.vel = vec(v) fx("setVelocity", o, o.__d.vel) end
