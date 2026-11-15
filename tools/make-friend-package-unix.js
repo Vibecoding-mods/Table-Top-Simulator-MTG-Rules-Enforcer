@@ -191,16 +191,19 @@ const launchers = (platform) => {
 };
 
 // the package's entries as tools/make-friend-package.js tableCopies() reads them: paths inside the package folder, and
-// a .json file's first 64 KB (a TTS save starts with its SaveName)
+// the whole text of every file that starts like JSON (win.jsonText: a TTS save's ObjectStates can be far in)
 function tableCheckEntries(entries, folder) {
-  const head = (e) => {
-    if (e.data) return e.data.subarray(0, 65536).toString("utf8");
+  const win = require("./make-friend-package");
+  const text = (e) => {
+    if (e.data) return win.jsonText(e.data.subarray(0, 64), e.data.length, () => e.data);
     const fd = fs.openSync(e.file, "r");
-    try { const b = Buffer.alloc(65536); return b.subarray(0, fs.readSync(fd, b, 0, b.length, 0)).toString("utf8"); } finally { fs.closeSync(fd); }
+    let head;
+    try { const b = Buffer.alloc(64); head = b.subarray(0, fs.readSync(fd, b, 0, b.length, 0)); } finally { fs.closeSync(fd); }
+    return win.jsonText(head, fs.statSync(e.file).size, () => fs.readFileSync(e.file));
   };
   return entries.filter((e) => !e.dir).map((e) => {
     const rel = e.name.startsWith(`${folder}/`) ? e.name.slice(folder.length + 1) : e.name;
-    return { rel, text: /\.json$/i.test(rel) ? head(e) : undefined };
+    return { rel, text: text(e) };
   });
 }
 
@@ -672,7 +675,7 @@ ${pack.composeYaml()}`) });
         deployed: { bridge: deployed.bridge, save: deployed.save, at: deployed.at },
         images: held, imagesFile: imagesTar ? "images/mtg-images.tar" : null, nodeVersion: r.version, saveName: pack.SAVE_NAME, composeProject: pack.PROJECT,
         workshop: { id: TABLE.id, url: TABLE.url, sha8: made4p.workshop },
-        tables: [{ key: "4p", id: TABLE.id, url: TABLE.url, saveName: TABLE.saveName, file: TABLE.file, optional: false }],
+        tables: tables.versionTables(),
         platform: p, companion: "node", nodeArchive: r.archive ? { file: r.archive.file, sha256: r.archive.sha256 } : null,
       };
       const v = { ...info, folder: name, arch: P.arch };

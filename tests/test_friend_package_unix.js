@@ -141,13 +141,16 @@ async function pure() {
     ok(`README ${n}: both Workshop tables to subscribe to, made from the host's own copy`, t.includes("https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369") && t.includes("https://steamcommunity.com/sharedfiles/filedetails/?id=2293586471") && t.includes("makes the table from your Workshop copy") && !t.includes("copies the table"));
   }
 
-  // ── the package's entries as the Workshop-copy check reads them: inside the folder, a .json file's start
+  // ── the package's entries as the Workshop-copy check reads them: inside the folder, the whole text of a file that starts like JSON
   {
     const e = pack.tableCheckEntries([{ name: "P/table/make-table.js", data: Buffer.from("x") }, { name: "P/decks/a.json", data: Buffer.from('{"SaveName": "x", "ObjectStates": []}') }, { name: "P/logs/", dir: true }], "P");
     same("table check entries: paths inside the folder, a JSON file's text, no folders", e.map((x) => [x.rel, x.text]), [["table/make-table.js", undefined], ["decks/a.json", '{"SaveName": "x", "ObjectStates": []}']]);
     same("table check entries: a TTS save among them is caught", win.tableCopies(e), ["decks/a.json"]);
     const big = pack.tableCheckEntries([{ name: "P/table/MTG Table.json", data: Buffer.alloc(200000, 32) }], "P");
-    ok("table check entries: only a JSON file's first 64 KB is read; a table/ JSON is caught by name", big[0].text.length === 65536 && win.tableCopies(big).length === 1);
+    ok("table check entries: a table/ JSON is caught by name, whatever it holds", big[0].text === undefined && win.tableCopies(big).length === 1);
+    const far = Buffer.from(`{"SaveName": "x", "LuaScript": "${"-".repeat(200000)}", "ObjectStates": []}`);
+    const deep = pack.tableCheckEntries([{ name: "P/decks/renamed.txt", data: far }], "P");
+    same("table check entries: a save whose ObjectStates is past 64 KB, under another name and extension, is caught", win.tableCopies(deep), ["decks/renamed.txt"]);
   }
   ok("README Linux and Mac: the token is readable by other accounts; stop refuses mid-game, --force", [lin, macA].every((t) => t.includes("access token can be read by other accounts") && t.includes("--force")));
   ok("README Mac: Docker Desktop, the .command, the unsigned-launcher step", ["Docker Desktop", "MTG Companion.command", "right-click it > Open", "Stop MTG.command"].every((s) => macA.includes(s)));
@@ -200,7 +203,7 @@ async function built(file, sumsFile) {
   ok(`${tag}: bridge, the table's patcher, stack, LICENSES, logs/`, ["bridge/bridge.js", "bridge/versions.js", "table/make-table.js", "table/make-engine-copy.js", "table/README.txt", "stack/compose.yml", "stack/deployed.json", "LICENSES/SOURCE.txt", "LICENSES/Node-LICENSE.txt", "LICENSES/LICENSE", "logs/"].every((n) => by[n]));
   const img = entries.find((e) => e.name === `${top}/images/mtg-images.tar`);
   ok(`${tag}: images/mtg-images.tar (unless built --no-images)`, v.imagesFile === null || (img && img.size > 100e6), img ? img.size : "none");
-  const copies = win.tableCopies(Object.keys(by).map((n) => ({ rel: n, text: /\.json$/i.test(n) ? by[n]?.data?.subarray(0, 65536).toString("utf8") : undefined })));
+  const copies = win.tableCopies(Object.keys(by).filter((n) => by[n]?.data).map((n) => ({ rel: n, text: win.jsonText(by[n].data.subarray(0, 64), by[n].data.length, () => by[n].data) })));
   same(`${tag}: no copy of a Workshop table in it`, copies, []);
   ok(`${tag}: version.json names the Workshop table the companion makes the table from`, v.workshop?.id === "2296042369" && v.tables?.[0]?.id === "2296042369");
 }
