@@ -88,5 +88,20 @@ commanders first). DeckCheck goes the same way:
 3. A live smoke script `tools/deckcheck-smoke.js <link>`, run by hand only, never in the gates. It fetches one
    public deck from Node and runs the result through the same shape check, to catch API drift.
 
+Built 2026-11-15: `tools/deckcheck.lua`, `tests/test_deckcheck.js` (a deploy gate; loader `tests/lua/deckcheck-run.js`),
+`tools/deckcheck-smoke.js`. Choices the spec left open:
+
+- `commanders` holds the commander entries (same fields as `entries`); within a board, entries are sorted by name
+  then `scryfallId`, and the same `scryfallId` twice is merged. Only `commanders` and `mainboard` are read.
+- A card with no `scryfallId` or a `quantity` of 0 is left out; a missing `quantity` is one copy. A bracket or
+  threat that isn't a whole number reads as missing; `threatIndex` falls back to `dti.score`, the maximum is
+  `dti.maxScore` or 96.
+- The tag line is `[deckcheck] id=<id> bracket=3 threat=54/96` (missing parts left out), at the start of its line.
+- Any other 5xx reads as 500; 0/nil (no answer) is "Couldn't reach DeckCheck"; another status names its number.
+
+Live shape: **not yet confirmed.** The one smoke request against the docs' example id `sBid_JEUQZ4D` (2026-11-15)
+got a JSON 404 (the documented error form), so the success shape is still as documented, unchecked. Run the smoke
+script once on any public deck before the TTS wiring.
+
 The TTS wiring (importer patch, label drawing, the start/end hide and show) comes after the headless part passes,
 and is tested on the real table.
