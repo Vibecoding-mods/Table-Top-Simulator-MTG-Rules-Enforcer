@@ -184,6 +184,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-15 04:21 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams2` (`a904893325fc` / `5173c7e692c2`) | engine1116-teams + engine1115-2hgrules in one engine (the four 2hg-rules Forge commits and their harness tests cherry-picked) | Node only, as both parts | tree `tmp/wt-teams/tmp/eb1116-teams`, branch `teams-1116` (+ `6c97e3b`..`ba4da9e`), its `forge/` + `e7b32d36`..`85bc8c3d`; outer branch `teams-2v2-juggernaut` | not deployed | `engine1115b` |
 | 2026-11-15 03:16 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams` (`0966b1c0d6cb` / `b07cf1600b20`) | Per-player rules for 2v2 Team Commander and Juggernaut: perks (hidden effect cards from Forge script lines), a player's own commander-damage limit, a named first player, `ReplaceBeginTurn` `ExtraTurn$ False`; on top of engine1115b | Node only (`gameConfig` fields through the node's serde structs; relay source unchanged) | tree `tmp/wt-teams/tmp/eb1116-teams`, branch `teams-1116` (`0569073`, `36617e3`, `4eb95da` on `44de312`), its `forge/` branch `teams-1116` (`7451885e` on `19931d89`); outer branch `teams-2v2-juggernaut` | not deployed | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) |
 | 2026-11-15 (2026-11-15 03:46 / relay layers cached, 2026-11-14 12:51 stamp) | `engine1115-2hgrules` (`01be70a2e78f` / `b3d530c62920`) | Two-Headed Giant rules audit against CR 810: team pay life (810.9h), can't win (810.8a), can't get poison (810.10c), opponents' poison once a team (810.10a), set life and redistribution one member a team (810.9d, 810.9f), proliferate one poison a team (701.34b) | Both rebuilt, no protocol change | tree `tmp/wt-2hgrules/tmp/eb-rules`, branch `2hg-rules` (`8b33391` on `44de312`), its `forge/` branch `2hg-rules` (`ec4266d5` on `19931d89`); outer branch `2hg-team-rules` | not deployed | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) |
 | 2026-11-14 16:00 / (relay layers cached, 12:51 stamp) | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) | engine1115-2hg with the one Java comment taken out of `ActionSpace.getStackTargetCandidates` (the AGENTS.md rule); no code change | Both rebuilt, no protocol change (relay source unchanged) | tree `tmp/eb1115b`, branch `nocomment-1115` (`44de312` on `f995fab`), its `forge/` branch `nocomment-1115` = `19931d89`; outer branch `engine-nocomment` | not deployed | `engine1115-2hg` (`fcb808036400` / `034587f1f7b1`) |
@@ -255,7 +256,32 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
 
-### 2026-11-15 engine1116-teams: per-player rules for 2v2 and Juggernaut (built, not deployed)
+### 2026-11-15 engine1116-teams2: engine1116-teams and the 2HG rules audit together (built, not deployed)
+- **What:** one engine with both 2026-11-15 changes: engine1116-teams (below) and engine1115-2hgrules (its entry below).
+  The 2hg-rules Forge commits `e71b3451`, `a34d23ca`, `5dd8325a`, `ec4266d5` (in `tmp/wt-2hgrules/tmp/eb-rules`) cherry-picked
+  onto `forge/` branch `teams-1116` as `e7b32d36`, `4ec7daea`, `6edccf0c`, `85bc8c3d`; its harness tests `a19510f`..`8b33391`
+  onto `teams-1116` as `6c97e3b`..`ba4da9e`. No conflicts (both touch `Player.java` in different places). Patches
+  regenerated (forge.patch 440 files, manabrew.patch 58); every per-file section from main's engine1115-2hgrules patches
+  is unchanged in them, and only the engine1116-teams files differ.
+- **Build:** `ENGINE_BUILD_DIR=tmp/wt-teams/tmp/engine-build-teams bash engine/build-images.sh engine1116-teams2` through
+  `tmp/slot.js`: `mtg-forge-node:engine1116-teams2` `a904893325fc`, `mtg-relay:engine1116-teams2` `5173c7e692c2`; test image
+  `mtg-harness-test:engine1116-teams2` `5e579df9370c`. The running stack was not touched.
+- **Proof:** `engine/checks/harness-tests.sh` in `mtg-harness-test:engine1116-teams2`: 18 of 18 classes, 188 checks
+  (TeamGameTest with the 2hg-rules checks, PlayerRulesTest 13). `node engine/checks/mutate-player-rules.js
+  tmp/wt-teams/tmp/eb1116-teams engine1116-teams2`: 12 of 12 caught. Headless games to the end, `bridge/engine-test.js --seats 4 --bots 3 --mode ...` on test stack 7 (port 9451,
+  beside the real stack) through `tmp/slot.js`: **2v2** 35 turns, 40 life each, Yellow + Blue won after White and Red
+  lost; **Juggernaut** (Red, defaults) 21 turns, Red started at 80 life with 10 cards, went first and drew 2 a turn,
+  Red alone won ("Ramses" deck; White and Yellow were marked lost alive at 36 and 40 when Blue fell, most likely the
+  commander's own win line, not checked); **Juggernaut** (White, `--jugg-order after --jugg-cmd 42`) 44 turns, the
+  turns went J, Red, J, Yellow, J, Blue, J... (the library 2 shorter on each Juggernaut turn), White lost at -10 life
+  and the three won together; **2HG** 26 turns, 80 shared life, Yellow + Blue won. The same four on engine1116-teams
+  first (2v2, Juggernaut defaults and 2HG to the end; the "after" run hit the merge in progress and was redone).
+  `LIVE_STACK=7 LIVE_TIMEOUT=600 sh tools/live-check.sh engine1116-teams2 tests/live_2hg_check.js`: 24 of 24.
+- **Deploy (when wanted):** TTS closed, no game running, from main after this branch is merged:
+  `MTG_MANABREW=tmp/wt-teams/tmp/eb1116-teams node tools/deploy.js --image engine1116-teams2`.
+- **Rollback:** `node tools/deploy.js --image engine1115b`.
+
+### 2026-11-15 engine1116-teams: per-player rules for 2v2 and Juggernaut (built, not deployed; superseded by engine1116-teams2)
 - **Problem:** the next game modes (`docs/game-modes-spec.md` §4.1, §6): 2v2 Team Commander needs nothing the 2HG plumbing
   lacks, but Juggernaut needs per-player rules the engine had no way to take: the Juggernaut's extra draw and land plays,
   its own commander-damage limit (42 as an option, the others 21), the Juggernaut going first (no roll), and the
@@ -289,9 +315,9 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
   stack was not touched.
 - **Proof:** `engine/checks/harness-tests.sh` in `mtg-harness-test:engine1116-teams`: 18 of 18 classes, 178 checks (new
   `PlayerRulesTest`, 13). Break-it `node engine/checks/mutate-player-rules.js tmp/wt-teams/tmp/eb1116-teams`: 12 of 12
-  mutations (3 Forge, 5 Perks, 4 adapter) caught by name, the tree unchanged by sha256. HEADLESS_RESULTS
+  mutations (3 Forge, 5 Perks, 4 adapter) caught by name, the tree unchanged by sha256. Headless results: see engine1116-teams2.
 - **Deploy (when wanted):** TTS closed, no game running, from main after this branch is merged:
-  `MTG_MANABREW=tmp/wt-teams/tmp/eb1116-teams node tools/deploy.js --image engine1116-teams`.
+  deploy engine1116-teams2 instead (it has this and the 2HG rules audit).
 ### 2026-11-15 engine1115-2hgrules: Two-Headed Giant rules audit (built, not deployed)
 - **Problem:** the user (2026-11-15): "In 2 headed giant [an] effect that affects you affects your teammates the same;
   the engine should treat two people [on a team] the same." Every 2HG rule of CR 810 (effective 2026-11-06) and 701.34b
