@@ -137,9 +137,9 @@ namespace MtgCompanion
         readonly Label[] words = new Label[6], texts = new Label[6];
         readonly Button[] fixes = new Button[6];
         readonly TextBox hint = new TextBox();
-        readonly Button restartBtn = new Button(), stopBtn = new Button(), logsBtn = new Button(), wslBtn = new Button();
+        readonly Button startBtn = new Button(), restartBtn = new Button(), stopBtn = new Button(), logsBtn = new Button(), wslBtn = new Button();
         readonly ToolTip tips = new ToolTip();
-        readonly ToolStripMenuItem miRestart, miStop, miVersion, miCheck;
+        readonly ToolStripMenuItem miStart, miRestart, miStop, miVersion, miCheck;
         readonly EventWaitHandle showSignal;
         bool reallyQuit, toldAboutTray, blocking;
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool ShutdownBlockReasonCreate(IntPtr hWnd, string reason);
@@ -203,10 +203,11 @@ namespace MtgCompanion
 
             var buttons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0) };
             logsBtn.Text = "Open logs folder"; logsBtn.AutoSize = true; logsBtn.Click += (s, e) => OpenLogs();
+            startBtn.Text = "Start engine"; startBtn.AutoSize = true; startBtn.Click += (s, e) => DoStart();
             restartBtn.Text = "Restart engine"; restartBtn.AutoSize = true; restartBtn.Click += (s, e) => DoRestart();
             stopBtn.Text = "Stop everything"; stopBtn.AutoSize = true; stopBtn.Click += (s, e) => DoStop(null);
             wslBtn.Text = "Limit Docker's CPU use…"; wslBtn.AutoSize = true; wslBtn.Click += (s, e) => WslLimits();
-            buttons.Controls.AddRange(new Control[] { logsBtn, restartBtn, stopBtn, wslBtn });
+            buttons.Controls.AddRange(new Control[] { startBtn, logsBtn, restartBtn, stopBtn, wslBtn });
             top.Controls.Add(buttons);
 
             footer.AutoSize = true; footer.ForeColor = SystemColors.GrayText; footer.Text = c.VersionText; footer.Margin = new Padding(0, 6, 0, 0);
@@ -223,8 +224,10 @@ namespace MtgCompanion
             menu.Items.Add(miCheck);
             menu.Items.Add("GitHub token…", null, (s, e) => TokenDialog());
             menu.Items.Add(new ToolStripSeparator());
+            miStart = new ToolStripMenuItem("Start engine", null, (s, e) => DoStart());
             miRestart = new ToolStripMenuItem("Restart engine", null, (s, e) => DoRestart());
             miStop = new ToolStripMenuItem("Stop everything", null, (s, e) => DoStop(null));
+            menu.Items.Add(miStart);
             menu.Items.Add(miRestart);
             menu.Items.Add(miStop);
             menu.Items.Add(new ToolStripSeparator());
@@ -327,7 +330,6 @@ namespace MtgCompanion
             game.ForeColor = g.Kind == GameKind.On ? Color.FromArgb(31, 111, 235) : SystemColors.ControlText;
             phase.Text = c.Phase + (c.L.Friend ? "" : "   (home mode: " + c.L.Home + ")");
             bool locked = c.IsLocked;
-            string hintText = null;
             for (int i = 0; i < 6; i++)
             {
                 var v = c.Rows[i].V;
@@ -343,10 +345,9 @@ namespace MtgCompanion
                     fixes[i].Enabled = !lockedFix;
                     tips.SetToolTip(fixes[i], lockedFix ? Logic.LockText(g) : "");
                 }
-                if (hintText == null && v.Hint != null && v.Light != Light.Green && v.Light != Light.Grey) hintText = v.Hint;
             }
-            if (hintText == null)
-                hintText = Logic.TtsHowTo(c.SaveName) + "\r\n\r\nOnly the host runs this app. Friends join your TTS game (Multiplayer) and need nothing else.";
+            bool needsStart = c.NeedsStart;
+            string hintText = Logic.NextHint(c.Rows.Select(r => r.V), needsStart, c.SaveName).Replace("\r\n", "\n").Replace("\n", "\r\n");
             if (hint.Text != hintText) hint.Text = hintText;
             string ft = c.VersionText + (c.UpdateLine.Length > 0 ? "\r\n" + c.UpdateLine : "");
             if (footer.Text != ft) footer.Text = ft;
@@ -356,16 +357,19 @@ namespace MtgCompanion
             restartBtn.Enabled = miRestart.Enabled = !locked && !c.Observe;
             tips.SetToolTip(restartBtn, locked ? Logic.LockText(g) : "Stops the bridge, restarts relay and room, then starts the bridge again.");
             stopBtn.Enabled = miStop.Enabled = !c.Observe;
+            startBtn.Enabled = miStart.Enabled = !c.Observe;
+            tips.SetToolTip(startBtn, "Starts Docker Desktop if needed, the engine (relay and Forge room), installs the table save, starts the bridge and opens TTS.");
             wslBtn.Enabled = !c.Observe;
             miRestart.Text = Logic.RestartLabel(g);
 
-            var worst = Logic.Overall(c.Rows.Select(r => r.V.Light), c.EverythingStopped);
+            var worst = Logic.Overall(c.Rows.Select(r => r.V.Light), c.EverythingStopped || needsStart);
             var icon = Icons.Tray(worst == Light.Grey ? Light.Grey : worst);
             if (tray.Icon != icon) { tray.Icon = icon; Icon = icon; }
             var red = c.Rows.FirstOrDefault(r => r.V.Light == Light.Red);
             string tip = red != null ? "MTG: " + red.Name + " problem"
                 : worst == Light.Busy ? "MTG: " + c.Phase
                 : worst == Light.Amber ? "MTG: " + c.Rows.Count(r => r.V.Light == Light.Amber) + " to check"
+                : needsStart ? "MTG: not started"
                 : worst == Light.Grey ? "MTG: stopped"
                 : (g.Kind == GameKind.On ? "MTG: game on" : "MTG: ready");
             tray.Text = tip.Length > 63 ? tip.Substring(0, 63) : tip;
@@ -434,6 +438,12 @@ namespace MtgCompanion
         void OpenLogs()
         {
             try { Directory.CreateDirectory(c.L.LogsDir); Process.Start("explorer.exe", "\"" + c.L.LogsDir + "\""); } catch { }
+        }
+
+        void DoStart()
+        {
+            var r = c.StartEngine();
+            if (r != null) MessageBox.Show(this, r, "MTG Companion");
         }
 
         void DoRestart()

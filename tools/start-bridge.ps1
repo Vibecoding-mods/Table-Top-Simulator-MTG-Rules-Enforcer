@@ -18,5 +18,8 @@ goto loop
 $script = Join-Path $root "tmp\bridge-loop.cmd"
 Set-Content -Path $script -Value $loop -Encoding ASCII
 & (Join-Path $PSScriptRoot "stop-bridge.ps1") | Out-Null
+# (the loop and every node it starts inherit this process's environment: a caller without APPDATA gave a bridge that
+# looked for its GIPHY key in ~/.config instead of %APPDATA%\MTG-TTS, 2026-11-14; Windows' own Roaming folder fills it)
+if (-not $env:APPDATA) { $env:APPDATA = [Environment]::GetFolderPath("ApplicationData") }
 Start-Process cmd -WindowStyle Hidden -ArgumentList "/c", "`"$script`""
 "bridge started (hidden, restarts itself)"

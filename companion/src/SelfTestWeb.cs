@@ -61,6 +61,45 @@ namespace MtgCompanion
         // After Stop everything (2026-11-13: the header said "Ready" in green, as Docker's row stays green, and the TTS
         // row said "Stopped." with TTS still open): the header is Stopped, grey, and the TTS row says what TTS is doing.
         // The rows are put back as they were after.
+        // Launch only checks (2026-11-14): before Start engine the header says Not started (grey, an amber TTS row
+        // aside), the hint says press Start engine unless a red light has its own, Start engine is first and gold, and
+        // pressing it queues the start sequence once (a second press while it is queued: Already running).
+        static void NotStartedStatus(string tmp)
+        {
+            try
+            {
+                var effects = new List<string>();
+                var n = new Controller(Layout.Make(Mode.Friend, tmp), false, Path.Combine(tmp, "saves-ns"), Path.Combine(tmp, "state-ns"), "x.exe");
+                n.Game = Game.None("No game.");
+                var w = Page(n, effects);
+                n.Rows[0].V = new Verdict(Light.Grey, "Docker Desktop isn't running. Start engine starts it.");
+                n.Rows[5].V = new Verdict(Light.Amber, "Tabletop Simulator isn't running.").WithFix(Fixes.TtsOpen, "Open TTS").WithHint("In TTS: Create");
+                Func<Dictionary<string, object>> status = () => J.Parse(Send(w, Get(w, "/api/status", w.Token)).Body) as Dictionary<string, object>;
+                var s = status();
+                var menu = J.Arr(s, "menu");
+                Check("not started: NeedsStart before any start", n.NeedsStart);
+                Check("not started: the header says Not started, grey (the amber TTS row doesn't make it amber)", J.Str(J.Get(s, "worst"), "text") == "Not started" && J.Str(J.Get(s, "worst"), "state") == "grey", J.Write(J.Get(s, "worst")));
+                Check("not started: What to do next says press Start engine (not the TTS row's hint)", J.Str(s, "hint") == Logic.StartHint && J.Str(s, "hint").Contains("Press Start engine"), J.Str(s, "hint"));
+                Check("not started: Start engine first in the menu, enabled, gold (primary)", J.Str(menu[0], "id") == "start-engine" && J.Str(menu[0], "label") == "Start engine" && J.Bool(menu[0], "enabled") && J.Bool(menu[0], "primary") && J.Get(menu[0], "confirm") == null, J.Write(menu[0]));
+                n.Rows[0].V = new Verdict(Light.Red, "Install Docker Desktop.").WithFix(Fixes.Retry, "Try again").WithHint("Docker Desktop isn't installed on this PC.");
+                s = status();
+                Check("not started, a real problem: the red light's hint comes first, the header names it", J.Str(s, "hint") == "Docker Desktop isn't installed on this PC." && J.Str(J.Get(s, "worst"), "text") == "Problem: Docker", J.Str(s, "hint"));
+                n.Rows[0].V = new Verdict(Light.Grey, "Docker Desktop isn't running. Start engine starts it.");
+                var res = Act(w, "start-engine");
+                Check("Start engine: accepted, one action queued, nothing run on this thread", J.Bool(res, "ok") && J.Str(res, "message").StartsWith("Starting the engine") && n.QueuedWork == 1, J.Write(res));
+                res = Act(w, "start-engine");
+                Check("Start engine twice while queued: Already running, still one action", J.Bool(res, "ok") && J.Str(res, "message").StartsWith("Already running") && n.QueuedWork == 1, J.Write(res));
+                n.WorkOnce(() => { }); // (the press only: it queues step 1; the run itself is never made here)
+                Check("Start engine's press: the start sequence queued from step 1, no longer NeedsStart", n.PendingFrom == 1 && !n.NeedsStart, n.PendingFrom);
+                Check("Start engine's press: the gold goes off, the hint is the normal one again", !J.Bool(J.Arr(status(), "menu")[0], "primary") && J.Str(status(), "hint") == "In TTS: Create");
+                var o = new Controller(Layout.Make(Mode.Friend, tmp), true, tmp, Path.Combine(tmp, "state-ns-o"), "x.exe");
+                var wo = Page(o, effects);
+                var ores = Act(wo, "start-engine");
+                Check("observe mode: Start engine refused, nothing queued, never gold", !J.Bool(ores, "ok") && J.Str(ores, "message") == "Observe mode: nothing is changed." && o.QueuedWork == 0 && !o.NeedsStart, J.Write(ores));
+            }
+            catch (Exception e) { Check("not started: no exception", false, e); }
+        }
+
         static void StoppedStatus(Controller c, WebUi w)
         {
             var keep = c.Rows.Select(x => x.V).ToArray();
@@ -75,6 +114,11 @@ namespace MtgCompanion
                 c.EverythingStopped = true;
                 s = status();
                 Check("stopped: after Stop everything the header says Stopped, grey", J.Str(J.Get(s, "worst"), "text") == "Stopped" && J.Str(J.Get(s, "worst"), "state") == "grey", J.Write(J.Get(s, "worst")));
+                c.EngineStarted = false; // (as StopEverything leaves it)
+                s = status();
+                Check("stopped: still Stopped (not Not started), the hint says press Start engine, Start engine is the gold one",
+                    J.Str(J.Get(s, "worst"), "text") == "Stopped" && J.Str(s, "hint") == Logic.StartHint && J.Bool(J.Arr(s, "menu")[0], "primary"), J.Str(J.Get(s, "worst"), "text") + " / " + J.Str(s, "hint"));
+                c.EngineStarted = true;
                 var lights = J.Arr(s, "lights");
                 Check("stopped: TTS still open: its row says it runs, green, not Stopped.", J.Str(lights[5], "state") == "green" && J.Str(lights[5], "text") == "Tabletop Simulator is running (Stop everything leaves it open).", J.Str(lights[5], "text"));
                 Check("stopped: the bridge's row is Stopped., grey; Docker's stays as it was", J.Str(lights[4], "text") == "Stopped." && J.Str(lights[4], "state") == "grey" && J.Str(lights[0], "state") == "green", J.Str(lights[4], "text") + " / " + J.Str(lights[0], "state"));
@@ -147,6 +191,7 @@ namespace MtgCompanion
             var effects = new List<string>();
             var c = new Controller(Layout.Make(Mode.Friend, tmp), false, Path.Combine(tmp, "saves"), Path.Combine(tmp, "state"), "x.exe");
             c.Game = Game.None("No game.");
+            c.EngineStarted = true; // (the page as it is after Start engine; before it: NotStartedStatus)
             var w = Page(c, effects);
             Check("the token: 32 hex characters, new for every run", w.Token.Length == 32 && w.Token.All(ch => "0123456789abcdef".IndexOf(ch) >= 0) && w.Token != new WebUi(c).Token, w.Token);
             var resp = Send(w, Get(w, "/", null));
@@ -245,9 +290,11 @@ namespace MtgCompanion
             var game = J.Get(s, "game");
             Check("status: game none, unlocked", J.Str(game, "kind") == "none" && !J.Bool(game, "locked") && J.Get(game, "lockText") == null, J.Write(game));
             var menu = J.Arr(s, "menu");
-            Check("status: the menu: restart-engine, stop-everything, open-logs, wsl-limits", menu != null && string.Join(",", menu.Select(m => J.Str(m, "id"))) == "restart-engine,stop-everything,open-logs,wsl-limits");
+            Check("status: the menu: start-engine, restart-engine, stop-everything, open-logs, wsl-limits", menu != null && string.Join(",", menu.Select(m => J.Str(m, "id"))) == "start-engine,restart-engine,stop-everything,open-logs,wsl-limits", menu == null ? null : string.Join(",", menu.Select(m => J.Str(m, "id"))));
+            Check("status: started: Start engine stays enabled but isn't the gold one", J.Bool(menu[0], "enabled") && !J.Bool(menu[0], "primary") && J.Str(menu[0], "label") == "Start engine", J.Write(menu[0]));
             Check("status: versions, a log with lines, the update section (friend mode)", J.Has(s, "versions") && J.Str(J.Get(s, "versions"), "companion") != null && J.Arr(J.Get(s, "log"), "lines") != null && J.Get(s, "update") is Dictionary<string, object>);
             StoppedStatus(c, w);
+            NotStartedStatus(tmp);
             var keepV = c.Rows[0].V;
             c.Rows[0].V = null; // (a bug inside: Status() throws)
             resp = Send(w, Get(w, "/api/status", w.Token));
@@ -271,7 +318,7 @@ namespace MtgCompanion
             game = J.Get(s, "game");
             Check("game on: status says locked, kind on, the lock sentence", J.Bool(game, "locked") && J.Str(game, "kind") == "on" && J.Str(game, "lockText") == Logic.LockText(c.Game), J.Write(game));
             Check("game on: the Restart relay and room button shows locked", J.Bool(J.Get(lights[2], "action"), "locked") && J.Bool(J.Get(lights[4], "action"), "locked") && !J.Bool(J.Get(lights[5], "action"), "locked"));
-            Check("game on: Restart engine disabled in the menu", !J.Bool(J.Arr(s, "menu")[0], "enabled") && J.Str(J.Arr(s, "menu")[0], "label").Contains("locked"));
+            Check("game on: Restart engine disabled in the menu", !J.Bool(J.Arr(s, "menu")[1], "enabled") && J.Str(J.Arr(s, "menu")[1], "label").Contains("locked"));
             var res = Act(w, "restart-engine");
             Check("game on: POST restart-engine refused with the lock sentence", !J.Bool(res, "ok") && J.Str(res, "message") == Logic.LockText(c.Game), J.Write(res));
             res = Act(w, "fix:2:stack-restart");
@@ -286,7 +333,7 @@ namespace MtgCompanion
             res = Act(w, "stop-everything");
             Check("game on: Stop everything first asks again (needConfirm), does nothing", !J.Bool(res, "ok") && J.Bool(res, "needConfirm") && J.Str(res, "message").Contains("ends that game"), J.Write(res));
             c.Game = Game.CantTell("Can't tell whether a game is on: the bridge didn't answer (timeout).");
-            var ctMenu = J.Arr(J.Parse(Send(w, Get(w, "/api/status", w.Token)).Body), "menu")[0];
+            var ctMenu = J.Arr(J.Parse(Send(w, Get(w, "/api/status", w.Token)).Body), "menu")[1];
             Check("can't tell: the Restart engine label says can't tell, not game on", J.Str(ctMenu, "label") == "Restart engine (locked: can't tell)" && !J.Bool(ctMenu, "enabled"), J.Str(ctMenu, "label"));
             c.Game = Game.On("Game on: turn 6, 4 seats.", 6);
             res = Act(w, "stop-everything", true);
@@ -408,7 +455,8 @@ namespace MtgCompanion
             Check("first start of a package: opens", WebUi.OpenAtStart(true, false, false));
             Check("later starts: not at start", !WebUi.OpenAtStart(true, false, true));
             Check("home mode and observe: not at start", !WebUi.OpenAtStart(false, false, false) && !WebUi.OpenAtStart(true, true, false));
-            Check("after the first pass: only with a red light", WebUi.OpenAfterFirstPass(false, new[] { Light.Green, Light.Red }) && !WebUi.OpenAfterFirstPass(false, new[] { Light.Green, Light.Amber, Light.Busy }) && !WebUi.OpenAfterFirstPass(true, new[] { Light.Red }));
+            Check("after the first pass: with a red light", WebUi.OpenAfterFirstPass(false, new[] { Light.Green, Light.Red }) && !WebUi.OpenAfterFirstPass(false, new[] { Light.Green, Light.Amber, Light.Busy }) && !WebUi.OpenAfterFirstPass(true, new[] { Light.Red }));
+            Check("after the first pass: or with nothing started (the page has Start engine); never in observe mode", WebUi.OpenAfterFirstPass(false, new[] { Light.Green, Light.Grey }, true) && !WebUi.OpenAfterFirstPass(false, new[] { Light.Green, Light.Grey }, false) && !WebUi.OpenAfterFirstPass(true, new[] { Light.Grey }, true));
             var st = new Controller(Layout.Make(Mode.Friend, tmp), false, tmp, Path.Combine(tmp, "state"), "x.exe");
             bool before = st.StatusPageShownBefore();
             st.MarkStatusPageShown();
@@ -417,6 +465,7 @@ namespace MtgCompanion
             {
                 var x = new Controller(Layout.Make(Mode.Friend, tmp), false, tmp, Path.Combine(tmp, "state-" + name), "x.exe");
                 x.Game = Game.None("No game.");
+                x.EngineStarted = true;
                 foreach (var row in x.Rows) row.V = new Verdict(Light.Green, "Fine.");
                 return x;
             };
@@ -458,6 +507,16 @@ namespace MtgCompanion
             WebUi.AutoOpen(f5, false, () => false, win, direct, 20);
             Thread.Sleep(300);
             Check("a later start, all green: opens nothing; red and no browser: the window", did == "watching" && o4 == 0 && windows == 1, o4 + " " + windows);
+            var fNs = fresh("later-not-started");
+            fNs.MarkStatusPageShown();
+            fNs.EngineStarted = false;
+            foreach (var row in fNs.Rows) row.V = new Verdict(Light.Grey, "Not running. Start engine starts it.");
+            fNs.FirstPassDone = true;
+            int oNs = 0;
+            WebUi.AutoOpen(fNs, false, () => { Interlocked.Increment(ref oNs); return true; }, win, direct, 20);
+            var untilNs = DateTime.UtcNow.AddSeconds(3);
+            while (oNs == 0 && DateTime.UtcNow < untilNs) Thread.Sleep(10);
+            Check("a later start that started nothing (no red light): opens the page, where Start engine is", oNs == 1, oNs);
             var t0 = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
             Check("tray clicks: a double click opens once; a click after the window opens again", !WebUi.ClickAllowed(t0, t0.AddMilliseconds(300), 1000)
                 && WebUi.ClickAllowed(t0, t0.AddMilliseconds(1000), 1000) && WebUi.ClickAllowed(DateTime.MinValue, DateTime.UtcNow, 1000));

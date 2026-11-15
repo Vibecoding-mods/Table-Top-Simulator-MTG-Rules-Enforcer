@@ -322,13 +322,14 @@ FIRST TIME
    Program Files (synced or protected folders get in the way), and don't run it from inside the zip.
 3. Start Docker Desktop and wait until it says it is running. Its first start may ask you to accept its terms, or
    to update WSL (Windows' Linux layer, which Docker uses): do both, then let it finish starting.
-4. Double-click "MTG Companion.exe". The first start takes a few minutes while it loads the engine into Docker. It
-   also copies the table into your TTS saves. Then it starts the engine and opens Tabletop Simulator.
+4. Double-click "MTG Companion.exe". It opens its status page and checks everything, but starts nothing yet.
+   Press "Start engine" (under Actions). The first start takes a few minutes while it loads the engine into
+   Docker. It also copies the table into your TTS saves. Then it starts the engine and opens Tabletop Simulator.
 
 
 EVERY GAME NIGHT
-1. Double-click "MTG Companion.exe" and wait until its lights are green. The TTS light stays amber until the
-   table is loaded (step 2).
+1. Double-click "MTG Companion.exe", press "Start engine", and wait until its lights are green. The TTS light
+   stays amber until the table is loaded (step 2).
 2. In TTS: Create > Multiplayer (so friends can join; Singleplayer to play alone against the AI)
    > Games > Save & Load > "${SAVE_NAME}".
 3. Friends join your server (Steam invite, or the server browser). They need nothing but TTS.

@@ -16,8 +16,10 @@
 //   lights   [{step, name, state, busy, word, text, hint, at, action}]  six rows; state is green|amber|red|grey (a
 //            light that is working is amber with busy:true, drawn blue); action is null or one button:
 //            {id ("fix:<row>:<fix>"), label, locked, lockText, confirm}
-//   menu     [{id, label, enabled, title, confirm, confirmLocked}]  restart-engine, stop-everything, open-logs, wsl-limits
-//   hint     the help line (the first hint of an amber/red light, else how to load the table in TTS)
+//   menu     [{id, label, enabled, title, confirm, confirmLocked, primary}]  start-engine, restart-engine, stop-everything,
+//            open-logs, wsl-limits; primary: true on start-engine while nothing is started (the page draws it gold)
+//   hint     the help line (Logic.NextHint: before Start engine, a red light's hint or "press Start engine"; else the
+//            first hint of an amber/red light, else how to load the table in TTS)
 //   versions {text, companion, table, bridge, save}
 //   log      {file, lines}                   the last lines of companion.log
 //   update   the self-update (docs/companion-app-spec.md §11), friend mode only (null in home mode and observe):
@@ -26,7 +28,7 @@
 //            Controller's one UpdateState snapshot (UpdateSection). The page shows the section only when it is an object.
 // POST /api/action answers {ok, message, needConfirm}; ok:false is a refusal (game lock, observe mode, a stale button).
 // update-now never waits for the game lock: it downloads, and the install itself waits for the game to end.
-// A second restart-engine, stop-everything or fix while the same one is still queued or running answers ok with
+// A second start-engine, restart-engine, stop-everything or fix while the same one is still queued or running answers ok with
 // "Already running" and does nothing.
 //
 // Guards (DNS rebinding, CSRF): Host must be 127.0.0.1:<port> or localhost:<port>; an Origin, when sent, must be that
@@ -313,7 +315,7 @@ namespace MtgCompanion
             {
                 var until = DateTime.UtcNow.AddMinutes(10);
                 while (!c.FirstPassDone && DateTime.UtcNow < until) Thread.Sleep(pollMs);
-                if (c.FirstPassDone && OpenAfterFirstPass(c.Observe, c.Rows.Select(r => r.V.Light)))
+                if (c.FirstPassDone && OpenAfterFirstPass(c.Observe, c.Rows.Select(r => r.V.Light), c.NeedsStart))
                     onUi(() => { if (!open()) showWindow(); });
             });
             t.IsBackground = true;
@@ -327,8 +329,9 @@ namespace MtgCompanion
         // the first start ever of a package opens the page once by itself
         public static bool OpenAtStart(bool friend, bool observe, bool shownBefore) { return friend && !observe && !shownBefore; }
 
-        // every later start (and home mode) opens it only when the first pass ends with a red light
-        public static bool OpenAfterFirstPass(bool observe, IEnumerable<Light> lights) { return !observe && lights.Any(l => l == Light.Red); }
+        // every later start (and home mode) opens it when the first pass ends with a red light, or with nothing started
+        // (launch only checks: the page is where Start engine is)
+        public static bool OpenAfterFirstPass(bool observe, IEnumerable<Light> lights, bool needsStart = false) { return !observe && (needsStart || lights.Any(l => l == Light.Red)); }
 
         // false when no browser could be started (the window shows instead)
         public bool OpenBrowser()
@@ -597,6 +600,7 @@ namespace MtgCompanion
         {
             var red = c.Rows.FirstOrDefault(r => r.V.Light == Light.Red);
             if (red != null) return "Problem: " + red.Name;
+            if (c.NeedsStart && !c.EverythingStopped) return "Not started"; // (after Stop everything: Stopped)
             switch (worst)
             {
                 case Light.Busy: return c.Phase;
@@ -618,6 +622,12 @@ namespace MtgCompanion
         {
             return new List<object>
             {
+                new Dictionary<string, object>
+                {
+                    { "id", "start-engine" }, { "label", "Start engine" }, { "enabled", !c.Observe },
+                    { "title", c.Observe ? ObserveText : "Starts Docker Desktop if needed, the engine (relay and Forge room), installs the table save, starts the bridge and opens TTS." },
+                    { "confirm", null }, { "confirmLocked", false }, { "primary", c.NeedsStart },
+                },
                 new Dictionary<string, object>
                 {
                     { "id", "restart-engine" }, { "label", Logic.RestartLabel(g) }, { "enabled", !locked && !c.Observe },
@@ -668,9 +678,9 @@ namespace MtgCompanion
                     { "at", row.At == DateTime.MinValue ? null : row.At.ToString("HH:mm:ss") }, { "action", LightAction(i, v, g, locked) },
                 });
             }
-            var worst = Logic.Overall(c.Rows.Select(r => r.V.Light), c.EverythingStopped);
-            string hint = c.Rows.Select(r => r.V).Where(v => v.Hint != null && v.Light != Light.Green && v.Light != Light.Grey).Select(v => v.Hint).FirstOrDefault()
-                ?? Logic.TtsHowTo(c.SaveName) + "\n\nOnly the host runs this app. Friends join your TTS game (Multiplayer) and need nothing else.";
+            bool needsStart = c.NeedsStart;
+            var worst = Logic.Overall(c.Rows.Select(r => r.V.Light), c.EverythingStopped || needsStart);
+            string hint = Logic.NextHint(c.Rows.Select(r => r.V), needsStart, c.SaveName);
             return new Dictionary<string, object>
             {
                 { "api", 1 }, { "app", "MTG Companion" }, { "at", DateTime.Now.ToString("HH:mm:ss") },
@@ -772,6 +782,14 @@ namespace MtgCompanion
             if (id.StartsWith("fix:")) return Fix(id);
             switch (id)
             {
+                case "start-engine":
+                {
+                    if (!c.Observe && Repeat(id)) return Already();
+                    var refused = c.StartEngine();
+                    if (refused != null) return No(refused);
+                    lastAccepted = id;
+                    return Done("Starting the engine: the lights show each step.");
+                }
                 case "restart-engine":
                 {
                     if (!c.Observe && Repeat(id)) return Already();

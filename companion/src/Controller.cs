@@ -174,7 +174,14 @@ namespace MtgCompanion
         readonly AutoResetEvent wake = new AutoResetEvent(false);
         Thread thread;
         volatile bool quit, cancel;
-        int pendingFrom = 1, resumeFrom; // (resumeFrom: the step a button press interrupted)
+        int pendingFrom, resumeFrom; // (resumeFrom: the step a button press interrupted)
+        // Launch only checks: the worker's first turn is one read-only pass of the six steps (checkPending), and nothing
+        // starts until Start engine (or a fix button) asks; AutoStart (--start) runs the start sequence at launch instead.
+        // engineStarted: a start sequence ran (or the check found the engine already up); until then, parts that are only
+        // not running yet are grey and point at Start engine (Logic.BeforeStart). (worker only)
+        public bool AutoStart;
+        bool checkPending = true, checking, engineStarted;
+        bool DryRun { get { return Observe || checking; } } // (observe mode, or the launch check: read only)
         // the first step the last start-sequence run didn't finish: it stopped there on a red light, or a press
         // interrupted it there; 0 when it ran to the end, or after Stop everything (worker only)
         int stoppedAt;
@@ -283,6 +290,7 @@ namespace MtgCompanion
             dockerDesktop = Probes.FindDockerDesktop();
             Log.Write("start: " + L.Mode + " mode, home " + L.Home + (Observe ? " (observe only: no changes)" : "") + "; docker " + (dockerCli ?? "not found") + "; Docker Desktop " + (dockerDesktop ?? "not found"));
             if (L.Friend) Log.Write("package: " + J.Write(version));
+            if (!Observe) Log.Write(AutoStart ? "launch: --start: running the start sequence" : "launch: checking only; Start engine starts the engine");
             thread = new Thread(Loop);
             thread.IsBackground = true;
             thread.Name = "companion worker";
@@ -466,10 +474,20 @@ namespace MtgCompanion
                 resumeFrom = 0;
                 return true;
             }
+            if (checkPending && AutoStart && !Observe) { checkPending = false; pendingFrom = 1; } // (--start: the launch runs the start sequence)
             if (pendingFrom > 0)
             {
+                checkPending = false; // (a start before the launch check ran: the run is the check)
                 int from = StartAt(pendingFrom); pendingFrom = 0; cancel = false;
                 Safe(() => RunSequence(from), "start sequence");
+                FirstPassDone = true;
+                Fire();
+                return true;
+            }
+            if (checkPending)
+            {
+                checkPending = false; cancel = false;
+                CheckPass();
                 FirstPassDone = true;
                 Fire();
                 return true;
@@ -577,14 +595,40 @@ namespace MtgCompanion
 
         // ───────────────────────────── the start sequence ─────────────────────────────
 
+        // the launch's check: the six steps read only (each Do* treats it as observe mode, with Start engine's words);
+        // nothing is started, loaded, installed or opened
+        internal void CheckPass()
+        {
+            checking = !Observe;
+            try { Safe(() => RunSequence(1), "check"); }
+            finally { checking = false; }
+        }
+
+        // the Start engine button: the start sequence from step 1, as every launch ran it before (2026-11-14)
+        public string StartEngine()
+        {
+            if (Observe) return "Observe mode: nothing is changed.";
+            Log.Write("button: start engine");
+            Enqueue(() => { everythingStopped = false; pendingFrom = 1; });
+            return null;
+        }
+
+        // nothing has been started yet (launch only checked, or Stop everything ran) and no start is queued: the page
+        // and the window point at Start engine
+        public bool NeedsStart { get { return !Observe && !engineStarted && pendingFrom == 0; } }
+
+        // a light as shown before Start engine (Logic.BeforeStart), else as decided
+        Verdict Unstarted(int step, Verdict v) { return engineStarted || Observe ? v : Logic.BeforeStart(step, v); }
+
         internal void RunSequence(int from)
         {
             everythingStopped = false; stoppedAt = 0;
+            if (!DryRun) engineStarted = true;
             bool fresh = forceFresh; forceFresh = false;
             for (int step = from; step <= 6 && !quit; step++)
             {
                 if (OnlySteps != null && !OnlySteps.Contains(step)) { Rows[step - 1].V = new Verdict(Light.Grey, "Skipped (--steps)."); continue; }
-                SetPhase(Observe ? "Checking (observe only)" : "Starting: step " + step + " of 6");
+                SetPhase(Observe ? "Checking (observe only)" : checking ? "Checking: step " + step + " of 6" : "Starting: step " + step + " of 6");
                 bool ok;
                 switch (step - 1)
                 {
@@ -596,8 +640,10 @@ namespace MtgCompanion
                     default: ok = DoTts(); break;
                 }
                 // (stoppedAt too: a press for a later step must not skip this unfinished one, Logic.StartFrom)
+                // (the launch check cut short by a press: nothing to resume, the check runs again unless the press starts)
+                if (cancel && !quit && checking) { checkPending = true; return; }
                 if (cancel && !quit) { resumeFrom = step; stoppedAt = step; SetPhase("Interrupted"); return; }
-                if (!ok && !Observe)
+                if (!ok && !DryRun)
                 {
                     stoppedAt = step;
                     SetPhase("Stopped at step " + step + " (" + Names[step - 1] + "): see the red light");
@@ -607,7 +653,8 @@ namespace MtgCompanion
                     return;
                 }
             }
-            SetPhase(Observe ? "Observing (no changes)" : "Ready");
+            if (checking && Logic.EngineUp(Rows.Select(r => r.V.Light).ToList())) { engineStarted = true; Log.Write("launch check: the engine is already up"); }
+            SetPhase(Observe ? "Observing (no changes)" : checking && !engineStarted ? Logic.NotStartedPhase : "Ready");
         }
 
         // ── 1. Docker
@@ -658,10 +705,10 @@ namespace MtgCompanion
                 f.Waiting = waitStart.HasValue;
                 f.WaitedSec = waitStart.HasValue ? (DateTime.UtcNow - waitStart.Value).TotalSeconds : 0;
                 var v = Logic.DecideDocker(f);
-                if (Observe && v.Action != null) v = new Verdict(Light.Red, f.DesktopRunning ? "Docker Desktop runs, but its engine isn't answering." : "Docker isn't running (the app would start Docker Desktop).");
+                if (DryRun && v.Action != null) v = checking ? Logic.BeforeStart(StepDocker, v) : new Verdict(Light.Red, f.DesktopRunning ? "Docker Desktop runs, but its engine isn't answering." : "Docker isn't running (the app would start Docker Desktop).");
                 Set(StepDocker, v);
                 if (v.Light == Light.Green) return true;
-                if (v.Light == Light.Red || Observe) return false;
+                if (v.Light == Light.Red || DryRun) return false;
                 if (v.Action == Actions.StartDesktop && !waitStart.HasValue) { StartDockerDesktop(); waitStart = DateTime.UtcNow; }
                 else if (!waitStart.HasValue) waitStart = DateTime.UtcNow;
                 if (!Pause(3000)) return false;
@@ -692,7 +739,7 @@ namespace MtgCompanion
 
         bool DoImages()
         {
-            if (!Rows[StepDocker].V.Light.Equals(Light.Green)) { Set(StepImages, new Verdict(Light.Grey, "Waiting for Docker.")); return Observe; }
+            if (!Rows[StepDocker].V.Light.Equals(Light.Green)) { Set(StepImages, new Verdict(Light.Grey, "Waiting for Docker.")); return DryRun; }
             bool loaded = false;
             for (int round = 0; round < 3 && !quit; round++)
             {
@@ -724,7 +771,7 @@ namespace MtgCompanion
                 forceLoad = false;
                 var v = Logic.DecideImages(f);
                 imagesAt = DateTime.UtcNow;
-                if (v.Action == Actions.Load && !Observe)
+                if (v.Action == Actions.Load && !DryRun)
                 {
                     Set(StepImages, v);
                     if (!LoadImages())
@@ -735,7 +782,8 @@ namespace MtgCompanion
                     loaded = true;
                     continue;
                 }
-                if (Observe && v.Action == Actions.Load) v = new Verdict(Light.Amber, "Would load the engine images from " + Path.GetFileName(L.ImagesTar) + " (" + ImageDiff(relay, node) + ").");
+                if (checking && v.Action == Actions.Load) v = Logic.BeforeStart(StepImages, v);
+                else if (Observe && v.Action == Actions.Load) v = new Verdict(Light.Amber, "Would load the engine images from " + Path.GetFileName(L.ImagesTar) + " (" + ImageDiff(relay, node) + ").");
                 Set(StepImages, v);
                 return v.Light == Light.Green || v.Light == Light.Amber;
             }
@@ -798,11 +846,11 @@ namespace MtgCompanion
 
         bool DoStack(bool fresh)
         {
-            if (Rows[StepDocker].V.Light != Light.Green) { Set(StepStack, new Verdict(Light.Grey, "Waiting for Docker.")); return Observe; }
+            if (Rows[StepDocker].V.Light != Light.Green) { Set(StepStack, new Verdict(Light.Grey, "Waiting for Docker.")); return DryRun; }
             RefreshGame();
             bool locked = IsLocked;
             int autoRestarts = 0;
-            if (!locked && !Observe)
+            if (!locked && !DryRun)
             {
                 Set(StepStack, new Verdict(Light.Busy, "Starting the engine (relay and Forge room)."));
                 var up = Compose(L.Friend ? "up -d" : "up -d --no-recreate", 180000);
@@ -833,8 +881,8 @@ namespace MtgCompanion
                 }
                 bool canLogin = relay != null && relay.Exists && relay.State == "running" && relay.Health != "starting" && !locked;
                 var login = canLogin ? Login() : new LoginResult { Kind = LoginKind.Skipped };
-                var v = Logic.DecideStack(relay, room, login, Game, L.Friend);
-                if (Observe || v.Light == Light.Green || login.Kind == LoginKind.AuthFailed) { Set(StepStack, v); return v.Light == Light.Green; }
+                var v = Unstarted(StepStack, Logic.DecideStack(relay, room, login, Game, L.Friend));
+                if (DryRun || v.Light == Light.Green || login.Kind == LoginKind.AuthFailed) { Set(StepStack, v); return v.Light == Light.Green; }
                 if (locked && v.Light == Light.Red) { Set(StepStack, v); return false; }
                 bool broken = canLogin && relay.Health == "healthy" && login.Kind != LoginKind.Ok;
                 if (broken) loginFails++;
@@ -964,10 +1012,11 @@ namespace MtgCompanion
                 if (st != null && !string.Equals(Path.GetFullPath(st.SavesDir ?? "x:\\"), Path.GetFullPath(SavesDir), StringComparison.OrdinalIgnoreCase)) st = null;
                 var plan = Logic.PlanSave(existing, st, want, ourHash, ours.LongLength, n => Logic.Sha8(File.ReadAllBytes(Path.Combine(SavesDir, n))));
                 Log.Write("save plan: " + plan + " (" + plan.Text + ") in " + SavesDir);
-                if (Observe)
+                if (DryRun)
                 {
                     Set(StepSave, plan.Kind == SaveKind.Skip || plan.Kind == SaveKind.Adopt
                         ? new Verdict(Light.Green, plan.Text)
+                        : checking ? new Verdict(Light.Grey, "Start engine does this: " + plan.Text)
                         : new Verdict(Light.Amber, "Would do: " + plan.Text + " (in " + SavesDir + ")"));
                     return true;
                 }
@@ -1041,9 +1090,10 @@ namespace MtgCompanion
                 if (vers.Kind == HttpKind.Ok) { versionsCache = vers; versionsAt = DateTime.UtcNow; }
                 var v = BridgeVerdict(vers);
                 if (v.Light == Light.Red) versionsCache = null; // (another program answers: its table isn't ours to judge)
-                if (Observe)
+                if (DryRun)
                 {
-                    if (v.Action == Actions.StartBridge) v = new Verdict(Light.Red, "The bridge isn't running (the app would start it).");
+                    if (checking) v = Logic.BeforeStart(StepBridge, v);
+                    else if (v.Action == Actions.StartBridge) v = new Verdict(Light.Red, "The bridge isn't running (the app would start it).");
                     Set(StepBridge, v);
                     return v.Light == Light.Green;
                 }
@@ -1094,15 +1144,27 @@ namespace MtgCompanion
             {
                 Log.Write("starting the bridge loop: " + ExePath + " --bridge-loop");
                 var psi = new ProcessStartInfo(ExePath, "--bridge-loop --home \"" + L.Home + "\"") { UseShellExecute = false, CreateNoWindow = true };
+                var appData = BridgeAppData();
+                if (appData != null) psi.EnvironmentVariables["APPDATA"] = appData;
                 Process.Start(psi).Dispose();
             }
             else
             {
                 var ps1 = Path.Combine(L.Home, "tools", "start-bridge.ps1");
                 Log.Write("starting the bridge: " + ps1);
-                var r = Probes.Run("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -File \"" + ps1 + "\"", 60000, line => Log.Write("start-bridge: " + line), null, null, L.Home);
+                var appData = BridgeAppData();
+                var env = appData == null ? null : new Dictionary<string, string> { { "APPDATA", appData } };
+                var r = Probes.Run("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -File \"" + ps1 + "\"", 60000, line => Log.Write("start-bridge: " + line), null, env, L.Home);
                 Log.Write("start-bridge: exit " + r.Exit);
             }
+        }
+
+        // the APPDATA the bridge must get when this app runs without one (Logic.AppDataFor); null: it inherits ours
+        internal static string BridgeAppData()
+        {
+            var a = Logic.AppDataFor(Environment.GetEnvironmentVariable("APPDATA"), Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
+            if (a != null) Log.Write("APPDATA isn't set for this app: the bridge gets " + a);
+            return a;
         }
 
         public void StopBridge()
@@ -1148,7 +1210,7 @@ namespace MtgCompanion
 
         bool DoTts()
         {
-            if (!TtsRunning() && !Observe && !ttsLaunched && Probes.SteamFound())
+            if (!TtsRunning() && !DryRun && !ttsLaunched && Probes.SteamFound())
             {
                 LaunchTts();
                 Set(StepTts, new Verdict(Light.Busy, "Opening Tabletop Simulator through Steam."));
@@ -1184,6 +1246,7 @@ namespace MtgCompanion
             if (pendingM != null && !Observe && Updates.InstallNow(IsLocked, idleSince, DateTime.UtcNow, true)) { ApplyUpdate(pendingM, pendingPlan); return; } // (2 minutes after the game: install the update)
             var f = DockerNow();
             if (f.Answers) Set(StepDocker, Logic.DecideDocker(f));
+            else if (!engineStarted && !Observe) Set(StepDocker, Logic.BeforeStart(StepDocker, Logic.DecideDocker(f))); // (before Start engine: no red light for a Docker nobody asked to start)
             else Set(StepDocker, new Verdict(f.DesktopRunning ? Light.Amber : Light.Red, f.DesktopRunning ? "Docker Desktop runs, but its engine isn't answering (starting or stopped)." : "Docker isn't running.")
                 .WithFix(Fixes.DockerStart, "Start Docker Desktop"));
             if (f.Answers)
@@ -1197,7 +1260,7 @@ namespace MtgCompanion
                     {
                         string wr = Want("relay"), wn = Want("node");
                         if (L.Friend) ExpectedImages(out wr, out wn);
-                        var v = Logic.DecideImages(new ImageFacts { Friend = L.Friend, RelayId = relay, NodeId = node, WantRelay = wr, WantNode = wn, TarPath = L.ImagesTar, Locked = IsLocked });
+                        var v = Unstarted(StepImages, Logic.DecideImages(new ImageFacts { Friend = L.Friend, RelayId = relay, NodeId = node, WantRelay = wr, WantNode = wn, TarPath = L.ImagesTar, Locked = IsLocked }));
                         if (v.Action == Actions.Load) v = new Verdict(Light.Amber, "The engine images differ from this package (" + ImageDiff(relay, node) + ").").WithFix(Fixes.ImagesLoad, "Load the engine images");
                         Set(StepImages, v);
                     }
@@ -1215,7 +1278,7 @@ namespace MtgCompanion
                         watchBrokenLogins = rc.Health == "healthy" && Logic.LoginBroken(login.Kind) ? watchBrokenLogins + 1 : 0;
                     }
                     else login = loginCache;
-                    Set(StepStack, Logic.DecideStack(rc, oc, login, Game, L.Friend));
+                    Set(StepStack, Unstarted(StepStack, Logic.DecideStack(rc, oc, login, Game, L.Friend)));
                     if (Logic.HealRelayNow(watchBrokenLogins, IsLocked, Observe, (DateTime.UtcNow - lastHeal).TotalMinutes)) HealRelay();
                 }
             }
@@ -1234,13 +1297,19 @@ namespace MtgCompanion
                 var vers = Probes.HttpGet(BridgeUrl + "/versions", 15000);
                 if (vers.Kind == HttpKind.Ok) { versionsCache = vers; versionsAt = DateTime.UtcNow; }
                 else versionsAt = DateTime.UtcNow.AddSeconds(-25); // (try again in 5 s)
-                var v = BridgeVerdict(vers);
+                var v = Unstarted(StepBridge, BridgeVerdict(vers));
                 if (v.Action == Actions.StartBridge) v = new Verdict(Light.Red, "The bridge isn't running.").WithFix(Fixes.BridgeStart, "Start the bridge");
                 else if (v.Action == Actions.Wait) v = new Verdict(Light.Busy, "The bridge is (re)starting.");
                 if (vers.Kind != HttpKind.Ok || v.Light == Light.Red) versionsCache = null;
                 Set(StepBridge, v);
             }
             UpdateTts();
+            // (the engine came up without Start engine, e.g. Start MTG.bat or a companion that was restarted: it counts as started)
+            if (!engineStarted && !Observe && pendingFrom == 0 && Logic.EngineUp(Rows.Select(r => r.V.Light).ToList()))
+            {
+                engineStarted = true; Log.Write("the engine is up (started outside this app): watching it as started");
+                if (Phase == Logic.NotStartedPhase || Phase == Logic.StoppedPhase) SetPhase("Ready");
+            }
             if (!Observe && Phase.StartsWith("Ready")) SetPhase(Rows.Any(r => r.V.Light == Light.Red) ? "Ready, with a problem: see the red light" : "Ready");
             MaybeTrimLogs();
         }
@@ -1326,13 +1395,13 @@ namespace MtgCompanion
             Log.Write("menu: stop everything (game: " + Game.Kind + ")");
             Enqueue(() =>
             {
-                everythingStopped = true; pendingFrom = 0; stoppedAt = 0; // (the menu's stop replaces a red-light stop)
+                everythingStopped = true; pendingFrom = 0; stoppedAt = 0; engineStarted = false; // (the menu's stop replaces a red-light stop)
                 SetPhase("Stopping");
                 StopBridge();
                 if (dockerCli != null && Rows[StepDocker].V.Light == Light.Green) Compose(L.Friend ? "down" : "stop", 120000);
                 MarkStopped(TtsRunning());
                 RefreshGame(); // (the watcher pauses now, so this is the last look: it unlocks Restart engine)
-                SetPhase("Stopped. Restart engine starts it again.");
+                SetPhase(Logic.StoppedPhase);
                 Fire();
                 if (done != null) done();
             });
@@ -1351,6 +1420,8 @@ namespace MtgCompanion
         }
         // the menu's Stop everything is in effect (until the next start sequence): the header says Stopped
         internal bool EverythingStopped { get { return everythingStopped; } set { everythingStopped = value; } }
+        // a start sequence ran (or the engine was found up); the self-test sets it for a page as it looks after a start
+        internal bool EngineStarted { get { return engineStarted; } set { engineStarted = value; } }
 
         // the text dump for --observe --dump
         public string Dump()
