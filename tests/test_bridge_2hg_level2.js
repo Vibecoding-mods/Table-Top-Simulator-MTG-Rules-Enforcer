@@ -197,7 +197,8 @@ const fixBoard = (i) => FIX.record[i].board;
     ok("skip: an opponent's spell still stops it", chats(h, n2).some((c) => /Grizzly Bears \(White\) is on the stack/.test(c)), chats(h, n2).join(" | "));
     const ex = await teamExtras(h, r.seats, fixBoard(48));
     ok("triggers: the first seat orders the team's triggers, the partner's named", /^Your team's triggers/.test(ex.order?.title || "") && (ex.order?.options || []).some((o) => /^Red's Juggernaut/.test(o.label)), JSON.stringify(ex.order && { t: ex.order.title, o: ex.order.options }));
-    ok("triggers: the partner is told who orders them", ex.toRed.some((c) => /White is putting your team's triggers in order, yours too/.test(c)), ex.toRed.join(" | "));
+    ok("triggers: the partner is told who orders them", ex.toRed.some((c) => /White is putting your team's triggers in order, yours too \(the team leader does\)/.test(c)), ex.toRed.join(" | "));
+    ok("triggers: the primary player is told she orders them as the team leader", /^You order your team's triggers, Red's too \(you are the team leader\)\./.test(ex.order?.text || ""), ex.order?.text);
     ok("refusal: a refused team block is the team's, and who is asked first", ex.refused.some((c) => c === "[MTG] Your team's blocks together aren't legal. Hill Giant can't block alone. You are both asked again, Yellow first."), ex.refused.join(" | "));
   });
 

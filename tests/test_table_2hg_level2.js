@@ -68,7 +68,7 @@ const level1 = (m) => { const x = clone(m); delete x.activeTeam; if (x.teams) de
   // ── the host's level switch and the Start it sends ──
   {
     const r = sim([
-      q('engineChat("mtg 2hg turns shared", Player.Red) return tostring(ENGINE_TEAM_TURNS)', "not host"),
+      q('engineChat("mtg 2hg turns own", Player.Red) return tostring(ENGINE_TEAM_TURNS)', "not host"),
       q('engineChat("mtg mode 2hg", Player.White) engineChat("mtg 2hg turns shared", Player.White) return tostring(ENGINE_TEAM_TURNS) .. " " .. engineTeamsLabel()', "shared"),
       q('engineChat("mtg 2hg turns", Player.White) return "x"', "ask"),
       q('engineStartSentAt = nil engineChat("mtg start", Player.White) return "started"', "start", 10),
@@ -77,7 +77,7 @@ const level1 = (m) => { const x = clone(m); delete x.activeTeam; if (x.teams) de
     ]);
     const sent = (mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
     ok("level: no errors", !r.errors.length, r.errors.join(" | "));
-    ok("level: only the host sets it", valueOf(r, "not host") === "nil" && /Only the host/.test(chatsOf(r, "not host")), `${valueOf(r, "not host")} ${chatsOf(r, "not host")}`);
+    ok("level: only the host sets it", valueOf(r, "not host") === "shared" && /Only the host/.test(chatsOf(r, "not host")), `${valueOf(r, "not host")} ${chatsOf(r, "not host")}`);
     ok("level: mtg 2hg turns shared sets one turn for each team", valueOf(r, "shared") === "shared Teams\n2HG team turns" && /one turn for each team: partners take their turn together/.test(chatsOf(r, "shared")), `${valueOf(r, "shared")} ${chatsOf(r, "shared")}`);
     ok("level: mtg 2hg turns alone says the setting and how", /Two-Headed Giant turns: one turn for each team\. Use:  mtg 2hg turns shared/.test(chatsOf(r, "ask")), chatsOf(r, "ask"));
     ok("level: the Start carries teamTurns shared with the 2HG teams", /"t":"start"/.test(sent("start")) && /"teamTurns":"shared"/.test(sent("start")) && /"teamMode":"2hg"/.test(sent("start")), sent("start").slice(0, 500));

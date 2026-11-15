@@ -330,8 +330,8 @@ function teamTriggerWords(pub, who, items, nameOf) {
   const theirs = new Set((items || []).filter((i) => (i.card?.controllerId || i.card?.ownerId) === partner).map((i) => i.id));
   if (!theirs.size) return null;
   return { partner, theirs,
-    hint: `You order your team's triggers, ${nameOf(partner)}'s too (you are the team's first seat). The one you click first happens first. Not sure? Keep this order.`,
-    toPartner: `${nameOf(who)} is putting your team's triggers in order, yours too (the team's first seat does).` };
+    hint: `You order your team's triggers, ${nameOf(partner)}'s too (you are the team leader). The one you click first happens first. Not sure? Keep this order.`,
+    toPartner: `${nameOf(who)} is putting your team's triggers in order, yours too (the team leader does).` };
 }
 // A refused team attack or block (track C, docs/2hg-level2-combat.md: a notice with no cards to every player of the
 // team, "Attack declaration invalid" or "Block declaration invalid: <reason>", then each is asked again, first seat
@@ -344,6 +344,53 @@ function teamRefusalWords(pub, who, title, nameOf) {
   const why = m[2] ? ` ${m[2].replace(/\.?$/, ".")}` : "";
   return `Your team's ${attack ? "attack" : "blocks"} together ${attack ? "isn't" : "aren't"} legal.${why} You are both asked again, ${nameOf(team[0])} first.`;
 }
-module.exports = { teamTriggerWords, teamRefusalWords, sharesLife, sharesTurns, turnPlayerIds, isTurnOf, turnPartners, turnPartnerOf, turnWhose, teamAttackLines, teamBlockLines, TEAM_COLORS, DEFAULT_TEAMS, TEAM_MODES, JUGG_DEFAULTS, setupOf, teamModeOf, juggOf, juggLife, juggTeams, juggPerks, juggWords,
+// ── The team's joint block (engine team-block, CR 805.10d and 805.2; docs/game-modes-spec.md §5.12) ──
+// A Two-Headed Giant team block asks each defender in turn, again after a partner changes the team's block, until an
+// answer changes nothing; after 4 revise rounds the primary player's latest answer stands. The chooseBlockers prompt
+// then carries four optional fields: title ("Block with Yellow", "Yellow changed the blocks. Agree or change?"),
+// reviseRound (1-4, absent in round 1), currentAssignments (the defender's own blocks: sent back unchanged, they are
+// "Agree") and teamBlockLines (one line per attacker, "Goblin Guide -> your Bear + Yellow's Wall"). A prompt without
+// any of them (free-for-all, 2v2, Juggernaut, an older engine) is no joint block: null.
+function jointBlock(input) {
+  if (!input || !["title", "reviseRound", "currentAssignments", "teamBlockLines"].some((k) => input[k] != null)) return null;
+  return {
+    title: typeof input.title === "string" && input.title.trim() ? input.title.trim() : null,
+    round: Number.isInteger(input.reviseRound) && input.reviseRound > 0 ? input.reviseRound : null,
+    // (the answer Agree sends: the prompt's own list, untouched; null when the prompt has none, and then no Agree)
+    agree: Array.isArray(input.currentAssignments) ? JSON.parse(JSON.stringify(input.currentAssignments)) : null,
+    // (the option ids to pre-fill, "<blocker>|<attacker>")
+    on: new Set((Array.isArray(input.currentAssignments) ? input.currentAssignments : []).filter((a) => a && a.blockerId && a.attackerId).map((a) => `${a.blockerId}|${a.attackerId}`)),
+    lines: Array.isArray(input.teamBlockLines) ? input.teamBlockLines.map((l) => String(l)) : [],
+  };
+}
+// The table's seat colours (TTS's player colours) as text colours, for a player's name in the team's block
+const SEAT_HEX = { White: "#FFFFFF", Brown: "#C08050", Red: "#FF5A4F", Orange: "#F4641D", Yellow: "#E7E52C", Green: "#31B32B",
+  Teal: "#21B19B", Blue: "#4DA3FF", Purple: "#B45CF0", Pink: "#F570CE" };
+// The team's block as the panel shows it: one line per attacker, "->" drawn as an arrow, each other player's name
+// ("Yellow's Wall of Wood") in their seat colour (TTS rich text). players: [{ name, color }] as the lines name them
+// (the bridge's table names). colored false: the plain lines (the corner's note, which is cut to length).
+function jointBlockLines(lines, players, colored = true) {
+  return (lines || []).map((line) => {
+    let out = String(line).split(" -> ").join(" → ");
+    if (!colored) return out;
+    for (const p of players || []) {
+      const hex = SEAT_HEX[p.color];
+      const said = `${p.name}'s `;
+      if (hex && p.name && out.includes(said)) out = out.split(said).join(`<color=${hex}>${p.name}'s</color> `);
+    }
+    return out;
+  });
+}
+// A joint block's notice (a no-card revealCards to each defender): a change, "Yellow: Wall of Wood now blocks Hill
+// Giant." / "Blue: Centaur Courser no longer blocks.", said as it is; the cap's "Yellow settles the team's blocks (rule
+// 805.2)", said "Yellow decides (team leader)". { kind: "change" | "settle", line }, or null for any other notice.
+function teamBlockNotice(text) {
+  const t = String(text || "").trim();
+  const settle = /^(.+?) settles the team's blocks \(rule 805\.2\)\.?$/.exec(t);
+  if (settle) return { kind: "settle", line: `${settle[1]} decides (team leader)` };
+  if (/^[^:]+: .+ (?:now blocks .+|no longer blocks)\.$/.test(t)) return { kind: "change", line: t };
+  return null;
+}
+module.exports = { jointBlock, jointBlockLines, teamBlockNotice, SEAT_HEX, teamTriggerWords, teamRefusalWords, sharesLife, sharesTurns, turnPlayerIds, isTurnOf, turnPartners, turnPartnerOf, turnWhose, teamAttackLines, teamBlockLines, TEAM_COLORS, DEFAULT_TEAMS, TEAM_MODES, JUGG_DEFAULTS, setupOf, teamModeOf, juggOf, juggLife, juggTeams, juggPerks, juggWords,
   setupWords, teamsOf, teamWords, sides, teamsProblem, gameConfig, boardTeams, teamOf, withTeamDamage, teamsField, teamLifeTip,
   poisonLabel, teamWinWords };
