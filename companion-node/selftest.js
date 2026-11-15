@@ -543,7 +543,16 @@ async function wiring() {
     const watch = async () => { watched++; };
     check("wiring: before any run, no stop: a button starts where it asks", c.stoppedAt === 0 && c.startAt(5) === 5);
     let ran = await c.workOnce(watch);
-    check("wiring: the first turn runs the start sequence, not the watcher; the red step is recorded", ran && watched === 0 && c.pendingFrom === 0 && c.stoppedAt === 4 && c.phase.startsWith("Stopped at step 4"), `${ran} ${watched} ${c.stoppedAt} ${c.phase}`);
+    check("launch: the first turn is the check, not the watcher and not the start sequence: no stop recorded, Not started", ran && watched === 0 && c.pendingFrom === 0 && c.stoppedAt === 0 && c.phase === L.NotStartedPhase && c.needsStart && !c.engineStarted, `${ran} ${watched} / ${c.stoppedAt} / ${c.phase}`);
+    check("launch: the check read the save step (red: no table here) and set no row waiting", c.rows[L.Step.Save].v.light === Light.Red && c.rows[L.Step.Tts].v.text !== "Waiting for Table save.", c.rows[L.Step.Save].v);
+    ran = await c.workOnce(watch);
+    check("launch: then only the watcher, nothing queued, still Not started", !ran && watched === 1 && c.pendingFrom === 0 && c.needsStart, `${ran} ${watched} / ${c.pendingFrom}`);
+    check("launch: Start engine queues a press (nothing runs until the worker takes it)", c.startEngine() === null && c.work.length === 1 && c.pendingFrom === 0);
+    ran = await c.workOnce(watch);
+    check("Start engine: the press is a turn of its own: it queues the start sequence from step 1", ran && c.pendingFrom === 1 && !c.needsStart, c.pendingFrom);
+    watched = 0;
+    ran = await c.workOnce(watch);
+    check("wiring: Start engine's turn runs the start sequence, not the watcher; the red step is recorded", ran && watched === 0 && c.pendingFrom === 0 && c.stoppedAt === 4 && c.phase.startsWith("Stopped at step 4") && c.engineStarted, `${ran} ${watched} ${c.stoppedAt} ${c.phase}`);
     check("wiring: the steps after the stop wait for it", c.rows[4].v.light === Light.Grey && c.rows[5].v.text === "Waiting for Table save.", c.rows[5].v);
     ran = await c.workOnce(watch);
     check("wiring: still red: a watcher turn, nothing queued", !ran && watched === 1 && c.pendingFrom === 0 && c.stoppedAt === 4);
@@ -578,13 +587,212 @@ async function wiring() {
     check("can't tell: Restart engine refused too", (c.restartEngine() || "").includes("can't tell"));
     const o = fakeController(true);
     o.c.game = L.Game.none("No game.");
-    check("observe mode: every change refused", !!o.c.restartEngine() && !!o.c.doFix(L.Step.Tts, Fixes.TtsOpen));
+    check("observe mode: every change refused", !!o.c.restartEngine() && !!o.c.doFix(L.Step.Tts, Fixes.TtsOpen) && o.c.startEngine() === "Observe mode: nothing is changed." && o.c.work.length === 0 && !o.c.needsStart);
     await o.c.workOnce(watch);
     o.c.rows[L.Step.Save].v = verdict(Light.Green, "Installed.");
     await o.c.workOnce(watch);
     check("wiring: observe mode never records a stop, so never carries on", o.c.stoppedAt === 0 && o.c.pendingFrom === 0 && o.c.phase === "Observing (no changes)", `${o.c.stoppedAt} ${o.c.phase}`);
     fs.rmSync(o.tmp, { recursive: true, force: true });
   } catch (e) { check("wiring: no exception", false, e.stack); } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}
+
+// Launch only checks (2026-11-14, as the Windows app). The table save is the one step that changes something without
+// a container engine, so it is the proof: a package with a table, --steps 4. The launch's check installs nothing;
+// Start engine installs it; --start (autoStart) installs it at launch as every launch did before.
+async function launchStartsNothing() {
+  section("launch only checks; Start engine starts");
+  const mk = (observe, autoStart) => {
+    const x = fakeController(observe);
+    fs.mkdirSync(path.join(x.tmp, "table"), { recursive: true });
+    fs.writeFileSync(x.c.L.tableJson, '{"SaveName": "Selftest table", "ObjectStates": []}');
+    x.c.reloadPackage();
+    x.c.autoStart = autoStart;
+    x.c.stopBridge = async () => {}; // (never near a real bridge)
+    return x;
+  };
+  const filesIn = (d) => (fs.existsSync(d) ? fs.readdirSync(d).length : 0);
+  let watched = 0;
+  const watch = async () => { watched++; };
+  const all = [];
+  try {
+    const n = mk(false, false); all.push(n);
+    const c = n.c;
+    await c.workOnce(watch);
+    check("launch starts nothing: the check installed no table save", filesIn(c.savesDir) === 0, filesIn(c.savesDir));
+    check("launch starts nothing: the save row is grey and says Start engine does it", c.rows[L.Step.Save].v.light === Light.Grey && c.rows[L.Step.Save].v.text === "Start engine does this: Installing the table as TS_Save_1.json.", c.rows[L.Step.Save].v);
+    check("launch starts nothing: Not started, nothing queued, not started", c.phase === L.NotStartedPhase && c.pendingFrom === 0 && c.needsStart && !c.engineStarted, c.phase);
+    await c.workOnce(watch); await c.workOnce(watch);
+    check("launch starts nothing: the watcher's turns install nothing either", watched === 2 && filesIn(c.savesDir) === 0, `${watched} / ${filesIn(c.savesDir)}`);
+    c.startEngine();
+    await c.workOnce(watch); // the press
+    await c.workOnce(watch); // the start sequence
+    check("Start engine: the table save installed (TS_Save_1.json), the row green, Ready", fs.existsSync(path.join(c.savesDir, "TS_Save_1.json")) && c.rows[L.Step.Save].v.light === Light.Green && c.phase === "Ready" && c.engineStarted && !c.needsStart, `${L.vText(c.rows[L.Step.Save].v)} / ${c.phase}`);
+    c.stopEverything(null);
+    await c.workOnce(watch);
+    check("Stop everything: back to not started (Stopped. Start engine starts it again.)", c.phase === L.StoppedPhase && c.phase === "Stopped. Start engine starts it again." && c.needsStart && !c.engineStarted && c.everythingStopped, c.phase);
+    c.startEngine();
+    await c.workOnce(watch); await c.workOnce(watch);
+    check("Start engine after Stop everything: runs again, Ready", c.phase === "Ready" && !c.everythingStopped && c.engineStarted, c.phase);
+
+    const a = mk(false, true); all.push(a);
+    const ran = await a.c.workOnce(watch);
+    check("--start: the launch's first turn is the start sequence: the save installed, Ready", ran && fs.existsSync(path.join(a.c.savesDir, "TS_Save_1.json")) && a.c.phase === "Ready" && a.c.engineStarted, `${a.c.phase} / ${filesIn(a.c.savesDir)}`);
+
+    const o = mk(true, true); all.push(o);
+    await o.c.workOnce(watch);
+    check("--observe beats --start: nothing installed, Observing", filesIn(o.c.savesDir) === 0 && o.c.phase === "Observing (no changes)" && !o.c.needsStart && o.c.startEngine() !== null, o.c.phase);
+
+    // an engine found already up at launch counts as started (Start MTG.bat, or a companion that was restarted)
+    const u = mk(false, false); all.push(u);
+    u.c.onlySteps = null;
+    const green = (i) => async () => { u.c.set(i, verdict(Light.Green, "Up.")); return true; };
+    u.c.doDocker = green(L.Step.Docker); u.c.doImages = green(L.Step.Images); u.c.doStack = green(L.Step.Stack);
+    u.c.doSave = async () => { u.c.set(L.Step.Save, verdict(Light.Grey, "Start engine does this: x")); return true; };
+    u.c.doBridge = green(L.Step.Bridge); u.c.doTts = async () => { u.c.set(L.Step.Tts, verdict(Light.Amber, "TTS isn't running.")); return true; };
+    await u.c.workOnce(watch);
+    check("launch: the engine already up counts as started: Ready, no Start engine needed", u.c.engineStarted && !u.c.needsStart && u.c.phase === "Ready", `${u.c.phase} ${u.c.engineStarted}`);
+
+    // a press during the launch check: the check stops, the press runs, nothing is resumed from the check
+    const p = mk(false, false); all.push(p);
+    let pressed = false;
+    const off = p.c.onChanged(() => { if (!pressed && p.c.phase === "Checking: step 4 of 6") { pressed = true; p.c.startEngine(); } });
+    await p.c.workOnce(watch); off();
+    check("a press during the launch check: the check is cut short with nothing to resume, the press waits its turn", pressed && p.c.checkPending && p.c.resumeFrom === 0 && p.c.stoppedAt === 0 && p.c.work.length === 1, `${pressed} ${p.c.checkPending} ${p.c.resumeFrom} ${p.c.work.length}`);
+    await p.c.workOnce(watch); await p.c.workOnce(watch);
+    check("then Start engine's run is the check: the save installed, the check not run again", fs.existsSync(path.join(p.c.savesDir, "TS_Save_1.json")) && !p.c.checkPending && p.c.phase === "Ready", p.c.phase);
+  } catch (e) { check("launch starts nothing: no exception", false, e.stack); } finally { for (const x of all) fs.rmSync(x.tmp, { recursive: true, force: true }); }
+}
+
+// the watcher before Start engine: parts that only aren't running stay grey (no red light, no notification); after a
+// start they are red again; an engine found up by the watcher counts as started. Every probe that could reach this
+// PC's real engine, bridge or TTS is replaced (the login, the bridge verdict, the TTS process).
+async function watcherBeforeStart() {
+  section("the watcher before Start engine");
+  const { c, tmp } = fakeController(false);
+  try {
+    const notes = [];
+    c.notify = (t, m) => notes.push(`${t}: ${m}`);
+    let facts = { platform: "darwin", runtime: "docker", cliFound: true, desktopFound: true };
+    let images = { id: null }, relay = { exists: false };
+    c.engine = { o: {}, cli: "docker", runtime: "docker", detect: async () => ({ ...facts }), imageId: async () => ({ ...images }), container: async (n) => ({ info: n === "relay" ? relay : relay.exists ? up("") : { exists: false } }), bridgeEnv: () => ({}), startDesktop: () => false };
+    c.L.imagesTar = "/P/images/mtg-images.tar"; // (a package with its images file: missing images are only not loaded yet)
+    c.login = async () => ({ kind: "ok", roomFound: true, roomStatus: "Lobby", ms: 1 });
+    let bridgeUp = false;
+    c.bridgeVerdict = async (vers) => (bridgeUp ? verdict(Light.Green, "Running (bridge x).") : L.decideBridge(vers, null, false, null, true));
+    c.ttsProc = async () => null;
+    c.phase = L.NotStartedPhase;
+    await c.monitorTick();
+    check("watcher, before start: Docker Desktop not running: grey, not red, no notification", c.rows[L.Step.Docker].v.light === Light.Grey && notes.length === 0, c.rows[L.Step.Docker].v);
+    facts = { ...facts, answers: true, version: "27.3.1", cpus: 4 };
+    c.imagesAt = 0; c.versionsAt = 0;
+    await c.monitorTick();
+    const lights = c.rows.slice(0, 5).map((r) => r.v.light);
+    check("watcher, before start: images not loaded, no engine containers, no bridge: grey, none red, no notification", c.rows[L.Step.Images].v.light === Light.Grey && c.rows[L.Step.Stack].v.light === Light.Grey && c.rows[L.Step.Bridge].v.light === Light.Grey && !lights.includes(Light.Red) && notes.length === 0, c.rows.map((r) => L.vText(r.v)));
+    check("watcher, before start: still Not started", c.needsStart && c.phase === L.NotStartedPhase, c.phase);
+    c.engineStarted = true; c.imagesAt = 0; c.versionsAt = 0; facts = { ...facts, answers: false };
+    await c.monitorTick();
+    check("watcher, after a start: Docker Desktop not answering is no longer grey", c.rows[L.Step.Docker].v.light !== Light.Grey, c.rows[L.Step.Docker].v);
+    facts = { ...facts, answers: true };
+    await c.monitorTick();
+    check("watcher, after a start: the stack and the bridge missing are red again (with their buttons)", c.rows[L.Step.Stack].v.light === Light.Red && c.rows[L.Step.Bridge].v.light === Light.Red && c.rows[L.Step.Bridge].v.fix === Fixes.BridgeStart, c.rows.map((r) => L.vText(r.v)));
+    c.engineStarted = false; c.phase = L.NotStartedPhase; c.imagesAt = 0; c.versionsAt = 0;
+    images = { id: R }; relay = up("healthy"); bridgeUp = true; c.loginAt = 0; c.loginCache = null;
+    await c.monitorTick();
+    check("watcher: an engine that came up without Start engine counts as started: Ready", c.engineStarted && !c.needsStart && c.phase === "Ready", `${c.rows.map((r) => r.v.light).join(",")} / ${c.phase}`);
+  } catch (e) { check("watcher before start: no exception", false, e.stack); } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}
+
+function startEngineRules() {
+  section("Start engine: the rules");
+  check("--start: the flags that start at launch (--start, a self-update's restart); none: launch only checks",
+    L.autoStart(["--start"]) && L.autoStart(["--after-update"]) && L.autoStart(["--apply-update", "v1.2"]) && !L.autoStart([]) && !L.autoStart(["--observe"]) && !L.autoStart(["--no-browser", "--web-port", "0"]));
+  const src = fs.readFileSync(path.join(__dirname, "companion.js"), "utf8");
+  check("companion.js: --start reaches the Controller, never with --observe", src.includes("autoStart: !observe && L.autoStart(args)"));
+  check("companion.js: the page opens after the first pass when nothing is started", src.includes("controller.rows.map((r) => r.v.light), controller.needsStart)"));
+  const notRunning = L.decideDocker({ platform: "darwin", runtime: "docker", cliFound: true, desktopFound: true });
+  const bs = L.beforeStart(L.Step.Docker, notRunning);
+  check("before start: Docker not running: grey, points at Start engine (no red, no notification)", notRunning.action === Actions.StartDesktop && bs.light === Light.Grey && bs.text.includes("Start engine") && !bs.fix, bs);
+  const waiting = L.beforeStart(L.Step.Docker, L.decideDocker({ platform: "darwin", runtime: "docker", cliFound: true, desktopFound: true, desktopRunning: true }));
+  check("before start: Docker Desktop up, engine not answering yet: grey, Start engine waits", waiting.light === Light.Grey && waiting.text.includes("Start engine"), waiting);
+  const missing = L.decideDocker({ platform: "linux" });
+  check("before start: no container engine installed is a real problem: kept red with its hint", L.beforeStart(L.Step.Docker, missing) === missing && missing.light === Light.Red && !!missing.hint);
+  const silent = L.decideDocker({ platform: "linux", runtime: "podman", cliFound: true, detail: "x" });
+  check("before start: Podman installed but silent is a real problem: kept red", L.beforeStart(L.Step.Docker, silent) === silent && silent.light === Light.Red);
+  const noRelay = L.decideStack(null, null, null, L.Game.none("No game."));
+  const bsStack = L.beforeStart(L.Step.Stack, noRelay);
+  check("before start: no relay container: grey, Start engine", bsStack.light === Light.Grey && bsStack.text.includes("Start engine"), bsStack);
+  const unhealthy = L.decideStack(up("unhealthy"), up(""), null, L.Game.none("No game."));
+  check("before start: an unhealthy relay is a real problem: kept red", L.beforeStart(L.Step.Stack, unhealthy) === unhealthy && unhealthy.light === Light.Red, unhealthy);
+  const noBridge = L.decideBridge(L.httpOf("refused"), null, false, null, true);
+  const bsBridge = L.beforeStart(L.Step.Bridge, noBridge);
+  check("before start: no bridge: grey, Start engine (no StartBridge action left to act on)", noBridge.action === Actions.StartBridge && bsBridge.light === Light.Grey && !bsBridge.action && bsBridge.text.includes("Start engine"), bsBridge);
+  const port = verdict(Light.Red, "code holds port 39998.", { fix: Fixes.ShowProgram, label: "Show the program" });
+  check("before start: a port taken is a real problem: kept", L.beforeStart(L.Step.Bridge, port) === port);
+  const load = L.decideImages({ friend: true, tarPath: "x.tar" });
+  check("before start: images to load: grey, Start engine loads them", load.action === Actions.Load && L.beforeStart(L.Step.Images, load).light === Light.Grey);
+  const noTar = L.decideImages({ friend: true, tarPath: null, wantRelay: R, wantNode: N });
+  check("before start: the images file missing from the package is a real problem: kept red", L.beforeStart(L.Step.Images, noTar) === noTar && noTar.light === Light.Red);
+  const tts = verdict(Light.Amber, "Tabletop Simulator isn't running.", { fix: Fixes.TtsOpen, label: "Open TTS", hint: "In TTS: Create" });
+  check("before start: the TTS row is left as it is (its Open TTS button too)", L.beforeStart(L.Step.Tts, tts) === tts);
+  check("engine up: engine, images, stack and bridge green (save and TTS don't count)", L.engineUp([Light.Green, Light.Green, Light.Green, Light.Grey, Light.Green, Light.Amber])
+    && !L.engineUp([Light.Green, Light.Green, Light.Grey, Light.Green, Light.Green, Light.Green]) && !L.engineUp([Light.Green, Light.Green, Light.Green, Light.Green, Light.Grey, Light.Green]));
+  const rows = [bs, verdict(Light.Grey, "x"), bsStack, verdict(Light.Grey, "y"), bsBridge, tts];
+  check("what to do next: before start: press Start engine (not the TTS row's hint)", L.nextHint(rows, true, "T") === L.StartHint && L.StartHint.startsWith("The engine isn't running. Press Start engine"));
+  check("what to do next: after start: the first amber/red hint, as before", L.nextHint(rows, false, "T") === "In TTS: Create");
+  rows[0] = missing;
+  check("what to do next: before start, a red light with a hint comes first", L.nextHint(rows, true, "T") === missing.hint);
+  check("what to do next: nothing to say: how to load the table", L.nextHint([verdict(Light.Green, "ok")], false, "My table").startsWith(`${L.ttsHowTo("My table")}\n\nOnly the host`));
+  check("header light: before start or after a stop, grey unless red (an amber TTS row doesn't count)", L.overall([Light.Grey, Light.Amber], true) === Light.Grey && L.overall([Light.Red, Light.Amber], true) === Light.Red && L.overall([Light.Green, Light.Amber], false) === Light.Amber);
+  const { openAfterFirstPass } = require("./web");
+  check("after the first pass: with a red light", openAfterFirstPass(false, [Light.Green, Light.Red]) && !openAfterFirstPass(false, [Light.Green, Light.Amber, Light.Busy]) && !openAfterFirstPass(true, [Light.Red]));
+  check("after the first pass: or with nothing started (the page has Start engine); never in observe mode", openAfterFirstPass(false, [Light.Green, Light.Grey], true) && !openAfterFirstPass(false, [Light.Green, Light.Grey], false) && !openAfterFirstPass(true, [Light.Grey], true));
+}
+
+// the status page before Start engine: Not started, the hint, Start engine first and gold, one press queued
+async function notStartedStatus() {
+  section("status page: not started");
+  const { WebUi, pageFromCs } = require("./web");
+  const { c, tmp } = fakeController(false);
+  const o = fakeController(true);
+  const w = new WebUi(c, { page: "<html>{{TOKEN}}{{NONCE}}</html>" }), wo = new WebUi(o.c, { page: "<html>{{TOKEN}}{{NONCE}}</html>" });
+  try {
+    c.game = L.Game.none("No game.");
+    c.rows[0].v = verdict(Light.Grey, "Docker Desktop isn't running. Start engine starts it.");
+    c.rows[5].v = verdict(Light.Amber, "Tabletop Simulator isn't running.", { fix: Fixes.TtsOpen, label: "Open TTS", hint: "In TTS: Create" });
+    let s = w.status();
+    check("not started: needsStart before any start", c.needsStart);
+    check("not started: the header says Not started, grey (the amber TTS row doesn't make it amber)", s.worst.text === "Not started" && s.worst.state === "grey", s.worst);
+    check("not started: What to do next says press Start engine (not the TTS row's hint)", s.hint === L.StartHint && s.hint.includes("Press Start engine"), s.hint);
+    check("not started: Start engine first in the menu, enabled, gold (primary), no confirm", s.menu[0].id === "start-engine" && s.menu[0].label === "Start engine" && s.menu[0].enabled && s.menu[0].primary === true && s.menu[0].confirm === null, s.menu[0]);
+    check("status: the menu: start-engine, restart-engine, stop-everything, open-logs", s.menu.map((m) => m.id).join(",") === "start-engine,restart-engine,stop-everything,open-logs", s.menu.map((m) => m.id).join(","));
+    check("not started: the other menu buttons are never primary", s.menu.slice(1).every((m) => !m.primary));
+    c.rows[0].v = verdict(Light.Red, "Install Docker Desktop.", { fix: Fixes.Retry, label: "Try again", hint: "Docker Desktop isn't installed on this Mac." });
+    s = w.status();
+    check("not started, a real problem: the red light's hint comes first, the header names it", s.hint === "Docker Desktop isn't installed on this Mac." && s.worst.text === "Problem: Container engine", `${s.hint} / ${s.worst.text}`);
+    c.rows[0].v = verdict(Light.Grey, "Docker Desktop isn't running. Start engine starts it.");
+    let res = await w.route("start-engine", false);
+    check("Start engine: accepted, one action queued, nothing run here", res.ok && res.message.startsWith("Starting the engine") && c.work.length === 1, res);
+    res = await w.route("start-engine", false);
+    check("Start engine twice while queued: Already running, still one action", res.ok && res.message.startsWith("Already running") && c.work.length === 1, res);
+    await c.workOnce(async () => {}); // (the press only: it queues step 1; the run itself is never made here)
+    check("Start engine's press: the start sequence queued from step 1, no longer needsStart", c.pendingFrom === 1 && !c.needsStart, c.pendingFrom);
+    s = w.status();
+    check("Start engine's press: the gold goes off, the hint is the normal one again", !s.menu[0].primary && s.hint === "In TTS: Create", s.hint);
+    res = await w.route("start-engine", false);
+    check("Start engine while its run is queued: Already running, nothing more queued", res.ok && res.message.startsWith("Already running") && c.work.length === 0 && c.pendingFrom === 1, res);
+    c.pendingFrom = 0; c.engineStarted = true;
+    s = w.status();
+    check("status: started: Start engine stays enabled but isn't the gold one", s.menu[0].id === "start-engine" && s.menu[0].enabled && !s.menu[0].primary, s.menu[0]);
+    c.everythingStopped = true; c.engineStarted = false; // (as stopEverything leaves it)
+    c.rows[0].v = verdict(Light.Green, "Docker 27.");
+    s = w.status();
+    check("stopped: still Stopped (not Not started), the hint says press Start engine, Start engine is the gold one", s.worst.text === "Stopped" && s.hint === L.StartHint && s.menu[0].primary === true, `${s.worst.text} / ${s.hint}`);
+    const ores = await wo.route("start-engine", false);
+    check("observe mode: Start engine refused, nothing queued, never gold", !ores.ok && ores.message === "Observe mode: nothing is changed." && o.c.work.length === 0 && !wo.status().menu[0].primary && !wo.status().menu[0].enabled, ores);
+    const cs = path.join(__dirname, "..", "companion", "src", "WebPage.cs");
+    const page = fs.existsSync(path.join(__dirname, "page.html")) ? fs.readFileSync(path.join(__dirname, "page.html"), "utf8") : fs.existsSync(cs) ? pageFromCs(fs.readFileSync(cs, "utf8")) : null;
+    if (page) check("the shared page draws start-engine: its tip, the play icon, primary drawn gold", page.includes("'start-engine': 'Start engine:") && page.includes("'start-engine': 'play'") && page.includes("v.kind === 'fix' || v.primary ? ' fix' : ''"));
+  } catch (e) { check("not started: no exception", false, e.stack); } finally { fs.rmSync(tmp, { recursive: true, force: true }); fs.rmSync(o.tmp, { recursive: true, force: true }); }
 }
 
 // the save step for real, in a temp folder: install, adopt, a player's save never overwritten
@@ -709,7 +917,8 @@ function shim() {
 async function main(outFile) {
   out = []; fails = 0; passes = 0;
   modes(); sequence(); docker(); images(); stack(); ports(); bridge(); gameLock(); saves(); tts(); misc(); update();
-  await parser(); await wiring(); await saveFiles(); await server(); shim();
+  startEngineRules();
+  await parser(); await wiring(); await launchStartsNothing(); await watcherBeforeStart(); await saveFiles(); await server(); await notStartedStatus(); shim();
   out.push(`${passes} passed, ${fails} failed`);
   const text = `${out.join("\n")}\n`;
   if (outFile) fs.writeFileSync(outFile, text); else process.stdout.write(text);

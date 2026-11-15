@@ -69,6 +69,17 @@ const Cases = [
     "Node renames its process MainThread"],
   ["platform.js", "Proton's Saves folder is never used",
     "const tried = [...new Set([...native, ...proton])];", "const tried = [...new Set(native)];", "TTS only ever run through Proton"],
+  ["logic.js", "before Start engine, Docker Desktop not running is a red light",
+    "if (v.action === Actions.StartDesktop) return verdict(Light.Grey,", "if (false) return verdict(Light.Grey,", "before start: Docker not running: grey"],
+  ["logic.js", "before Start engine, a red light's own hint is hidden behind press Start engine",
+    "if (needsStart) return (list.find((v) => v.hint && v.light === Light.Red) || {}).hint || StartHint;", "if (needsStart) return StartHint;",
+    "before start, a red light with a hint comes first"],
+  ["logic.js", "--start is ignored (launch only checks even when asked to start)",
+    "args.includes(\"--start\") || ", "", "--start: the flags that start at launch"],
+  ["logic.js", "the engine counts as up without the bridge",
+    " && rows[4] === Light.Green;", ";", "engine up: engine, images, stack and bridge green"],
+  ["logic.js", "before Start engine an amber TTS row makes the header amber",
+    "if (stoppedOrNotStarted) return all.includes(Light.Red) ? Light.Red : Light.Grey;", "", "header light: before start or after a stop"],
 ];
 
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");

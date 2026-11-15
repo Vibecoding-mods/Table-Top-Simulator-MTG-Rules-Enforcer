@@ -470,6 +470,60 @@ function worst(lights) {
   for (const l of lights) { any = true; if (l !== Light.Grey) grey = false; if (rank(l) > rank(w)) w = l; }
   return !any || grey ? Light.Grey : w;
 }
+// the header's light (Logic.Overall): after Stop everything, or before Start engine, grey unless a light is red
+function overall(lights, stoppedOrNotStarted) {
+  const all = [...lights];
+  if (stoppedOrNotStarted) return all.includes(Light.Red) ? Light.Red : Light.Grey;
+  return worst(all);
+}
+
+// ───────────────────────────── Start engine (Logic.cs) ─────────────────────────────
+// Launching the companion only checks (one read-only pass, then the watcher); the Start engine button runs the start
+// sequence (--start on the command line still starts it at launch, as every launch did before 2026-11-14).
+
+const NotStartedPhase = "Not started: press Start engine";
+const StoppedPhase = "Stopped. Start engine starts it again.";
+const StartHint = "The engine isn't running. Press Start engine (under Actions): it starts the container engine if needed (Docker Desktop on a Mac), the engine (relay and Forge room), installs the table save, starts the bridge and opens Tabletop Simulator. The lights show each step.\n\nOnly the host runs this app. Friends join your TTS game (Multiplayer) and need nothing else.";
+
+// the engine is up: the container engine, the images, the stack and the bridge all green (the save and TTS don't decide it)
+const engineUp = (rows) => rows.length >= 5 && rows[0] === Light.Green && rows[1] === Light.Green && rows[2] === Light.Green && rows[4] === Light.Green;
+
+// A light before Start engine was pressed: a part that only isn't running yet is grey and points at Start engine (no
+// red light, no notification, nothing started); a real problem (no engine installed, a port taken, a missing package
+// file) keeps its light. step: 0-5 as Step.
+function beforeStart(step, v) {
+  if (!v) return v;
+  switch (step) {
+    case Step.Docker:
+      if (v.action === Actions.StartDesktop) return verdict(Light.Grey, "Docker Desktop isn't running. Start engine starts it.");
+      if (v.action === Actions.Wait) return verdict(Light.Grey, "Docker Desktop runs, but its engine isn't answering yet. Start engine waits for it.");
+      break;
+    case Step.Images:
+      if (v.action === Actions.Load) return verdict(Light.Grey, "Not loaded yet. Start engine loads them from the package (first run: a few minutes).");
+      break;
+    case Step.Stack:
+      if (v.fix === Fixes.StackRestart && v.fixLabel === "Start the engine") return verdict(Light.Grey, "Not running. Start engine starts the relay and the Forge room.");
+      break;
+    case Step.Bridge:
+      if (v.action === Actions.StartBridge) return verdict(Light.Grey, "Not running. Start engine starts it.");
+      break;
+    default: break;
+  }
+  return v;
+}
+
+// "What to do next": the first hint of an amber or red light; before Start engine, the first red light's hint (a real
+// problem comes first), else the Start engine sentence; else how to load the table in TTS
+function nextHint(rows, needsStart, saveName) {
+  const list = rows.filter((v) => v);
+  if (needsStart) return (list.find((v) => v.hint && v.light === Light.Red) || {}).hint || StartHint;
+  return (list.find((v) => v.hint && v.light !== Light.Green && v.light !== Light.Grey) || {}).hint
+    || `${ttsHowTo(saveName)}\n\nOnly the host runs this app. Friends join your TTS game (Multiplayer) and need nothing else.`;
+}
+
+// launch starts the engine only when asked (Program.AutoStart): --start, or a self-update's restart (--after-update,
+// --apply-update, the Windows app's; this companion doesn't install updates itself yet, so nothing passes them here)
+const autoStart = (args) => args.includes("--start") || args.includes("--after-update") || args.includes("--apply-update");
 
 // ───────────────────────────── self-update: the pure rules (Update.cs) ─────────────────────────────
 // The Linux/macOS companion CHECKS for updates and verifies the signature; it does not install them (yet): the
@@ -646,7 +700,8 @@ module.exports = {
   DockerUrl, decideDocker, sameId, normId, deployedAfterLoad, shortId, decideImages,
   decideStack, savesFolderVerdict, stopRefusal, writeProblem, composeFailure, SaveName, planSave, readSaveName,
   isBridgeCommandLine, decidePorts, decideBridge, countExits,
-  DefaultSaveName, Room, ttsHowTo, decideTts, sha8, clip, relayKey, worst,
+  DefaultSaveName, Room, ttsHowTo, decideTts, sha8, clip, relayKey, worst, overall,
+  NotStartedPhase, StoppedPhase, StartHint, engineUp, beforeStart, nextHint, autoStart,
   Updates, validTag, imagesVersion, parseKeys, verifySignature, parseManifest, localVersion, builtTime, downgrade,
   updatePlan, planAvailable, describe, parseRelease, checkFailed, checkDue, allowedUrl, tokenFor, updateChecked, mb,
 };

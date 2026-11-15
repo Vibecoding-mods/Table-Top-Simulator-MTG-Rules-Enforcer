@@ -149,6 +149,14 @@ bridge green: started by Start MTG.bat, or a companion that was restarted) count
 (`Controller.StartEngine`, page action `start-engine`) queues the start sequence from step 1, exactly what every launch
 ran before; Stop everything returns to the not-started state ("Stopped. Start engine starts it again.").
 
+The Linux/Mac companion (`companion-node`, started by `start.sh` or `MTG Companion.command`) does the same since
+2026-11-15: `Controller.checkPass` / `startEngine` / `needsStart` in `controller.js`, `beforeStart` / `nextHint` /
+`engineUp` / `overall` / `autoStart` in `logic.js`, the `start-engine` action and the `primary` menu flag in `web.js`
+(the page is the same `WebPage.cs` page). Start engine is on the status page only (that app has no window or tray).
+`--start` starts at launch there too and `--observe` overrides it; it accepts `--after-update` / `--apply-update` as
+well, but it installs no updates itself, so nothing passes them. The bridge it starts gets the same environment as
+before (no APPDATA step: with APPDATA unset, as on Linux/Mac, the bridge keeps the GIPHY key in ~/.config/MTG-TTS).
+
 `RunSequence(from)` runs steps `from..6` (`Controller.cs:468-499`). Each step is a method that sets its light and returns
 true to go on. A false stops the sequence there, greys the steps after it with "Waiting for <step>", and records
 `stoppedAt`. Phase text: "Starting: step N of 6", "Ready", "Stopped at step N (...)".

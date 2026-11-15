@@ -265,16 +265,17 @@ FIRST TIME (Steam Deck)
 3. Open the folder in Dolphin, right-click an empty spot > Open Terminal Here (or open Konsole and type
    cd ~/Games/${v.folder}). Then type:
       ./start.sh
-   The first start takes a few minutes while it loads the engine into Podman. It also copies the table into your
-   TTS saves. Then it starts the engine and the bridge and opens Tabletop Simulator.
 4. The status page opens in your browser (if not, open the address the terminal prints, http://127.0.0.1:48790/).
+   The companion checks everything, but starts nothing yet. Press "Start engine" (under Actions). The first start
+   takes a few minutes while it loads the engine into Podman. It also copies the table into your TTS saves. Then
+   it starts the engine and the bridge and opens Tabletop Simulator.
    Keep the terminal window open while you play: closing it stops the companion (the engine and the bridge keep
-   running; the companion starts them again next time).
+   running, and the next ./start.sh finds them running).
 
 
 EVERY GAME NIGHT
-1. In the folder: ./start.sh, and wait until the lights on the status page are green. The TTS light stays amber
-   until the table is loaded (step 2).
+1. In the folder: ./start.sh, press "Start engine" on the status page, and wait until its lights are green. The
+   TTS light stays amber until the table is loaded (step 2).
 2. In TTS: Create > Multiplayer (so friends can join; Singleplayer to play alone against the AI)
    > Games > Save & Load > "${v.saveName}".
 3. Friends join your server (Steam invite, or the server browser). They need nothing but TTS.
@@ -369,14 +370,16 @@ FIRST TIME
    right-click it > Open > Open. (If macOS still refuses, open Terminal and run
        xattr -dr com.apple.quarantine <drag the folder here>
    which removes the "downloaded from the internet" mark from this folder only.)
-   A Terminal window opens: keep it open while you play. The first start takes a few minutes while it loads the
-   engine into Docker. It also copies the table into your TTS saves. Then it starts the engine and opens TTS.
+   A Terminal window opens: keep it open while you play.
 4. The status page opens in your browser (if not, open the address the Terminal prints, http://127.0.0.1:48790/).
+   The companion checks everything, but starts nothing yet. Press "Start engine" (under Actions). The first start
+   takes a few minutes while it loads the engine into Docker. It also copies the table into your TTS saves. Then
+   it starts the engine and opens TTS.
 
 
 EVERY GAME NIGHT
-1. Double-click "MTG Companion.command" and wait until the lights on the status page are green. The TTS light stays
-   amber until the table is loaded (step 2).
+1. Double-click "MTG Companion.command", press "Start engine" on the status page, and wait until its lights are
+   green. The TTS light stays amber until the table is loaded (step 2).
 2. In TTS: Create > Multiplayer (so friends can join; Singleplayer to play alone against the AI)
    > Games > Save & Load > "${v.saveName}".
 3. Friends join your server (Steam invite, or the server browser). They need nothing but TTS.
