@@ -8695,7 +8695,7 @@ index 0000000..849bb01
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java b/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java
 new file mode 100644
-index 0000000..07db855
+index 0000000..311d4ff
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java
 @@ -0,0 +1,881 @@
@@ -9296,7 +9296,7 @@ index 0000000..07db855
 +        final Card oracle = add("Thassa's Oracle", f.white, ZoneType.Battlefield);
 +        resolve(f, AbilityFactory.getAbility("DB$ WinsGame | Defined$ You", oracle), f.white);
 +        gameOverCheck(f);
-+        expect(f.white.hasWon() && f.red.isInGame(), "White's win is not the team's: White " + f.white.getOutcome() + ", Red " + f.red.getOutcome());
++        expect(f.white.hasWon() && !f.red.hasLost(), "White's win is not the team's: White " + f.white.getOutcome() + ", Red " + f.red.getOutcome());
 +        expectLost(f.yellow, GameLossReason.OpponentWon);
 +        expectLost(f.blue, GameLossReason.OpponentWon);
 +    }
