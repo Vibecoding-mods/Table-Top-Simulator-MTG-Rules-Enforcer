@@ -4348,6 +4348,12 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
     add({ name: "dungeon: the last room", run: dungeonTable({ name: "Lost Mine of Phandelver", room: "Temple of Dumathoin", cardId: "engine-card-300", rooms: LOST_ROOMS }, ["Tomb of Annihilation", "Undercity"]) });
     add({ name: "dungeon: an engine with no card id nor rooms: found by name, the room only", run: dungeonTable({ name: "Lost Mine of Phandelver", room: "Goblin Lair" }) });
     add({ name: "dungeon: an engine with no dungeonState: unchanged", run: dungeonTable(null) });
+    // (the same from the real engine's boards, tests/live_dungeon_check.js on engine1115b: each board's dungeonState and
+    // completed list as Forge sent them, on the table's dungeon card)
+    for (const live of F("dungeon-live").boards) {
+      const st = live.dungeonState ? { ...live.dungeonState, cardId: "engine-card-300" } : null;
+      add({ name: `dungeon (live engine): ${live.what}, ${st ? `${st.name} ${st.room}` : "none"}`, run: dungeonTable(st, live.completedDungeons) });
+    }
     add(promptCase("hp-08: a modal card that doesn't venture: unchanged", myMain(D2.board), { ...venture(["Goblin Lair — Create a token.", "Mine Tunnels — Create a Treasure."], "Some Charm"),
       sourceCard: src("Some Charm", "Choose one —\n• Create a token.\n• Create a Treasure."), sourceAbilityText: "Choose one." }, [["0"]]));
     add({ name: "purpose: Chrome Mox tapped for a cost asks which mana", run: async (h) => {

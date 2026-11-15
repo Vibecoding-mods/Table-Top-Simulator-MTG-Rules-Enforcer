@@ -5453,6 +5453,76 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("suspend live: once the card is in the graveyard nothing is kept for it", (h.B._getGame().suspendLimbo?.size ?? 0) === 0, JSON.stringify([...(h.B._getGame().suspendLimbo || [])]));
       harness.restore();
     }
+    // battles on the engine's own boards and questions (tests/golden/fixtures/battle-live.json, tests/live_battle_check.js
+    // on the exile engine, 2026-11-15): the human casts Invasion of Ikoria (X = 2) in a game of three, picks the first
+    // opponent as its protector, attacks it with two Colossal Dreadmaws and casts Zilortha from its defeat. A real game
+    // 2026-11-14: "invasion of ikoria is confusing needs to be explained" (CR 310: defense, protector, defeat).
+    {
+      const LIVE = require("./golden/fixtures/battle-live.json");
+      const h = harness.load({ cardFaces: { "Invasion of Ikoria": ["Invasion of Ikoria", "Zilortha, Apex of Ikoria"] } });
+      const first = LIVE.record.find((e) => e.board).board;
+      // (the relay usernames, in seat order: the human's from Forge's "X picked Y" notice, the AIs' from the protector question)
+      const picked = LIVE.record.find((e) => e.prompt?.input?.type === "revealCards" && / picked /.test(e.prompt.input.presentation?.title || ""));
+      const protQ = LIVE.record.find((e) => e.prompt?.input?.presentation?.description === "Choose an opponent to protect this battle");
+      ok("battle live: precondition, three players, the human player-0, Forge's protector question and pick notice recorded", LIVE.human === "player-0" && LIVE.ais.length === 2 && !!picked && !!protQ);
+      const seat = setup(h, first, { bots: 2, total: 3, playerOrder: [picked.prompt.input.presentation.title.split(" picked ")[0], ...protQ.prompt.input.options.map((o) => o.label).sort()],
+        slotNames: { "player-0": "Blue", "player-1": "AI 1", "player-2": "AI 2" }, slotColor: { "player-0": "Blue", "player-1": "White", "player-2": "Red" } });
+      const asked = [];
+      let whom = null, block = null;
+      for (const e of LIVE.record) {
+        if (e.board) { seat.board = { state: clone(e.board), fingerprint: null }; h.B.sendTable(); await h.flush(); continue; }
+        const type = e.prompt && (e.prompt.kind === "priority" ? "chooseAction" : e.prompt.input?.type);
+        if (!e.prompt || type === "chooseAction") continue;
+        const n0 = h.effects.length;
+        h.B.onPrompt(seat, clone(e.prompt)); await h.flush();
+        const shown = h.effects.slice(n0).filter((x) => x.tts?.t === "prompt").map((x) => x.tts).pop();
+        asked.push({ type, raw: e.prompt.input?.presentation?.title, ui: shown || null });
+        if (type === "chooseAttackers" && shown) {
+          const q = (shown.options || []).find((o) => /\|\?$/.test(o.id));
+          h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: e.prompt.promptId, choice: [q.id] }) }); await h.flush();
+          whom = seat.prompt?.ui;
+          // (the same attackers as a protector sees them, asked to block: a battle they protect, attacked)
+          const bf = (seat.board.state.gameView.zones || []).flatMap((z) => z.cards || []);
+          const dread = bf.filter((c) => c.identity?.name === "Colossal Dreadmaw").map((c) => c.id);
+          const bat = bf.find((c) => c.identity?.name === "Invasion of Ikoria");
+          const gv = clone(seat.board.state);
+          for (const z of gv.gameView.zones) for (const c of z.cards || []) if (dread.includes(c.id)) Object.assign(c, { isAttacking: true, attackTargetId: bat.id });
+          seat.board = { state: gv, fingerprint: null };
+          const n1 = h.effects.length;
+          h.B.onPrompt(seat, { promptId: 990, decidingPlayerId: "player-0", input: { type: "chooseBlockers", attackers: dread.map((a) => ({ attackerId: a, validBlockerIds: [] })) } }); await h.flush();
+          block = h.effects.slice(n1).filter((x) => x.tts?.t === "prompt").map((x) => x.tts).pop();
+          seat.board = { state: clone(e.board || seat.board.state), fingerprint: null };
+        }
+      }
+      const at = (raw) => asked.find((a) => a.raw === raw);
+      const order = asked.find((a) => a.type === "chooseFromSelection" && a.raw === "Choose");
+      ok("battle live: the order of its own enter effects (Siege, defense counters) is not asked: 'choose one: Choice 1' meant nothing", order && order.ui === null, JSON.stringify(order?.ui?.options));
+      const prot = asked.find((a) => a.type === "chooseFromSelection" && a.raw === "Invasion of Ikoria" && (a.ui?.options || []).length === 2);
+      ok("battle live: the protector question says what it picks", prot?.ui?.title === "Invasion of Ikoria: which opponent protects this battle?" && JSON.stringify(prot.ui.options.map((o) => o.label)) === '["AI 1","AI 2"]', JSON.stringify(prot?.ui));
+      ok("battle live: and what protecting means", /only their creatures can block for it/.test(prot?.ui?.text || "") && /may cast Zilortha, Apex of Ikoria free/.test(prot?.ui?.text || ""), prot?.ui?.text);
+      const search = asked.find((a) => /^Would you like to search your library/.test(a.raw || ""));
+      ok("battle live: Forge's library search question in plain words", search?.ui?.title === "Invasion of Ikoria: search your library?" && !/Alternate Zones/.test(JSON.stringify(search.ui)), JSON.stringify(search?.ui).slice(0, 300));
+      const atk = asked.find((a) => a.type === "chooseAttackers")?.ui;
+      const atkLabels = (atk?.options || []).map((o) => o.label);
+      ok("battle live: the attack list names the battle and its protector", atkLabels.includes("Colossal Dreadmaw 6/6 #1 → Invasion of Ikoria (battle, AI 1 protects it)"), JSON.stringify(atkLabels));
+      ok("battle live: the attack question says what attacking it does", (atk?.text || "").includes("Invasion of Ikoria is a battle: damage to it takes off defense counters (6 left), and AI 1 protects it (can block). At 0, Blue may cast Zilortha, Apex of Ikoria free."), atk?.text);
+      ok("battle live: whom to attack names its defense and protector", (whom?.options || []).some((o) => o.label === "Invasion of Ikoria (Blue's battle, 6 defense, protected by AI 1)"), JSON.stringify((whom?.options || []).map((o) => o.label)));
+      ok("battle live: blocking, the protector is told which attackers go at its battle", (block?.text || "").includes("Colossal Dreadmaw 6/6 #1, Colossal Dreadmaw 6/6 #2 attack Invasion of Ikoria, the battle you protect."), block?.text);
+      const cast = at("Do you want to play Invasion of Ikoria transformed?")?.ui;
+      ok("battle live: the defeat's cast names the back face and that it is free", cast?.title === "Invasion of Ikoria is defeated: cast Zilortha, Apex of Ikoria free?" && JSON.stringify((cast.options || []).map((o) => o.label)) === '["Cast it","Leave it exiled"]', JSON.stringify(cast));
+      const cards = sent(h, "table").flatMap((t) => (t.players || []).flatMap((p) => p.battlefield || [])).filter((c) => c.id === protQ.prompt.sourceCard.id && (c.kw || []).includes("Protected by AI 1"));
+      const last = cards.find((c) => c.ctr?.Defense === 6) || cards[0];
+      ok("battle live: the card's status box says who protects it and what happens at 0", JSON.stringify(last?.kw) === '["Protected by AI 1","At 0 defense: Blue may cast Zilortha, Apex of Ikoria free"]', JSON.stringify(last?.kw));
+      ok("battle live: its hover text explains the battle", (last?.nt || []).some((l) => l.startsWith("Battle: attack it like a player. Each 1 damage to it takes off a defense counter (6 left). AI 1 protects it: only AI 1's creatures can block for it, and AI 1 can't attack it. Anyone else can attack it, Blue too.")
+        && l.endsWith("Blue exiles it and may cast Zilortha, Apex of Ikoria free.")), JSON.stringify(last?.nt));
+      ok("battle live: the table is told the protector's colour (its attack line names it)", last?.prot === "White", JSON.stringify(last));
+      const log = sent(h, "gamelog").flatMap((e) => e.lines || []);
+      ok("battle live: the log says who protects it", log.includes("Blue chooses AI 1 to protect Invasion of Ikoria"), JSON.stringify(log.filter((l) => /Ikoria/.test(l))));
+      ok("battle live: the attack line says it is the controller's battle and who protects it", log.includes("Blue attacks Invasion of Ikoria (Blue's battle, protected by AI 1) with Colossal Dreadmaw, Colossal Dreadmaw"), JSON.stringify(log.filter((l) => /attacks/.test(l))));
+      const chats = h.effects.filter((x) => x.tts?.t === "chat").map((x) => x.tts.text || x.tts.msg || "");
+      ok("battle live: the pick notice says what was picked for", chats.some((l) => l === "[MTG] Invasion of Ikoria: you picked AI 1 to protect it"), JSON.stringify(chats.filter((l) => /Ikoria/.test(l))));
+      harness.restore();
+    }
     // row 22 (C10): an ability countered (Stifle) has a line
     {
       const h = harness.load();

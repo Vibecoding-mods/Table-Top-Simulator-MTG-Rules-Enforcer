@@ -1,0 +1,437 @@
+{
+ "source": "tests/live_dungeon_check.js on engine1115b, 2026-11-15: H (player-0) boards, dungeon fields only",
+ "boards": [
+  {
+   "what": "v1",
+   "turn": 3,
+   "step": "main1",
+   "dungeonState": {
+    "cardId": "engine-card-406",
+    "name": "Lost Mine of Phandelver",
+    "room": "Cave Entrance",
+    "rooms": [
+     {
+      "name": "Cave Entrance",
+      "next": [
+       "Goblin Lair",
+       "Mine Tunnels"
+      ],
+      "text": "Scry 1."
+     },
+     {
+      "name": "Goblin Lair",
+      "next": [
+       "Storeroom",
+       "Dark Pool"
+      ],
+      "text": "Create a 1/1 red Goblin creature token."
+     },
+     {
+      "name": "Mine Tunnels",
+      "next": [
+       "Dark Pool",
+       "Fungi Cavern"
+      ],
+      "text": "Create a Treasure token."
+     },
+     {
+      "name": "Storeroom",
+      "next": [
+       "Temple of Dumathoin"
+      ],
+      "text": "Put a +1/+1 counter on target creature."
+     },
+     {
+      "name": "Dark Pool",
+      "next": [
+       "Temple of Dumathoin"
+      ],
+      "text": "Each opponent loses 1 life and you gain 1 life."
+     },
+     {
+      "name": "Fungi Cavern",
+      "next": [
+       "Temple of Dumathoin"
+      ],
+      "text": "Target creature gets -4/-0 until your next turn."
+     },
+     {
+      "name": "Temple of Dumathoin",
+      "next": [],
+      "text": "Draw a card."
+     }
+    ]
+   },
+   "completedDungeons": [],
+   "initiativeHolderId": null,
+   "command": [
+    {
+     "id": "engine-card-406",
+     "name": "Lost Mine of Phandelver",
+     "types": [
+      "Dungeon"
+     ],
+     "text": "Cave Entrance — Scry 1. (Leads to: Goblin Lair, Mine Tunnels)\nGoblin Lair — Create a 1/1 red Goblin creature token. (Leads to: Storeroom, Dark Pool)\nMine Tunnels — Create a Treasure token. (Leads to: Dark Pool, Fungi Cavern)\nStoreroom — Put a +1/+1 counter on target creature. (Leads to: Temple of Dumathoin)\nDark Pool — Each opponent loses 1 life and you gain 1 life. (Leads to: Temple of Dumathoin)\nFungi Cavern — Target creature gets -4/-0 until your next turn. (Leads to: Temple of Dumathoin)\nTemple of Dumathoin — Draw a card."
+    }
+   ]
+  },
+  {
+   "what": "v2",
+   "turn": 3,
+   "step": "main1",
+   "dungeonState": {
+    "cardId": "engine-card-406",
+    "name": "Lost Mine of Phandelver",
+    "room": "Mine Tunnels",
+    "rooms": [
+     {
+      "name": "Cave Entrance",
+      "next": [
+       "Goblin Lair",
+       "Mine Tunnels"
+      ],
+      "text": "Scry 1."
+     },
+     {
+      "name": "Goblin Lair",
+      "next": [
+       "Storeroom",
+       "Dark Pool"
+      ],
+      "text": "Create a 1/1 red Goblin creature token."
+     },
+     {
+      "name": "Mine Tunnels",
+      "next": [
+       "Dark Pool",
+       "Fungi Cavern"
+      ],
+      "text": "Create a Treasure token."
+     },
+     {
+      "name": "Storeroom",
+      "next": [
+       "Temple of Dumathoin"
+      ],
+      "text": "Put a +1/+1 counter on target creature."
+     },
+     {
+      "name": "Dark Pool",
+      "next": [
+       "Temple of Dumathoin"
+      ],
+      "text": "Each opponent loses 1 life and you gain 1 life."
+     },
+     {
+      "name": "Fungi Cavern",
+      "next": [
+       "Temple of Dumathoin"
+      ],
+      "text": "Target creature gets -4/-0 until your next turn."
+     },
+     {
+      "name": "Temple of Dumathoin",
+      "next": [],
+      "text": "Draw a card."
+     }
+    ]
+   },
+   "completedDungeons": [],
+   "initiativeHolderId": null,
+   "command": [
+    {
+     "id": "engine-card-406",
+     "name": "Lost Mine of Phandelver",
+     "types": [
+      "Dungeon"
+     ],
+     "text": "Cave Entrance — Scry 1. (Leads to: Goblin Lair, Mine Tunnels)\nGoblin Lair — Create a 1/1 red Goblin creature token. (Leads to: Storeroom, Dark Pool)\nMine Tunnels — Create a Treasure token. (Leads to: Dark Pool, Fungi Cavern)\nStoreroom — Put a +1/+1 counter on target creature. (Leads to: Temple of Dumathoin)\nDark Pool — Each opponent loses 1 life and you gain 1 life. (Leads to: Temple of Dumathoin)\nFungi Cavern — Target creature gets -4/-0 until your next turn. (Leads to: Temple of Dumathoin)\nTemple of Dumathoin — Draw a card."
+    }
+   ]
+  },
+  {
+   "what": "v4",
+   "turn": 3,
+   "step": "main1",
+   "dungeonState": null,
+   "completedDungeons": [
+    "Lost Mine of Phandelver"
+   ],
+   "initiativeHolderId": null,
+   "command": []
+  },
+  {
+   "what": "initiative",
+   "turn": 3,
+   "step": "main1",
+   "dungeonState": {
+    "cardId": "engine-card-413",
+    "name": "Undercity",
+    "room": "Secret Entrance",
+    "rooms": [
+     {
+      "name": "Secret Entrance",
+      "next": [
+       "Forge",
+       "Lost Well"
+      ],
+      "text": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle."
+     },
+     {
+      "name": "Forge",
+      "next": [
+       "Trap!",
+       "Arena"
+      ],
+      "text": "Put two +1/+1 counters on target creature."
+     },
+     {
+      "name": "Lost Well",
+      "next": [
+       "Arena",
+       "Stash"
+      ],
+      "text": "Scry 2."
+     },
+     {
+      "name": "Trap!",
+      "next": [
+       "Archive"
+      ],
+      "text": "Target player loses 5 life."
+     },
+     {
+      "name": "Arena",
+      "next": [
+       "Archive",
+       "Catacombs"
+      ],
+      "text": "Goad target creature."
+     },
+     {
+      "name": "Stash",
+      "next": [
+       "Catacombs"
+      ],
+      "text": "Create a Treasure token."
+     },
+     {
+      "name": "Archive",
+      "next": [
+       "Throne of the Dead Three"
+      ],
+      "text": "Draw a card."
+     },
+     {
+      "name": "Catacombs",
+      "next": [
+       "Throne of the Dead Three"
+      ],
+      "text": "Create a 4/1 black Skeleton creature token with menace."
+     },
+     {
+      "name": "Throne of the Dead Three",
+      "next": [],
+      "text": "Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle."
+     }
+    ]
+   },
+   "completedDungeons": [
+    "Lost Mine of Phandelver"
+   ],
+   "initiativeHolderId": "player-0",
+   "command": [
+    {
+     "id": "engine-card-413",
+     "name": "Undercity",
+     "types": [
+      "Dungeon"
+     ],
+     "text": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle."
+    }
+   ]
+  },
+  {
+   "what": "upkeep",
+   "turn": 7,
+   "step": "main1",
+   "dungeonState": {
+    "cardId": "engine-card-413",
+    "name": "Undercity",
+    "room": "Lost Well",
+    "rooms": [
+     {
+      "name": "Secret Entrance",
+      "next": [
+       "Forge",
+       "Lost Well"
+      ],
+      "text": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle."
+     },
+     {
+      "name": "Forge",
+      "next": [
+       "Trap!",
+       "Arena"
+      ],
+      "text": "Put two +1/+1 counters on target creature."
+     },
+     {
+      "name": "Lost Well",
+      "next": [
+       "Arena",
+       "Stash"
+      ],
+      "text": "Scry 2."
+     },
+     {
+      "name": "Trap!",
+      "next": [
+       "Archive"
+      ],
+      "text": "Target player loses 5 life."
+     },
+     {
+      "name": "Arena",
+      "next": [
+       "Archive",
+       "Catacombs"
+      ],
+      "text": "Goad target creature."
+     },
+     {
+      "name": "Stash",
+      "next": [
+       "Catacombs"
+      ],
+      "text": "Create a Treasure token."
+     },
+     {
+      "name": "Archive",
+      "next": [
+       "Throne of the Dead Three"
+      ],
+      "text": "Draw a card."
+     },
+     {
+      "name": "Catacombs",
+      "next": [
+       "Throne of the Dead Three"
+      ],
+      "text": "Create a 4/1 black Skeleton creature token with menace."
+     },
+     {
+      "name": "Throne of the Dead Three",
+      "next": [],
+      "text": "Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle."
+     }
+    ]
+   },
+   "completedDungeons": [
+    "Lost Mine of Phandelver"
+   ],
+   "initiativeHolderId": "player-0",
+   "command": [
+    {
+     "id": "engine-card-413",
+     "name": "Undercity",
+     "types": [
+      "Dungeon"
+     ],
+     "text": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle."
+    }
+   ]
+  },
+  {
+   "what": "steal",
+   "turn": 7,
+   "step": "combatEnd",
+   "dungeonState": {
+    "cardId": "engine-card-413",
+    "name": "Undercity",
+    "room": "Stash",
+    "rooms": [
+     {
+      "name": "Secret Entrance",
+      "next": [
+       "Forge",
+       "Lost Well"
+      ],
+      "text": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle."
+     },
+     {
+      "name": "Forge",
+      "next": [
+       "Trap!",
+       "Arena"
+      ],
+      "text": "Put two +1/+1 counters on target creature."
+     },
+     {
+      "name": "Lost Well",
+      "next": [
+       "Arena",
+       "Stash"
+      ],
+      "text": "Scry 2."
+     },
+     {
+      "name": "Trap!",
+      "next": [
+       "Archive"
+      ],
+      "text": "Target player loses 5 life."
+     },
+     {
+      "name": "Arena",
+      "next": [
+       "Archive",
+       "Catacombs"
+      ],
+      "text": "Goad target creature."
+     },
+     {
+      "name": "Stash",
+      "next": [
+       "Catacombs"
+      ],
+      "text": "Create a Treasure token."
+     },
+     {
+      "name": "Archive",
+      "next": [
+       "Throne of the Dead Three"
+      ],
+      "text": "Draw a card."
+     },
+     {
+      "name": "Catacombs",
+      "next": [
+       "Throne of the Dead Three"
+      ],
+      "text": "Create a 4/1 black Skeleton creature token with menace."
+     },
+     {
+      "name": "Throne of the Dead Three",
+      "next": [],
+      "text": "Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle."
+     }
+    ]
+   },
+   "completedDungeons": [
+    "Lost Mine of Phandelver"
+   ],
+   "initiativeHolderId": "player-0",
+   "command": [
+    {
+     "id": "engine-card-413",
+     "name": "Undercity",
+     "types": [
+      "Dungeon"
+     ],
+     "text": "You can't enter this dungeon unless you \"venture into Undercity.\"\nSecret Entrance — Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Leads to: Forge, Lost Well)\nForge — Put two +1/+1 counters on target creature. (Leads to: Trap!, Arena)\nLost Well — Scry 2. (Leads to: Arena, Stash)\nTrap! — Target player loses 5 life. (Leads to: Archives)\nArena — Goad target creature. (Leads to: Archives, Catacombs)\nStash — Create a Treasure token. (Leads to: Catacombs)\nArchives — Draw a card. (Leads to: Throne of the Dead Three)\nCatacombs — Create a 4/1 black Skeleton creature token with menace. (Leads to: Throne of the Dead Three)\nThrone of the Dead Three — Reveal the top ten cards of your library. Put a creature card from among them onto the battlefield with three +1/+1 counters on it. It gains hexproof until your next turn. Then shuffle."
+    }
+   ]
+  }
+ ]
+}

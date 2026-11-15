@@ -314,6 +314,23 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("attack target: a life counter clicked names the attacker and the player", said("life").includes("[MTG] Hero of Bladehold 3/4 attacks AI 1.") && !said("life").includes("Target set"), said("life"));
   ok("attack target: a planeswalker clicked names it and its controller", said("walker click").includes("[MTG] Hero of Bladehold 3/4 attacks Jace Beleren (AI 1)."), said("walker click"));
 }
+// a battle clicked as the target names its protector: "Polyraptor 5/5 #1 attacks Invasion of Ikoria (Red)." read as Red
+// attacking its own permanent, real game 2026-11-14 (the bridge's prot: the protector's colour)
+{
+  const id = blueBf[0], BAT = "engine-card-99951";
+  const objOf = (x) => `local o for _, y in ipairs(getObjects()) do if y.getGMNotes() == "engine:${x}" then o = y end end`;
+  const clickCard = (x, mark) => q(objOf(x) + ' onPlayerAction(Player.Blue, Player.Action.Select, { o }) onPlayerAction(Player.Blue, Player.Action.PickUp, { o }) __sim.frames(30) return "clicked"', mark);
+  const battle = q('local t = engineTable() local me, ai for _, p in ipairs(t.players) do if p.slot == "player-1" then ai = p elseif p.color == "Blue" then me = p end end ' +
+    `engineStoreStatic("${BAT}", { n = "Invasion of Ikoria", f = "https://img.example/99951.jpg", ty = { "Battle" } }) me.battlefield = me.battlefield or {} ` +
+    `table.insert(me.battlefield, { s = 1, id = "${BAT}", ctl = me.color, prot = ai.color, ctr = { Defense = 6 } }) engineRender(t) __sim.frames(60) return tostring(ai.name or ai.color)`, "battle");
+  const attackAsk = (promptId) => ask({ promptId, kind: "attack", title: "Choose attackers", mode: "multi", min: 0, max: 2, keepOrder: true, options: [
+    { id: "__allattack", label: "All attack" }, { id: "__noattack", label: "No attacks" },
+    { id: `${id}|?`, label: "Hero of Bladehold 3/4 → whom? (asked next)" }, { id: `${id}|${BAT}`, label: "Hero of Bladehold 3/4 → Invasion of Ikoria (battle, AI 1 protects it)" }, { id: `${id}|player-1`, label: "Hero of Bladehold 3/4 → AI 1" }] });
+  const r = run([battle, attackAsk(877), { frames: 10 }, clickCard(id, "attacker"), { frames: 30 }, clickCard(BAT, "battle click")]);
+  const said = (mark) => fxOf(r, mark).filter((l) => l.includes("broadcastToColor")).join(" | ");
+  ok("attack target battle: precondition, no errors and the attacker clicked", !r.errors.length && valueOf(r, "battle") === "AI 1" && /Click a life counter/.test(said("attacker")), r.errors.join(" | ") + " " + valueOf(r, "battle") + " " + said("attacker"));
+  ok("attack target battle: a battle clicked names its controller's battle and its protector", said("battle click").includes("[MTG] Hero of Bladehold 3/4 attacks Invasion of Ikoria (Blue's battle, protected by AI 1)."), said("battle click"));
+}
 // scry the table's way (2026-10-24): the cards go into the second hand zone; dragged onto the library they stay on top,
 // the last one dragged on top; clicked, a card goes to the bottom; the last one out of the zone answers
 {
@@ -3661,6 +3678,31 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("face-down peek: an empty colour list draws no overlay at all", !/eng_peek/.test(v("empty")), v("empty").slice(0, 200));
   ok("face-down peek: a pumped one keeps its badges beside the overlay", /eng_peek/.test(v("pumped")) && /3\/3/.test(v("pumped").split("\n##")[2] || "") && !/SecretMorph/.test(v("pumped").split("\n##")[2] || ""), v("pumped").slice(0, 300));
   ok("face-down peek: the overlay goes when the bridge stops sending it", v("gone") !== "none" && !/eng_peek|SecretMorph/.test(v("gone")), v("gone").slice(0, 200));
+  // Hideaway (CR 702.75, 406.3; the 2026-11-14 game: Red couldn't see the card under Mosswort Bridge). The card lies half
+  // size under its land, and a card's UI draws under the card, so the overlay above showed nothing there: the face is
+  // on the screen instead (enginePeekHover), for the colours in pk only, while one points at the land or the card.
+  {
+    // (the bridge's board for the real engine's views, tests/live_hideaway_check.js: Blue's view has the name, White's
+    // a hidden entry; the stub under the land carries ew and pk { n, f, v = { "Blue" } })
+    const LAND = C(960), HID = C(961);
+    const hideaway = add(`table.insert(blue.battlefield, { id = "${LAND}", n = "Mosswort Bridge", f = "https://img.example/bridge.jpg", ty = { "Land" }, ctl = "Blue" }) ` +
+      `blue.exile = blue.exile or {} table.insert(blue.exile, { id = "${HID}", fd = true, ty = {}, ctl = "Blue", ew = "${LAND}", nt = { "Exiled with Mosswort Bridge" }, pk = { n = "Carnage Tyrant", f = "https://img.example/tyrant.jpg", v = { "Blue" } } })`);
+    const objOf = (id) => `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end `;
+    const panel = (color) => `local a = function(id, k) return tostring(UI.getAttribute(id, k)) end return a("eng_peekp_${color}", "active") .. "|" .. tostring(UI.getValue("eng_peekpt_${color}")) .. "|" .. a("eng_peekpi_${color}", "image") .. "|" .. tostring(tostring(UI.getXml() or ""):match('<Panel id="eng_peekp_${color}" visibility="([^"]*)"'))`;
+    const hover = (color, id, mark) => q((id ? objOf(id) : "local o = nil ") + `onObjectHover("${color}", o) __sim.frames(200) ` + panel(color), mark);
+    const r = both([q(hideaway, "board"), hover("Blue", LAND, "blue land"), hover("White", LAND, "white land"), q(panel("White"), "white after"),
+      hover("Blue", null, "blue away"), hover("Blue", HID, "blue card"),
+      q(objOf(LAND) + 'onObjectHover("Blue", o) local t = engineTable() for _, p in ipairs(t.players) do for _, c in ipairs(p.exile or {}) do if c.id == "' + HID + '" then c.pk = nil end end end engineRender(t) __sim.frames(30) ' + panel("Blue"), "pk gone")]);
+    const w = (mark) => String(valueOf(r, mark));
+    ok("hideaway peek: precondition, the board drew", w("board") === "x" && !r.errors.length, w("board") + " " + r.errors.slice(0, 3).join(" | "));
+    ok("hideaway peek: pointing at the land shows its controller the card under it, by name", /^true\|Face down under Mosswort Bridge, only you see it:\nCarnage Tyrant\|/.test(w("blue land")), w("blue land"));
+    ok("hideaway peek: with its picture", w("blue land").includes("img.example/tyrant.jpg"), w("blue land"));
+    ok("hideaway peek: the panel is the controller's colour only", w("blue land").endsWith("|Blue"), w("blue land"));
+    ok("hideaway peek: another player pointing at the land sees no panel and no name", /^(false|nil)\|/.test(w("white land")) && !/Carnage/.test(w("white land")) && !/Carnage/.test(w("white after")), `${w("white land")} / ${w("white after")}`);
+    ok("hideaway peek: pointing away hides it", /^false\|/.test(w("blue away")), w("blue away"));
+    ok("hideaway peek: pointing at the face-down card itself shows it too", /^true\|Face down, only you see it:\nCarnage Tyrant\|/.test(w("blue card")), w("blue card"));
+    ok("hideaway peek: a board without the peek takes the panel down", /^false\|/.test(w("pk gone")), w("pk gone"));
+  }
   // A face-down spell on the stack (the bridge's fd) is never drawn from what the table knew of its card in its owner's
   // hand: that showed a morph's real face on the stack to everyone. Its pop-up shows no such picture either. And a
   // foretold card's face, sent for its owner's playable row in the same board, never fills its public exile stub.
