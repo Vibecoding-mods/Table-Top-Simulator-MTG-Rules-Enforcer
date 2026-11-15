@@ -10353,10 +10353,10 @@ index 0000000..1038adb
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java b/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java
 new file mode 100644
-index 0000000..4d71149
+index 0000000..ce3655d
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java
-@@ -0,0 +1,1112 @@
+@@ -0,0 +1,1150 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -10373,6 +10373,7 @@ index 0000000..4d71149
 +import forge.game.ability.AbilityUtils;
 +import forge.game.card.Card;
 +import forge.game.card.CardCollectionView;
++import forge.game.card.CounterEnumType;
 +import forge.game.combat.Combat;
 +import forge.game.combat.CombatUtil;
 +import forge.game.phase.PhaseHandler;
@@ -10443,6 +10444,7 @@ index 0000000..4d71149
 +        CHECKS.put("cr805.9 theActivePlayerIsOnePlayerOfTheActiveTeam", SharedTurnsTest::theActivePlayerIsOnePlayerOfTheActiveTeam);
 +        CHECKS.put("cr805.10e defendingPlayerIsThePlayerItAttacks", SharedTurnsTest::defendingPlayerIsThePlayerItAttacks);
 +        CHECKS.put("cr805.8 aPartnersExtraStepIsTheTeams", SharedTurnsTest::aPartnersExtraStepIsTheTeams);
++        CHECKS.put("cr805.4d aPartnersLifeGainTriggersYourCardOnceInTheTeamsUpkeep", SharedTurnsTest::aPartnersLifeGainTriggersYourCardOnceInTheTeamsUpkeep);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
 +            if (only.isEmpty() || only.contains(e.getKey()) || only.contains(e.getKey().split(" ")[1])) {
 +                check(e.getKey(), e.getValue());
@@ -11295,6 +11297,42 @@ index 0000000..4d71149
 +        final Method declare = PhaseHandler.class.getDeclaredMethod("declareBlockersTurnBasedAction");
 +        declare.setAccessible(true);
 +        withoutPrompts(f, "declaring blockers", () -> invoke(declare, f.game.getPhaseHandler()));
++    }
++
++    private static void aPartnersLifeGainTriggersYourCardOnceInTheTeamsUpkeep() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.game.getRules().setTeamLifeEvents(true);
++        add("Honden of Cleansing Fire", f.white, ZoneType.Battlefield);
++        final Card cat = add("Ajani's Pridemate", f.red, ZoneType.Battlefield);
++        f.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, f.white, 3);
++        stepTo(f, PhaseType.UPKEEP);
++        settleTriggers(f);
++        expect(f.white.getLife() == 32 && f.red.getLife() == 32,
++                "White's Honden gained the team " + (f.white.getLife() - 30) + " life in the team's upkeep, not 2 once");
++        expect(cat.getCounters(CounterEnumType.P1P1) == 1,
++                "Red's Pridemate got " + cat.getCounters(CounterEnumType.P1P1) + " counters from White's one life gain, not 1 (house rule, once per gain, not once per player's run of the step)");
++        final Fixture l1 = new Fixture(false);
++        l1.game.getRules().setTeamLifeEvents(true);
++        add("Honden of Cleansing Fire", l1.white, ZoneType.Battlefield);
++        final Card l1Cat = add("Ajani's Pridemate", l1.red, ZoneType.Battlefield);
++        l1.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, l1.white, 5);
++        stepTo(l1, PhaseType.UPKEEP);
++        settleTriggers(l1);
++        expect(l1.white.getLife() == 32 && l1Cat.getCounters(CounterEnumType.P1P1) == 1,
++                "level 1: life " + l1.white.getLife() + ", Red's Pridemate counters " + l1Cat.getCounters(CounterEnumType.P1P1));
++    }
++
++    private static void settleTriggers(final Fixture f) throws Exception {
++        withoutPrompts(f, "settling the triggers", () -> {
++            for (int i = 0; i < 20; i++) {
++                f.game.getStack().addAllTriggeredAbilitiesToStack();
++                if (f.game.getStack().isEmpty()) {
++                    return;
++                }
++                f.game.getStack().resolveStack();
++            }
++        });
++        expect(f.game.getStack().isEmpty() && !f.game.getStack().hasSimultaneousStackEntries(), "the triggers never settled");
 +    }
 +
 +    private static void stepTo(final Fixture f, final PhaseType target) throws Exception {

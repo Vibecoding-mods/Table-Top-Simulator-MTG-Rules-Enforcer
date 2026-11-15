@@ -101,7 +101,7 @@ was clean after each run.
 | **level1-block-prompt-own-attackers** (new, harness) | 805.10d | aLevelOneDefenderBlocksForItsPartnerInThePrompt |
 | **coveted-jewel-first-seat** (new) | 805.10c | anUnblockedPartnerGetsCovetedJewel |
 
-**40 of 40 caught.** The first full run had two escapes, and a new check closes each one. A rerun of every changed
+**39 of 39 caught** (none + 38 mutations; first written as 40 of 40, a miscount corrected on `cloud/engine1117`). The first full run had two escapes, and a new check closes each one. A rerun of every changed
 mutation passed.
 
 - `add-turn-per-player`: no check gave both partners an extra turn with one effect.
