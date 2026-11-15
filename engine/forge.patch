@@ -363,10 +363,10 @@ index 2411340d..76985e46 100644
                          alternatives.add(beamSA);
                      } else if (keyword.startsWith("Flashback")) {
 diff --git a/forge-game/src/main/java/forge/game/GameRules.java b/forge-game/src/main/java/forge/game/GameRules.java
-index 2a2d5583..f099b8c3 100644
+index 2a2d5583..46bee71e 100644
 --- a/forge-game/src/main/java/forge/game/GameRules.java
 +++ b/forge-game/src/main/java/forge/game/GameRules.java
-@@ -8,6 +8,13 @@ public class GameRules {
+@@ -8,6 +8,18 @@ public class GameRules {
      private boolean manaBurn;
      private boolean orderCombatants;
      private int poisonCountersToLose = 10; // is commonly 10, but turns into 15 for 2HG
@@ -375,12 +375,17 @@ index 2a2d5583..f099b8c3 100644
 +    private boolean sharedTeamLife = false;
 +    // house rule (2HG): with shared team life, a teammate's life gain or loss also counts as the player's own
 +    private boolean teamLifeEvents = false;
++    // house rules (2HG): with shared team life, a player's draws, scries, surveils and looks at the top of the library
++    // (teamDraws, a table setting) and discards, mills, sacrifices, tokens and player counters (teamEffects) also happen
++    // to the partner
++    private boolean teamDraws = false;
++    private boolean teamEffects = false;
 +    // house rule (Juggernaut): the registered player who goes first, -1 for the usual roll
 +    private int startingPlayer = -1;
      private int gamesPerMatch = 3;
      private int gamesToWinMatch = 2;
      private boolean playForAnte = false;
-@@ -61,6 +68,34 @@ public class GameRules {
+@@ -61,6 +73,48 @@ public class GameRules {
          this.poisonCountersToLose = amount;
      }
  
@@ -410,6 +415,20 @@ index 2a2d5583..f099b8c3 100644
 +    }
 +    public void setTeamLifeEvents(final boolean shared) {
 +        this.teamLifeEvents = shared;
++    }
++
++    public boolean hasTeamDraws() {
++        return sharedTeamLife && teamDraws;
++    }
++    public void setTeamDraws(final boolean shared) {
++        this.teamDraws = shared;
++    }
++
++    public boolean hasTeamEffects() {
++        return sharedTeamLife && teamEffects;
++    }
++    public void setTeamEffects(final boolean shared) {
++        this.teamEffects = shared;
 +    }
 +
      public int getGamesPerMatch() {
@@ -526,6 +545,55 @@ index 0788895b..9a2d724d 100644
      AssignGroup (AssignGroupEffect.class),
      Balance (BalanceEffect.class),
      BecomeMonarch (BecomeMonarchEffect.class),
+diff --git a/forge-game/src/main/java/forge/game/ability/SpellAbilityEffect.java b/forge-game/src/main/java/forge/game/ability/SpellAbilityEffect.java
+index 474f0b18..53faaa72 100644
+--- a/forge-game/src/main/java/forge/game/ability/SpellAbilityEffect.java
++++ b/forge-game/src/main/java/forge/game/ability/SpellAbilityEffect.java
+@@ -310,6 +310,44 @@ public abstract class SpellAbilityEffect {
+     }
+ 
+     // Players
++    // 2HG house rules (GameRules.teamDraws, teamEffects): each player the effect names brings their partners along, as
++    // many times as that player is named and after the named players; a player already named keeps their own count.
++    // The partners are added once, here, so their share never shares again
++    protected static PlayerCollection withTeamPartners(final List<Player> players, final SpellAbility sa, final boolean draws) {
++        final PlayerCollection result = new PlayerCollection();
++        result.addAll(players);
++        if (players.isEmpty()) {
++            return result;
++        }
++        final forge.game.GameRules rules = players.get(0).getGame().getRules();
++        if (!(draws ? rules.hasTeamDraws() : rules.hasTeamEffects())) {
++            return result;
++        }
++        for (final Player p : Lists.newArrayList(players)) {
++            for (final Player mate : p.getTeamMates(false)) {
++                if (mate.isInGame() && !result.contains(mate)) {
++                    result.add(mate);
++                }
++            }
++        }
++        return result;
++    }
++
++    protected static List<Player> withTeamPartnersCounted(final List<Player> players, final SpellAbility sa, final boolean draws) {
++        final List<Player> result = Lists.newArrayList(players);
++        final List<Player> added = withTeamPartners(players, sa, draws);
++        for (final Player mate : added) {
++            if (!players.contains(mate)) {
++                for (final Player p : players) {
++                    if (!p.isOpponentOf(mate) && !p.equals(mate)) {
++                        result.add(mate);
++                    }
++                }
++            }
++        }
++        return result;
++    }
++
+     protected final static PlayerCollection getTargetPlayers(final SpellAbility sa) {                                       return getPlayers(false, "Defined",    sa); }
+     protected final static PlayerCollection getTargetPlayers(final SpellAbility sa, final String definedParam) {            return getPlayers(false, definedParam, sa); }
+     protected final static PlayerCollection getDefinedPlayersOrTargeted(final SpellAbility sa) {                            return getPlayers(true,  "Defined",    sa); }
 diff --git a/forge-game/src/main/java/forge/game/ability/effects/AssimilateEffect.java b/forge-game/src/main/java/forge/game/ability/effects/AssimilateEffect.java
 new file mode 100644
 index 00000000..37343a2c
@@ -698,6 +766,87 @@ index bde9c517..8e8e2536 100644
 +        return poisoned;
 +    }
  }
+diff --git a/forge-game/src/main/java/forge/game/ability/effects/CountersPutEffect.java b/forge-game/src/main/java/forge/game/ability/effects/CountersPutEffect.java
+index 7056549b..310287cc 100644
+--- a/forge-game/src/main/java/forge/game/ability/effects/CountersPutEffect.java
++++ b/forge-game/src/main/java/forge/game/ability/effects/CountersPutEffect.java
+@@ -242,6 +242,20 @@ public class CountersPutEffect extends SpellAbilityEffect {
+             }
+         } else {
+             tgtObjects.addAll(getDefinedEntitiesOrTargeted(sa, "Defined"));
++            // 2HG house rule (teamEffects): counters a player gets go to the partner too; poison is already the team's
++            if (counterType != null && !counterType.is(CounterEnumType.POISON) && !sa.isDividedAsYouChoose()) {
++                final List<Player> named = Lists.newArrayList();
++                for (final GameEntity obj : tgtObjects) {
++                    if (obj instanceof Player p) {
++                        named.add(p);
++                    }
++                }
++                for (final Player mate : withTeamPartners(named, sa, false)) {
++                    if (!tgtObjects.contains(mate)) {
++                        tgtObjects.add(mate);
++                    }
++                }
++            }
+         }
+ 
+         int counterRemain = counterAmount;
+diff --git a/forge-game/src/main/java/forge/game/ability/effects/DigEffect.java b/forge-game/src/main/java/forge/game/ability/effects/DigEffect.java
+index 5067c41d..e0df4138 100644
+--- a/forge-game/src/main/java/forge/game/ability/effects/DigEffect.java
++++ b/forge-game/src/main/java/forge/game/ability/effects/DigEffect.java
+@@ -171,10 +171,15 @@ public class DigEffect extends SpellAbilityEffect {
+         GameEntityCounterTable counterTable = new GameEntityCounterTable();
+         boolean combatChanged = false;
+ 
+-        for (final Player p : getDefinedPlayersOrTargeted(sa)) {
++        final List<Player> named = getDefinedPlayersOrTargeted(sa);
++        for (final Player p : srcZone == ZoneType.Library ? withTeamPartners(named, sa, true) : named) {
+             if (!p.isInGame()) {
+                 continue;
+             }
++            // 2HG house rule (teamDraws): a partner who shares the look chooses from their own cards
++            if (!named.contains(p) && !sa.hasParam("Choser")) {
++                chooser = p;
++            }
+ 
+             final CardCollection top = new CardCollection();
+             final CardCollection rest = new CardCollection();
+diff --git a/forge-game/src/main/java/forge/game/ability/effects/DiscardEffect.java b/forge-game/src/main/java/forge/game/ability/effects/DiscardEffect.java
+index dd2eb401..d4675dac 100644
+--- a/forge-game/src/main/java/forge/game/ability/effects/DiscardEffect.java
++++ b/forge-game/src/main/java/forge/game/ability/effects/DiscardEffect.java
+@@ -122,14 +122,15 @@ public class DiscardEffect extends SpellAbilityEffect {
+         final String mode = sa.getParam("Mode");
+         final Game game = source.getGame();
+ 
+-        final List<Player> targets = getTargetPlayers(sa),
+-                discarders;
++        final List<Player> targets = getTargetPlayers(sa);
++        List<Player> discarders;
+         if (mode.equals("RevealTgtChoose")) {
+             // In this case the target need not be the discarding player
+             discarders = getDefinedPlayersOrTargeted(sa);
+         } else {
+             discarders = targets;
+         }
++        discarders = withTeamPartners(discarders, sa, false);
+ 
+         Map<Player, CardCollectionView> discardedMap = Maps.newHashMap();
+         for (final Player p : discarders) {
+diff --git a/forge-game/src/main/java/forge/game/ability/effects/DrawEffect.java b/forge-game/src/main/java/forge/game/ability/effects/DrawEffect.java
+index 5ef2eeb1..8f15d8f5 100644
+--- a/forge-game/src/main/java/forge/game/ability/effects/DrawEffect.java
++++ b/forge-game/src/main/java/forge/game/ability/effects/DrawEffect.java
+@@ -69,7 +69,7 @@ public class DrawEffect extends SpellAbilityEffect {
+         moveParams.put(AbilityKey.LastStateBattlefield, sa.getLastStateBattlefield());
+         moveParams.put(AbilityKey.LastStateGraveyard, sa.getLastStateGraveyard());
+ 
+-        final List<Player> tgts = getTargetPlayersWithDuplicates(true, "Defined", sa);
++        final List<Player> tgts = withTeamPartnersCounted(getTargetPlayersWithDuplicates(true, "Defined", sa), sa, true);
+ 
+         for (final Player p : Sets.newLinkedHashSet(tgts)) {
+             if (!p.isInGame()) {
 diff --git a/forge-game/src/main/java/forge/game/ability/effects/EndCombatPhaseEffect.java b/forge-game/src/main/java/forge/game/ability/effects/EndCombatPhaseEffect.java
 index 46dbfb94..07903ff3 100644
 --- a/forge-game/src/main/java/forge/game/ability/effects/EndCombatPhaseEffect.java
@@ -769,6 +918,71 @@ index 343eb77a..16974809 100644
      private static List<Integer> getDistribution(List<Player> players, boolean top, List<Integer> remainingChoices) {
          // distribution was successful
          if (players.isEmpty()) {
+diff --git a/forge-game/src/main/java/forge/game/ability/effects/MillEffect.java b/forge-game/src/main/java/forge/game/ability/effects/MillEffect.java
+index cc86c35c..5bae8ca8 100644
+--- a/forge-game/src/main/java/forge/game/ability/effects/MillEffect.java
++++ b/forge-game/src/main/java/forge/game/ability/effects/MillEffect.java
+@@ -43,7 +43,7 @@ public class MillEffect extends SpellAbilityEffect {
+             destination = ZoneType.Graveyard;
+         }
+ 
+-        final PlayerCollection millers = getTargetPlayers(sa);
++        final PlayerCollection millers = withTeamPartners(getTargetPlayers(sa), sa, false);
+ 
+         if (sa.hasParam("Optional")) {
+             final PlayerCollection toRemove = new PlayerCollection();
+diff --git a/forge-game/src/main/java/forge/game/ability/effects/SacrificeEffect.java b/forge-game/src/main/java/forge/game/ability/effects/SacrificeEffect.java
+index 84b097f3..b2c891be 100644
+--- a/forge-game/src/main/java/forge/game/ability/effects/SacrificeEffect.java
++++ b/forge-game/src/main/java/forge/game/ability/effects/SacrificeEffect.java
+@@ -102,7 +102,7 @@ public class SacrificeEffect extends SpellAbilityEffect {
+             }
+         } else {
+             CardCollectionView choosenToSacrifice = null;
+-            for (final Player p : getTargetPlayers(sa)) {
++            for (final Player p : withTeamPartners(getTargetPlayers(sa), sa, false)) {
+                 CardCollection battlefield = new CardCollection(p.getCardsIn(ZoneType.Battlefield));
+                 battlefield.removeIf(c -> !zoneMovements.getLastStateBattlefield().contains(c));
+ 
+diff --git a/forge-game/src/main/java/forge/game/ability/effects/ScryEffect.java b/forge-game/src/main/java/forge/game/ability/effects/ScryEffect.java
+index dd2171a7..ad7bec8f 100644
+--- a/forge-game/src/main/java/forge/game/ability/effects/ScryEffect.java
++++ b/forge-game/src/main/java/forge/game/ability/effects/ScryEffect.java
+@@ -38,7 +38,7 @@ public class ScryEffect extends SpellAbilityEffect {
+         boolean isOptional = sa.hasParam("Optional");
+         final List<Player> players = Lists.newArrayList();
+ 
+-        for (final Player p : getTargetPlayers(sa)) {
++        for (final Player p : withTeamPartners(getTargetPlayers(sa), sa, true)) {
+             if (!p.isInGame()) {
+                 continue;
+             }
+diff --git a/forge-game/src/main/java/forge/game/ability/effects/SurveilEffect.java b/forge-game/src/main/java/forge/game/ability/effects/SurveilEffect.java
+index 81c5a6ba..20ad30cd 100644
+--- a/forge-game/src/main/java/forge/game/ability/effects/SurveilEffect.java
++++ b/forge-game/src/main/java/forge/game/ability/effects/SurveilEffect.java
+@@ -48,7 +48,7 @@ public class SurveilEffect extends SpellAbilityEffect {
+         Map<AbilityKey, Object> moveParams = AbilityKey.newMap();
+         final CardZoneTable table = AbilityKey.addCardZoneTableParams(moveParams, sa);
+ 
+-        for (final Player p : getTargetPlayers(sa)) {
++        for (final Player p : withTeamPartners(getTargetPlayers(sa), sa, true)) {
+             if (!p.isInGame()) {
+                 continue;
+             }
+diff --git a/forge-game/src/main/java/forge/game/ability/effects/TokenEffect.java b/forge-game/src/main/java/forge/game/ability/effects/TokenEffect.java
+index a517f097..c3ecf5e5 100644
+--- a/forge-game/src/main/java/forge/game/ability/effects/TokenEffect.java
++++ b/forge-game/src/main/java/forge/game/ability/effects/TokenEffect.java
+@@ -127,7 +127,7 @@ public class TokenEffect extends TokenEffectBase {
+             return;
+         }
+ 
+-        makeTokenTable(getDefinedPlayersOrTargeted(sa, "TokenOwner"), sa.getParam("TokenScript").split(","),
++        makeTokenTable(withTeamPartners(getDefinedPlayersOrTargeted(sa, "TokenOwner"), sa, false), sa.getParam("TokenScript").split(","),
+                 amount, false, triggerList, combatChanged, sa);
+ 
+         if (!useZoneTable) {
 diff --git a/forge-game/src/main/java/forge/game/card/CardProperty.java b/forge-game/src/main/java/forge/game/card/CardProperty.java
 index d7947bff..c0410419 100644
 --- a/forge-game/src/main/java/forge/game/card/CardProperty.java
