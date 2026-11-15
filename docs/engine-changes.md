@@ -271,8 +271,10 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
   White's Honden of Cleansing Fire gains the team 2 life once in the team's upkeep, and Red's Ajani's Pridemate
   triggers once, not once per player's run of the step (with a level 1 contrast).
 - **Proof (cloud session, no Docker):** `engine/test-harness-local.sh --all`: 23 of 23 classes (SharedTurnsTest 34,
-  SharedTurnsDevTest 16, SharedCombatTest 14, TeamGameTest 41). `node tools/l2-mutate.js --local`: the level 2 set
-  plus two life-rule mutations; table in `docs/handoff/engine1117-report.md`.
+  SharedTurnsDevTest 16, SharedCombatTest 14, TeamGameTest 41). `node tools/l2-mutate.js --local`: 41 of 41 runs
+  caught by name (the level 2 set plus two life-rule mutations; table in `docs/handoff/engine1117-report.md`).
+  Patches regenerated: forge.patch 474 files (byte-identical to the owner's), manabrew.patch 63 files (only the new
+  check added); both apply to fresh trees at the pinned commits.
 - **805.2 decision:** the primary player is the team's furthest-right seat from the team's view, the team's first seat
   (White, Yellow), as built (`docs/game-modes-spec.md` §5.4, §5.10).
 - **Not done:** no Docker image, no live check. Build with `engine/build-images.sh engine1117`.
@@ -306,7 +308,7 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
   - Harness: the primary player gets the team's trigger-order prompt; the team's blockers prompt lists every creature
     attacking the team, at level 1 too.
 - **Proof (cloud session, no Docker):** `engine/test-harness-local.sh --all`: 23 of 23 classes pass (SharedTurnsTest
-  33, SharedTurnsDevTest 16, SharedCombatTest 14, TeamGameTest). `node tools/l2-mutate.js --local`: 40 of 40 runs
+  33, SharedTurnsDevTest 16, SharedCombatTest 14, TeamGameTest). `node tools/l2-mutate.js --local`: 39 of 39 runs (none + 38 mutations; first reported as 40, a miscount)
   caught by name (table in `docs/handoff/l2-merge-report.md`). Patches regenerated: forge.patch 470 files (unchanged),
   manabrew.patch 63 files; both apply to a fresh tree at the pinned commits.
 - **Not done:** no Docker images built, no live check. Build with `engine/build-images.sh engine1117-l2`.
