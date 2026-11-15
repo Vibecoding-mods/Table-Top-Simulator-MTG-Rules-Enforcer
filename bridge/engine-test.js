@@ -28,6 +28,7 @@ const MAX_TURNS = Number(arg("turns", 8));
 const MINUTES = Number(arg("minutes", 10));
 const FORMAT = arg("format", "commander") === "standard" ? "standard" : "commander";
 const STD = FORMAT === "standard";
+const ROOM_FORMAT = STD ? "Standard" : "Commander";
 const DECK_ID = arg("deck", STD ? "standard_dimir_aggro" : "neheb_minotaur_commander");
 const BOT_DECK_IDS = STD ? ["standard_rakdos_ingris", "standard_mono_green_landfall", "standard_orzhov_soul_sisters"]
   : ["ashling_limitless_commander", "ramses_commander", "real_teval_commander"];
@@ -80,6 +81,10 @@ let promptsSeen = 0;
 let lastPayCard = null;
 let actsThisPrompt = 0;
 let finished = false;
+let exitCode = 0; // (Standard checks below set it to 1)
+let firstActive = null; // the player whose turn 1 it was (Standard: their library at turn 2 shows the first draw rule)
+let gameOverSeen = false;
+let firstDrawChecked = false; // (only when this seat started: the bots may mulligan)
 let board = null; // { state, fingerprint }
 const deltaStats = { full: 0, patches: 0, resyncs: 0, mismatches: 0, applyMs: [] };
 const failedActions = new Set();
@@ -125,6 +130,9 @@ ws.addEventListener("message", (ev) => {
         joined = true;
         const mine = loadPreset(DECK_ID);
         send({ type: "SetDeckSelection", deck_name: mine.deckName, deck: mine.deck, commander_name: mine.commanderName });
+        // (the relay only takes StartGame's format in an "Any" room; the node's room is Commander, so the format is set
+        // first: SetFormat picks the relay's starting life and the node's Forge variant, and un-readies the people)
+        if (room.format !== ROOM_FORMAT) send({ type: "SetFormat", format: ROOM_FORMAT });
         send({ type: "SetReady", ready: true });
         const bots = Array.from({ length: BOTS }, (_, i) => BOT_DECK_IDS[i % BOT_DECK_IDS.length]).map(loadPreset); // decks repeat past 3 bots (M6)
         log(`deck "${mine.deckName}" set; ${bots.length ? `asking node for ${bots.length} Forge AI bot(s)` : "waiting for other test clients"}`);
@@ -153,6 +161,7 @@ ws.addEventListener("message", (ev) => {
     case "GameStarted":
       slot = `player-${msg.player_order.indexOf(USERNAME)}`;
       log(`game started: ${msg.game_id}, we are ${slot}, order ${msg.player_order.join(" → ")}, life ${msg.starting_life}`);
+      if (STD && msg.starting_life !== 20) { log(`FAIL: Standard started at ${msg.starting_life} life, not 20`); exitCode = 1; }
       break;
     case "StateUpdate":
       onEnvelope(msg.state, raw.length);
@@ -208,7 +217,56 @@ function onEnvelope(env, bytes) {
   }
 }
 
+// Standard (spec §3.1): nothing in a command zone, no commander casts (tax) or commander damage, at any point
+function stdFail(why) { if (exitCode === 0 || !stdFail.seen?.has(why)) log(`FAIL: ${why}`); (stdFail.seen ??= new Set()).add(why); exitCode = 1; }
+function stdBoardChecks() {
+  const gv = board.state?.gameView || {};
+  for (const z of gv.zones || []) if (z.zone === "command" && z.count) stdFail(`${z.ownerId} has ${z.count} card(s) in the command zone`);
+  for (const p of gv.players || []) {
+    if (Object.keys(p.commanderCasts || {}).length) stdFail(`${p.id} has commander casts ${JSON.stringify(p.commanderCasts)}`);
+    if (Object.keys(p.commanderDamage || {}).length) stdFail(`${p.id} has commander damage ${JSON.stringify(p.commanderDamage)}`);
+  }
+}
+
+// the end of the game: who won, on which turn, and everyone's life and status (Standard: one player left, the winner)
+function reportEnd() {
+  const gv = board?.state?.gameView || {};
+  const players = gv.players || [];
+  const deckOf = (id) => {
+    if (id === slot) return DECK_ID;
+    const seen = shownCards.get(id) || new Set();
+    let best = "unknown deck", most = 0;
+    for (const d of new Set(BOT_DECK_IDS)) {
+      const n = JSON.parse(fs.readFileSync(presetFile(d), "utf8")).cards.filter((c) => seen.has(c.name)).length;
+      if (n > most) { most = n; best = d; }
+    }
+    return best;
+  };
+  log(`game over on turn ${gv.turn}: winner ${gv.winnerId ?? "none"}${gv.winnerId ? ` (${gv.winnerId === slot ? "this test seat" : "Forge AI"}, ${deckOf(gv.winnerId)})` : ""}`);
+  for (const p of players) log(`  ${p.id} (${deckOf(p.id)}): life ${p.life}, poison ${p.counters?.POISON ?? 0}, ${p.status}`);
+  if (STD) {
+    const left = players.filter((p) => p.status !== "lost");
+    if (!gv.gameOver) stdFail("game over prompt but the board says the game is not over");
+    if (!gv.winnerId) stdFail("no winner");
+    else if (left.length !== 1 || left[0].id !== gv.winnerId) stdFail(`winner ${gv.winnerId} but still playing: ${left.map((p) => p.id).join(", ")}`);
+  }
+}
+
+// the non-basic cards each player has shown (outside library and hand), kept all game: the bots' decks are named by
+// them at the end (the node seats the bots in its own order, and a player who loses a free-for-all leaves with their cards)
+const shownCards = new Map();
+function noteShown() {
+  for (const z of board.state?.gameView?.zones || []) {
+    if (z.zone === "library" || z.zone === "hand") continue;
+    for (const c of z.cards || []) if (c.identity?.name && !(c.supertypes || []).includes("Basic")) {
+      if (!shownCards.has(c.ownerId)) shownCards.set(c.ownerId, new Set());
+      shownCards.get(c.ownerId).add(c.identity.name);
+    }
+  }
+}
+
 function onBoard(bytes) {
+  noteShown();
   const t = board.state?.gameView?.turn ?? turn;
   if (t !== turn) {
     turn = t;
@@ -220,8 +278,21 @@ function onBoard(bytes) {
       const gv = board.state?.gameView || {};
       const lib = (id) => (gv.zones || []).find((z) => z.zone === "library" && z.ownerId === id)?.count;
       log(`  ${(gv.players || []).map((p) => `${p.id}: life ${p.life}, library ${lib(p.id)}, hand ${(gv.zones || []).find((z) => z.zone === "hand" && z.ownerId === p.id)?.count ?? "?"}`).join("; ")}`);
+      if (STD) {
+        if (turn === 1) {
+          firstActive = gv.activePlayerId;
+          for (const p of gv.players || []) if (p.life !== 20) stdFail(`${p.id} starts turn 1 at ${p.life} life, not 20`);
+        }
+        // (we always keep 7, so only our own library is sure: 53 at turn 2 in 1v1 (103.8a), 52 in a free-for-all (103.8c))
+        if (turn === 2 && firstActive === slot) {
+          const want = SEATS === 2 ? 53 : 52;
+          if (lib(slot) !== want) stdFail(`we started; our library at turn 2 is ${lib(slot)}, not ${want} (first draw rule)`);
+          else firstDrawChecked = true, log(`  first draw rule ok: ${slot} started, library ${want} at turn 2`);
+        } else if (turn === 2) log(`  ${firstActive} started (library ${lib(firstActive)} at turn 2: ${SEATS === 2 ? 53 : 52} if it kept 7)`);
+      }
     }
   }
+  if (STD) stdBoardChecks();
   if (turn > MAX_TURNS) finish(0);
 }
 
@@ -287,7 +358,7 @@ function answer(prompt) {
     case "chooseColor": return respond(prompt, type, { type: "colorDecision", chosenColors: { [input.validColors[0]]: input.amount } });
     case "revealCards": return respond(prompt, type, { type: "revealCardsAcknowledged" });
     case "diceRolled": return respond(prompt, type, { type: "diceRolledAcknowledged" });
-    case "gameOver": log("game over"); return finish(0);
+    case "gameOver": gameOverSeen = true; reportEnd(); return finish(0);
     default:
       log(`unhandled prompt type "${type}":`, JSON.stringify(prompt).slice(0, 300));
   }
@@ -336,9 +407,12 @@ function finish(code) {
     "Targets (SPEC §6): click → engine accepts < 80 ms; click → state shown < 150 ms",
     `CSV: ${out}`,
   ].join("\n"));
+  if (STD && !gameOverSeen) stdFail("the game did not reach game over");
+  if (STD) log(exitCode ? "Standard checks: FAILED (above)" : `Standard checks: passed (20 life, no commander${firstDrawChecked ? ", first draw rule" : ""}, one winner)`);
   if (DUMP) fs.writeFileSync(DUMP, JSON.stringify({ slot, board: board?.state, prompts: promptSamples }, null, 1));
+  // (no SetFormat back: the relay sets an emptied room to "Any", where StartGame picks the format again)
   try { send({ type: "LeaveRoom" }); ws.close(); } catch {}
-  setTimeout(() => process.exit(code), 300);
+  setTimeout(() => process.exit(Math.max(code, exitCode)), 300);
 }
 
 setTimeout(() => { log(`time limit ${MINUTES} min reached`); finish(0); }, MINUTES * 60_000);

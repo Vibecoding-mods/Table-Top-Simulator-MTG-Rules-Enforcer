@@ -56,6 +56,10 @@ V.__index = function(t, k)
   if k == 1 then return rawget(t, "x") elseif k == 2 then return rawget(t, "y") elseif k == 3 then return rawget(t, "z") end
   return V[k]
 end
+-- (and v[1] = ... sets x, as on a TTS Vector: the table's own onPlayerDisconnect turns hand cards with rot[3] = 180)
+V.__newindex = function(t, k, v)
+  if k == 1 then rawset(t, "x", v) elseif k == 2 then rawset(t, "y", v) elseif k == 3 then rawset(t, "z", v) else rawset(t, k, v) end
+end
 local function vec(x, y, z)
   if type(x) == "table" then
     local t = x
@@ -688,7 +692,7 @@ WebRequest = {
       SIM.webN = (SIM.webN or 0) + 1
       SIM.webq = SIM.webq or {}
       SIM.webcb = SIM.webcb or {}
-      SIM.webq[#SIM.webq + 1] = { id = SIM.webN, url = url, method = method, body = body }
+      SIM.webq[#SIM.webq + 1] = { id = SIM.webN, url = url, method = method, body = body, headers = headers }
       SIM.webcb[SIM.webN] = cb
     elseif cb then Wait.frames(function() cb({ is_done = true, is_error = false, text = "ok" }) end, 1) end
     return {}
@@ -820,6 +824,8 @@ Player = setmetatable({}, { __index = function(t, color)
   p.clearSelectedObjects = function() end
   p.changeColor = function() end
   p.getPointerPosition = function() return vec(0, 0, 0) end
+  -- the object under the player's pointer: __sim.hover = { [color] = guid } (none by default)
+  p.getHoverObject = function() local g = SIM.hover and SIM.hover[color] return g and getObjectFromGUID(g) or nil end
   p.lookAt = function() end
   return p
 end })
