@@ -10788,6 +10788,7 @@ engineGif = {
   spawnId = {},          -- colour -> number of its newest spawn (the watchdog's and a late callback's check)
   loaded = {},           -- colour -> the spawnId whose callback came (the frame's picture arrived)
   SPAWN_GIVE_UP_S = 10,  -- a spawn whose callback never comes (a refused picture link) frees the colour after this
+  retried = {},          -- colour -> 1: its picture is being tried again; 2: its still shows instead of the video
   dirty = {},            -- colour -> true: changed while spawning, spawn again when it lands
   SIZE = 1.53,           -- a Custom Tile at scale 1 is 2 x 2; a card is 3.06 tall
   PLAY_S = 12,           -- seconds a GIF plays before it holds
@@ -11036,13 +11037,26 @@ function engineGif.spawn(c)
   Wait.time(function()
     if G.spawnId[c] ~= id or not G.spawning[c] then return end
     G.spawning[c] = nil
-    if G.dirty[c] then G.dirty[c] = nil G.spawn(c) end
+    if G.dirty[c] then G.dirty[c] = nil return G.spawn(c) end
+    -- (a picture that never arrived while its frame still lies there: live 2026-11-15 TTS refused a good GIPHY video
+    -- once, with "Format: MP4" in chat, and left a white tile; the same link played later. So one more try, then the
+    -- still picture, said to the owner)
+    local s = G.state[c]
+    if s == nil or s.collapsed == true or not G.alive(G.frames[c]) then return end
+    if G.retried[c] == nil then
+      G.retried[c] = 1
+      G.spawn(c)
+    elseif G.retried[c] == 1 and type(s.still) == "string" then
+      G.retried[c] = 2
+      G.spawn(c)
+      G.say(c, "Your GIF's video wouldn't load, so your frame shows its picture. Pick it again to retry the video.")
+    end
   end, G.SPAWN_GIVE_UP_S)
   G.frames[c] = spawnObjectData({
     data = { Name = "Custom_Tile", Nickname = "GIF frame (" .. c .. ")", Description = st and G.xmlText(st.title) or "",
       GMNotes = "mtggif:" .. c, Memo = st and JSON.encode(st) or "", Locked = false,
       Transform = { posX = pos.x, posY = pos.y, posZ = pos.z, rotX = 0, rotY = rotY, rotZ = 0, scaleX = s, scaleY = 1, scaleZ = s },
-      CustomImage = { ImageURL = (st ~= nil and not folded) and st.mp4 or ENGINE_BACK, ImageSecondaryURL = "", ImageScalar = 1, WidthScale = 0,
+      CustomImage = { ImageURL = (st ~= nil and not folded) and (G.retried[c] == 2 and st.still or st.mp4) or ENGINE_BACK, ImageSecondaryURL = "", ImageScalar = 1, WidthScale = 0,
         CustomTile = { Type = 0, Thickness = 0.1, Stackable = false, Stretch = st ~= nil and not folded } } },
     position = pos, rotation = { 0, rotY, 0 }, scale = { s, 1, s },
     callback_function = function(obj)
@@ -11052,6 +11066,7 @@ function engineGif.spawn(c)
       end
       G.spawning[c] = nil
       G.loaded[c] = id
+      G.retried[c] = nil
       if G.dirty[c] then G.dirty[c] = nil return G.spawn(c) end
       if not G.same(G.frames[c], obj) then return end
       -- (fresh: the XML just set already shows it playing; an attribute set in the same frame as a new object's first
@@ -11119,6 +11134,7 @@ end
 function engineGif.show(c, item)
   local G = engineGif
   if type(item) ~= "table" or type(item.mp4) ~= "string" then return end
+  G.retried[c] = nil
   G.state[c] = { id = tostring(item.id or ""), mp4 = item.mp4, still = item.still, title = G.xmlText(item.title), w = tonumber(item.w) or 1, h = tonumber(item.h) or 1 }
   G.open[c] = nil
   G.playing[c] = true

@@ -274,7 +274,9 @@ unhandled rejection that would end the bridge.
   shape?").
 - **Table**: a spawn whose callback never comes (TTS refused the link) is given up after 10 s
   (`SPAWN_GIVE_UP_S`), and a late callback's object is removed; a frame deleted before its picture arrived (the import
-  dialog's X) comes back empty, and the owner is told. A box selection over frames isn't refused and doesn't replay
+  dialog's X) comes back empty, and the owner is told. A frame that is still there when its spawn is given up (live 2026-11-15: TTS
+  said "Format: MP4" for a good GIPHY video and left a white tile) is spawned once more with the same video, then with
+  its still picture, and the owner is told; a load, a new pick, or Hide and Show try the video again. A box selection over frames isn't refused and doesn't replay
   them (one click on a frame still does). The search box's `onEndEdit` on losing focus doesn't search the same words
   again (compared as the box shows them), unless the last search failed. Hide-for-me goes with its player when they
   leave (a spectator's stays).
