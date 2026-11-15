@@ -495,7 +495,7 @@ and gaining life happen to each player individually. The result is applied to th
 |---|---|---|
 | 810.4 one team life (30; 80 in 2HG Commander, §12) | yes | unchanged |
 | 810.9 damage, loss, gain per player, total to the team (Flame Rift: 8 a team; "each opponent loses 5": the team loses 10, "life lost this way" is 10; lifelink raises the team) | yes | new guard `eachOpponentLosingLifeCountsEveryPlayerOfTheTeam` (Exquisite Blood triggers once per opponent) |
-| 810.9 "whenever you gain life" (Ajani's Pridemate), "if you gained life this turn", lifegain replacements (Boon Reflection): the player's own gain only | yes | unchanged (`lifelinkRaisesTheTeamAndTriggersOnlyItsController`) |
+| 810.9 "whenever you gain life" (Ajani's Pridemate), "if you gained life this turn", lifegain replacements (Boon Reflection): the player's own gain only | yes by the CR | **house rule since 2026-11-15** (below): a partner's gain or loss counts as yours; the CR way is kept with the rule off (`partnersLifeEventsAreTheirOwnWithoutTheHouseRule`) |
 | 810.9a a cost or effect reading a player's life reads the team's ("if you have 50 or more life", pay half your life, Toxic Deluge's X up to the team total) | yes | guard in `payingLifeUsesTheTeamTotal...` |
 | 810.9b both partners paying at once can't exceed the team total | yes: Forge pays one player at a time and each check reads the already lowered team total | unchanged |
 | 810.9c "target player's life total becomes N": that player gains or loses the difference | yes (`Player.setLife` is relative) | guard `settingOnePlayersLifeMovesTheTeamByTheDifference` |
@@ -521,11 +521,40 @@ and gaining life happen to each player individually. The result is applied to th
 | 810.2, 805.4-805.5 shared turn, team priority, 805.2 primary player | not built (Level 1, own turns back to back, as decided) | unchanged |
 | 2HG Commander commander damage (not in the CR; Wizards' page: 21 from one commander to the team) | our house rule, §12: 42 from one commander summed over the team, combat damage only (903.10a) | unchanged |
 
-Where the user's words and the CR differ (the CR is what is built): an effect is the team's only where the rule says so.
-"Whenever you gain life", "if you gained life this turn", "whenever you lose life", lifegain doubling and "you control"
-stay the one player's; a partner's gain does not trigger your Ajani's Pridemate (810.9 "happen to each player
-individually"; 810.5). Life totals, poison, can't gain / can't lose / can't pay life, can't get poison, can't win / can't
-lose the game, and winning and losing are the team's.
+Where the user's words and the CR differ: by the CR an effect is the team's only where the rule says so, and "whenever
+you gain life", "if you gained life this turn", "whenever you lose life" and lifegain doubling stay the one player's
+(810.9 "happen to each player individually"). The user chose a **house rule** for these (2026-11-15, below). "You
+control", hands, libraries, draws and mana stay each player's own (810.5). Life totals, poison, can't gain / can't lose /
+can't pay life, can't get poison, can't win / can't lose the game, and winning and losing are the team's. Commander
+damage stays 42 from one commander summed over the team (the user, 2026-11-15: no change).
+
+**House rule: a partner's life gain or loss is yours (the user, 2026-11-15; not CR 810).** "In 2 headed giant [an] effect
+that affects you affects your teammates the same." Built in Forge behind its own flag, `GameRules.teamLifeEvents`, which
+counts only together with `sharedTeamLife`; the harness turns both on for every `sharedLife` game (our 2HG, image
+`engine1116-teams3`). Nothing changes in free-for-all, 2v2 or Juggernaut. What it does:
+- **Triggers.** A "you gain life" or "you lose life" trigger (`LifeGained`, `LifeLost`, `LifeLostAll` with
+  `ValidPlayer$ You` or anything else that matches its controller) also fires when the controller's partner gains or loses
+  life: Ajani's Pridemate, Gonti's Machinations, Lich's Mastery. The gain or loss is still one event made by
+  one player, so each trigger fires once per gain: when Red gains 3, Red's Pridemate and White's Pridemate each get one
+  counter, never two. Opponent triggers ("whenever an opponent gains life") are unchanged.
+- **First time each turn.** "Whenever you gain (lose) life for the first time each turn" (Attended Healer, Gonti's
+  Machinations) is the team's first: after Red's first gain, White's own first gain that turn doesn't fire it again.
+- **Counts and conditions.** "Life you gained / lost this turn", "times you gained life this turn" and "life lost last
+  turn" (`LifeYouGainedThisTurn`, `LifeYouLostThisTurn`, `LifeYouGainedTimesThisTurn`, the player counts
+  `LifeGainedThisTurn`, `LifeLostThisTurn`, `LifeLostLastTurn`, the "lost life this turn" player property) read the team's
+  sum. Angelic Accord sees Red's 4 as White's. Each player's own record (`getLifeGainedThisTurn` and the rest) is unchanged,
+  so rewinds and game copies copy it as before.
+- **Lifegain replacements.** "If you would gain life, ..." (Boon Reflection, Rhox Faithmender) also applies to the
+  partner's gain. Forge applies each replacement once to an event, so one Boon Reflection doubles a partner's 2 to 4, not
+  8; two Boon Reflections on one team double it twice, as two on one player would.
+- **Left as the CR has it (chosen):** "if you would lose life" replacements and can't-lose effects (810.9h already
+  makes can't-lose the team's), the opponents' counts ("life your opponents lost this turn" still adds each opponent's own
+  loss once), and every "you control" effect.
+- **Tests** (`TeamGameTest`, each breaks when its part is removed, `tmp/wt-2hghouse/tmp/mutate-house.sh`):
+  `aPartnersLifeGainTriggersYourPridemateOnce`, `lifeGainedThisTurnCountsThePartnersGain`, `theFirstGainEachTurnIsTheTeams`,
+  `aPartnersLifeLossTriggersYourLoseLifeTrigger`, `yourLifegainReplacementDoublesAPartnersGainOnce`,
+  `partnersLifeEventsAreTheirOwnWithoutTheHouseRule`, and `requestSetsTeamsAndTwoHeadedGiantNumbers` (on in 2HG, off in Team
+  Commander).
 
 Still left out: 810.9d when the effect is a per-player repeat (Biorhythm runs `RepeatEach`, so each member is set in
 turn and the last seat's number stands); "each player loses a third of their life" (Pox, also `RepeatEach`) works
