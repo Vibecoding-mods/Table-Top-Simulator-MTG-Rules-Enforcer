@@ -1,0 +1,62 @@
+{
+  "_note": "Hand-made, NOT a recorded DeckCheck response (their terms forbid redistributing their data). Made-up decks and ids, real card names, the shape documented at deckcheck.co/docs/api. Used by tests/test_deckcheck.js.",
+  "partners": {
+    "name": "Test Partners Pile",
+    "format": "commander",
+    "publicUrl": "https://deckcheck.co/app/deckview/test_Partners01",
+    "bracket": 3,
+    "threatIndex": 54,
+    "dti": { "score": 54, "maxScore": 96 },
+    "boards": {
+      "commanders": {
+        "cards": {
+          "dc-c2": { "quantity": 1, "card": { "name": "Tymna the Weaver", "scryfallId": "00000000-0000-4000-8000-0000000000c2", "setCode": "c16", "collectorNumber": "48" } },
+          "dc-c1": { "quantity": 1, "card": { "name": "Thrasios, Triton Hero", "scryfallId": "00000000-0000-4000-8000-0000000000c1", "setCode": "c16", "collectorNumber": "46" } }
+        }
+      },
+      "mainboard": {
+        "cards": {
+          "dc-m5": { "quantity": 40, "card": { "name": "Plains", "scryfallId": "00000000-0000-4000-8000-0000000000a5", "setCode": "unf", "collectorNumber": "235" } },
+          "dc-m1": { "quantity": 1, "card": { "name": "Sol Ring", "scryfallId": "00000000-0000-4000-8000-0000000000a1", "setCode": "c21", "collectorNumber": "263" } },
+          "dc-m3": { "quantity": 20, "card": { "name": "Island", "scryfallId": "00000000-0000-4000-8000-0000000000b2", "setCode": "unf", "collectorNumber": "236" } },
+          "dc-m4": { "quantity": 15, "card": { "name": "Island", "scryfallId": "00000000-0000-4000-8000-0000000000b1", "setCode": "neo", "collectorNumber": "294" } },
+          "dc-m2": { "quantity": 1, "card": { "name": "Arcane Signet", "scryfallId": "00000000-0000-4000-8000-0000000000a2", "setCode": "eld", "collectorNumber": "331" } },
+          "dc-m6": { "quantity": 20, "card": { "name": "Forest", "scryfallId": "00000000-0000-4000-8000-0000000000a6", "setCode": "unf", "collectorNumber": "239" } },
+          "dc-m7": { "quantity": 1, "card": { "name": "Swords to Plowshares", "scryfallId": "00000000-0000-4000-8000-0000000000a7", "setCode": "sta", "collectorNumber": "10" } }
+        }
+      }
+    }
+  },
+  "standard": {
+    "name": "Test Standard Burn",
+    "format": "standard",
+    "publicUrl": "https://deckcheck.co/app/deckview/test_Standard1",
+    "bracket": null,
+    "threatIndex": null,
+    "dti": null,
+    "boards": {
+      "mainboard": {
+        "cards": {
+          "dc-s2": { "quantity": 24, "card": { "name": "Mountain", "scryfallId": "00000000-0000-4000-8000-0000000000d2", "setCode": "fdn", "collectorNumber": "279" } },
+          "dc-s1": { "quantity": 4, "card": { "name": "Lightning Strike", "scryfallId": "00000000-0000-4000-8000-0000000000d1", "setCode": "fdn", "collectorNumber": "198" } }
+        }
+      }
+    }
+  },
+  "emptyMainboard": {
+    "name": "Test Just A Commander",
+    "format": "commander",
+    "publicUrl": "https://deckcheck.co/app/deckview/test_Empty0001",
+    "bracket": 1,
+    "threatIndex": 0,
+    "dti": { "score": 0, "maxScore": 96 },
+    "boards": {
+      "commanders": {
+        "cards": {
+          "dc-e1": { "quantity": 1, "card": { "name": "Atraxa, Praetors' Voice", "scryfallId": "00000000-0000-4000-8000-0000000000e1", "setCode": "c16", "collectorNumber": "28" } }
+        }
+      },
+      "mainboard": { "cards": {} }
+    }
+  }
+}
