@@ -487,7 +487,7 @@ and gaining life happen to each player individually. The result is applied to th
 | 810.10c can't get poison counters covers the team (Melira, Sylvok Outcast) | **no** | `Player.canReceiveCounters` reads the partners for poison |
 | 810.10d a player has the team's kinds of counters, "poisoned" if the team is | yes (mirrored count) | unchanged |
 | 701.34b proliferating two players of one team gives the team one poison counter, on the player the proliferator picks | **no**: each chosen partner got one, two for the team | `CountersProliferateEffect.poisonedPlayers` |
-| 810.8a lose and win as a team; a partner's "can't lose" holds the team in | yes, except against an opponent's alternate win ("you win the game"): a partner's Platinum Angel was skipped and the team lost | the team check now also covers `OpponentWon` |
+| 810.8a lose and win as a team; a partner's "can't lose" holds the team in | yes. Not against an opponent's "you win the game": a win ends the game at once (104.1), and Forge skips can't-lose effects there for every player, so a partner's Lich's Mastery doesn't save the team either (Platinum Angel does, by its "opponents can't win") | unchanged; guard `anOpponentsAlternateWinBeatsAPartnersCantLose` |
 | 810.8a "a player can't win the game" stops the team (Abyssal Persecutor) | **no**: the partner of a Persecutor could win with Thassa's Oracle | `Player.cantWin` reads the team |
 | 810.8b a concession is the team's | yes | unchanged |
 | 810.8c team life 0 or less loses | yes | unchanged |
