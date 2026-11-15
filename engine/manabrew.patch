@@ -8695,10 +8695,10 @@ index 0000000..849bb01
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java b/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java
 new file mode 100644
-index 0000000..699629d
+index 0000000..07db855
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java
-@@ -0,0 +1,699 @@
+@@ -0,0 +1,881 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonArray;
@@ -8783,6 +8783,16 @@ index 0000000..699629d
 +        check("oneCommandersDamageAddsUpOverTheTeam", TeamGameTest::oneCommandersDamageAddsUpOverTheTeam);
 +        check("freeForAllCommanderDamageStaysTwentyOne", TeamGameTest::freeForAllCommanderDamageStaysTwentyOne);
 +        check("partnersSeeEachOthersHands", TeamGameTest::partnersSeeEachOthersHands);
++        check("payingLifeUsesTheTeamTotalAndATeammateWhoCantLoseLifeStopsIt", TeamGameTest::payingLifeUsesTheTeamTotalAndATeammateWhoCantLoseLifeStopsIt);
++        check("aTeammateWhoCantWinStopsTheTeamsWin", TeamGameTest::aTeammateWhoCantWinStopsTheTeamsWin);
++        check("anOpponentsAlternateWinBeatsAPartnersCantLose", TeamGameTest::anOpponentsAlternateWinBeatsAPartnersCantLose);
++        check("aTeammateWhoCantGetPoisonKeepsItOffTheTeam", TeamGameTest::aTeammateWhoCantGetPoisonKeepsItOffTheTeam);
++        check("opponentsPoisonIsCountedOnceATeam", TeamGameTest::opponentsPoisonIsCountedOnceATeam);
++        check("settingOnePlayersLifeMovesTheTeamByTheDifference", TeamGameTest::settingOnePlayersLifeMovesTheTeamByTheDifference);
++        check("settingEachPlayersLifeAffectsTheMemberTheTeamChooses", TeamGameTest::settingEachPlayersLifeAffectsTheMemberTheTeamChooses);
++        check("aRedistributionTouchesOneMemberOfEachTeam", TeamGameTest::aRedistributionTouchesOneMemberOfEachTeam);
++        check("eachOpponentLosingLifeCountsEveryPlayerOfTheTeam", TeamGameTest::eachOpponentLosingLifeCountsEveryPlayerOfTheTeam);
++        check("proliferatingBothPartnersGivesTheTeamOnePoison", TeamGameTest::proliferatingBothPartnersGivesTheTeamOnePoison);
 +        System.out.println(failed == 0 ? "PASS TeamGameTest" : "FAIL TeamGameTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
 +    }
@@ -9253,6 +9263,178 @@ index 0000000..699629d
 +        final JsonObject ffaWhite = ffa.view(0);
 +        expect(!handNames(ffaWhite, 1).contains("Lightning Bolt"), "a free-for-all player sees another's hand");
 +        expect(!ffaWhite.has("teamRules"), "a free-for-all view has teamRules: " + ffaWhite.get("teamRules"));
++    }
++
++    private static void payingLifeUsesTheTeamTotalAndATeammateWhoCantLoseLifeStopsIt() throws Exception {
++        final Fixture f = new Fixture(true, GameType.Constructed, 30);
++        final Card bolt = add("Lightning Bolt", f.white, ZoneType.Hand);
++        expect(f.white.canPayLife(30, false, bolt.getFirstSpellAbility()) && !f.white.canPayLife(31, false, bolt.getFirstSpellAbility()),
++                "White can't pay the team's 30 life, or can pay 31");
++        add("Platinum Emperion", f.red, ZoneType.Battlefield);
++        f.game.getAction().checkStaticAbilities();
++        expect(!f.white.canPayLife(1, false, bolt.getFirstSpellAbility()), "White may pay life while partner Red's life total can't change");
++        expect(f.white.canPayLife(0, false, bolt.getFirstSpellAbility()), "White can't pay 0 life");
++        expect(!f.white.payLife(4, bolt.getFirstSpellAbility(), false), "White paid 4 life for free beside Platinum Emperion");
++        expectLife(f, 30, 30, 30, 30);
++    }
++
++    private static void aTeammateWhoCantWinStopsTheTeamsWin() throws Exception {
++        final Fixture f = new Fixture(true, GameType.Constructed, 30);
++        add("Abyssal Persecutor", f.red, ZoneType.Battlefield);
++        f.game.getAction().checkStaticAbilities();
++        final Card oracle = add("Thassa's Oracle", f.white, ZoneType.Battlefield);
++        resolve(f, AbilityFactory.getAbility("DB$ WinsGame | Defined$ You", oracle), f.white);
++        gameOverCheck(f);
++        expect(!f.white.hasWon() && !f.game.isGameOver(), "White won beside partner Red's Abyssal Persecutor: " + f.white.getOutcome());
++        expect(f.yellow.isInGame() && f.blue.isInGame(), "the other team lost to a team that can't win");
++    }
++
++    private static void anOpponentsAlternateWinBeatsAPartnersCantLose() throws Exception {
++        final Fixture f = new Fixture(true, GameType.Constructed, 30);
++        add("Lich's Mastery", f.blue, ZoneType.Battlefield);
++        f.game.getAction().checkStaticAbilities();
++        final Card oracle = add("Thassa's Oracle", f.white, ZoneType.Battlefield);
++        resolve(f, AbilityFactory.getAbility("DB$ WinsGame | Defined$ You", oracle), f.white);
++        gameOverCheck(f);
++        expect(f.white.hasWon() && f.red.isInGame(), "White's win is not the team's: White " + f.white.getOutcome() + ", Red " + f.red.getOutcome());
++        expectLost(f.yellow, GameLossReason.OpponentWon);
++        expectLost(f.blue, GameLossReason.OpponentWon);
++    }
++
++    private static void aTeammateWhoCantGetPoisonKeepsItOffTheTeam() throws Exception {
++        final Fixture f = new Fixture(true, GameType.Constructed, 30);
++        add("Melira, Sylvok Outcast", f.red, ZoneType.Battlefield);
++        f.game.getAction().checkStaticAbilities();
++        final Card stinger = add("Plague Stinger", f.yellow, ZoneType.Battlefield);
++        resolve(f, AbilityFactory.getAbility("DB$ DealDamage | Defined$ Player.Opponent | NumDmg$ 1", stinger), f.yellow);
++        expect(f.white.getPoisonCounters() == 0 && f.red.getPoisonCounters() == 0,
++                "infect poisoned the team of Melira: White " + f.white.getPoisonCounters() + ", Red " + f.red.getPoisonCounters());
++        resolve(f, AbilityFactory.getAbility("DB$ Poison | Defined$ Player.Opponent | Num$ 2", stinger), f.yellow);
++        expect(f.white.getPoisonCounters() == 0, "a poison effect poisoned the team of Melira: " + f.white.getPoisonCounters());
++    }
++
++    private static void opponentsPoisonIsCountedOnceATeam() throws Exception {
++        final Fixture f = new Fixture(true, GameType.Constructed, 30);
++        f.yellow.setPoisonCounters(3, f.white);
++        expect(f.blue.getPoisonCounters() == 3, "Blue's poison " + f.blue.getPoisonCounters());
++        expect(f.white.getOpponentsTotalPoisonCounters() == 3, "White's opponents have " + f.white.getOpponentsTotalPoisonCounters() + " poison, not the team's 3");
++        final Card swarmlord = add("Phyrexian Swarmlord", f.white, ZoneType.Battlefield);
++        final SpellAbility tokens = AbilityFactory.getAbility("DB$ Token | TokenAmount$ X", swarmlord);
++        tokens.setActivatingPlayer(f.white);
++        final int counted = AbilityUtils.calculateAmount(swarmlord, "Count$TotalOppPoisonCounters", tokens);
++        expect(counted == 3, "Phyrexian Swarmlord counts " + counted + " poison on its opponents, not 3");
++        final Fixture ffa = new Fixture(false, GameType.Constructed, 20);
++        ffa.yellow.setPoisonCounters(3, ffa.white);
++        ffa.blue.setPoisonCounters(2, ffa.white);
++        expect(ffa.white.getOpponentsTotalPoisonCounters() == 5, "a free-for-all sums " + ffa.white.getOpponentsTotalPoisonCounters());
++    }
++
++    private static void settingOnePlayersLifeMovesTheTeamByTheDifference() throws Exception {
++        final Fixture f = new Fixture(true, GameType.Constructed, 25);
++        final Card source = add("Grizzly Bears", f.yellow, ZoneType.Battlefield);
++        final SpellAbility set = AbilityFactory.getAbility("DB$ SetLife | ValidTgts$ Player | LifeAmount$ 10", source);
++        set.getTargets().add(f.white);
++        resolve(f, set, f.yellow);
++        expectLife(f, 10, 10, 25, 25);
++        expect(f.white.getLifeLostThisTurn() == 15 && f.red.getLifeLostThisTurn() == 0,
++                "White lost " + f.white.getLifeLostThisTurn() + " and Red " + f.red.getLifeLostThisTurn() + ", not 15 and 0");
++    }
++
++    private static void settingEachPlayersLifeAffectsTheMemberTheTeamChooses() throws Exception {
++        final Fixture f = new Fixture(true, GameType.Constructed, 30);
++        f.white.setLife(7, null);
++        f.yellow.setLife(13, null);
++        f.white.setLifeLostThisTurn(0);
++        f.yellow.setLifeLostThisTurn(0);
++        final List<Player> asked = new ArrayList<>();
++        f.yellow.dangerouslySetController(new PlayerControllerAi(f.game, f.yellow, f.yellow.getLobbyPlayer()) {
++            @Override
++            public <T extends forge.game.GameEntity> T chooseSingleEntityForEffect(final forge.util.collect.FCollectionView<T> options,
++                    final forge.game.player.DelayedReveal reveal, final SpellAbility sa, final String title, final boolean optional,
++                    final Player related, final java.util.Map<String, Object> params) {
++                asked.add(f.yellow);
++                for (final T option : options) {
++                    if (option == f.blue) {
++                        return option;
++                    }
++                }
++                throw new AssertionError("Blue is not offered: " + options);
++            }
++        });
++        final Card repay = add("Repay in Kind", f.white, ZoneType.Hand);
++        resolve(f, repay.getFirstSpellAbility(), f.white);
++        expectLife(f, 7, 7, 7, 7);
++        expect(asked.equals(List.of(f.yellow)), "the team Yellow + Blue was not asked once: " + asked);
++        expect(f.blue.getLifeLostThisTurn() == 6 && f.yellow.getLifeLostThisTurn() == 0,
++                "the chosen Blue lost " + f.blue.getLifeLostThisTurn() + ", Yellow " + f.yellow.getLifeLostThisTurn() + ", not 6 and 0");
++    }
++
++    private static void aRedistributionTouchesOneMemberOfEachTeam() throws Exception {
++        final Fixture f = new Fixture(true, GameType.Constructed, 30);
++        f.white.setLife(20, null);
++        final List<Player> setFor = new ArrayList<>();
++        f.white.dangerouslySetController(new PlayerControllerAi(f.game, f.white, f.white.getLobbyPlayer()) {
++            @Override
++            public int chooseNumber(final SpellAbility sa, final String title, final List<Integer> values, final Player related) {
++                setFor.add(related);
++                return values.get(values.size() - 1);
++            }
++        });
++        final Card sands = add("Grizzly Bears", f.white, ZoneType.Battlefield);
++        resolve(f, AbilityFactory.getAbility("DB$ SetLife | Defined$ Player | Redistribute$ True", sands), f.white);
++        expect(setFor.size() == 2 && !(setFor.contains(f.white) && setFor.contains(f.red)) && !(setFor.contains(f.yellow) && setFor.contains(f.blue)),
++                "the redistribution set the life of " + setFor + ", not one player of each team");
++        expect(f.white.getLife() + f.yellow.getLife() == 50 && f.white.getLife() == f.red.getLife() && f.yellow.getLife() == f.blue.getLife(),
++                "the team totals 20 and 30 were not redistributed: " + f.white.getLife() + "/" + f.red.getLife() + "/" + f.yellow.getLife() + "/" + f.blue.getLife());
++    }
++
++    private static void eachOpponentLosingLifeCountsEveryPlayerOfTheTeam() throws Exception {
++        final Fixture f = new Fixture(true, GameType.Constructed, 30);
++        final Card blood = add("Exquisite Blood", f.white, ZoneType.Battlefield);
++        f.game.getTriggerHandler().resetActiveTriggers();
++        final SpellAbility drain = AbilityFactory.getAbility("DB$ LoseLife | Defined$ Player.Opponent | LifeAmount$ 5", blood);
++        resolve(f, drain, f.white);
++        expectLife(f, 30, 30, 20, 20);
++        expect(f.yellow.getLifeLostThisTurn() == 5 && f.blue.getLifeLostThisTurn() == 5, "each opponent's own loss is not 5");
++        expect("Number$10".equals(drain.getSVar("AFLifeLost")), "the life lost this way is " + drain.getSVar("AFLifeLost") + ", not 10");
++        final List<Card> triggered = triggeredHosts(f);
++        expect(java.util.Collections.frequency(triggered, blood) == 2, "Exquisite Blood triggered " + java.util.Collections.frequency(triggered, blood) + " times, not once per opponent");
++    }
++
++    private static void proliferatingBothPartnersGivesTheTeamOnePoison() throws Exception {
++        final Fixture f = new Fixture(true, GameType.Constructed, 30);
++        f.yellow.setPoisonCounters(2, f.white);
++        final List<Player> picked = new ArrayList<>();
++        f.white.dangerouslySetController(new PlayerControllerAi(f.game, f.white, f.white.getLobbyPlayer()) {
++            @Override
++            public <T extends forge.game.GameEntity> List<T> chooseEntitiesForEffect(final forge.util.collect.FCollectionView<T> options,
++                    final int min, final int max, final forge.game.player.DelayedReveal reveal, final SpellAbility sa, final String title,
++                    final Player related, final java.util.Map<String, Object> params) {
++                final List<T> all = new ArrayList<>();
++                for (final T option : options) {
++                    all.add(option);
++                }
++                return all;
++            }
++
++            @Override
++            public <T extends forge.game.GameEntity> T chooseSingleEntityForEffect(final forge.util.collect.FCollectionView<T> options,
++                    final forge.game.player.DelayedReveal reveal, final SpellAbility sa, final String title, final boolean optional,
++                    final Player related, final java.util.Map<String, Object> params) {
++                for (final T option : options) {
++                    if (option == f.blue) {
++                        picked.add(f.blue);
++                        return option;
++                    }
++                }
++                throw new AssertionError("Blue is not offered: " + options);
++            }
++        });
++        final Card source = add("Grizzly Bears", f.white, ZoneType.Battlefield);
++        resolve(f, AbilityFactory.getAbility("DB$ Proliferate", source), f.white);
++        expect(f.yellow.getPoisonCounters() == 3 && f.blue.getPoisonCounters() == 3,
++                "proliferating Yellow and Blue gave the team " + (f.blue.getPoisonCounters() - 2) + " poison, not 1 (rule 701.34b)");
++        expect(picked.equals(List.of(f.blue)), "White did not pick which partner gets the counter: " + picked);
 +    }
 +
 +    private static JsonArray hand(final JsonObject view, final int owner) {
