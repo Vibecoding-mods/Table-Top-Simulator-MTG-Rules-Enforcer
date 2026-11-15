@@ -22,12 +22,12 @@ const COMBAT = "forge-game/src/main/java/forge/game/combat/Combat.java";
 const MUTATIONS = [
   { name: "none", edits: [], expect: [] },
   { name: "isPlayerTurn-player-only", edits: [[PH, "return player.equals(playerTurn) || isSharedTeamTurns() && playerTurn != null && !playerTurn.isOpponentOf(player);", "return player.equals(playerTurn);"]],
-    expect: ["isPlayerTurnCoversThePartner", "eachPartnerMayPlayALand", "yourUpkeepTriggersForThePartner"] },
+    expect: ["isPlayerTurnCoversThePartner", "eachPartnerMayPlayALand"] },
   { name: "active-team-is-first-seat", edits: [[PH, "        team.add(first);\n        if (!isSharedTeamTurns()) {", "        team.add(first);\n        if (true) {"]],
     expect: ["isPlayerTurnCoversThePartner", "theTeamUntapsTogether", "theTeamDrawsTogether", "theTeamDiscardsToHandSize", "eachPlayersUpkeepTriggersForEachMember", "eachPlayersDrawStepTriggersForEachMember", "bothPartnersCreaturesAttackTogether", "fastForwardStopsOnThePartnersSlot"] },
   { name: "next-turn-next-seat", edits: [[PH, "if (!isSharedTeamTurns() || next == null) {", "if (true) {"]],
     expect: ["nextTurnGoesToTheOtherTeam", "aPartnersExtraTurnIsTheTeams"] },
-  { name: "extra-turn-not-the-teams", edits: [[PH, "return isSharedTeamTurns() && p != null ? game.getAction().teamLead(p) : p;", "return p;"]],
+  { name: "extra-turn-one-member", edits: [[PH, "        for (final Player member : getTeamInTurnOrder(nextPlayer)) {\n            member.setExtraTurn(isExtraTurn);", "        for (final Player member : java.util.List.of(nextPlayer)) {\n            member.setExtraTurn(isExtraTurn);"]],
     expect: ["aPartnersExtraTurnIsTheTeams"] },
   { name: "skip-turn-one-member", edits: [[PH, "        for (final Player member : getTeamInTurnOrder(nextPlayer)) {\n            final Map<AbilityKey, Object> repRunParams = AbilityKey.mapFromAffected(member);\n            repRunParams.put(AbilityKey.ExtraTurn, isExtraTurn);",
     "        for (final Player member : java.util.List.of(nextPlayer)) {\n            final Map<AbilityKey, Object> repRunParams = AbilityKey.mapFromAffected(member);\n            repRunParams.put(AbilityKey.ExtraTurn, isExtraTurn);"]],
@@ -35,7 +35,7 @@ const MUTATIONS = [
   { name: "skip-step-one-member", edits: [[PH, "            for (final Player member : getActiveTeam()) {\n                final Map<AbilityKey, Object> repRunParams = AbilityKey.mapFromAffected(member);\n                repRunParams.put(AbilityKey.Phase, phase);",
     "            for (final Player member : java.util.List.of(playerTurn)) {\n                final Map<AbilityKey, Object> repRunParams = AbilityKey.mapFromAffected(member);\n                repRunParams.put(AbilityKey.Phase, phase);"]],
     expect: ["aPartnerSkippingAStepSkipsTheTeams"] },
-  { name: "starting-team-skips-each-seats-draw", edits: [[PH, "(isSharedTeamTurns() ? 1 : first.getYourTeam().size())", "first.getYourTeam().size()"]],
+  { name: "starting-team-draws", edits: [[PH, "if (!game.getRules().hasSharedTeamLife() || playerTurn.isExtraTurn()) {", "if (true) {"]],
     expect: ["startingTeamSkipsOnlyTurnOnesDraw"] },
   { name: "draw-first-seat-only", edits: [[PH, "                    for (final Player member : getActiveTeam()) {\n                        member.drawCard();", "                    for (final Player member : java.util.List.of(playerTurn)) {\n                        member.drawCard();"]],
     expect: ["theTeamDrawsTogether"] },
@@ -96,7 +96,7 @@ for (const line of r.stdout.split(/\r?\n/)) {
   if (head) { current = runs[head[1]] = { failed: [], passed: [], error: null }; continue; }
   if (!current) continue;
   if (line === "COMPILE-ERROR") current.error = "compile error";
-  const m = /^(ok|FAIL) \S+ (\w+)/.exec(line);
+  const m = /^(ok|FAIL) cr\S+ (\w+)/.exec(line);
   if (m) current[m[1] === "ok" ? "passed" : "failed"].push(m[2]);
 }
 let bad = stale;

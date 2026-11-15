@@ -28,11 +28,11 @@ Status is measured against the WIP engine (forge `7d586b47`, harness `8ed302a`).
 | 805.4b | each partner draws in the team's draw step | `theTeamDrawsTogether` | B | passes; `draw-first-seat-only` |
 | 805.6a | "each player draws": the active team first, then the other team | `eachPlayerDrawsActiveTeamFirst` | B | passes, and also passes at level 1 (regression guard, no mutation) |
 | 514.1, 805.4 | the team discards to hand size together | `theTeamDiscardsToHandSize` | B | passes; `discard-first-seat-only` |
-| 810.6 | the starting team skips only its turn 1 draw | `startingTeamSkipsOnlyTurnOnesDraw` | B | passes; `starting-team-skips-each-seats-draw` |
+| 810.6 | the starting team skips only its turn 1 draw | `startingTeamSkipsOnlyTurnOnesDraw` | B | passes; `starting-team-draws` |
 | 805.4 | the next turn goes to the other team | `nextTurnGoesToTheOtherTeam` | B | passes; `next-turn-next-seat` |
-| 805.8 | a partner's extra turn is the team's | `aPartnersExtraTurnIsTheTeams` | B | passes; `extra-turn-not-the-teams` |
-| 805.8 | a partner skipping a turn skips the team's | `aPartnerSkippingATurnSkipsTheTeams` | B | see the mutation run; `skip-turn-one-member` |
-| 805.8 | a partner skipping a step (Necropotence) skips the team's | `aPartnerSkippingAStepSkipsTheTeams` | B | see the mutation run; `skip-step-one-member` |
+| 805.8 | a partner's extra turn is the team's | `aPartnersExtraTurnIsTheTeams` | B | passes; `extra-turn-one-member` |
+| 805.8 | a partner skipping a turn skips the team's | `aPartnerSkippingATurnSkipsTheTeams` | B | passes; `skip-turn-one-member` |
+| 805.8 | a partner skipping a step (Necropotence) skips the team's | `aPartnerSkippingAStepSkipsTheTeams` | B | passes; `skip-step-one-member` |
 | 805.4d | "each player's upkeep" fires per partner (Blood Clock) | `eachPlayersUpkeepTriggersForEachMember` | B | passes; `phase-trigger-first-seat-only` |
 | 805.4d | "each player's draw step" fires per partner (Howling Mine) | `eachPlayersDrawStepTriggersForEachMember` | B | passes; `phase-trigger-first-seat-only` |
 | 805.4d | "each upkeep" fires once (Awakening) | `eachUpkeepTriggersOnce` | B | passes; `each-upkeep-fires-per-member` |
