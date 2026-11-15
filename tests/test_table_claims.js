@@ -314,6 +314,23 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("attack target: a life counter clicked names the attacker and the player", said("life").includes("[MTG] Hero of Bladehold 3/4 attacks AI 1.") && !said("life").includes("Target set"), said("life"));
   ok("attack target: a planeswalker clicked names it and its controller", said("walker click").includes("[MTG] Hero of Bladehold 3/4 attacks Jace Beleren (AI 1)."), said("walker click"));
 }
+// a battle clicked as the target names its protector: "Polyraptor 5/5 #1 attacks Invasion of Ikoria (Red)." read as Red
+// attacking its own permanent, real game 2026-11-14 (the bridge's prot: the protector's colour)
+{
+  const id = blueBf[0], BAT = "engine-card-99951";
+  const objOf = (x) => `local o for _, y in ipairs(getObjects()) do if y.getGMNotes() == "engine:${x}" then o = y end end`;
+  const clickCard = (x, mark) => q(objOf(x) + ' onPlayerAction(Player.Blue, Player.Action.Select, { o }) onPlayerAction(Player.Blue, Player.Action.PickUp, { o }) __sim.frames(30) return "clicked"', mark);
+  const battle = q('local t = engineTable() local me, ai for _, p in ipairs(t.players) do if p.slot == "player-1" then ai = p elseif p.color == "Blue" then me = p end end ' +
+    `engineStoreStatic("${BAT}", { n = "Invasion of Ikoria", f = "https://img.example/99951.jpg", ty = { "Battle" } }) me.battlefield = me.battlefield or {} ` +
+    `table.insert(me.battlefield, { s = 1, id = "${BAT}", ctl = me.color, prot = ai.color, ctr = { Defense = 6 } }) engineRender(t) __sim.frames(60) return tostring(ai.name or ai.color)`, "battle");
+  const attackAsk = (promptId) => ask({ promptId, kind: "attack", title: "Choose attackers", mode: "multi", min: 0, max: 2, keepOrder: true, options: [
+    { id: "__allattack", label: "All attack" }, { id: "__noattack", label: "No attacks" },
+    { id: `${id}|?`, label: "Hero of Bladehold 3/4 → whom? (asked next)" }, { id: `${id}|${BAT}`, label: "Hero of Bladehold 3/4 → Invasion of Ikoria (battle, AI 1 protects it)" }, { id: `${id}|player-1`, label: "Hero of Bladehold 3/4 → AI 1" }] });
+  const r = run([battle, attackAsk(877), { frames: 10 }, clickCard(id, "attacker"), { frames: 30 }, clickCard(BAT, "battle click")]);
+  const said = (mark) => fxOf(r, mark).filter((l) => l.includes("broadcastToColor")).join(" | ");
+  ok("attack target battle: precondition, no errors and the attacker clicked", !r.errors.length && valueOf(r, "battle") === "AI 1" && /Click a life counter/.test(said("attacker")), r.errors.join(" | ") + " " + valueOf(r, "battle") + " " + said("attacker"));
+  ok("attack target battle: a battle clicked names its controller's battle and its protector", said("battle click").includes("[MTG] Hero of Bladehold 3/4 attacks Invasion of Ikoria (Blue's battle, protected by AI 1)."), said("battle click"));
+}
 // scry the table's way (2026-10-24): the cards go into the second hand zone; dragged onto the library they stay on top,
 // the last one dragged on top; clicked, a card goes to the bottom; the last one out of the zone answers
 {
