@@ -586,6 +586,50 @@ index 8be0b231..6342aef5 100644
              final Map<AbilityKey, Object> runParams = AbilityKey.mapFromPlayer(chooser);
              chooser.getGame().getTriggerHandler().runTrigger(TriggerType.FacesDilemma, runParams, false);
          }
+diff --git a/forge-game/src/main/java/forge/game/ability/effects/CountersProliferateEffect.java b/forge-game/src/main/java/forge/game/ability/effects/CountersProliferateEffect.java
+index bde9c517..8e8e2536 100644
+--- a/forge-game/src/main/java/forge/game/ability/effects/CountersProliferateEffect.java
++++ b/forge-game/src/main/java/forge/game/ability/effects/CountersProliferateEffect.java
+@@ -63,9 +63,13 @@ public class CountersProliferateEffect extends SpellAbilityEffect {
+             List<GameEntity> result = pc.chooseEntitiesForEffect(list, 0, list.size(), null, sa,
+                     Localizer.getInstance().getMessage("lblChooseProliferateTarget"), p, null);
+ 
++            final FCollection<Player> poisoned = game.getRules().hasSharedTeamLife() ? poisonedPlayers(result, pc, sa) : null;
+             GameEntityCounterTable table = new GameEntityCounterTable();
+             for (final GameEntity ge : result) {
+                 for (final CounterType ct : ge.getCounters().elementSet()) {
++                    if (poisoned != null && ct.is(CounterEnumType.POISON) && ge instanceof Player && !poisoned.contains(ge)) {
++                        continue;
++                    }
+                     ge.addCounter(ct, 1, p, table);
+                 }
+             }
+@@ -74,4 +78,25 @@ public class CountersProliferateEffect extends SpellAbilityEffect {
+             game.getTriggerHandler().runTrigger(TriggerType.Proliferate, AbilityKey.mapFromPlayer(p), false);
+         }
+     }
++
++    // CR 701.34b: of the chosen players on one team, only the one the proliferating player picks gets the team's poison counter
++    private static FCollection<Player> poisonedPlayers(final List<GameEntity> result, final PlayerController pc, final SpellAbility sa) {
++        final FCollection<Player> poisoned = new FCollection<>();
++        final FCollection<Player> seen = new FCollection<>();
++        for (final GameEntity ge : result) {
++            if (!(ge instanceof Player chosen) || seen.contains(chosen)) {
++                continue;
++            }
++            seen.addAll(chosen.sharedLifeTeam());
++            final FCollection<Player> members = new FCollection<>();
++            for (final GameEntity other : result) {
++                if (other instanceof Player q && chosen.sharedLifeTeam().contains(q)) {
++                    members.add(q);
++                }
++            }
++            poisoned.add(members.size() > 1 ? pc.chooseSingleEntityForEffect(members, sa,
++                    Localizer.getInstance().getMessage("lblChoosePlayer"), null) : chosen);
++        }
++        return poisoned;
++    }
+ }
 diff --git a/forge-game/src/main/java/forge/game/ability/effects/EndCombatPhaseEffect.java b/forge-game/src/main/java/forge/game/ability/effects/EndCombatPhaseEffect.java
 index 46dbfb94..07903ff3 100644
 --- a/forge-game/src/main/java/forge/game/ability/effects/EndCombatPhaseEffect.java
@@ -609,6 +653,54 @@ index 46dbfb94..07903ff3 100644
          // CR 721.2a
          game.getTriggerHandler().clearWaitingTriggers(); 
  
+diff --git a/forge-game/src/main/java/forge/game/ability/effects/LifeSetEffect.java b/forge-game/src/main/java/forge/game/ability/effects/LifeSetEffect.java
+index 343eb77a..16974809 100644
+--- a/forge-game/src/main/java/forge/game/ability/effects/LifeSetEffect.java
++++ b/forge-game/src/main/java/forge/game/ability/effects/LifeSetEffect.java
+@@ -58,6 +58,10 @@ public class LifeSetEffect extends SpellAbilityEffect {
+             return;
+         }
+ 
++        if (source.getGame().getRules().hasSharedTeamLife()) {
++            players = oneMemberOfEachTeam(players, redistribute, sa);
++        }
++
+         if (redistribute) {
+             for (final Player p : players) {
+                 if (!p.isInGame()) {
+@@ -93,6 +97,32 @@ public class LifeSetEffect extends SpellAbilityEffect {
+         }
+     }
+ 
++    // CR 810.9d: an effect that sets the life total of each player on a team affects only the member that team chooses;
++    // CR 810.9f: a redistribution affects at most one member of each team
++    private static PlayerCollection oneMemberOfEachTeam(final PlayerCollection players, final boolean redistribute, final SpellAbility sa) {
++        final PlayerCollection kept = new PlayerCollection();
++        final PlayerCollection seen = new PlayerCollection();
++        for (final Player p : players) {
++            if (seen.contains(p)) {
++                continue;
++            }
++            seen.addAll(p.sharedLifeTeam());
++            final PlayerCollection members = new PlayerCollection();
++            for (final Player q : players) {
++                if (q.isInGame() && p.sharedLifeTeam().contains(q)) {
++                    members.add(q);
++                }
++            }
++            if (members.size() > 1 && !redistribute) {
++                kept.add(members.get(0).getController().chooseSingleEntityForEffect(members, sa,
++                        Localizer.getInstance().getMessage("lblChoosePlayer"), null));
++            } else if (!members.isEmpty()) {
++                kept.add(members.get(0));
++            }
++        }
++        return kept;
++    }
++
+     private static List<Integer> getDistribution(List<Player> players, boolean top, List<Integer> remainingChoices) {
+         // distribution was successful
+         if (players.isEmpty()) {
 diff --git a/forge-game/src/main/java/forge/game/card/CardProperty.java b/forge-game/src/main/java/forge/game/card/CardProperty.java
 index d7947bff..c0410419 100644
 --- a/forge-game/src/main/java/forge/game/card/CardProperty.java
@@ -755,7 +847,7 @@ index 4a3a94df..33871e93 100644
              if (game.getStack().isEmpty()) {
                  if (playerTurn.hasLost()) {
 diff --git a/forge-game/src/main/java/forge/game/player/Player.java b/forge-game/src/main/java/forge/game/player/Player.java
-index 4cbb6deb..fc4a21d5 100644
+index 4cbb6deb..36b8aa98 100644
 --- a/forge-game/src/main/java/forge/game/player/Player.java
 +++ b/forge-game/src/main/java/forge/game/player/Player.java
 @@ -107,6 +107,7 @@ public class Player extends GameEntity implements Comparable<Player> {
@@ -766,7 +858,28 @@ index 4cbb6deb..fc4a21d5 100644
      private int committedCrimeThisTurn;
      private int numFlipsThisTurn;
      private int numRollsThisTurn;
-@@ -467,6 +468,7 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -343,7 +344,19 @@ public class Player extends GameEntity implements Comparable<Player> {
+      * Get the total number of poison counters amongst this player's opponents.
+      */
+     public final int getOpponentsTotalPoisonCounters() {
+-        return Aggregates.sum(getOpponents(), Player::getPoisonCounters);
++        if (!game.getRules().hasSharedTeamLife()) {
++            return Aggregates.sum(getOpponents(), Player::getPoisonCounters);
++        }
++        // CR 810.10a: the opponents' poison counters are each opposing team's shared count, taken once a team
++        int total = 0;
++        final PlayerCollection counted = new PlayerCollection();
++        for (final Player p : getOpponents()) {
++            if (!counted.contains(p)) {
++                total += p.getPoisonCounters();
++                counted.addAll(p.sharedLifeTeam());
++            }
++        }
++        return total;
+     }
+ 
+     /**
+@@ -467,6 +480,7 @@ public class Player extends GameEntity implements Comparable<Player> {
          int oldLife = life;
          life += lifeGain;
          view.updateLife(this);
@@ -774,7 +887,7 @@ index 4cbb6deb..fc4a21d5 100644
          boolean firstGain = lifeGainedTimesThisTurn == 0;
          lifeGainedThisTurn += lifeGain;
          lifeGainedTimesThisTurn++;
-@@ -488,7 +490,41 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -488,7 +502,41 @@ public class Player extends GameEntity implements Comparable<Player> {
      }
  
      public final boolean canGainLife() {
@@ -817,7 +930,7 @@ index 4cbb6deb..fc4a21d5 100644
      }
  
      public final int loseLife(int toLose, final boolean damage, final boolean manaBurn, final SpellAbility cause) {
-@@ -525,6 +561,7 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -525,6 +573,7 @@ public class Player extends GameEntity implements Comparable<Player> {
  
          life -= toLose;
          view.updateLife(this);
@@ -825,7 +938,7 @@ index 4cbb6deb..fc4a21d5 100644
          if (manaBurn) {
              game.fireEvent(new GameEventManaBurn(PlayerView.get(this), true, toLose));
          } else {
-@@ -544,7 +581,19 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -544,13 +593,29 @@ public class Player extends GameEntity implements Comparable<Player> {
      }
  
      public final boolean canLoseLife() {
@@ -846,7 +959,32 @@ index 4cbb6deb..fc4a21d5 100644
      }
  
      public final boolean canPayLife(final int lifePayment, final boolean effect, SpellAbility cause) {
-@@ -919,6 +968,17 @@ public class Player extends GameEntity implements Comparable<Player> {
+         if (lifePayment > 0 && life < lifePayment) {
+             return false;
+         }
++        // CR 810.9h: a teammate who can't lose life stops the team paying any life other than 0
++        if (lifePayment > 0 && game.getRules().hasSharedTeamLife() && !canLoseLife()) {
++            return false;
++        }
+         return lifePayment <= 0 || !StaticAbilityCantGainLosePayLife.anyCantPayLife(this, effect, cause);
+     }
+ 
+@@ -834,6 +899,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+         if (StaticAbilityCantPutCounter.anyCantPutCounter(this, type)) {
+             return false;
+         }
++        // CR 810.10c: a player who can't get poison counters keeps them off the whole team
++        if (type.is(CounterEnumType.POISON) && game.getRules().hasSharedTeamLife()) {
++            for (final Player p : sharedLifeTeam()) {
++                if (p != this && p.isInGame() && StaticAbilityCantPutCounter.anyCantPutCounter(p, type)) {
++                    return false;
++                }
++            }
++        }
+         return true;
+     }
+ 
+@@ -919,6 +992,17 @@ public class Player extends GameEntity implements Comparable<Player> {
          int old = getCounters(counterType);
          setCounters(counterType, num);
          view.updateCounters(this);
@@ -864,7 +1002,7 @@ index 4cbb6deb..fc4a21d5 100644
          if (fireEvents) {
              getGame().fireEvent(new GameEventPlayerCounters(this, counterType, old, num));
              if (counterType.is(CounterEnumType.POISON)) {
-@@ -1101,6 +1161,16 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1101,6 +1185,16 @@ public class Player extends GameEntity implements Comparable<Player> {
          scryThisTurn++;
      }
  
@@ -881,7 +1019,7 @@ index 4cbb6deb..fc4a21d5 100644
      public boolean canMulligan() {
          return !getZone(ZoneType.Hand).isEmpty();
      }
-@@ -1803,6 +1873,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1803,6 +1897,14 @@ public class Player extends GameEntity implements Comparable<Player> {
          stats.nextTurn();
      }
  
@@ -896,7 +1034,7 @@ index 4cbb6deb..fc4a21d5 100644
      public final int getLastTurnNr() {
          return this.lastTurnNr;
      }
-@@ -1972,6 +2050,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1972,6 +2074,14 @@ public class Player extends GameEntity implements Comparable<Player> {
      }
  
      public final boolean loseConditionMet(final GameLossReason state, final String spellName) {
@@ -911,7 +1049,7 @@ index 4cbb6deb..fc4a21d5 100644
          if (state != GameLossReason.OpponentWon) {
              Map<AbilityKey, Object> repParams = AbilityKey.mapFromAffected(this);
              repParams.put(AbilityKey.LoseReason, state);
-@@ -1983,6 +2069,12 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1983,6 +2093,12 @@ public class Player extends GameEntity implements Comparable<Player> {
          return true;
      }
  
@@ -924,7 +1062,22 @@ index 4cbb6deb..fc4a21d5 100644
      public final void concede() { // No cantLose checks - just lose
          setOutcome(PlayerOutcome.concede());
      }
-@@ -2044,13 +2136,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2016,7 +2132,13 @@ public class Player extends GameEntity implements Comparable<Player> {
+     }
+ 
+     public final boolean cantWin() {
+-        return game.getReplacementHandler().cantHappenCheck(ReplacementType.GameWin, AbilityKey.mapFromAffected(this));
++        // CR 810.8a: if a player can't win the game, that player's team can't win
++        for (final Player p : sharedLifeTeam()) {
++            if ((p == this || p.isInGame()) && game.getReplacementHandler().cantHappenCheck(ReplacementType.GameWin, AbilityKey.mapFromAffected(p))) {
++                return true;
++            }
++        }
++        return false;
+     }
+ 
+     public final boolean checkLoseCondition() {
+@@ -2044,13 +2166,14 @@ public class Player extends GameEntity implements Comparable<Player> {
  
          // Rule 704.5c - If a player has ten or more poison counters, he or she loses the game.
          // 704.6b In a Two-Headed Giant game, if a team has fifteen or more poison counters, that team loses the game. See rule 810, “Two-Headed Giant Variant.”
@@ -941,7 +1094,7 @@ index 4cbb6deb..fc4a21d5 100644
                      return true;
                  }
              }
-@@ -2477,6 +2570,7 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2477,6 +2600,7 @@ public class Player extends GameEntity implements Comparable<Player> {
          investigatedThisTurn = 0;
          scryThisTurn = 0;
          surveilThisTurn = 0;
@@ -949,7 +1102,7 @@ index 4cbb6deb..fc4a21d5 100644
          resetDiscardedThisTurn();
          resetSacrificedThisTurn();
          resetVenturedThisTurn();
-@@ -2842,6 +2936,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2842,6 +2966,14 @@ public class Player extends GameEntity implements Comparable<Player> {
      public Iterable<Entry<Card, Integer>> getCommanderDamage() {
          return commanderDamage.entrySet();
      }

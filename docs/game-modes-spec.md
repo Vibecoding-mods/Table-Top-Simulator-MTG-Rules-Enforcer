@@ -422,7 +422,7 @@ What exists (details and proofs: `docs/engine-changes.md`, "2026-11-13 2hg"):
   is the team's, and the first-player roll is offered to each team's first seat only (`GameAction.teamLead`), so a team's
   turns are back to back (Power Play, too, starts the team at its first seat). The harness refuses a `sharedLife` request
   whose partners aren't next to each other in seat order, give partners different starting life, or set a poison or
-  commander-damage limit below 1. Left out, as planned: 810.9d, 810.9f, 701.34b.
+  commander-damage limit below 1. Left out, as planned: 810.9d, 810.9f, 701.34b (built 2026-11-15, §5.9.1).
 - **Hands (§12.5):** a teammate's hand is sent to the viewer in a `sharedLife` game; the bridge keeps it out of the
   "revealed to everyone" rows and the table lays it look-only in the partner's second hand zone.
 - **§5.5 bridge (`bridge/teams.js`):** the table's teams come with every Start; the bridge refuses a start that is not
@@ -461,6 +461,55 @@ Known limits (Level 1):
   each player's own, already mirrored, counters.
 - `GameViewDto.teamRules` is also sent in a `teams` game without `sharedLife` (no mode uses one yet).
 - The Rust engine backend has no team rules: the node warns and starts such a game without its `gameConfig`.
+
+### 5.9.1 Rules audit against CR 810 (2026-11-15, branch `2hg-team-rules`)
+
+The user (2026-11-15): "In 2 headed giant [an] effect that affects you affects your teammates the same; the engine should
+treat two people [on a team] the same." Checked rule by rule against the Comprehensive Rules effective 2026-11-06 (the
+same file as §5.1). How Level 1 works: each partner's own `life` and poison count always hold the team's number
+(`Player.shareLifeWithTeam`, `setCounters`), while who gained, lost, was dealt damage or got counters stays the player's
+own (`lifeGainedThisTurn`, `lifeLostThisTurn`, the triggers). That is what 810.9 and 810.10 say: "Damage, loss of life,
+and gaining life happen to each player individually. The result is applied to the team's shared life total."
+
+| Rule | Was it right? | Now |
+|---|---|---|
+| 810.4 one team life (30; 80 in 2HG Commander, §12) | yes | unchanged |
+| 810.9 damage, loss, gain per player, total to the team (Flame Rift: 8 a team; "each opponent loses 5": the team loses 10, "life lost this way" is 10; lifelink raises the team) | yes | new guard `eachOpponentLosingLifeCountsEveryPlayerOfTheTeam` (Exquisite Blood triggers once per opponent) |
+| 810.9 "whenever you gain life" (Ajani's Pridemate), "if you gained life this turn", lifegain replacements (Boon Reflection): the player's own gain only | yes | unchanged (`lifelinkRaisesTheTeamAndTriggersOnlyItsController`) |
+| 810.9a a cost or effect reading a player's life reads the team's ("if you have 50 or more life", pay half your life, Toxic Deluge's X up to the team total) | yes | guard in `payingLifeUsesTheTeamTotal...` |
+| 810.9b both partners paying at once can't exceed the team total | yes: Forge pays one player at a time and each check reads the already lowered team total | unchanged |
+| 810.9c "target player's life total becomes N": that player gains or loses the difference | yes (`Player.setLife` is relative) | guard `settingOnePlayersLifeMovesTheTeamByTheDifference` |
+| 810.9d "each player's life total becomes N": on each team only the member the team chooses | **no**: every member was set in seat order (the total came out the same for a fixed N, but the first seat was always the one who lost or gained) | `LifeSetEffect.oneMemberOfEachTeam`: the team's first listed member chooses (Forge AI: the first) |
+| 810.9e exchanging life with a teammate does nothing | yes (both hold the same total, the difference is 0) | unchanged |
+| 810.9f a redistribution touches at most one member of each team (Reverse the Sands) | **no** | the first chosen member of each team is kept |
+| 810.9g can't gain life covers the team | yes | unchanged |
+| 810.9h can't lose life covers the team, **and stops the team paying any life other than 0** | **half**: a partner of Platinum Emperion could still pay life, and paid it for free (`canPayLife` read only the payer, then `loseLife` lost nothing) | `Player.canPayLife` reads the team's `canLoseLife` |
+| 810.10 poison shared, 15 loses (810.8d) | yes | unchanged |
+| 810.10a "how many poison counters a player's opponents have" uses the opposing team's count | **no**: `getOpponentsTotalPoisonCounters` summed both opponents, doubling it (Phyrexian Swarmlord, Mycosynth Fiend, Vishgraz) | counted once a team |
+| 810.10b losing poison counters: the team loses them | yes | unchanged |
+| 810.10c can't get poison counters covers the team (Melira, Sylvok Outcast) | **no** | `Player.canReceiveCounters` reads the partners for poison |
+| 810.10d a player has the team's kinds of counters, "poisoned" if the team is | yes (mirrored count) | unchanged |
+| 701.34b proliferating two players of one team gives the team one poison counter, on the player the proliferator picks | **no**: each chosen partner got one, two for the team | `CountersProliferateEffect.poisonedPlayers` |
+| 810.8a lose and win as a team; a partner's "can't lose" holds the team in | yes. Not against an opponent's "you win the game": a win ends the game at once (104.1), and Forge skips can't-lose effects there for every player, so a partner's Lich's Mastery doesn't save the team either (Platinum Angel does, by its "opponents can't win") | unchanged; guard `anOpponentsAlternateWinBeatsAPartnersCantLose` |
+| 810.8a "a player can't win the game" stops the team (Abyssal Persecutor) | **no**: the partner of a Persecutor could win with Thassa's Oracle | `Player.cantWin` reads the team |
+| 810.8b a concession is the team's | yes | unchanged |
+| 810.8c team life 0 or less loses | yes | unchanged |
+| 810.5 hands, libraries, draws, mana, "you control" stay each player's own; partners may look at each other's hands | yes (hands shown, §12.5) | unchanged |
+| 102.3 opponents are players: "each opponent" / "for each opponent" counts 2 | yes | unchanged |
+| 810.6 starting team skips its first draws | yes | unchanged |
+| 810.7, 805.10 combined attack and team blocks | partly (Level 1: a defender may block for a partner, but each defender declares on their own; §5.3 item 5) | unchanged, Level 2 |
+| 810.2, 805.4-805.5 shared turn, team priority, 805.2 primary player | not built (Level 1, own turns back to back, as decided) | unchanged |
+| 2HG Commander commander damage (not in the CR; Wizards' page: 21 from one commander to the team) | our house rule, §12: 42 from one commander summed over the team, combat damage only (903.10a) | unchanged |
+
+Where the user's words and the CR differ (the CR is what is built): an effect is the team's only where the rule says so.
+"Whenever you gain life", "if you gained life this turn", "whenever you lose life", lifegain doubling and "you control"
+stay the one player's; a partner's gain does not trigger your Ajani's Pridemate (810.9 "happen to each player
+individually"; 810.5). Life totals, poison, can't gain / can't lose / can't pay life, can't get poison, can't win / can't
+lose the game, and winning and losing are the team's.
+
+Still left out: 810.9d when the effect is a per-player repeat (Biorhythm runs `RepeatEach`, so each member is set in
+turn and the last seat's number stands); "each player loses a third of their life" (Pox, also `RepeatEach`) works
+out the second partner's third from the already lowered team total (team 30: 10 then 7, not 10 and 10).
 
 ### 5.10 Seams left for Level 2 (not built)
 
