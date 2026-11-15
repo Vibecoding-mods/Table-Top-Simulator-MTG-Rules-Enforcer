@@ -38,6 +38,28 @@ function guarded(what, fn) {
 // ───────────────────────── TTS side ─────────────────────────
 const outbox = [];
 let sending = false;
+let ttsMissed = false; // a message to TTS was dropped mid-game (pump's 10 s timeout): resend the game once TTS takes one
+// The table numbers what it sends (engineSend, make-engine-copy.js): q, counting up from each table load's sid. Its
+// watchdog sends a message again the old way when the web request hasn't answered in 5 s, and after a host frame hitch
+// the bridge had both copies (bridge-live.log, 2026-11-14 22:29 group game: Blue's "play Boseiju" at 2505.5 s and again at
+// 2511.7 s). True for a number already had from that load (the copy is dropped); false for a new one or an unnumbered
+// message (an older table). The last 500 numbers of the last 4 loads are kept.
+const tableSeen = new Map(); // sid -> Set of q
+function seenFromTable(sid, q) {
+  const n = Number(q);
+  if (sid == null || q == null || q === "" || !Number.isFinite(n)) return false;
+  const key = String(sid);
+  let seen = tableSeen.get(key);
+  if (!seen) {
+    seen = new Set();
+    tableSeen.set(key, seen);
+    if (tableSeen.size > 4) tableSeen.delete(tableSeen.keys().next().value);
+  }
+  if (seen.has(n)) return true;
+  seen.add(n);
+  if (seen.size > 500) seen.delete(seen.values().next().value);
+  return false;
+}
 // TTS only delivers flat messages intact (nested tables arrive as unusable C# objects, and nested sends from
 // Lua are dropped), so every payload travels as a JSON string: { t, json }.
 // (the table's mergeStatic, tools/engine-renderer.lua, fills in the same lists)
@@ -114,9 +136,20 @@ function pump() {
   ttsStats.maxByType[next.t] = Math.max(ttsStats.maxByType[next.t] || 0, msg.json.length);
   if (msg.json.length > 3000) ttsStats.big = [...(ttsStats.big || []).slice(-9), `${next.t} ${msg.json.length}`];
   sending = true;
-  const sock = net.connect(TTS_OUT, "127.0.0.1", () => { ttsSaw(true); sock.end(JSON.stringify({ messageID: 2, customMessage: msg })); });
+  const sock = net.connect(TTS_OUT, "127.0.0.1", () => {
+    ttsSaw(true);
+    sock.end(JSON.stringify({ messageID: 2, customMessage: msg }));
+    // TTS takes messages again after one it didn't: the running game goes to it again, as after a reload (ttsMissed)
+    if (ttsMissed && game?.started && game.fromTable) setTimeout(() => guarded("resend after a missed message", () => { if (ttsMissed) resendToTable(); }), 0);
+  });
   sock.on("close", pump);
-  sock.setTimeout(10000, () => { log(`TTS didn't take a ${next.t} message within 10 s; moving on`); sock.destroy(); });
+  sock.setTimeout(10000, () => {
+    log(`TTS didn't take a ${next.t} message within 10 s; moving on`);
+    // (a host frame hitch longer than 10 s: the message is gone, a question with it, and the game waited for an answer
+    // to a question nobody saw. The table sends no "hello" after a hitch, so the next message TTS takes brings it back)
+    if (game?.started) ttsMissed = true;
+    sock.destroy();
+  });
   sock.on("error", (e) => { if (e.code === "ECONNREFUSED") { ttsSaw(false); log("TTS not reachable on 39999 (is a game loaded?)"); } else log(`sending to TTS: ${e.message}`); });
 }
 // (GET /stats, since this bridge started) wait: per message kind, how long messages waited in the outbox for TTS;
@@ -1508,6 +1541,7 @@ function resumeGame(now = Date.now()) {
 // restarted (the table sends no new "hello" then: playtest 2026-10-23, the reloaded table showed READY / Start and
 // pressing Start reset the game the engine still held), or when Start is pressed while a game runs.
 function resendToTable() {
+  ttsMissed = false; // (this is the resend a dropped message waits for)
   if (!game?.started || !game.fromTable) return;
   game.sentStatic = {};
   if (game.log?.length) toTTS({ t: "gamelog", lines: game.log.slice(-60), reset: true });
@@ -10445,6 +10479,7 @@ function fromUtf8Bytes(s) {
 const tableText = (k, v) => (typeof v === "string" ? fromUtf8Bytes(v) : v);
 function onTTS(m) {
   ttsSaw(true); ttsLink.tableAt = Date.now();
+  if (seenFromTable(m.sid, m.q)) return void log(`dropped a second copy of the table's ${m.t} (#${m.q}): its first one came already`);
   if (typeof m.json === "string") {
     // (the reviver only for a text that may hold such characters, raw or escaped)
     const latin = /[\u0080-ÿ]|\\u00[89a-f]/i.test(m.json);
@@ -11856,6 +11891,8 @@ const debugServer = http.createServer((req, res) => {
       res.end("ok");
       try {
         const m = JSON.parse(body);
+        // (the table's number for it, seenFromTable: in headers, so the body stays the message)
+        if (m && typeof m === "object" && req.headers["x-mtg-sid"] != null) { m.sid = String(req.headers["x-mtg-sid"]); m.q = req.headers["x-mtg-seq"]; }
         if (process.env.MTG_TRACE) log(`from TTS (web): ${m.t} (${body.length} bytes)`);
         onTTS(m);
       } catch (e) { log(`bad /msg body: ${e.message}`); }
