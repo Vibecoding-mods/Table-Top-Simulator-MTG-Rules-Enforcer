@@ -5,11 +5,11 @@
 // engine/manabrew.patch, 2026-11-15): a mutation whose text is no longer found is reported as STALE and fails the run;
 // update its from/to when the engine moves, never drop it.
 // An edit's file is under the Forge tree, or under the Manabrew tree when it starts with forge-harness/.
-// Each run goes through the test classes in TESTS (SharedTurnsTest, SharedTurnsDevTest, SharedCombatTest); an
-// expect name is a check name, or Class.check when two classes share a name.
+// Each run goes through the test classes in TESTS (SharedTurnsTest, SharedTurnsDevTest, SharedCombatTest), plus a
+// mutation's own extra `tests`; an expect name is a check name, or Class.check when two classes share a name.
 // usage: node tools/l2-mutate.js --engine <manabrew tree> [--base 85bc8c3d] [--image engine1116-teams2] [--only name,...]
 // Runs one container (2 CPUs); go through tmp/slot.js on a shared machine. Docker mode runs SharedTurnsTest only and
-// can't mutate forge-harness files, so it reports a mutation that needs either as NEEDS-LOCAL.
+// can't mutate forge-harness files, so it reports a mutation that needs either (or extra test classes) as NEEDS-LOCAL.
 //    or: node tools/l2-mutate.js --local <manabrew tree> [--only name,...]
 // --local needs no Docker: it uses the jar engine/test-harness-local.sh built in that tree, edits each mutated Forge file
 // in place, compiles only the edited files over the jar, runs the test class, and puts every file back by its sha256
@@ -122,6 +122,15 @@ const MUTATIONS = [
     expect: ["aLevelOneDefenderBlocksForItsPartnerInThePrompt"] },
   { name: "coveted-jewel-first-seat", edits: [["forge-game/src/main/java/forge/game/trigger/TriggerAttackerUnblockedOnce.java", "        for (final Player p : combat.getAttackingPlayers()) {\n            final List<GameEntity> defenders", "        for (final Player p : combat.getAttackingPlayers().subList(0, 1)) {\n            final List<GameEntity> defenders"]],
     expect: ["anUnblockedPartnerGetsCovetedJewel"] },
+  // the life house rule (teamLifeEvents, engine1116-teams3), merged into engine1117
+  { name: "life-trigger-plain-valid-player", tests: ["TeamGameTest"], edits: [["forge-game/src/main/java/forge/game/trigger/Trigger.java",
+    "        if (matchesValidParam(\"ValidPlayer\", o)) {\n            return true;\n        }\n        final Player you = getHostCard().getController();",
+    "        if (true) {\n            return matchesValidParam(\"ValidPlayer\", o);\n        }\n        final Player you = getHostCard().getController();"]],
+    expect: ["aPartnersLifeGainTriggersYourPridemateOnce", "aPartnersLifeLossTriggersYourLoseLifeTrigger", "aPartnersLifeGainTriggersYourCardOnceInTheTeamsUpkeep"] },
+  { name: "life-replacement-plain-valid-player", tests: ["TeamGameTest"], edits: [["forge-game/src/main/java/forge/game/replacement/ReplaceGainLife.java",
+    "if (!matchesValidParam(\"ValidPlayer\", runParams.get(AbilityKey.Affected)) && !gainedByTeammate(runParams.get(AbilityKey.Affected))) {",
+    "if (!matchesValidParam(\"ValidPlayer\", runParams.get(AbilityKey.Affected))) {"]],
+    expect: ["yourLifegainReplacementDoublesAPartnersGainOnce"] },
 ];
 
 const known = fs.existsSync(KNOWN) ? fs.readFileSync(KNOWN, "utf8").split(/\r?\n/).map((l) => l.replace(/#.*/, "").trim()).filter(Boolean) : [];
@@ -139,7 +148,7 @@ function runDocker() {
     .split(/\r?\n/).filter((l) => l && !l.includes("/src/test/"));
   fs.writeFileSync(path.join(work, "forgelist.txt"), changed.join("\n") + "\n");
   for (const m of todo) {
-    if (m.edits.some(([file]) => file.startsWith("forge-harness/"))) { console.log(`NEEDS-LOCAL ${m.name}: it edits forge-harness`); continue; }
+    if (m.tests || m.edits.some(([file]) => file.startsWith("forge-harness/"))) { console.log(`NEEDS-LOCAL ${m.name}: it edits forge-harness or needs more test classes`); continue; }
     const dir = path.join(work, "mut", m.name);
     fs.mkdirSync(dir, { recursive: true });
     const files = {};
@@ -209,7 +218,7 @@ function runLocal() {
       restore();
       if (mc.status !== 0) { out += `COMPILE-ERROR\n${(mc.stdout + mc.stderr).split("\n").slice(0, 5).join("\n")}\n`; continue; }
       let failures = 0;
-      for (const cls of TESTS) {
+      for (const cls of [...TESTS, ...(m.tests || [])]) {
         const run = spawnSync("java", ["-cp", [mut, tests, jar].join(path.delimiter), `forge.harness.host.${cls}`],
           { cwd: tree, encoding: "utf8", timeout: 900000, maxBuffer: 1 << 26 });
         const lines = `${run.stdout}${run.stderr}`.split(/\r?\n/).filter((l) => /^(ok|FAIL) /.test(l));
