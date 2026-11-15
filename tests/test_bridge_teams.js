@@ -31,7 +31,19 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
   ok("teamsProblem: three on a team don't", /two teams of two/.test(T.teamsProblem({ White: 1, Red: 1, Yellow: 1, Blue: 2 }, 4)), T.teamsProblem({ White: 1, Red: 1, Yellow: 1, Blue: 2 }, 4));
   ok("teamsProblem: partners across the table don't", /next to each other/.test(T.teamsProblem({ White: 1, Red: 2, Yellow: 1, Blue: 2 }, 4)), T.teamsProblem({ White: 1, Red: 2, Yellow: 1, Blue: 2 }, 4));
   same("gameConfig: each username's team by its seat's colour", T.gameConfig(TEAMS, ["u-w", "bot", "bot 2", "u-b"], ["White", "Red", "Yellow", "Blue"]),
-    { type: "gameConfig", teamRules: "sharedLife", players: [{ username: "u-w", team: 1 }, { username: "bot", team: 1 }, { username: "bot 2", team: 2 }, { username: "u-b", team: 2 }] });
+    { type: "gameConfig", teamRules: "sharedLife", teamDraws: false, players: [{ username: "u-w", team: 1 }, { username: "bot", team: 1 }, { username: "bot 2", team: 2 }, { username: "u-b", team: 2 }] });
+  // teamDraws: the table's teamDraws setting, in shared-life games only, true only when exactly true
+  const cfg4 = (...more) => T.gameConfig(TEAMS, ["u-w", "bot", "bot 2", "u-b"], ["White", "Red", "Yellow", "Blue"], ...more);
+  same("gameConfig 2HG: teamDraws false when the setting is missing", cfg4("2hg").teamDraws, false);
+  same("gameConfig 2HG: teamDraws true when the setting is true", cfg4("2hg", null, false, true).teamDraws, true);
+  same("gameConfig 2HG in Standard: teamDraws true too", cfg4("2hg", null, true, true).teamDraws, true);
+  same("gameConfig 2HG: a truthy setting that isn't true is false", ["yes", 1, "true", {}].map((v) => cfg4("2hg", null, false, v).teamDraws), [false, false, false, false]);
+  ok("gameConfig 2v2: no teamDraws, even when set", !("teamDraws" in cfg4("2v2", null, false, true)));
+  ok("gameConfig juggernaut: no teamDraws, even when set", !("teamDraws" in T.gameConfig(T.juggTeams("White"), ["u-w", "bot", "bot 2", "u-b"], ["White", "Red", "Yellow", "Blue"], "juggernaut", T.juggOf({}), false, true)));
+  same("setupOf 2HG: teamDraws from the start message, true only when exactly true",
+    [undefined, true, false, "yes", 1].map((v) => T.setupOf({ teams: TEAMS, ...(v === undefined ? {} : { teamDraws: v }) }).teamDraws), [false, true, false, false, false]);
+  ok("setupOf: no teamDraws outside Two-Headed Giant", !("teamDraws" in T.setupOf({ teamMode: "2v2", teams: TEAMS, teamDraws: true }))
+    && !("teamDraws" in T.setupOf({ teamMode: "juggernaut", teamDraws: true })) && !("teamDraws" in T.setupOf({ teamDraws: true })));
 
   // ── start: refused, said, and the gameConfig before StartGame ──
   await run(async (h) => {
@@ -73,7 +85,7 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
     ok("start: as the node's roomRelay message", cfg?.kind === "roomRelay" && cfg?.protocol === "self-hosted-node" && cfg?.roomId === "room-1", JSON.stringify(cfg));
     const order = out[startAt]?.seat_order || [];
     same("start: every seat's team, in StartGame's seat order (Blue at Blue, the AIs at White, Red, Yellow)", cfg?.payload,
-      { type: "gameConfig", teamRules: "sharedLife", players: order.map((u) => ({ username: u, team: u === blue.username || u === "Forge AI 3" ? 2 : 1 })) });
+      { type: "gameConfig", teamRules: "sharedLife", teamDraws: false, players: order.map((u) => ({ username: u, team: u === blue.username || u === "Forge AI 3" ? 2 : 1 })) });
     same("start: the seat order is round the table", order, ["Forge AI", "Forge AI 2", "Forge AI 3", blue.username]);
   });
   await run(async (h) => {
@@ -100,6 +112,35 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
     h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 3, teams: { White: 1, Red: 1, Yellow: 2, Blue: 2 } }) });
     await h.flush();
     same("start message: the table's teams reach the game", h.B._getGame()?.teams, TEAMS);
+    same("start message: no teamDraws is false", h.B._getGame()?.teamDraws, false);
+  });
+  // the table's teamDraws setting: the start message's teamDraws field, kept by the game for its gameConfig
+  for (const [v, want] of [[true, true], ["yes", false], [1, false]]) {
+    await run(async (h) => {
+      h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 3, teams: TEAMS, teamDraws: v }) });
+      await h.flush();
+      same(`start message: teamDraws ${JSON.stringify(v)} is ${want}`, h.B._getGame()?.teamDraws, want);
+    });
+  }
+  await run(async (h) => {
+    h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 3, teamMode: "2v2", teams: { White: 1, Red: 2, Yellow: 1, Blue: 2 }, teamDraws: true }) });
+    await h.flush();
+    ok("start message: a 2v2 game keeps no teamDraws", h.B._getGame() && !("teamDraws" in h.B._getGame()), JSON.stringify(h.B._getGame()?.teamDraws));
+  });
+  await run(async (h) => {
+    // the setting all the way to the node: the gameConfig before StartGame says teamDraws true
+    h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 3, teams: TEAMS, teamDraws: true }) });
+    await h.flush();
+    const blue = h.B._getGame().seats.get("Blue");
+    blue.heartbeat = () => {};
+    blue.ws.emit("open");
+    frame(blue.ws, { type: "AuthResult", success: true });
+    frame(blue.ws, { type: "RoomList", rooms: [{ room_id: "room-1", room_name: "tts-commander", status: "Lobby" }] });
+    const bots = ["Forge AI", "Forge AI 2", "Forge AI 3"].map((u) => ({ username: u, ready: true, connected: true, is_bot: true }));
+    frame(blue.ws, { type: "RoomUpdate", room: { room_id: "room-1", status: "Lobby", max_players: 4, players: [{ username: blue.username, ready: true, connected: true }, ...bots] } });
+    await h.flush();
+    const cfg = relay(h).find((r) => r.state?.payload?.type === "gameConfig")?.state.payload;
+    same("start message teamDraws true: the node's gameConfig says so", cfg?.teamDraws, true);
   });
   await run(async (h) => {
     h.B.startGame(["Blue"], 3, false, true);
