@@ -2,6 +2,8 @@
 # Runs the forge-harness test classes without Docker: does by hand what build-images.sh and the self-hosted-node
 # Dockerfile's "protocol-builder" and "java-builder" stages do, then compiles the tests and runs each class.
 #   bash engine/test-harness-local.sh [TestClass ...]          (default: SharedTurnsTest TeamGameTest)
+#   bash engine/test-harness-local.sh --all                     (every class under forge-harness/src/test/java)
+# A plain name is forge.harness.host.<name>; give common.<name> (or any package under forge.harness) for the others.
 # Settings (environment):
 #   ENGINE_WORK_DIR  the patched Manabrew tree, Forge at <tree>/forge (default: ~/engine). Made when missing: both
 #                    pinned commits fetched with core.autocrlf false, the patches applied, then committed locally
@@ -74,11 +76,15 @@ tests="$(mktemp -d)"
 trap 'rm -rf "$tests"' EXIT
 cd "$work"
 javac -nowarn -encoding UTF-8 -proc:none -d "$tests" -cp "$jar" $(find forge-harness/src/test/java -name '*.java')
+if [ "${1:-}" = --all ]; then
+  set -- $(cd forge-harness/src/test/java/forge/harness && find . -name '*.java' | sed 's#^\./##; s#\.java$##; s#^host/##; s#/#.#g' | sort)
+fi
 [ $# -gt 0 ] || set -- SharedTurnsTest TeamGameTest
 failed=""
 for c in "$@"; do
   echo "=== $c"
-  if timeout 900 java -cp "$tests:$jar" "forge.harness.host.$c" > "$tests/$c.out" 2>&1; then echo "exit=0"; else echo "exit=$?"; failed="$failed $c"; fi
+  case "$c" in *.*) cls="forge.harness.$c" ;; *) cls="forge.harness.host.$c" ;; esac
+  if timeout 900 java -cp "$tests:$jar" "$cls" > "$tests/$c.out" 2>&1; then echo "exit=0"; else echo "exit=$?"; failed="$failed $c"; fi
   grep -E '^(ok|FAIL|PASS) ' "$tests/$c.out" || tail -15 "$tests/$c.out"
 done
 if [ -n "$failed" ]; then echo "FAILED:$failed"; exit 1; fi
