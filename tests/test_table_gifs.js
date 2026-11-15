@@ -339,6 +339,48 @@ const SEATED = ["White", "Blue"];
   ok("hide: a player's hide goes when they leave; a spectator's stays", h && h.white === false && h.grey === true, h);
 }
 
+// ── a video that never loads while its frame lies there (live 2026-11-15: TTS said "Format: MP4" in chat and left a
+// white tile for a good GIPHY video): one more try with the same video, then the still picture, said to the owner;
+// a new pick tries the video again, and a picture that does load is never tried again
+{
+  const NO_CALLBACK = lua("__realSpawn = __realSpawn or spawnObjectData spawnObjectData = function(t) t.callback_function = nil return __realSpawn(t) end return 'ok'", "no callback");
+  const CALLBACK = lua("spawnObjectData = __realSpawn return 'ok'", "callback again");
+  const W = (r, mark) => (val(r, mark)?.list || []).filter((f) => f.c === "White");
+  const r = simulate({ save, seated: SEATED, host: "Blue", steps: [
+    SPY, CONFIG(true), { frames: 10 },
+    CHAT("White", "mtg gif cats", "w search"), NO_CALLBACK,
+    msg("gif_results", { color: "White", req: 1, first: true, q: "cats", page: 0, items: ITEMS, total: 3, error: null }, 30), FRAMES("first try"),
+    { frames: 10 * 60 }, FRAMES("retry"), CALLBACK,
+    { frames: 10 * 60 }, FRAMES("still"),
+    { frames: 11 * 60 }, FRAMES("rests"),
+    CLICK("White", "gifcol_White", "hide"), { frames: 30 }, CLICK("White", "gifcol_White", "show"), { frames: 30 }, FRAMES("shown again"),
+    CHAT("White", "mtg gif dogs", "w search 2"),
+    msg("gif_results", { color: "White", req: 2, first: true, q: "dogs", page: 0, items: ITEMS.slice(1), total: 2, error: null }, 30), FRAMES("repick"),
+    { frames: 11 * 60 }, FRAMES("loaded stays"),
+  ] });
+  ok("retry: no errors", !r.errors.length, r.errors.join(" | "));
+  const [a, b, s, rest, rp, ls] = ["first try", "retry", "still", "rests", "repick", "loaded stays"].map((m) => W(r, m));
+  const one = (l) => l.length === 1;
+  ok("retry: the first try shows the video", one(a) && a[0].img === ITEMS[0].mp4, a.map((f) => f.img));
+  ok("retry: a video that never arrives is tried once more, in a new frame", one(b) && b[0].img === ITEMS[0].mp4 && b[0].guid !== a[0].guid, [a, b].map((l) => l.map((f) => [f.guid, f.img])));
+  ok("retry: then the still picture shows instead, the GIF kept", one(s) && s[0].img === ITEMS[0].still && s[0].guid !== b[0].guid && JSON.parse(s[0].memo || "{}").mp4 === ITEMS[0].mp4, s.map((f) => [f.img, f.memo]));
+  ok("retry: the owner is told", r.steps.flatMap((x) => x.fx || []).some((f) => f.includes('"White"') && f.includes("video wouldn't load")), r.steps.flatMap((x) => x.fx || []).filter((f) => f.includes("GIF")));
+  ok("retry: no third try", one(rest) && rest[0].guid === s[0].guid && rest[0].img === ITEMS[0].still, rest.map((f) => [f.guid, f.img]));
+  const sh = W(r, "shown again");
+  ok("retry: Hide and Show after the still loaded try the video again", one(sh) && sh[0].img === ITEMS[0].mp4, sh.map((f) => f.img));
+  ok("retry: a new pick tries the video again", one(rp) && rp[0].img === ITEMS[1].mp4, rp.map((f) => f.img));
+  ok("retry: a picture that loads is never tried again", one(ls) && ls[0].guid === rp[0].guid && ls[0].img === ITEMS[1].mp4, [rp, ls].map((l) => l.map((f) => [f.guid, f.img])));
+  // (the still never loading either, then a new pick: its video, not its still)
+  const r2 = simulate({ save, seated: SEATED, host: "Blue", steps: [
+    SPY, CONFIG(true), { frames: 10 }, CHAT("White", "mtg gif cats", "w search"), NO_CALLBACK,
+    msg("gif_results", { color: "White", req: 1, first: true, q: "cats", page: 0, items: ITEMS, total: 3, error: null }, 31 * 60), FRAMES("both failed"),
+    CALLBACK, CHAT("White", "mtg gif dogs", "w search 2"),
+    msg("gif_results", { color: "White", req: 2, first: true, q: "dogs", page: 0, items: ITEMS.slice(1), total: 2, error: null }, 30), FRAMES("new pick"),
+  ] });
+  const bf = W(r2, "both failed"), np = W(r2, "new pick");
+  ok("retry: after the still failed too, a new pick shows its video", !r2.errors.length && one(bf) && bf[0].img === ITEMS[0].still && one(np) && np[0].img === ITEMS[1].mp4, [bf, np].map((l) => l.map((f) => f.img)).concat(r2.errors));
+}
+
 // ── a whole engine game leaves the frames alone (spec §4: the sweep, the stray watcher and mtg start leave them; an
 // Undo leaves them as they are): the recorded 1v1 (Blue and White, tests/golden/fixtures/table-stream-1v1.json) from
 // mtg start to the bridge's clear (mtg reset), with both frames up and White's showing a GIF
