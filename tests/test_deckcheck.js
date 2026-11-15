@@ -167,14 +167,16 @@ check("read: a long line before the tag", () => eq(read("z".repeat(6000) + `\n[d
 
 // ───────── deckcheckLabel ─────────
 const label = (lua) => dc.enc(`deckcheckLabel(${lua})`);
-check("label: both", () => eq(label("{ bracket = 3, threatIndex = 54, maxThreat = 96 }"), `Bracket 3 ${DOT} Threat 54/96`));
+check("label: both", () => eq(label("{ bracket = 3, threatIndex = 54, maxThreat = 96 }"), `Bracket 3 ${DOT} Threat 54 (32-51)`));
 check("label: bracket only", () => eq(label("{ bracket = 3 }"), "Bracket 3"));
 check("label: threat only", () => eq(label("{ threatIndex = 54 }"), "Threat 54/96"));
 check("label: bracket 0", () => eq(label("{ bracket = 0 }"), "Bracket 0"));
-check("label: threat 0",() => eq(label("{ bracket = 1, threatIndex = 0 }"), `Bracket 1 ${DOT} Threat 0/96`));
+check("label: threat 0",() => eq(label("{ bracket = 1, threatIndex = 0 }"), `Bracket 1 ${DOT} Threat 0 (0-15)`));
 check("label: another maximum", () => eq(label("{ threatIndex = 50, maxThreat = 100 }"), "Threat 50/100"));
+check("label: every bracket shows its range", () => eq([1, 2, 3, 4, 5].map((b) => label(`{ bracket = ${b}, threatIndex = 45 }`)), [`Bracket 1 ${DOT} Threat 45 (0-15)`, `Bracket 2 ${DOT} Threat 45 (16-31)`, `Bracket 3 ${DOT} Threat 45 (32-51)`, `Bracket 4 ${DOT} Threat 45 (52-67)`, `Bracket 5 ${DOT} Threat 45 (68-96)`]));
+check("label: a bracket with no range keeps the maximum", () => eq(label("{ bracket = 0, threatIndex = 7 }"), `Bracket 0 ${DOT} Threat 7/96`));
 check("label: neither, or no info", () => eq([label("{}"), label("nil"), label('{ id = "x" }')], [null, null, null]));
-check("label: from a read tag", () => eq(dc.enc(`deckcheckLabel(deckcheckReadTag("x\\n[deckcheck] id=${ID} bracket=3 threat=54/96"))`), `Bracket 3 ${DOT} Threat 54/96`));
+check("label: from a read tag", () => eq(dc.enc(`deckcheckLabel(deckcheckReadTag("x\\n[deckcheck] id=${ID} bracket=3 threat=54/96"))`), `Bracket 3 ${DOT} Threat 54 (32-51)`));
 
 // ───────── MoonSharp traps (static) ─────────
 const src = fs.readFileSync(LUA_FILE, "utf8");

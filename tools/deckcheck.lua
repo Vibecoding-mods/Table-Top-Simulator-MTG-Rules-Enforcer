@@ -192,6 +192,10 @@ function deckcheckReadTag(notes)
 end
 
 -- the label next to the commander: "Bracket 3 · Threat 54/96", one half when the other is missing, or nil
+-- Each bracket's Threat Index range, from DeckCheck's "How the Threat Index works" (updated 2026-10).
+-- A gate or a card can raise a deck's bracket, so its score may sit outside its bracket's range.
+DECKCHECK_BRACKET_RANGE = { { 0, 15 }, { 16, 31 }, { 32, 51 }, { 52, 67 }, { 68, 96 } }
+
 function deckcheckLabel(info)
   if type(info) ~= "table" then return nil end
   local parts = {}
@@ -199,9 +203,15 @@ function deckcheckLabel(info)
   if b ~= nil then parts[#parts + 1] = "Bracket " .. string.format("%d", b) end
   local t = deckcheckWhole(info.threatIndex)
   if t ~= nil then
-    local m = deckcheckWhole(info.maxThreat)
-    if m == nil or m == 0 then m = DECKCHECK_MAX_THREAT end
-    parts[#parts + 1] = "Threat " .. string.format("%d", t) .. "/" .. string.format("%d", m)
+    local range = nil
+    if b ~= nil then range = DECKCHECK_BRACKET_RANGE[b] end
+    if range ~= nil then
+      parts[#parts + 1] = "Threat " .. string.format("%d", t) .. " (" .. string.format("%d", range[1]) .. "-" .. string.format("%d", range[2]) .. ")"
+    else
+      local m = deckcheckWhole(info.maxThreat)
+      if m == nil or m == 0 then m = DECKCHECK_MAX_THREAT end
+      parts[#parts + 1] = "Threat " .. string.format("%d", t) .. "/" .. string.format("%d", m)
+    end
   end
   if #parts == 0 then return nil end
   return table.concat(parts, " \194\183 ")
