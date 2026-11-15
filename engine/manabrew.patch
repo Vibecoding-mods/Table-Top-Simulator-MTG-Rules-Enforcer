@@ -2407,7 +2407,7 @@ index c69b549..416b380 100644
  
      public static final class CardIdentity {
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
-index fb82e6d..81e722a 100644
+index fb82e6d..550846b 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 @@ -11,6 +11,8 @@ import forge.harness.common.HarnessPlayPlumbing;
@@ -2528,12 +2528,23 @@ index fb82e6d..81e722a 100644
                  && CombatUtil.validateAttackers(combat)) {
              return;
          }
-@@ -403,9 +453,17 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -403,9 +453,28 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public void declareBlockers(final Player defender, final Combat combat) {
 +        final boolean teamBlock = combat.isSharedTeamAttack();
-+        if (teamBlock) {
++        final int round = combat.getTeamBlockRound();
++        final List<Pair<Card, Card>> current = new ArrayList<>();
++        if (round > 0 && combat.getTeamBlockAnswer(defender) != null) {
++            current.addAll(combat.getTeamBlockAnswer(defender));
++        } else {
++            for (final Card own : CardLists.filterControlledBy(combat.getAllBlockers(), defender)) {
++                for (final Card attacker : combat.getAttackersBlockedBy(own)) {
++                    current.add(ImmutablePair.of(own, attacker));
++                }
++            }
++        }
++        if (teamBlock || round >= 0) {
 +            for (final Card own : CardLists.filterControlledBy(combat.getAllBlockers(), defender)) {
 +                combat.undoBlockingAssignment(own);
 +            }
@@ -2547,7 +2558,57 @@ index fb82e6d..81e722a 100644
                  attackers.add(attacker);
              }
          }
-@@ -760,8 +818,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -415,10 +484,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+         final Map<Card, List<Card>> validByAttacker =
+                 EngineHandler.validBlockersByAttacker(combat, attackers, blockers);
+         final int defenderIndex = SnapshotExtractor.playerIndex(game, defender);
++        final ManaBrewInteractiveSession.TeamBlockPrompt teamPrompt =
++                round >= 0 ? teamBlockPrompt(defender, combat, round, attackers, current) : null;
+         String error = null;
+         while (true) {
+             final List<Pair<Card, Card>> assignments =
+-                    session.awaitBlockers(defenderIndex, attackers, blockers, validByAttacker, error);
++                    session.awaitBlockers(defenderIndex, attackers, blockers, validByAttacker, error, teamPrompt);
+             error = EngineHandler.applyBlockerAssignments(combat, defender, assignments);
+             if (error == null || session.isClosed() || game.isGameOver()) {
+                 return;
+@@ -426,6 +497,35 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+         }
+     }
+ 
++    private ManaBrewInteractiveSession.TeamBlockPrompt teamBlockPrompt(final Player defender, final Combat combat, final int round,
++            final List<Card> attackers, final List<Pair<Card, Card>> current) {
++        final List<String> partners = new ArrayList<>();
++        for (final Player mate : defender.getTeamMates(false)) {
++            if (mate.isInGame()) {
++                partners.add(mate.getName());
++            }
++        }
++        final String partnerNames = String.join(" and ", partners);
++        final String title = round == 0 ? "Block with " + partnerNames
++                : partnerNames + " changed the blocks. Agree or change?";
++        final List<String> lines = new ArrayList<>();
++        for (final Card attacker : attackers) {
++            final List<String> names = new ArrayList<>();
++            for (final Pair<Card, Card> own : current) {
++                if (own.getRight().equals(attacker)) {
++                    names.add("your " + own.getLeft().getName());
++                }
++            }
++            for (final Card blocker : combat.getBlockers(attacker)) {
++                if (!blocker.getController().equals(defender)) {
++                    names.add(blocker.getController().getName() + "'s " + blocker.getName());
++                }
++            }
++            lines.add(attacker.getName() + " -> " + (names.isEmpty() ? "not blocked" : String.join(" + ", names)));
++        }
++        return new ManaBrewInteractiveSession.TeamBlockPrompt(title, round > 0 ? round : null, current, lines);
++    }
++
+     @Override
+     public CardCollection orderBlockers(final Card attacker, final CardCollection blockers) {
+         return session.awaitDamageAssignmentOrder(me(), attacker, blockers);
+@@ -760,8 +860,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      @Override
      public CardCollectionView chooseCardsForCost(final CardCollectionView optionList, final SpellAbility sa,
              final CostPartWithList cpl, final int amount, final boolean isOptional, final String prompt) {
@@ -2558,7 +2619,7 @@ index fb82e6d..81e722a 100644
          if (isOptional && selected.size() != amount) {
              return null;
          }
-@@ -790,8 +848,16 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -790,8 +890,16 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          if (sourceList.isEmpty()) {
              return CardCollection.EMPTY;
          }
@@ -2577,7 +2638,7 @@ index fb82e6d..81e722a 100644
      }
  
      @Override
-@@ -832,7 +898,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -832,7 +940,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          final CardCollection cards = cardOptions(optionList);
          if (cards == null) {
              return rememberSecretPlayerViewer(
@@ -2586,7 +2647,7 @@ index fb82e6d..81e722a 100644
          }
          final CardCollection selected = session.awaitCardChoice(
                  "choose_cards_for_effect", me(), cards, 1, 1, sourceName(sa), sourceCardId(sa), title, isOptional);
-@@ -895,7 +961,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -895,7 +1003,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
              CardLists.sortByCmcDesc(sorted);
              return new CardCollection(sorted.subList(0, Math.max(min, Math.min(cappedMax, 1))));
          }
@@ -2596,7 +2657,7 @@ index fb82e6d..81e722a 100644
      }
  
      @Override
-@@ -2514,6 +2581,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2514,6 +2623,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public void notifyOfValue(final SpellAbility saSource, final GameObject realtedTarget, final String value) {
@@ -2607,7 +2668,7 @@ index fb82e6d..81e722a 100644
          final String message = MessageUtil.formatNotificationMessage(saSource, player, realtedTarget, value);
          if (saSource != null && saSource.isManaAbility()) {
              game.getGameLog().add(GameLogEntryType.LAND, message);
-@@ -2620,7 +2691,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2620,7 +2733,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      }
  
      private <T extends GameEntity> T chooseSingleEntityGeneric(
@@ -2617,7 +2678,7 @@ index fb82e6d..81e722a 100644
          final List<T> opts = new ArrayList<>();
          for (final T option : optionList) {
              opts.add(option);
-@@ -2632,7 +2704,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2632,7 +2746,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          for (final T option : opts) {
              labels.add(option == null ? "?" : option.toString());
          }
@@ -2632,7 +2693,7 @@ index fb82e6d..81e722a 100644
              return null;
          }
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..cd67e46 100644
+index 643e5de..819dec1 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,12 +6,15 @@ import forge.harness.common.ParityCardMap;
@@ -2936,7 +2997,49 @@ index 643e5de..cd67e46 100644
                  return action.has("keep") && action.get("keep").getAsBoolean();
              }
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
-@@ -1104,14 +1196,31 @@ public final class ManaBrewInteractiveSession {
+@@ -1004,15 +1096,40 @@ public final class ManaBrewInteractiveSession {
+         return new ArrayList<>();
+     }
+ 
++    static final class TeamBlockPrompt {
++        final String title;
++        final Integer reviseRound;
++        final List<Pair<Card, Card>> current;
++        final List<String> lines;
++
++        TeamBlockPrompt(final String title, final Integer reviseRound, final List<Pair<Card, Card>> current, final List<String> lines) {
++            this.title = title;
++            this.reviseRound = reviseRound;
++            this.current = current;
++            this.lines = lines;
++        }
++    }
++
+     List<Pair<Card, Card>> awaitBlockers(
+             final int playerId,
+             final List<Card> attackers,
+             final List<Card> availableBlockers,
+             final Map<Card, List<Card>> validBlockersByAttacker,
+             final String error
++    ) {
++        return awaitBlockers(playerId, attackers, availableBlockers, validBlockersByAttacker, error, null);
++    }
++
++    List<Pair<Card, Card>> awaitBlockers(
++            final int playerId,
++            final List<Card> attackers,
++            final List<Card> availableBlockers,
++            final Map<Card, List<Card>> validBlockersByAttacker,
++            final String error,
++            final TeamBlockPrompt team
+     ) {
+         requireAttached();
+-        publishBlockersPrompt(playerId, attackers, availableBlockers, validBlockersByAttacker, error);
++        publishBlockersPrompt(playerId, attackers, availableBlockers, validBlockersByAttacker, error, team);
+         while (!closed && !game.isGameOver()) {
+             final JsonObject action = takeActionOrNull();
+             if (action == null) {
+@@ -1104,14 +1221,31 @@ public final class ManaBrewInteractiveSession {
              final String description,
              final boolean optionalDecline,
              final String error
@@ -2971,7 +3074,7 @@ index 643e5de..cd67e46 100644
      }
  
      void awaitRevealCards(
-@@ -1188,6 +1297,18 @@ public final class ManaBrewInteractiveSession {
+@@ -1188,6 +1322,18 @@ public final class ManaBrewInteractiveSession {
          return awaitModeChoice(playerId, unweightedOptions(options, allowRepeat), min, max, sourceName, null, null);
      }
  
@@ -2990,7 +3093,7 @@ index 643e5de..cd67e46 100644
      List<Integer> awaitModeChoice(
              final int playerId,
              final List<SelectionOption> options,
-@@ -1196,6 +1317,19 @@ public final class ManaBrewInteractiveSession {
+@@ -1196,6 +1342,19 @@ public final class ManaBrewInteractiveSession {
              final String sourceName,
              final String description,
              final String sourceCardId
@@ -3010,7 +3113,7 @@ index 643e5de..cd67e46 100644
      ) {
          requireAttached();
          if (options.isEmpty() && min > 0) {
-@@ -1207,7 +1341,7 @@ public final class ManaBrewInteractiveSession {
+@@ -1207,7 +1366,7 @@ public final class ManaBrewInteractiveSession {
          final int clampedMax = anyRepeatable ? max : Math.min(max, totalWeight);
          final String title = sourceName != null ? sourceName : "Choose";
          final PromptPresentation presentation =
@@ -3019,7 +3122,7 @@ index 643e5de..cd67e46 100644
          publishAgentPrompt("player-" + playerId, sourceCardId,
                  new ChooseFromSelectionInput(presentation, options, clampedMin, clampedMax));
          while (!closed && !game.isGameOver()) {
-@@ -1762,24 +1896,29 @@ public final class ManaBrewInteractiveSession {
+@@ -1762,24 +1921,29 @@ public final class ManaBrewInteractiveSession {
              final CardCollectionView valid,
              final int min,
              final int max,
@@ -3051,7 +3154,7 @@ index 643e5de..cd67e46 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (chosen.size() >= cappedMin) {
                      break;
-@@ -1821,7 +1960,8 @@ public final class ManaBrewInteractiveSession {
+@@ -1821,7 +1985,8 @@ public final class ManaBrewInteractiveSession {
              final List<Pair<GameEntity, forge.game.GameObject>> candidates,
              final int min,
              final int max,
@@ -3061,7 +3164,7 @@ index 643e5de..cd67e46 100644
      ) {
          final Card source = sa == null ? null : sa.getHostCard();
          final List<TargetRef> candidateRefs = new java.util.ArrayList<>();
-@@ -1834,7 +1974,11 @@ public final class ManaBrewInteractiveSession {
+@@ -1834,7 +1999,11 @@ public final class ManaBrewInteractiveSession {
                  new ChooseBoardTargetsInput(
                          presentation("Sacrifice", null),
                          candidateRefs, true, enumFromWire("sacrifice", TargetingIntent.class),
@@ -3074,7 +3177,7 @@ index 643e5de..cd67e46 100644
      }
  
      Map<GameEntity, Integer> awaitDividedAllocation(
-@@ -1882,6 +2026,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1882,6 +2051,16 @@ public final class ManaBrewInteractiveSession {
              final int min,
              final int max,
              final boolean allowEmpty
@@ -3091,7 +3194,7 @@ index 643e5de..cd67e46 100644
      ) {
          while (!closed && !game.isGameOver()) {
              final JsonObject action;
-@@ -1892,6 +2046,12 @@ public final class ManaBrewInteractiveSession {
+@@ -1892,6 +2071,12 @@ public final class ManaBrewInteractiveSession {
                  return new CardCollection();
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
@@ -3104,7 +3207,7 @@ index 643e5de..cd67e46 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (allowEmpty) {
                      return new CardCollection();
-@@ -1911,10 +2071,10 @@ public final class ManaBrewInteractiveSession {
+@@ -1911,10 +2096,10 @@ public final class ManaBrewInteractiveSession {
                      }
                  }
              }
@@ -3118,7 +3221,7 @@ index 643e5de..cd67e46 100644
                  throw new IllegalArgumentException("selected card count out of range: " + selected.size());
              }
              return selected;
-@@ -1940,10 +2100,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1940,10 +2125,16 @@ public final class ManaBrewInteractiveSession {
  
      private JsonObject takeAction() throws InterruptedException {
          while (true) {
@@ -3136,7 +3239,7 @@ index 643e5de..cd67e46 100644
              if (action == null) {
                  if (closed || game.isGameOver()) {
                      return syntheticPass();
-@@ -1966,6 +2132,14 @@ public final class ManaBrewInteractiveSession {
+@@ -1966,6 +2157,14 @@ public final class ManaBrewInteractiveSession {
                  announceState();
                  continue;
              }
@@ -3151,7 +3254,7 @@ index 643e5de..cd67e46 100644
              if ("set_snapshot_recording".equals(kind)) {
                  if (action.get("player").getAsInt() == InteractiveBridge.HOST_SEAT) {
                      setSnapshotRecording(action.get("enabled").getAsBoolean());
-@@ -1987,6 +2161,17 @@ public final class ManaBrewInteractiveSession {
+@@ -1987,6 +2186,17 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3169,7 +3272,7 @@ index 643e5de..cd67e46 100644
      private static JsonObject syntheticPass() {
          final JsonObject pass = new JsonObject();
          pass.addProperty("kind", "pass");
-@@ -2010,6 +2195,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2010,6 +2220,8 @@ public final class ManaBrewInteractiveSession {
          if (!restoreApproved()) {
              return false;
          }
@@ -3178,7 +3281,7 @@ index 643e5de..cd67e46 100644
          final RestoreVote vote = restoreVote;
          if (!checkpoints.contains(vote.checkpoint)) {
              vote.status = RestoreVoteStatus.UNAVAILABLE;
-@@ -2067,22 +2254,16 @@ public final class ManaBrewInteractiveSession {
+@@ -2067,22 +2279,16 @@ public final class ManaBrewInteractiveSession {
          if (handler.getTurn() == checkpointTurn && handler.getPhase() == checkpointPhase) {
              return;
          }
@@ -3205,7 +3308,7 @@ index 643e5de..cd67e46 100644
          if (checkpointMetricsEnabled) {
              final long finished = System.nanoTime();
              synchronized (checkpointTimings) {
-@@ -2091,6 +2272,168 @@ public final class ManaBrewInteractiveSession {
+@@ -2091,6 +2297,168 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3374,7 +3477,7 @@ index 643e5de..cd67e46 100644
      private void publishCheckpointViews() {
          final List<Map<String, Object>> views = new ArrayList<>();
          for (final Checkpoint checkpoint : checkpoints) {
-@@ -2124,6 +2467,10 @@ public final class ManaBrewInteractiveSession {
+@@ -2124,6 +2492,10 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
@@ -3385,7 +3488,7 @@ index 643e5de..cd67e46 100644
          if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
                  || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
              return;
-@@ -2157,11 +2504,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2157,11 +2529,7 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void restore(final Checkpoint target) {
@@ -3398,7 +3501,7 @@ index 643e5de..cd67e46 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2518,431 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2543,431 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3830,7 +3933,7 @@ index 643e5de..cd67e46 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +2975,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +3000,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -3847,7 +3950,7 @@ index 643e5de..cd67e46 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +3019,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +3044,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -3856,7 +3959,7 @@ index 643e5de..cd67e46 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +3062,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +3087,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -3879,7 +3982,7 @@ index 643e5de..cd67e46 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +3106,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +3131,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -3910,7 +4013,7 @@ index 643e5de..cd67e46 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,16 +3370,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,16 +3395,21 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -3934,7 +4037,7 @@ index 643e5de..cd67e46 100644
          }
          final List<AttackTargetDto> attackTargets = new java.util.ArrayList<>();
          for (final GameEntity defender : combat.getDefenders()) {
-@@ -2596,7 +3392,114 @@ public final class ManaBrewInteractiveSession {
+@@ -2596,7 +3417,114 @@ public final class ManaBrewInteractiveSession {
                      defenderId(defender), defender.getName(),
                      enumFromWire(defenderKind(defender), AttackTargetKind.class)));
          }
@@ -4050,7 +4153,36 @@ index 643e5de..cd67e46 100644
      }
  
      private void publishBlockersPrompt(
-@@ -2918,7 +3821,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2604,7 +3532,8 @@ public final class ManaBrewInteractiveSession {
+             final List<Card> attackers,
+             final List<Card> availableBlockers,
+             final Map<Card, List<Card>> validBlockersByAttacker,
+-            final String error
++            final String error,
++            final TeamBlockPrompt team
+     ) {
+         final Player defendingPlayer = game.getRegisteredPlayers().get(playerId);
+         final List<BlockableAttackerDto> attackerOptions = new java.util.ArrayList<>();
+@@ -2627,7 +3556,17 @@ public final class ManaBrewInteractiveSession {
+             availableBlockerIds.add(SnapshotExtractor.javaCardId(blocker));
+         }
+         publishAgentPrompt("player-" + playerId, null,
+-                new ChooseBlockersInput(attackerOptions, availableBlockerIds, error));
++                new ChooseBlockersInput(attackerOptions, availableBlockerIds, error,
++                        team != null ? team.title : null, team != null ? team.reviseRound : null,
++                        team != null ? currentBlocks(team.current) : null, team != null ? team.lines : null));
++    }
++
++    private static List<BlockAssignment> currentBlocks(final List<Pair<Card, Card>> current) {
++        final List<BlockAssignment> out = new java.util.ArrayList<>();
++        for (final Pair<Card, Card> block : current) {
++            out.add(new BlockAssignment(SnapshotExtractor.javaCardId(block.getLeft()), SnapshotExtractor.javaCardId(block.getRight())));
++        }
++        return out;
+     }
+ 
+     private void publishDamageAssignmentOrderPrompt(
+@@ -2918,7 +3857,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4060,7 +4192,7 @@ index 643e5de..cd67e46 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +3832,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +3868,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -4086,7 +4218,7 @@ index 643e5de..cd67e46 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +3864,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +3900,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -4097,7 +4229,7 @@ index 643e5de..cd67e46 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +3892,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +3928,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -9414,10 +9546,10 @@ index 0000000..849bb01
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/SharedCombatTest.java b/forge-harness/src/test/java/forge/harness/host/SharedCombatTest.java
 new file mode 100644
-index 0000000..6a2018d
+index 0000000..cb2c91a
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/SharedCombatTest.java
-@@ -0,0 +1,564 @@
+@@ -0,0 +1,783 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -9487,6 +9619,14 @@ index 0000000..6a2018d
 +        CHECKS.put("cr805.10d aLevelOneDefenderBlocksForItsPartnerInThePrompt", SharedCombatTest::aLevelOneDefenderBlocksForItsPartnerInThePrompt);
 +        CHECKS.put("cr805.10d aPlayerMayBlockAloneBeforeThePartnerDeclares", SharedCombatTest::aPlayerMayBlockAloneBeforeThePartnerDeclares);
 +        CHECKS.put("cr805.10b aHeldPassStillAnswersARefusedTeamAttack", SharedCombatTest::aHeldPassStillAnswersARefusedTeamAttack);
++        CHECKS.put("cr805.10d aChangeOfMindSticks", SharedCombatTest::aChangeOfMindSticks);
++        CHECKS.put("cr805.10d anUnchangedAnswerIsAgreement", SharedCombatTest::anUnchangedAnswerIsAgreement);
++        CHECKS.put("cr805.10d noChangeNoExtraAsk", SharedCombatTest::noChangeNoExtraAsk);
++        CHECKS.put("cr805.2 thePrimarySettlesTheBlocksAtTheCap", SharedCombatTest::thePrimarySettlesTheBlocksAtTheCap);
++        CHECKS.put("cr805.10d aRefusedJointBlockStartsAgainFromRoundOne", SharedCombatTest::aRefusedJointBlockStartsAgainFromRoundOne);
++        CHECKS.put("cr805.10d twoAiPartnersAgreeWithinTheCap", SharedCombatTest::twoAiPartnersAgreeWithinTheCap);
++        CHECKS.put("cr805.10d aLevelOneTeamBlocksAsOneDecision", SharedCombatTest::aLevelOneTeamBlocksAsOneDecision);
++        CHECKS.put("cr805.10d theRevisePromptCarriesTheTeamsBlock", SharedCombatTest::theRevisePromptCarriesTheTeamsBlock);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
 +            if (only.isEmpty() || only.contains(e.getKey()) || only.contains(e.getKey().split(" ")[1])) {
 +                check(e.getKey(), e.getValue());
@@ -9794,6 +9934,211 @@ index 0000000..6a2018d
 +                "Red's held pass skipped the declaration her team's refused attack asked again: " + f.session.getLatestPromptJson());
 +    }
 +
++    private static final class Joint {
++        final Fixture f;
++        final Card a;
++        final Card b;
++        final Card x;
++        final Card y;
++
++        Joint(final boolean sharedTurns) {
++            f = new Fixture(sharedTurns);
++            a = creature("Grizzly Bears", f.white);
++            b = creature("Hill Giant", sharedTurns ? f.red : f.white);
++            x = creature("Wall of Wood", f.yellow);
++            y = creature("Centaur Courser", f.blue);
++            final Combat combat = combatOf(f, f.white);
++            combat.addAttacker(a, f.yellow);
++            combat.addAttacker(b, f.yellow);
++        }
++
++        Map<Card, Card> block(final Card blocker, final Card attacker) {
++            return Map.of(blocker, attacker);
++        }
++    }
++
++    private static Blocks script(final Fixture f, final Map<Player, List<Map<Card, Card>>> answers) {
++        final Blocks out = new Blocks();
++        for (final Player p : f.game.getPlayers()) {
++            final List<Map<Card, Card>> mine = answers.getOrDefault(p, List.of(Map.of()));
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                private int asks;
++
++                @Override
++                public void declareBlockers(final Player defender, final Combat combat) {
++                    out.asked.add(defender);
++                    for (final Card own : new ArrayList<>(combat.getAllBlockers())) {
++                        if (own.getController() == defender) {
++                            combat.undoBlockingAssignment(own);
++                        }
++                    }
++                    for (final Map.Entry<Card, Card> e : mine.get(asks++ % mine.size()).entrySet()) {
++                        combat.addBlocker(e.getValue(), e.getKey());
++                    }
++                }
++
++                @Override
++                public void notifyOfValue(final SpellAbility sa, final GameObject target, final String value) {
++                    out.told.add(p.getName() + ": " + value);
++                }
++            });
++        }
++        return out;
++    }
++
++    private static void aChangeOfMindSticks() throws Exception {
++        final Joint j = new Joint(true);
++        final Blocks blocks = script(j.f, Map.of(j.f.yellow, List.of(j.block(j.x, j.a), j.block(j.x, j.b)),
++                j.f.blue, List.of(j.block(j.y, j.a))));
++        declareBlockers(j.f);
++        final Combat combat = j.f.game.getCombat();
++        expect(blocks.asked.equals(List.of(j.f.yellow, j.f.blue, j.f.yellow, j.f.blue)),
++                "the team was asked " + blocks.asked + ", not Yellow, Blue, Yellow again after Blue's change, Blue again after Yellow's");
++        expect(new ArrayList<>(combat.getBlockers(j.b)).equals(List.of(j.x)) && new ArrayList<>(combat.getBlockers(j.a)).equals(List.of(j.y)),
++                "Yellow's change of mind did not stick: Grizzly Bears blocked by " + combat.getBlockers(j.a) + ", Hill Giant by " + combat.getBlockers(j.b));
++        expect(blocks.told.contains("Yellow: Blue: Centaur Courser now blocks Grizzly Bears.") && blocks.told.contains("Blue: Blue: Centaur Courser now blocks Grizzly Bears.")
++                        && blocks.told.contains("Blue: Yellow: Wall of Wood now blocks Hill Giant."),
++                "the team was not told each change: " + blocks.told);
++    }
++
++    private static void anUnchangedAnswerIsAgreement() throws Exception {
++        final Joint j = new Joint(true);
++        final Blocks blocks = script(j.f, Map.of(j.f.yellow, List.of(j.block(j.x, j.a)), j.f.blue, List.of(j.block(j.y, j.b))));
++        declareBlockers(j.f);
++        expect(blocks.asked.equals(List.of(j.f.yellow, j.f.blue, j.f.yellow)),
++                "the team was asked " + blocks.asked + ", not Yellow, Blue, then Yellow once more to agree");
++        expect(new ArrayList<>(j.f.game.getCombat().getBlockers(j.a)).equals(List.of(j.x)) && new ArrayList<>(j.f.game.getCombat().getBlockers(j.b)).equals(List.of(j.y)),
++                "the agreed block is " + j.f.game.getCombat().getBlockers(j.a) + " / " + j.f.game.getCombat().getBlockers(j.b));
++    }
++
++    private static void noChangeNoExtraAsk() throws Exception {
++        final Joint j = new Joint(true);
++        final Blocks blocks = script(j.f, Map.of(j.f.yellow, List.of(j.block(j.x, j.a)), j.f.blue, List.of(Map.of())));
++        declareBlockers(j.f);
++        expect(blocks.asked.equals(List.of(j.f.yellow, j.f.blue)), "Blue blocked nothing, but the team was asked " + blocks.asked);
++        expect(blocks.told.isEmpty(), "the team was told " + blocks.told + " when nothing changed");
++    }
++
++    private static void thePrimarySettlesTheBlocksAtTheCap() throws Exception {
++        final Joint j = new Joint(true);
++        final Blocks blocks = script(j.f, Map.of(j.f.yellow, List.of(j.block(j.x, j.a), j.block(j.x, j.b), Map.of()),
++                j.f.blue, List.of(j.block(j.y, j.b), j.block(j.y, j.a))));
++        declareBlockers(j.f);
++        final Combat combat = j.f.game.getCombat();
++        expect(blocks.asked.equals(List.of(j.f.yellow, j.f.blue, j.f.yellow, j.f.blue, j.f.yellow, j.f.blue)),
++                "the team was asked " + blocks.asked + ", not round 1 then 4 revise rounds");
++        expect(!combat.isBlocking(j.x) && new ArrayList<>(combat.getBlockers(j.b)).equals(List.of(j.y)),
++                "at the cap the block is Wall of Wood on " + combat.getAttackersBlockedBy(j.x) + " and Centaur Courser on " + combat.getAttackersBlockedBy(j.y)
++                        + ", not the primary Yellow's latest (no block) with Blue's latest (Hill Giant)");
++        expect(blocks.told.contains("Yellow: Yellow settles the team's blocks (rule 805.2)") && blocks.told.contains("Blue: Yellow settles the team's blocks (rule 805.2)"),
++                "both defenders were not told the primary settles it: " + blocks.told);
++    }
++
++    private static void aRefusedJointBlockStartsAgainFromRoundOne() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card wall = creature("Wall of Wood", f.yellow);
++        final Card courser = creature("Centaur Courser", f.blue);
++        creature("Watchdog", f.blue);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.yellow);
++        final Blocks blocks = script(f, Map.of(f.yellow, List.of(Map.of(wall, bears)), f.blue, List.of(Map.of(courser, bears))));
++        declareBlockers(f);
++        expect(blocks.asked.equals(List.of(f.yellow, f.blue, f.yellow, f.yellow, f.blue, f.yellow, f.blue)),
++                "the team's block without Blue's Watchdog was asked " + blocks.asked + ", not one joint round with Yellow's agreement, then refused rounds from Yellow again");
++        expect(blocks.told.stream().filter(t -> t.contains("Block declaration invalid")).count() == 4, "each defender was not told twice of the refusal: " + blocks.told);
++    }
++
++    private static void twoAiPartnersAgreeWithinTheCap() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card giant = creature("Hill Giant", f.red);
++        final Card ogre = creature("Gray Ogre", f.red);
++        creature("Wall of Wood", f.yellow);
++        creature("Centaur Courser", f.yellow);
++        creature("Trained Armodon", f.blue);
++        creature("Grizzly Bears", f.blue);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.yellow);
++        combat.addAttacker(giant, f.blue);
++        combat.addAttacker(ogre, f.yellow);
++        final Blocks blocks = new Blocks();
++        for (final Player p : List.of(f.yellow, f.blue)) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public void declareBlockers(final Player defender, final Combat c) {
++                    blocks.asked.add(defender);
++                    super.declareBlockers(defender, c);
++                }
++
++                @Override
++                public void notifyOfValue(final SpellAbility sa, final GameObject target, final String value) {
++                    blocks.told.add(p.getName() + ": " + value);
++                }
++            });
++        }
++        declareBlockers(f);
++        expect(blocks.asked.size() >= 2 && blocks.asked.size() < 2 + PhaseHandler.MAX_TEAM_BLOCK_REVISIONS,
++                "two AI partners were asked " + blocks.asked + ": they did not agree within the cap");
++        expect(blocks.told.stream().noneMatch(t -> t.contains("settles")), "the primary had to settle two AI partners' block: " + blocks.told);
++    }
++
++    private static void aLevelOneTeamBlocksAsOneDecision() throws Exception {
++        final Joint j = new Joint(false);
++        final Blocks blocks = script(j.f, Map.of(j.f.yellow, List.of(j.block(j.x, j.a), j.block(j.x, j.b)),
++                j.f.blue, List.of(j.block(j.y, j.a))));
++        declareBlockers(j.f);
++        expect(blocks.asked.equals(List.of(j.f.yellow, j.f.blue, j.f.yellow, j.f.blue)), "level 1: the team was asked " + blocks.asked);
++        expect(new ArrayList<>(j.f.game.getCombat().getBlockers(j.b)).equals(List.of(j.x)) && new ArrayList<>(j.f.game.getCombat().getBlockers(j.a)).equals(List.of(j.y)),
++                "level 1: the block is " + j.f.game.getCombat().getBlockers(j.a) + " / " + j.f.game.getCombat().getBlockers(j.b));
++        final Fixture ffa = new Fixture(false, false);
++        final Card a = creature("Grizzly Bears", ffa.white);
++        final Card b = creature("Hill Giant", ffa.white);
++        final Card x = creature("Wall of Wood", ffa.yellow);
++        final Card y = creature("Centaur Courser", ffa.blue);
++        final Combat combat = combatOf(ffa, ffa.white);
++        combat.addAttacker(a, ffa.yellow);
++        combat.addAttacker(b, ffa.blue);
++        final Blocks ffaBlocks = script(ffa, Map.of(ffa.yellow, List.of(Map.of(x, a), Map.of()), ffa.blue, List.of(Map.of(y, b), Map.of())));
++        declareBlockers(ffa);
++        expect(ffaBlocks.asked.equals(List.of(ffa.yellow, ffa.blue)), "free-for-all: the defenders were asked " + ffaBlocks.asked + ", not once each");
++        expect(new ArrayList<>(combat.getBlockers(a)).equals(List.of(x)) && new ArrayList<>(combat.getBlockers(b)).equals(List.of(y)), "free-for-all: the blocks are " + combat.getBlockers(a) + " / " + combat.getBlockers(b));
++    }
++
++    private static void theRevisePromptCarriesTheTeamsBlock() throws Exception {
++        final Joint j = new Joint(true);
++        final Combat combat = j.f.game.getCombat();
++        combat.addBlocker(j.a, j.x);
++        combat.setTeamBlockRound(2);
++        combat.setTeamBlockAnswer(j.f.blue, List.of(org.apache.commons.lang3.tuple.Pair.of(j.y, j.b)));
++        final ManaBrewInteractiveController blue = interactive(j.f, j.f.blue);
++        j.f.session.submitAction(blocks(j.y, j.b));
++        withoutPrompts(j.f, "Blue in a revise round", () -> asSeat(j.f, () -> blue.declareBlockers(j.f.blue, combat)));
++        final String prompt = j.f.session.getLatestPromptJson();
++        expect(prompt.contains("\"reviseRound\":2"), "the revise prompt does not say it is revise round 2: " + prompt);
++        expect(prompt.contains("\"title\":\"Yellow changed the blocks. Agree or change?\""), "the revise prompt's title: " + prompt);
++        expect(prompt.contains("\"currentAssignments\":[{\"blockerId\":\"" + SnapshotExtractor.javaCardId(j.y) + "\",\"attackerId\":\"" + SnapshotExtractor.javaCardId(j.b) + "\"}]"),
++                "the revise prompt does not carry Blue's current block: " + prompt);
++        expect(prompt.contains("Grizzly Bears -> Yellow's Wall of Wood") && prompt.contains("Hill Giant -> your Centaur Courser"), "the revise prompt's team block lines: " + prompt);
++        expect(new ArrayList<>(combat.getBlockers(j.b)).equals(List.of(j.y)) && new ArrayList<>(combat.getBlockers(j.a)).equals(List.of(j.x)), "Blue's agreeing answer changed the block: " + combat.getBlockers(j.b));
++        combat.setTeamBlockRound(0);
++        j.f.session.submitAction("{\"type\":\"chooseBlockers\",\"output\":{\"assignments\":[]}}");
++        withoutPrompts(j.f, "Blue in round 1", () -> asSeat(j.f, () -> blue.declareBlockers(j.f.blue, combat)));
++        final String first = j.f.session.getLatestPromptJson();
++        expect(first.contains("\"title\":\"Block with Yellow\"") && !first.contains("reviseRound"), "the round 1 prompt: " + first);
++        combat.setTeamBlockRound(-1);
++        final Fixture ffa = new Fixture(false, false);
++        final Card bears = creature("Grizzly Bears", ffa.white);
++        final Card courser = creature("Centaur Courser", ffa.blue);
++        final Combat ffaCombat = combatOf(ffa, ffa.white);
++        ffaCombat.addAttacker(bears, ffa.blue);
++        final ManaBrewInteractiveController ffaBlue = interactive(ffa, ffa.blue);
++        ffa.session.submitAction(blocks(courser, bears));
++        withoutPrompts(ffa, "Blue in a free-for-all", () -> asSeat(ffa, () -> ffaBlue.declareBlockers(ffa.blue, ffaCombat)));
++        final String plain = ffa.session.getLatestPromptJson();
++        expect(!plain.contains("\"title\"") && !plain.contains("teamBlockLines") && !plain.contains("currentAssignments"), "a free-for-all block prompt has team fields: " + plain);
++    }
++
 +    private static String blocks(final Card blocker, final Card attacker) {
 +        return "{\"type\":\"chooseBlockers\",\"output\":{\"assignments\":[{\"blockerId\":\"" + SnapshotExtractor.javaCardId(blocker)
 +                + "\",\"attackerId\":\"" + SnapshotExtractor.javaCardId(attacker) + "\"}]}}";
@@ -9953,17 +10298,23 @@ index 0000000..6a2018d
 +        final Player blue;
 +
 +        Fixture(final boolean sharedTurns) {
++            this(sharedTurns, true);
++        }
++
++        Fixture(final boolean sharedTurns, final boolean teams) {
 +            final List<RegisteredPlayer> players = new ArrayList<>();
 +            final String[] names = {"White", "Red", "Yellow", "Blue"};
 +            for (int i = 0; i < 4; i++) {
 +                final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(names[i], null));
-+                rp.setStartingLife(30);
-+                rp.setTeamNumber(i < 2 ? 1 : 2);
++                rp.setStartingLife(teams ? 30 : 20);
++                if (teams) {
++                    rp.setTeamNumber(i < 2 ? 1 : 2);
++                }
 +                players.add(rp);
 +            }
 +            final GameRules rules = new GameRules(GameType.Constructed);
 +            rules.setAppliedVariants(EnumSet.of(GameType.Constructed));
-+            rules.setSharedTeamLife(true);
++            rules.setSharedTeamLife(teams);
 +            rules.setSharedTeamTurns(sharedTurns);
 +            game = new Game(players, rules, new Match(rules, players, "SharedCombatTest"));
 +            game.setAge(GameStage.Play);
@@ -12550,7 +12901,7 @@ index c778de5..a8a9364 100644
          None,
      );
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs b/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs
-index 358c48f..e4d66e6 100644
+index 358c48f..ee1dcb7 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs
 @@ -44,6 +44,7 @@ pub(super) fn choose_attackers<T: Responder>(
@@ -12567,6 +12918,17 @@ index 358c48f..e4d66e6 100644
                  attack_targets,
 +                unavailable: Vec::new(),
 +                limits: Vec::new(),
+             },
+         ),
+         None,
+@@ -103,6 +106,10 @@ pub(super) fn choose_blockers<T: Responder>(
+                 attackers,
+                 available_blocker_ids,
+                 error: None,
++                title: None,
++                revise_round: None,
++                current_assignments: None,
++                team_block_lines: None,
              },
          ),
          None,
@@ -12607,10 +12969,10 @@ index bac285e..a8e0d58 100644
          };
          match action {
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/bin/emit_prompt_fixtures.rs b/manabrew-rs/crates/manabrew-agent-interface/src/bin/emit_prompt_fixtures.rs
-index 3385214..b68e2c9 100644
+index 3385214..d968b3c 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/bin/emit_prompt_fixtures.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/bin/emit_prompt_fixtures.rs
-@@ -87,6 +87,8 @@ fn main() {
+@@ -87,11 +87,17 @@ fn main() {
          ChooseAttackers(choose_attackers::ChooseAttackersInput {
              attackers: vec![],
              attack_targets: vec![],
@@ -12619,7 +12981,16 @@ index 3385214..b68e2c9 100644
          }),
          ChooseBlockers(choose_blockers::ChooseBlockersInput {
              attackers: vec![],
-@@ -250,6 +252,7 @@ fn main() {
+             available_blocker_ids: vec![],
+             error: None,
++            title: None,
++            revise_round: None,
++            current_assignments: None,
++            team_block_lines: None,
+         }),
+         ChooseBoardTargets(choose_board_targets::ChooseBoardTargetsInput {
+             presentation: common::PromptPresentation {
+@@ -250,6 +256,7 @@ fn main() {
              cards: vec![],
              min: 0,
              max: 0,
@@ -13092,6 +13463,34 @@ index 7df4820..561562b 100644
 +    pub unavailable: Vec<AttackRefusalDto>,
 +    #[serde(default)]
 +    pub limits: Vec<AttackLimitDto>,
+ }
+ 
+ #[derive(Debug, Clone, Serialize, Deserialize, TS)]
+diff --git a/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_blockers.rs b/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_blockers.rs
+index 8541527..00f8e21 100644
+--- a/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_blockers.rs
++++ b/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_blockers.rs
+@@ -26,6 +26,23 @@ pub struct ChooseBlockersInput {
+     #[serde(default, skip_serializing_if = "Option::is_none")]
+     #[ts(optional)]
+     pub error: Option<String>,
++    // Two-Headed Giant team block (CR 805.10d): the prompt's title, "Block with <partner>" in round 1 and
++    // "<partner> changed the blocks. Agree or change?" in a revise round.
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub title: Option<String>,
++    // Team block: the revise round, 1 to 4, when a partner's change asks this defender again; absent in round 1.
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional, type = "number")]
++    pub revise_round: Option<u32>,
++    // Team block: this defender's own current blocks; sending them back unchanged is "Agree".
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub current_assignments: Option<Vec<BlockAssignment>>,
++    // Team block: the team's current block, one line per attacker, e.g. "Goblin Guide -> your Grizzly Bears + Yellow's Wall".
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub team_block_lines: Option<Vec<String>>,
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
