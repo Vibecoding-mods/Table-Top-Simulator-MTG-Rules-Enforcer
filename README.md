@@ -256,6 +256,9 @@ How each test works and what it can't see: [TESTING.md](TESTING.md).
   scripted" ([Workshop 2293586471](https://steamcommunity.com/sharedfiles/filedetails/?id=2293586471)), both by the
   same Workshop author; this repo only contains the script that adapts your own copy.
 - Card images come from [Scryfall](https://scryfall.com/docs/api) under its guidelines.
+- DeckCheck deck links (bracket and threat level): [DeckCheck](https://deckcheck.co) through its public API
+  ([deckcheck.co/docs/api](https://deckcheck.co/docs/api)), read-only, one request per import, nothing stored.
+  Not affiliated with DeckCheck.
 - Magic: The Gathering is © Wizards of the Coast. This is unofficial Fan Content permitted under the
   [Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy). Not approved/endorsed by Wizards.
   Portions of the materials used are property of Wizards of the Coast. © Wizards of the Coast LLC.
