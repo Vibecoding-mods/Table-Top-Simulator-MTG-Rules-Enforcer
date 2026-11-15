@@ -8966,6 +8966,85 @@ function onPlayerChangeColor(color)
     local ok, err = pcall(enginePromoteSeated)
     if not ok then print("[MTG] promote seated players: " .. tostring(err)) end
   end, 2)
+  -- (a player back in their seat mid-game is drawn again at once, not at the next once-a-second look: engineSeatCheck)
+  Wait.frames(function() pcall(engineSeatCheck) end, 2)
+end
+
+-- ───────── a player away from their seat and back (lag-outs, 2026-11-15) ─────────
+-- "When someone lags out or lag spikes the game bugs out" (the user, from real games). A player whose TTS drops out is
+-- out of their seat until they are back in it, and the table draws only seated players: a board that comes meanwhile
+-- leaves their hand cards out (engineRender destroys what it didn't place), and their question's panel goes when the screen UI is built for the seats left (engineRenderPanels). Nothing drew them
+-- again once they were back, because the game was waiting for that very player: no board, no question came. In the
+-- 2026-11-13 and 11-14 group games Yellow was asked and the game stood still for 1-6 minutes three times (#647 at
+-- 01:40:34, #379 at 23:02:59, #1512 at 23:34:03) until the host reloaded the table, whose "hello" got the game sent
+-- again, and Yellow answered within seconds each time. And the table's own onPlayerDisconnect turns a leaving player's
+-- hand face down, which nothing turned back.
+-- So, while an engine game runs, the seats are looked at once a second (and when a player changes colour): a human
+-- game seat left empty is said once (and written to the table log), and one taken again is drawn again from the board
+-- the table has: its hand face up and back in the hand, the screen UI built again and sent to every screen, its open
+-- question shown again. The bridge keeps the seat all along (it never hears of TTS seats). "mtg refresh" does the same
+-- for your own seat and also asks the bridge for the whole game again, the reload's cure, without a reload.
+engineSeatWatch = { seated = nil, refreshAt = {} }
+-- the human seats of the running game (colour -> true), nil with no game running
+function engineGameSeats()
+  local t = engineTable ~= nil and engineTable() or nil
+  if not ENGINE_MODE or t == nil or t.gameOver then return nil end
+  local out = {}
+  for _, pl in ipairs(t.players or {}) do if pl.color ~= nil and not pl.ai and data[pl.color] ~= nil then out[pl.color] = true end end
+  return out
+end
+-- colour's view drawn again from the table's last board (see above)
+function engineSeatBack(color)
+  local t = engineTable ~= nil and engineTable() or nil
+  if not ENGINE_MODE or t == nil or Player[color] == nil or not Player[color].seated then return end
+  for i = 1, Player[color].getHandCount() do
+    for _, o in ipairs(Player[color].getHandObjects(i) or {}) do
+      if tostring(o.getGMNotes()):find("^engine:") ~= nil then
+        local r = o.getRotation()
+        if math.abs(((r.z + 180) % 360) - 180) > 90 then o.setRotation(Vector(r.x, r.y, 0)) end
+      end
+    end
+  end
+  builtFor = nil -- (the screen UI set again, not only updated: what a screen that dropped out shows is unknown)
+  engineRender(t)
+  -- (once the rebuilt panels are up, three frames on: engineRenderPanels)
+  Wait.frames(function()
+    local p = enginePrompts[color]
+    if p == nil then return end
+    local ok, err = pcall(engineOnPrompt, p)
+    if not ok then print("[MTG] question shown again for " .. tostring(color) .. ": " .. tostring(err)) end
+  end, 5)
+end
+function engineSeatCheck()
+  local seats = engineGameSeats()
+  if seats == nil then engineSeatWatch.seated = nil return end
+  local now = {}
+  for _, c in ipairs(getSeatedPlayers()) do now[c] = true end
+  local was = engineSeatWatch.seated
+  engineSeatWatch.seated = now
+  if was == nil then return end
+  for c in pairs(seats) do
+    if was[c] and not now[c] then
+      engineTableLog(c, "left the seat mid-game (lag-out or disconnect); the game keeps it")
+      broadcastToAll("[MTG] " .. c .. " is out of their seat: the game keeps it, cards and all. Once they sit down again their view is drawn again (or they type  mtg refresh).", { 1, 0.85, 0.4 })
+    elseif now[c] and not was[c] then
+      engineTableLog(c, "back in the seat: their view drawn again")
+      engineSeatBack(c)
+    end
+  end
+end
+Wait.time(function() pcall(engineSeatCheck) end, 1, -1)
+-- "mtg refresh" (make-engine-copy.js): your own seat drawn again, and the whole game asked for again (at most every 5 s)
+function engineRefreshSeat(color)
+  local seats = engineGameSeats()
+  if seats == nil or not seats[color] then broadcastToColor("[MTG] Refresh: you have no seat in a running engine game.", color, { 1, 0.85, 0.4 }) return end
+  local at = engineSeatWatch.refreshAt[color]
+  if at ~= nil and os.clock() - at < 5 then broadcastToColor("[MTG] Refresh: done a moment ago.", color, { 1, 0.85, 0.4 }) return end
+  engineSeatWatch.refreshAt[color] = os.clock()
+  engineTableLog(color, "mtg refresh")
+  broadcastToColor("[MTG] Drawing your view again...", color, { 1, 0.85, 0.4 })
+  engineSeatBack(color)
+  engineSend("hello", { again = true, stamp = engineStamp(), keepRewind = true, mode = engineModeSent ~= nil and engineModeSent() or nil })
 end
 -- on load (engine mode is off then): the middle tile with its engine switch
 Wait.frames(function() if engineSetupButtons ~= nil then pcall(engineSetupButtons) end end, 60)
