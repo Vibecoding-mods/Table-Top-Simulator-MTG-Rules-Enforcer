@@ -181,6 +181,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-15 (2026-11-15 03:46 / relay layers cached, 2026-11-14 12:51 stamp) | `engine1115-2hgrules` (`01be70a2e78f` / `b3d530c62920`) | Two-Headed Giant rules audit against CR 810: team pay life (810.9h), can't win (810.8a), can't get poison (810.10c), opponents' poison once a team (810.10a), set life and redistribution one member a team (810.9d, 810.9f), proliferate one poison a team (701.34b) | Both rebuilt, no protocol change | tree `tmp/wt-2hgrules/tmp/eb-rules`, branch `2hg-rules` (`8b33391` on `44de312`), its `forge/` branch `2hg-rules` (`ec4266d5` on `19931d89`); outer branch `2hg-team-rules` | not deployed | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) |
 | 2026-11-14 16:00 / (relay layers cached, 12:51 stamp) | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) | engine1115-2hg with the one Java comment taken out of `ActionSpace.getStackTargetCandidates` (the AGENTS.md rule); no code change | Both rebuilt, no protocol change (relay source unchanged) | tree `tmp/eb1115b`, branch `nocomment-1115` (`44de312` on `f995fab`), its `forge/` branch `nocomment-1115` = `19931d89`; outer branch `engine-nocomment` | not deployed | `engine1115-2hg` (`fcb808036400` / `034587f1f7b1`) |
 | 2026-11-14 12:49 / 12:51 | `engine1115-2hg` (`fcb808036400` / `034587f1f7b1`) | Two-Headed Giant Level 1 (shared life and poison, team loss, team blocks, team-lead start, 2HG Commander numbers) and the team plumbing (`gameConfig`, `teamRules`); the Forge AI blocks for its partner; on top of engine1114-rejoin | **Both** (protocol: `StartGameRequest` team fields, `GameViewDto.teamRules`, relay allow-list `gameConfig`) | tree `tmp/eb1115-2hg` in `tmp/wt-2hg`, branch `2hg-1115` (`4f4411c`, `f995fab`), its `forge/` branch `2hg-1115` (`ef17522a`, `7f3026cb`, `19931d89`); outer branch `2hg` | not deployed | `engine1114-rejoin` (or `engine1113`, the live one) |
 | 2026-11-14 03:25 / (relay cached, 2026-11-12 20:07 stamp) | `engine1114-rejoin` (`3e8f2005bda9` / `4e47919e1966`) | A rewind brings back players who conceded or lost after the point; also carries planechase-fix-1113 (first build) | Node only (no protocol change; relay source unchanged) | tree `tmp/eb1114-rejoin` in worktree `agent-ac7d563c775ca72fd`, branch `rejoin-1114` (`866240c`, `0d6dfa3`, `df0e503`); bridge "is back in the game" line | not deployed | `engine1113` (`4d0f4dcaa0f7` / `d88922ebdd9f`) |
@@ -249,6 +250,64 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-15 engine1115-2hgrules: Two-Headed Giant rules audit (built, not deployed)
+- **Problem:** the user (2026-11-15): "In 2 headed giant [an] effect that affects you affects your teammates the same;
+  the engine should treat two people [on a team] the same." Every 2HG rule of CR 810 (effective 2026-11-06) and 701.34b
+  was checked against the engine (`docs/game-modes-spec.md` §5.9.1 has the whole table). Six places treated the partners
+  apart where the rules make them one:
+  - 810.9h: a partner of a "can't lose life" player (Platinum Emperion) could still pay life, and paid it for nothing
+    (`canPayLife` read only the payer, `loseLife` then lost nothing).
+  - 810.8a: the partner of a "can't win" player (Abyssal Persecutor) could win (Thassa's Oracle).
+  - 810.10c: a partner of a "can't get poison counters" player (Melira, Sylvok Outcast) still got them.
+  - 810.10a: the opponents' poison count (Phyrexian Swarmlord, Mycosynth Fiend, Vishgraz) added both opponents' mirrored
+    counts, twice the team's.
+  - 810.9d / 810.9f: "each player's life total becomes N" set every member in seat order (the first seat always the one
+    affected), and a redistribution could take both partners.
+  - 701.34b: proliferating both partners gave the team two poison counters, not one.
+- **What, Forge (`engine/forge.patch`, all behind `GameRules.sharedTeamLife`; `cantWin` reads only the player outside
+  it):** `Player.canPayLife` refuses a payment above 0 when the team can't lose life; `Player.cantWin` reads every partner
+  still in the game; `Player.canReceiveCounters` reads the partners for poison; `getOpponentsTotalPoisonCounters` counts
+  each opposing team once; `LifeSetEffect.oneMemberOfEachTeam` asks a team's first listed member which partner a
+  "becomes N" sets (the Forge AI takes the first) and keeps the first chosen partner of a redistribution;
+  `CountersProliferateEffect.poisonedPlayers` asks the proliferating player which chosen partner gets the poison counter.
+  Tried and taken back in the same branch: letting a partner's "can't lose" stop an opponent's alternate win. A player who
+  wins ends the game at once (CR 104.1), and Forge's own `loseConditionMet` skips can't-lose effects for that reason, so
+  the team check keeps skipping it (guard `anOpponentsAlternateWinBeatsAPartnersCantLose`).
+- **What, harness (`engine/manabrew.patch`):** tests only, 10 new `TeamGameTest` checks (35 in all). No node, relay or
+  protocol change.
+- **Source:** tree `tmp/wt-2hgrules/tmp/eb-rules`, a clone of `tmp/eb1115b`: branch `2hg-rules` = `nocomment-1115`
+  (`44de312`) + `a19510f`, `56d31e0`, `adcf6fd`, `742377d`, `8b33391` (tests); its `forge/` branch `2hg-rules` = `19931d89` +
+  `e71b3451`, `a34d23ca`, `5dd8325a`, `ec4266d5`. Patches regenerated with `ENGINE_WORK_DIR=tmp/wt-2hgrules/tmp/eb-rules
+  ENGINE_BUILD_DIR=tmp/wt-2hgrules/tmp/engine-build bash engine/make-patches.sh` (56 and 438 files: `LifeSetEffect` and
+  `CountersProliferateEffect` are new to the patch).
+- **Build:** 2026-11-15 through `tmp/slot.js`, `ENGINE_BUILD_DIR=tmp/wt-2hgrules/tmp/engine-build bash
+  engine/build-images.sh engine1115-2hgrules`: `mtg-forge-node:engine1115-2hgrules` `01be70a2e78f`,
+  `mtg-relay:engine1115-2hgrules` `b3d530c62920` (relay source unchanged, the same layers as engine1115-2hg's); test image
+  `mtg-harness-test:engine1115-2hgrules` `32ae2b0f77e2` (`--target java-builder`, same tree).
+- **Proof:** in `mtg-harness-test:engine1115-2hgrules` on `tmp/wt-2hgrules/tmp/eb-rules/forge-harness`,
+  `engine/checks/harness-tests.sh` with no class name: 17 of 17 classes, 175 checks (`TeamGameTest` 35). Break-it
+  (`tmp/wt-2hgrules/tmp/mutate-rules.sh`: the changed Forge classes compiled into the harness classpath ahead of the
+  engine1115b jar, one mutation at a time, each file restored and checked by sha256), baseline 35 of 35: pay life without
+  the team's can't-lose fails `payingLifeUsesTheTeamTotalAndATeammateWhoCantLoseLifeStopsIt`; can't win on the player
+  alone fails `aTeammateWhoCantWinStopsTheTeamsWin`; can't get poison on the player alone fails
+  `aTeammateWhoCantGetPoisonKeepsItOffTheTeam`; opponents' poison summed over players fails
+  `opponentsPoisonIsCountedOnceATeam`; every partner set fails `settingEachPlayersLifeAffectsTheMemberTheTeamChooses` and
+  `aRedistributionTouchesOneMemberOfEachTeam`; the first partner set with no choice fails `settingEach...`; proliferate
+  poison on every chosen partner fails `proliferatingBothPartnersGivesTheTeamOnePoison`; can't-lose effects (own and
+  partner's) let stop an opponent's win fails `anOpponentsAlternateWinBeatsAPartnersCantLose`; a life loss not shared fails
+  10 checks, the new guards `settingOnePlayersLifeMovesTheTeamByTheDifference` and
+  `eachOpponentLosingLifeCountsEveryPlayerOfTheTeam` among them. Live, `LIVE_STACK=7 LIVE_TIMEOUT=600 sh
+  tools/live-check.sh engine1115-2hgrules tests/live_2hg_check.js`: 24 of 24. `tests/test_table_golden.js`: 6 games
+  match; `tests/test_bridge_golden.js`: 1064 of 1066, the two that differ list deck files that are not in the repo
+  (`decks/ashling_limitless_commander.json` and others, missing on main too; no bridge file changed here).
+- **Known limits:** 810.9d when a card sets each player in a `RepeatEach` (Biorhythm: the last seat's number stands);
+  "each player loses a third of their life" (Pox, `RepeatEach`) works the second partner's third out from the lowered
+  total; the Forge AI picks the first partner in the two new choices. The Level 1 limits of §5.9 stand (own turns, own
+  blocks).
+- **Deploy (when wanted):** TTS closed, no game running, from main after this branch is merged:
+  `node tools/deploy.js --image engine1115-2hgrules`.
+- **Rollback:** `node tools/deploy.js --image engine1115b`.
 
 ### 2026-11-14 engine1115b: no comments in the Manabrew Java (built, not deployed)
 - **Problem:** `engine/manabrew.patch` shipped one Java comment, against the no-comments rule for Manabrew Java
