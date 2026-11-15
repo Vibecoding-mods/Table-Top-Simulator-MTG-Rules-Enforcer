@@ -578,7 +578,8 @@ Built against `tests/golden/fixtures/2hg-level2-protocol.json` (branch `l2-tests
 recorded). Every piece is gated on the board's `teamRules.rule == "sharedTurns"` (bridge) or the board's `activeTeam`
 (table), so Level 1 and free-for-all boards are unchanged (`test_bridge_golden`, `test_table_golden` green).
 
-- **Level switch (host):** `mtg 2hg turns shared|own` (`ENGINE_TEAM_TURNS`); `mtg 2hg turns` says the setting. The Start
+- **Level switch (host):** `mtg 2hg turns shared|own` (`ENGINE_TEAM_TURNS`, `"shared"` by default since §5.12: Two-Headed
+  Giant is Level 2 unless the host types `mtg 2hg turns own`); `mtg 2hg turns` says the setting. The Start
   sends `teamTurns: "shared"` only with `teamMode` 2hg; the bridge's `setupOf` keeps it as `turns`, `gameConfig` sends
   `teamRules: "sharedTurns"` instead of `sharedLife`, and the setup line says "each team takes one turn together,
   attacks together and blocks together". The Teams button reads "2HG team turns".
@@ -610,7 +611,8 @@ recorded). Every piece is gated on the board's `teamRules.rule == "sharedTurns"`
   together aren't legal. <reason> You are both asked again, Yellow first."
 - **Trigger order (805.7, track B):** the team's first seat gets one order question for both partners' triggers: "Your
   team's triggers: click the one that happens first", the partner's named "Red's Juggernaut: ...", and the partner is
-  told "White is putting your team's triggers in order, yours too".
+  told "White is putting your team's triggers in order, yours too (the team leader does)". The primary player's hint says
+  "you are the team leader" (the engine asks White for team 1 and Yellow for team 2: `GameAction.teamLead`).
 - **Tests:** `tests/test_bridge_2hg_level2.js` (the fixture through the bridge, with a Level 1 contrast) and
   `tests/test_table_2hg_level2.js` (the bridge's boards on the fake TTS with four seated players, with a Level 1 contrast);
   27 mutations, each made a named check fail and every file came back to its sha256.
@@ -619,6 +621,44 @@ Waits on the engine: the real `activeTeamIds` / `priorityTeamIds` names (the bri
 to `teamNumber`; the table derives the priority team from the sides), a recorded fixture to replace the hand-built one,
 (tracks B and C are written: `docs/2hg-level2-turns.md`, `docs/2hg-level2-combat.md`; neither writes `activeTeamIds` /
 `priorityTeamIds` yet, and the bridge needs neither). Not built: 805.2 disagreements and 810.9d member picks, team mulligans (805.3a), a Forge AI partner in a shared turn (§5.4 item 6).
+
+### 5.12 The team's joint block (2026-11-15, branch `l2-bridge`; engine branch `cloud/team-block`)
+
+The engine (`docs/handoff/team-block-report.md` on `cloud/team-block`) asks each defender in turn, asks again after a
+partner changes the team's block, stops at an answer that changes nothing, and after 4 revise rounds lets the primary
+player's latest answer stand (805.2). Level 1 teams block the same way. The prompt is still `chooseBlockers` and the
+answer still `declareBlockers`; four optional prompt fields carry the joint block: `title`, `reviseRound` (1-4),
+`currentAssignments` (the defender's own blocks) and `teamBlockLines` (one line per attacker). The owner's brief: "it
+has to be easy to read and easy to do".
+
+- **Bridge (`teams.js` `jointBlock` / `jointBlockLines` / `teamBlockNotice`, `bridge.js` chooseBlockers):** a prompt
+  with any of the fields is a joint block. Its title is the engine's ("Block with Yellow", "Yellow changed the blocks.
+  Agree or change?"). The text says "The team's block:" and the lines, `->` drawn as an arrow, every other player's name
+  ("Yellow's Wall of Wood") in their seat colour (`SEAT_HEX`, TTS rich text); the corner's note has the lines plain. With
+  `currentAssignments` the options start with **Agree** (`__agree`), which sends `currentAssignments` back unchanged;
+  out of time is Agree too (`onTimeout`). The options matching `currentAssignments` carry `on: true` (pre-filled), and
+  the prompt `joint` (the revise round, 0 in round 1). Every creature attacking the team is offered, as the engine lists
+  them. A change is picked and sent with Done as before.
+- **Notices (no-card `revealCards`):** "Yellow: Wall of Wood now blocks Hill Giant." and "... no longer blocks." are one
+  chat line each to each defender, acknowledged at once, and one game-log line for the team (`tableNotice`). The cap's
+  "Yellow settles the team's blocks (rule 805.2)" reads "Yellow decides (team leader)".
+- **Table (`engine-renderer.lua`):** a prompt with `joint` opens the panel (title, the team's block, Agree first in
+  green, then the options); the `on` options are picked on arrival (`engineOnPrompt`); the corner's big button is
+  **Agree** while the picks are the pre-filled ones (`engineJointUnchanged`) and **Done** once anything changes (taken
+  back, Agree again); the corner hint says "Agree, or change: your creature, then the attacker it blocks, then Done."
+  While a partner's joint block is open, the other partner's corner says "Waiting for Yellow..." (`engineTeamDeclaring`).
+- **Older prompts:** without the fields nothing changes: the old title, no Agree, no pre-fill, the panel not forced open
+  (`test_bridge_golden`, `test_table_golden`; `tests/test_bridge_2hg_team_block.js` free-for-all and old-prompt cases).
+- **Shared turns by default:** `ENGINE_TEAM_TURNS = "shared"`, so a Two-Headed Giant Start sends `teamTurns: "shared"`
+  and the bridge's gameConfig `teamRules: "sharedTurns"`.
+- **Tests:** `tests/test_bridge_2hg_team_block.js` drives `tests/golden/fixtures/2hg-team-block.json` (hand-built in the
+  report's shapes, with its `decidingPlayerId` sequences: a change of mind, agreement, no change, the cap, a refusal,
+  free-for-all; and the change of mind at Level 1). `tests/test_table_2hg_team_block.js` plays the bridge's prompts on
+  the fake TTS. Break-it: `node tools/mutate-team-block.js` (each mutation must fail the check it names; files restored
+  by sha256).
+- **Needs a live check:** the field names through the relay (the report did not check that the relay keeps unknown
+  prompt fields), the notices' exact presentation (title or text), rich-text colours in the real panel, and the panel's
+  height with three or more attackers.
 
 ## 6. Juggernaut (3v1; kept as written)
 One strong player against a team of three.

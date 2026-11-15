@@ -45,9 +45,9 @@ async function startFlow(h) {
 (async () => {
   // ── setupOf: what the table's start message says ──
   same("setupOf: teams with no teamMode are Two-Headed Giant (the table before 2v2)", T.setupOf({ teams: { White: 1, Red: 1, Yellow: 2, Blue: 2 } }).mode, "2hg");
-  same("setupOf: 2v2 keeps the teams sent", T.setupOf({ teamMode: "2v2", teams: { White: 1, Red: 2, Yellow: 1, Blue: 2 } }), { teams: { White: 1, Red: 2, Yellow: 1, Blue: 2 }, mode: "2v2", jugg: null });
+  same("setupOf: 2v2 keeps the teams sent", T.setupOf({ teamMode: "2v2", teams: { White: 1, Red: 2, Yellow: 1, Blue: 2 } }), { teams: { White: 1, Red: 2, Yellow: 1, Blue: 2 }, mode: "2v2", jugg: null, turns: null });
   same("setupOf: a Juggernaut start's teams come from the Juggernaut, not the teams sent", T.setupOf({ teamMode: "juggernaut", teams: { White: 1, Red: 1, Yellow: 2, Blue: 2 }, juggernaut: { color: "Yellow" } }).teams, { White: 2, Red: 2, Yellow: 1, Blue: 2 });
-  same("setupOf: nothing is free-for-all", T.setupOf({}), { teams: null, mode: null, jugg: null });
+  same("setupOf: nothing is free-for-all", T.setupOf({}), { teams: null, mode: null, jugg: null, turns: null });
   same("juggOf: the defaults (spec §6)", T.juggOf(undefined), { color: "White", life: null, hand: 10, draw: 1, land: 0, cmd: 21, order: "first" });
   same("juggOf: a colour that is not a seat is White", T.juggOf({ color: "Purple" }).color, "White");
   same("juggOf: a seat's colour in lower case is White too (the table sends White, Red, ...)", T.juggOf({ color: "red" }).color, "White");

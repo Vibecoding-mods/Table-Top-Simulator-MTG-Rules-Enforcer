@@ -740,7 +740,7 @@ function engineCtlHands(m, seen)
 end
 
 -- ───── The team modes (docs/game-modes-spec.md §4.1, §5.5-5.6, §6): Two-Headed Giant, 2v2, Juggernaut ─────
--- The host's teams for the next games: nil is free-for-all. "mtg mode 2hg" (Two-Headed Giant, Level 1) and "mtg mode
+-- The host's teams for the next games: nil is free-for-all. "mtg mode 2hg" (Two-Headed Giant, Level 2 unless "mtg 2hg turns own") and "mtg mode
 -- 2v2" (2v2 Team Commander) set the sides (White + Red against Yellow + Blue, the two seats on each long side), "mtg
 -- team <colour> <1|2>" moves a seat; "mtg mode juggernaut" puts the Juggernaut (ENGINE_JUGG.color, "mtg juggernaut
 -- <colour>") alone against the other three, with its settings ("mtg juggernaut life|hand|draw|land|cmd|order ...");
@@ -750,10 +750,10 @@ end
 -- none. Globals, not locals: the main chunk is at Lua's 200-local limit.
 ENGINE_TEAMS = nil
 ENGINE_TEAM_MODE = nil -- "2hg" | "2v2" | "juggernaut" while ENGINE_TEAMS is set
--- Two-Headed Giant's level: nil is Level 1 (each player's own turn, the team's back to back), "shared" Level 2 (one turn
--- for the team, attacks and blocks together: CR 805, 810.2). "mtg 2hg turns shared|own" (host); sent with Start as
--- teamTurns, only in a Two-Headed Giant game (engineTeamTurnsSent; the bridge's gameConfig says "sharedTurns").
-ENGINE_TEAM_TURNS = nil
+-- Two-Headed Giant's level: "shared" Level 2, the default (one turn for the team, attacks and blocks together: CR 805,
+-- 810.2), nil Level 1 (each player's own turn, the team's back to back). "mtg 2hg turns shared|own" (host); sent with
+-- Start as teamTurns, only in a Two-Headed Giant game (engineTeamTurnsSent; the bridge's gameConfig says "sharedTurns").
+ENGINE_TEAM_TURNS = "shared"
 -- the Juggernaut's settings (bridge/teams.js JUGG_DEFAULTS; life nil: twice the format's, 80 or 40)
 ENGINE_JUGG = { color = "White", hand = 10, draw = 1, land = 0, cmd = 21, order = "first" }
 ENGINE_TEAM_NAMES = { ["2hg"] = "Two-Headed Giant", ["2v2"] = "2v2 Team Commander", juggernaut = "Juggernaut" }
@@ -794,7 +794,7 @@ end
 ENGINE_JUGG_LIMITS = { life = { 1, 999 }, hand = { 0, 30 }, draw = { 0, 5 }, land = { 0, 5 }, cmd = { 1, 99 } }
 -- what each mode means, said when the host picks it
 ENGINE_TEAM_HELP = {
-  ["2hg"] = ". Partners share life (30 a team, 80 in Commander), poison (15) and a commander's damage (42), block for each other and see each other's hands; each player takes their own turn. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host). One turn for each team, attacking and blocking together:  mtg 2hg turns shared  (back:  mtg 2hg turns own).",
+  ["2hg"] = ". Partners share life (30 a team, 80 in Commander), poison (15) and a commander's damage (42), block for each other and see each other's hands. Each team takes one turn together: both partners untap, draw, attack and block together. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host). Each player's own turn instead:  mtg 2hg turns own  (back:  mtg 2hg turns shared).",
   ["2v2"] = ". Each player has their own life (40, 20 in Standard) and turn; teammates can't attack each other; a team wins when both its opponents have lost. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host).",
 }
 -- "mtg mode 2hg|2v2|juggernaut|ffa", "mtg team <colour> <1|2>" and "mtg juggernaut ..." (host): true when handled
@@ -4083,7 +4083,7 @@ ENGINE_THEME = { window = "#161616F0", button = "#262626", dock = "#1A1A1A", tab
 -- The combat parts (docs/engine-ui-spec.md 9): attacking green, being attacked (blocking) red; "On" = picked, the button
 -- that attacks or blocks, the word COMBAT in the phase bar. word = the phase bar's rich-text colours.
 ENGINE_COMBAT = { attack = "#1F4D2B", attackOn = "#2E9E4F", block = "#5E1E1E", blockOn = "#C62828",
-  attackWord = "#7CFC9A", blockWord = "#FF6B6B" }
+  attackWord = "#7CFC9A", blockWord = "#FF6B6B", agree = "#2E7D32" } -- (agree: the team's joint block's Agree button)
 -- "Resolve N× <name>" (__group): the corner's third button and its line in the Choices panel
 ENGINE_GROUP_COLOR = "#6A3D9A"
 engineBtnLook = {} -- Button id -> { bg, tc }: the colours its XML gives it (engineRenderPanels)
@@ -4416,6 +4416,7 @@ function optionColor(p, index, picked)
   -- docs/engine-ui-spec.md 9)
   if o.id == "__allattack" then return ENGINE_COMBAT.attackOn end
   if o.id == "__noattack" then return "#2e3a59" end
+  if o.id == "__agree" then return ENGINE_COMBAT.agree end
   if kind == "attack" then return picked and ENGINE_COMBAT.attackOn or ENGINE_COMBAT.attack end
   if kind == "block" then return picked and ENGINE_COMBAT.blockOn or ENGINE_COMBAT.block end
   -- Arena-style, same colours as the corner buttons and the card row: orange main choice, blue alternative,
@@ -4596,18 +4597,29 @@ function engineCombatSide(color, t)
 end
 -- Two-Headed Giant Level 2: while a partner is asked their part of the team's attack or block (each partner declares
 -- their own creatures, one after the other: docs/2hg-level2-combat.md), the other partner's line says so: "White is
--- declaring attackers for your team...". nil outside a shared-turn game or when no partner's question is a combat one
--- (an AI partner's questions never reach the table).
+-- declaring attackers for your team...". The team's joint block (the bridge's joint, CR 805.10d: a Level 1 team blocks
+-- so too) says "Waiting for Yellow..." while the partner decides. nil outside a shared-turn game or a joint block, or
+-- when no partner's question is a combat one (an AI partner's questions never reach the table).
 function engineTeamDeclaring(t, color)
-  if t == nil or t.activeTeam == nil or t.gameOver then return nil end
+  if t == nil or t.gameOver then return nil end
   for _, c in ipairs(engineTeamOf(t, color) or {}) do
     local q = c ~= color and enginePrompts[c] or nil
     local kind = q ~= nil and describePrompt(q).kind or nil
-    if kind == "attack" or kind == "block" then
+    if kind == "block" and q.joint ~= nil then return "Waiting for " .. engineNameOf(c) .. "..." end
+    if t.activeTeam ~= nil and (kind == "attack" or kind == "block") then
       return engineNameOf(c) .. " is declaring " .. (kind == "attack" and "attackers" or "blockers") .. " for your team..."
     end
   end
   return nil
+end
+-- The joint block's own blocks as the prompt pre-filled them (the bridge's "on" options: the defender's current blocks)
+-- still picked, and nothing else: Agree is then the big corner button; any change makes it Done.
+function engineJointUnchanged(color, p)
+  local sel = engineSelected[color] or {}
+  for i, o in ipairs((p and p.options) or {}) do
+    if tostring(o.id):sub(1, 2) ~= "__" and (sel[i] == true) ~= (o.on == true) then return false end
+  end
+  return true
 end
 function engineUpdateCorner(color, p)
   local t = lastTable
@@ -4683,6 +4695,7 @@ function engineUpdateCorner(color, p)
       elseif cards and players and sorts.walkers then hint = title .. "\nClick a player's life counter or a glowing planeswalker."
       else hint = title .. ((cards and players) and "\nClick a glowing card or a life counter." or players and "\nClick a player's life counter." or "\nClick a glowing card.") end
     elseif kind == "attack" then hint = title .. "\nClick a creature, then who it attacks. Or All attack / No attacks."
+    elseif kind == "block" and q.joint ~= nil then hint = title .. "\nAgree, or change: your creature, then the attacker it blocks, then Done."
     elseif kind == "block" then hint = title .. "\nClick your creature, then the attacker it blocks."
     elseif kind == "mana" then
       local life = engineLifePayOption(q)
@@ -4760,11 +4773,14 @@ function engineUpdateCorner(color, p)
     big, bigLabel = "confirm", "Done"
     -- attacks, as Arena: nothing chosen yet: No attacks / All attack; some chosen: Attack (n) / No attacks. (The
     -- second button used to be overwritten with "Attack", so No attacks never showed, playtest 2026-10-24.)
-    local all, none
+    local all, none, agree
     for i, o in ipairs(p.options or {}) do
       if o.id == "__allattack" then all = i end
       if o.id == "__noattack" then none = i end
+      if o.id == "__agree" then agree = i end
     end
+    -- (the team's joint block: one click agrees while the pre-filled blocks are unchanged; a change is sent with Done)
+    if agree ~= nil and engineJointUnchanged(color, p) then big, bigLabel, bigColor = agree, "Agree", ENGINE_COMBAT.agree end
     if all ~= nil or none ~= nil then
       local n = 0
       for k in pairs(engineSelected[color] or {}) do
@@ -6164,7 +6180,15 @@ function engineOnPrompt(m)
   end
   -- a question closes (answered elsewhere, withdrawn) or a new one opens: see engineEnterPrompt / engineExitPrompt
   if m.promptId == nil then engineExitPrompt(m.color)
-  else engineSelected[m.color] = nil engineFilter[m.color] = nil engineEnterPrompt(m.color, m) end
+  else
+    engineSelected[m.color] = nil engineFilter[m.color] = nil
+    -- (a question that comes with picks already made, the bridge's "on": the team's joint block pre-fills the
+    -- defender's own current blocks)
+    for i, o in ipairs(m.options or {}) do
+      if o.on == true then engineSelected[m.color] = engineSelected[m.color] or {} engineSelected[m.color][i] = true end
+    end
+    engineEnterPrompt(m.color, m)
+  end
   -- The panel opens by itself only for questions the table can't answer (not priority, paying, combat, targets,
   -- cards on the table, the card row, two-button questions in the corner) and closes again once the next question
   -- is one of those, or the question is gone. A panel the player opened (the Choices tab) stays open.
@@ -6190,6 +6214,8 @@ function engineOnPrompt(m)
         or (pictures > 0 and pictures <= ROW_MAX and #opts - pictures <= ROW_BTNS - 1)
         or (pictures == 0 and #opts > 0 and fits and (m.show ~= nil or ROW_BUTTON_KINDS[describePrompt(m).kind] ~= nil))
     end
+    -- (the team's joint block opens the panel: its title, the team's block line by line, Agree)
+    if m.promptId ~= nil and m.joint ~= nil then handled = false end
     engineShown[m.color] = (not handled) and "ask" or nil
   end
   if m.promptId ~= nil and describePrompt(m).kind ~= "priority" and engineBrowse[m.color] then

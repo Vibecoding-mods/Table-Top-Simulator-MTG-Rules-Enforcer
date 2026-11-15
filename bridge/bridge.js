@@ -9503,9 +9503,26 @@ function onPrompt(seat, prompt) {
         const ctl = byId[p.id.split("|")[0]]?.controllerId;
         if (ctl && ctl !== blockWho) p.label = `${nameOf(ctl)}'s ${p.label}`;
       }
-      const blockText = [input.error, ...teamLines, ...battleLines].filter(Boolean).join("\n");
-      ui = { title: "Choose blockers", mode: "multi", min: 0, max: pairs.length, options: pairs, text: blockText || input.error, ...(teamLines.length ? { note: teamLines.join(" ") } : {}) };
+      // (Two-Headed Giant's joint block, CR 805.10d and 805.2: the engine's title, the team's block one line per attacker
+      // with the other players' names in their seat colour, the defender's own blocks pre-filled, and Agree, one click
+      // that sends them back unchanged. A prompt without these fields is asked as before: teams2hg.jointBlock)
+      const jb = teams2hg.jointBlock(input);
+      if (jb) {
+        for (const p of pairs) if (jb.on.has(p.id)) p.on = true;
+        const named = Object.keys(game?.slotNames || {}).filter((s) => s !== blockWho).map((s) => ({ name: nameOf(s), color: game.slotColor?.[s] }));
+        const lines = jb.lines.map(displayText);
+        const said = [input.error, ...(lines.length ? ["The team's block:", ...teams2hg.jointBlockLines(lines, named)] : []),
+          jb.agree ? "Agree keeps your blocks as they are. Or change them (your creature, then the attacker it blocks) and press Done." : null, ...battleLines];
+        ui = { title: jb.title ? displayText(jb.title) : "Choose blockers", mode: "multi", min: 0, max: Math.max(pairs.length, jb.agree ? 1 : 0), joint: jb.round || 0,
+          options: [...(jb.agree ? [{ id: "__agree", label: "Agree" }] : []), ...pairs], text: said.filter(Boolean).join("\n"),
+          ...(jb.agree ? { onTimeout: "__agree" } : {}), // (out of time: the blocks as they are, the team's last word)
+          ...(lines.length ? { note: teams2hg.jointBlockLines(lines, named, false).join("; ") } : {}) };
+      } else {
+        const blockText = [input.error, ...teamLines, ...battleLines].filter(Boolean).join("\n");
+        ui = { title: "Choose blockers", mode: "multi", min: 0, max: pairs.length, options: pairs, text: blockText || input.error, ...(teamLines.length ? { note: teamLines.join(" ") } : {}) };
+      }
       toOutput = (a) => {
+        if (jb?.agree && a.includes("__agree")) return { type: "declareBlockers", assignments: JSON.parse(JSON.stringify(jb.agree)) };
         const byBlocker = {};
         for (const v of a) { const [b, at] = v.split("|"); byBlocker[b] = at; }
         return { type: "declareBlockers", assignments: Object.entries(byBlocker).map(([blockerId, attackerId]) => ({ blockerId, attackerId })) };
@@ -9611,6 +9628,15 @@ function onPrompt(seat, prompt) {
       }
       // a notice with no cards ("White picked AI 1", "AI 1 vote Money"): told in chat and the game log, not asked (one
       // test game asked for OK 15 times; Arena shows such things in passing)
+      // (Two-Headed Giant's joint block: each change one chat line, "Yellow: Wall of Wood now blocks Hill Giant.", and the
+      // cap's "Yellow decides (team leader)"; printed, never asked, and once in the game log for the team)
+      const blockNews = !(input.cards || []).length ? teams2hg.teamBlockNotice(displayText(String(title || ""))) : null;
+      if (blockNews) {
+        chat(`[MTG] ${blockNews.line}`, seat.color);
+        tableNotice(`teamblock|${blockNews.line}`, seat.color, blockNews.line);
+        seat.respond(prompt.promptId, type, { type: "revealCardsAcknowledged" });
+        return;
+      }
       // (Two-Headed Giant Level 2: a refused team attack or block is the team's, said so, and who is asked first again)
       const teamNo = teams2hg.teamRefusalWords(gv, seat.slot, /declaration invalid/i.test(String(title)) ? title : input.presentation?.text, nameOf);
       if (teamNo) {
