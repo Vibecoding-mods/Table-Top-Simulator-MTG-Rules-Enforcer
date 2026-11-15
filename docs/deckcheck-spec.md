@@ -99,9 +99,14 @@ Built 2026-11-15: `tools/deckcheck.lua`, `tests/test_deckcheck.js` (a deploy gat
 - The tag line is `[deckcheck] id=<id> bracket=3 threat=54/96` (missing parts left out), at the start of its line.
 - Any other 5xx reads as 500; 0/nil (no answer) is "Couldn't reach DeckCheck"; another status names its number.
 
-Live shape: **not yet confirmed.** The one smoke request against the docs' example id `sBid_JEUQZ4D` (2026-11-15)
-got a JSON 404 (the documented error form), so the success shape is still as documented, unchecked. Run the smoke
-script once on any public deck before the TTS wiring.
+Live shape: **confirmed 2026-11-15.**
+- The docs' example id `sBid_JEUQZ4D` got a JSON 404, the documented error form.
+- A public `/app/builder/` deck got a 200 whose shape matches the docs:
+  - the commander's `deckCardId` keys are like `com0_<name>`;
+  - `setName` is null;
+  - `prices` uses the short keys `ck`, `cm`, `mp` and `usd`.
+
+  `deckcheckEntries` read 1 commander and 90 entries (100 cards), with the label "Bracket 3 · Threat 45/96".
 
 The TTS wiring (importer patch, label drawing, the start/end hide and show) comes after the headless part passes,
 and is tested on the real table.
