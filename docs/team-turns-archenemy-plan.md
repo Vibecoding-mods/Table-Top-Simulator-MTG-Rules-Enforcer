@@ -333,6 +333,13 @@ through the session.
   threw on it.
 - Report: `docs/handoff/archenemy-spike-report.md`.
 
+### 2.11 View done (2026-11-16, branch `cloud/archenemy-view`)
+
+- Each player in an Archenemy game carries `isArchenemy` and `schemeDeckCount`, and `schemes` (`{id, name, ongoing}`)
+  while any are in motion. The scheme deck's order is never sent.
+- Events `how: "setInMotion"`, `"abandoned"` and `"returned"` mark the scheme moves.
+- Exact JSON: `docs/handoff/archenemy-view-report.md`.
+
 ## 3. Recommended order and why
 
 1. **Finish Level 2 first (about 40 hours).** The code exists. It is the larger risk because it is a default flip.

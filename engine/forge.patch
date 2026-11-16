@@ -910,6 +910,27 @@ index 474f0b18..e73407f6 100644
              String attacking = sa.getParam(attackingParam);
  
              GameEntity defender = null;
+diff --git a/forge-game/src/main/java/forge/game/ability/effects/AbandonEffect.java b/forge-game/src/main/java/forge/game/ability/effects/AbandonEffect.java
+index 4b92d7f6..ee8d24a1 100644
+--- a/forge-game/src/main/java/forge/game/ability/effects/AbandonEffect.java
++++ b/forge-game/src/main/java/forge/game/ability/effects/AbandonEffect.java
+@@ -5,6 +5,7 @@ import java.util.Map;
+ import forge.game.ability.AbilityKey;
+ import forge.game.ability.SpellAbilityEffect;
+ import forge.game.card.Card;
++import forge.game.event.GameEventCardChangeZone;
+ import forge.game.player.Player;
+ import forge.game.spellability.SpellAbility;
+ import forge.game.trigger.TriggerType;
+@@ -33,6 +34,8 @@ public class AbandonEffect extends SpellAbilityEffect {
+ 
+         controller.getZone(ZoneType.Command).remove(source);
+         controller.getZone(ZoneType.SchemeDeck).add(source);
++        // the zone change is done by hand above, so tell listeners (logs, views) about it
++        controller.getGame().fireEvent(new GameEventCardChangeZone(source, controller.getZone(ZoneType.Command), controller.getZone(ZoneType.SchemeDeck)));
+ 
+         controller.getGame().getTriggerHandler().clearActiveTriggers(source, null);
+         controller.getGame().getTriggerHandler().registerActiveTrigger(source, false);
 diff --git a/forge-game/src/main/java/forge/game/ability/effects/AddTurnEffect.java b/forge-game/src/main/java/forge/game/ability/effects/AddTurnEffect.java
 index 8fae9252..626ec639 100644
 --- a/forge-game/src/main/java/forge/game/ability/effects/AddTurnEffect.java
