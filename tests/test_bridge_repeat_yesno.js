@@ -65,6 +65,12 @@ const labelOf = (p, id) => (p?.options || []).find((o) => o.id === id)?.label;
     ok("three waiting: Yes, No, No ×3, How many… (no Yes ×3: Yes is a payment)", ids(p) === "yes,no,__repeat:no,__repeat:some", ids(p));
     ok("three waiting: the shortcut reads No ×3", labelOf(p, "__repeat:no") === "No ×3", labelOf(p, "__repeat:no"));
     ok("three waiting: the text says how many wait", /3 of these are waiting \(Smothering Tithe\)/.test(p?.text || ""), p?.text);
+    // (the table's row cuts its line at 220 bytes, engineCut in engine-renderer.lua: the card's long words came first and
+    // chopped the sentence, live 2026-11-16 "...Sacrifice this… 2 of these are waiting (Smothering Tithe). "×2" answers them")
+    const SENT = '3 of these are waiting (Smothering Tithe). "×3" answers them all; "How many…" picks how many.';
+    const kept = Buffer.from(String(p?.text || "").split("\n").join("   ")).subarray(0, 220).toString();
+    ok("three waiting: the repeat sentence comes first, whole inside the row's 220-byte cut", String(p?.text || "").startsWith(SENT) && kept.includes(SENT)
+      && (p?.text || "").length > 220, p?.text);
     harness.restore();
   }
   // 2. one waiting: the plain question

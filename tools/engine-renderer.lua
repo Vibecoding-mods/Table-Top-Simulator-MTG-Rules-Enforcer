@@ -5382,6 +5382,7 @@ local function engineAnswer(color, choice)
   engineSend("answer", { color = color, promptId = p.promptId, choice = choice })
   if engineHoldCombat ~= nil then engineHoldCombat(color, p, choice) end
   enginePrompts[color] = nil
+  if engineFixAside ~= nil then pcall(engineFixAside) end
   if engineExitPrompt ~= nil then engineExitPrompt(color) end
   if panelReady then setText("eng_search_" .. color, "") updateOptions(color) end
 end
@@ -6191,6 +6192,7 @@ function engineOnPrompt(m)
     end
   end
   if m.promptId == nil then enginePrompts[m.color] = nil else enginePrompts[m.color] = m end
+  if engineFixAside ~= nil then pcall(engineFixAside) end
   -- the cards anyone's open question names (targets, attackers to block, cards to choose, planeswalkers) are clickable
   -- now; the ones no longer named lock again if they are not their owner's to move (see engineClickable)
   local wasClickable = engineClickable
@@ -9439,6 +9441,16 @@ do
     return nil
   end
   function F.paused() return engineFix ~= nil and engineFix.state == "editing" end
+  -- Waiting for an empty stack with a question of this seat's open (a trigger's "pay {2}?"): the fix panel steps
+  -- aside for it, a small "Cancel fix" button instead. F.asked: those seats, for the redraw's signature.
+  F.asideOn = {}
+  function F.aside(fix, c) return fix ~= nil and fix.state == "pausing" and enginePrompts[c] ~= nil end
+  function F.asked(fix)
+    local out = {}
+    for c in pairs(engineColors) do if F.aside(fix, c) then out[#out + 1] = c end end
+    table.sort(out)
+    return table.concat(out, ",")
+  end
   -- editing the board: engine cards unlocked, moves read back at Done
   function F.editing() return F.paused() and F.kindOf(engineFix) == "board" end
   -- the panel's text and its buttons for one seat: text, yes, no, and the kind question's "Edit the board"
@@ -9478,11 +9490,17 @@ do
     local unlock = board and not F.unlocked
     F.unlocked = board
     ENGINE_FIX_EDIT = board
-    -- "mtg mana <n>" called this fix: add the mana and press Done for its caller (only right after the call)
-    local auto = entering and fix.by ~= nil and engineAutoMana ~= nil and engineAutoMana[fix.by] or nil
+    -- "mtg mana <n>" called this fix: add the mana and press Done for its caller. The fix is its own when it shows up
+    -- (voting or pausing) within 30 s of the call, then for as long as it takes to pause: on another player's turn the
+    -- wait for an empty stack ran past 30 s and the full menu opened instead (live 2026-11-16, White in AI 1's draw step)
+    local mine = fix ~= nil and fix.by ~= nil and engineAutoMana ~= nil and engineAutoMana[fix.by] or nil
+    if mine ~= nil and mine.id == nil and (fix.state == "voting" or fix.state == "pausing") and os.clock() - mine.at < 30 then mine.id = fix.id end
+    -- (its fix ended unpaused, Cancel or a vote's No: the call is spent)
+    if fix == nil and engineAutoMana ~= nil then for c, a in pairs(engineAutoMana) do if a.id ~= nil then engineAutoMana[c] = nil end end end
+    local auto = entering and mine or nil
     if auto ~= nil then
       engineAutoMana[fix.by] = nil
-      if os.clock() - auto.at < 30 then
+      if auto.id == fix.id or (auto.id == nil and os.clock() - auto.at < 30) then
         local by = fix.by
         Wait.frames(function() if F.paused() then engineFixSet(by, "mana " .. auto.rest) engineFixDone(by) end end, 2)
       end
@@ -9518,13 +9536,21 @@ do
     end
     local over = lastTable == nil or lastTable.gameOver
     local sig = table.concat({ tostring(over), fix and table.concat({ tostring(fix.id), tostring(fix.state), tostring(fix.by),
-      table.concat(fix.waiting or {}, ","), table.concat(fix.lines or {}, ","), tostring(fix.message), tostring(F.kindOf(fix)), F.ver }, "|") or "-" }, ";")
+      table.concat(fix.waiting or {}, ","), table.concat(fix.lines or {}, ","), tostring(fix.message), tostring(F.kindOf(fix)), F.ver, F.asked(fix) }, "|") or "-" }, ";")
     if sig == F.sig then return end
     F.sig = sig
     for c in pairs(engineColors) do
       if Player[c] ~= nil and Player[c].seated then
-        setAttr("eng_fixcall_" .. c, "active", (fix == nil and not over) and "true" or "false")
-        setAttr("eng_fixp_" .. c, "active", fix ~= nil and "true" or "false")
+        -- (while it waits for an empty stack, a seat with a question open sees only a small "Cancel fix" where Fix... sits:
+        -- the big panel lay over the question's own, live 2026-11-16, Smothering Tithe's "pay {2}?")
+        local aside = F.aside(fix, c)
+        setAttr("eng_fixcall_" .. c, "active", ((fix == nil and not over) or aside) and "true" or "false")
+        if aside ~= (F.asideOn[c] == true) then
+          F.asideOn[c] = aside
+          setAttr("eng_fixcall_" .. c, "width", aside and "96" or "64")
+          setText("eng_fixcall_" .. c, aside and "Cancel fix" or "Fix...")
+        end
+        setAttr("eng_fixp_" .. c, "active", (fix ~= nil and not aside) and "true" or "false")
         if fix ~= nil then
           local text, yes, no, alt = engineFixPanel(fix, c)
           setText("eng_fixtext_" .. c, text)
@@ -9549,11 +9575,16 @@ do
     F.sig = nil
     engineFixUpdate(engineFix)
   end
+  -- a question opened or closed: while the fix waits to pause, its panel steps aside or comes back (F.aside)
+  function engineFixAside()
+    if engineFix ~= nil and engineFix.state == "pausing" then engineFixUpdate(engineFix) end
+  end
   function onMtgFix(player, value, id)
     local c = player.color
     local fix = engineFix
     local choosing = fix ~= nil and fix.state == "editing" and F.kindOf(fix) == nil
-    if id == "eng_fixcall_" .. c then engineSend("fix", { color = c, action = "call" })
+    -- (the same button reads "Cancel fix" while the panel steps aside for a question, F.aside)
+    if id == "eng_fixcall_" .. c then engineSend("fix", { color = c, action = fix ~= nil and "cancel" or "call" })
     elseif id == "eng_fixbk_" .. c and choosing then F.choose(c, "board")
     elseif id == "eng_fixbyes_" .. c and fix ~= nil then
       if choosing then F.choose(c, "hand")
