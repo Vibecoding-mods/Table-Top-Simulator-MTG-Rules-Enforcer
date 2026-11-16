@@ -220,6 +220,7 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
     `mtg fix counters +1/+1 3` (the card under your pointer);
   - press **Done**: the change list is shown, the others vote, and the engine applies it.
 - **Scoop** (top, beside your name): concede the game.
+- **Dropped out?** The game keeps your seat and cards. Rejoin TTS and sit at your colour: your screen says **Rejoining: the table is updating for you...** while your hand and board are drawn again, then **You're back in** (the same after an engine reconnect, a bridge restart, or an Undo to before you conceded). If it says **Couldn't rejoin**, the chat says what to do; `mtg refresh` draws your own view again.
 
 ## Chat commands
 
