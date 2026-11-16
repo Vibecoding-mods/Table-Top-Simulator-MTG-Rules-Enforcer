@@ -1730,6 +1730,9 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   if (total < 2 || total > TABLE_COLORS.length) { chat(`[MTG] Need 2-${TABLE_COLORS.length} players total (seated ${seatList.length} + ${bots} AI).`); return; }
   // (each team mode has its one game mode: 2v2 Standard, the others Commander; the table refuses the rest, this is the
   // check for every other path to a start)
+  // (Three-Headed Giant is the six-seat table's: its teams are that table's sides)
+  const seatsWanted = teams ? teams2hg.TEAM_MODES[teamMode]?.seats : null;
+  if (seatsWanted && TABLE_COLORS.length !== seatsWanted) { chat(`[MTG] Not started: ${teams2hg.TEAM_MODES[teamMode].name} is played on the ${seatsWanted}-seat table (this table has ${TABLE_COLORS.length} seats).`); return; }
   const teamProblem = teams && (teams2hg.teamModeProblem(teamMode, mode) || teams2hg.teamsProblem(teams, total, teamMode));
   if (teamProblem) { chat(`[MTG] Not started: ${teamProblem}`); return; }
   // (Archenemy: the archenemy's seat in this game, and the scheme deck, checked as the engine checks it)

@@ -2698,7 +2698,7 @@ index c69b549..92d71e9 100644
  
      public static final class CardIdentity {
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
-index fb82e6d..e32ff40 100644
+index fb82e6d..8084ad2 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 @@ -11,6 +11,8 @@ import forge.harness.common.HarnessPlayPlumbing;
@@ -2877,7 +2877,7 @@ index fb82e6d..e32ff40 100644
              error = EngineHandler.applyBlockerAssignments(combat, defender, assignments);
              if (error == null || session.isClosed() || game.isGameOver()) {
                  return;
-@@ -426,6 +504,35 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -426,6 +504,36 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          }
      }
  
@@ -2890,8 +2890,9 @@ index fb82e6d..e32ff40 100644
 +            }
 +        }
 +        final String partnerNames = String.join(" and ", partners);
++        final Player changer = combat.getTeamBlockChangedBy();
 +        final String title = round == 0 ? "Block with " + partnerNames
-+                : partnerNames + " changed the blocks. Agree or change?";
++                : (changer != null && !changer.equals(defender) ? changer.getName() : partnerNames) + " changed the blocks. Agree or change?";
 +        final List<String> lines = new ArrayList<>();
 +        for (final Card attacker : attackers) {
 +            final List<String> names = new ArrayList<>();
@@ -2913,7 +2914,7 @@ index fb82e6d..e32ff40 100644
      @Override
      public CardCollection orderBlockers(final Card attacker, final CardCollection blockers) {
          return session.awaitDamageAssignmentOrder(me(), attacker, blockers);
-@@ -730,7 +837,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -730,7 +838,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      public CardCollection chooseCardsToDiscardFrom(
              final Player playerDiscard, final SpellAbility sa, final CardCollection validCards, final int min, final int max,
              final CardCollectionView visibleToChooser) {
@@ -2925,7 +2926,7 @@ index fb82e6d..e32ff40 100644
      }
  
      @Override
-@@ -760,8 +870,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -760,8 +871,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      @Override
      public CardCollectionView chooseCardsForCost(final CardCollectionView optionList, final SpellAbility sa,
              final CostPartWithList cpl, final int amount, final boolean isOptional, final String prompt) {
@@ -2936,7 +2937,7 @@ index fb82e6d..e32ff40 100644
          if (isOptional && selected.size() != amount) {
              return null;
          }
-@@ -790,8 +900,16 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -790,8 +901,16 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          if (sourceList.isEmpty()) {
              return CardCollection.EMPTY;
          }
@@ -2955,7 +2956,7 @@ index fb82e6d..e32ff40 100644
      }
  
      @Override
-@@ -832,7 +950,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -832,7 +951,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          final CardCollection cards = cardOptions(optionList);
          if (cards == null) {
              return rememberSecretPlayerViewer(
@@ -2964,7 +2965,7 @@ index fb82e6d..e32ff40 100644
          }
          final CardCollection selected = session.awaitCardChoice(
                  "choose_cards_for_effect", me(), cards, 1, 1, sourceName(sa), sourceCardId(sa), title, isOptional);
-@@ -895,7 +1013,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -895,7 +1014,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
              CardLists.sortByCmcDesc(sorted);
              return new CardCollection(sorted.subList(0, Math.max(min, Math.min(cappedMax, 1))));
          }
@@ -2974,7 +2975,7 @@ index fb82e6d..e32ff40 100644
      }
  
      @Override
-@@ -2514,6 +2633,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2514,6 +2634,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public void notifyOfValue(final SpellAbility saSource, final GameObject realtedTarget, final String value) {
@@ -2985,7 +2986,7 @@ index fb82e6d..e32ff40 100644
          final String message = MessageUtil.formatNotificationMessage(saSource, player, realtedTarget, value);
          if (saSource != null && saSource.isManaAbility()) {
              game.getGameLog().add(GameLogEntryType.LAND, message);
-@@ -2620,7 +2743,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2620,7 +2744,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      }
  
      private <T extends GameEntity> T chooseSingleEntityGeneric(
@@ -2995,7 +2996,7 @@ index fb82e6d..e32ff40 100644
          final List<T> opts = new ArrayList<>();
          for (final T option : optionList) {
              opts.add(option);
-@@ -2632,7 +2756,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2632,7 +2757,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          for (final T option : opts) {
              labels.add(option == null ? "?" : option.toString());
          }
@@ -16438,6 +16439,345 @@ index 0000000..a5d3088
 +
 +    static String id(final Card card) {
 +        return SnapshotExtractor.javaCardId(card);
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/ThreeHeadedGiantTest.java b/forge-harness/src/test/java/forge/harness/host/ThreeHeadedGiantTest.java
+new file mode 100644
+index 0000000..bc18d03
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/ThreeHeadedGiantTest.java
+@@ -0,0 +1,333 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.ai.PlayerControllerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameObject;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityUtils;
++import forge.game.card.Card;
++import forge.game.combat.Combat;
++import forge.game.phase.PhaseHandler;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++import org.apache.commons.lang3.tuple.Pair;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.EnumSet;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++import java.util.concurrent.locks.ReentrantLock;
++
++public final class ThreeHeadedGiantTest {
++    private ThreeHeadedGiantTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        CHECKS.put("cr810.11 theRequestGivesThreeHeads45LifeAnd20Poison", ThreeHeadedGiantTest::theRequestGivesThreeHeads45LifeAnd20Poison);
++        CHECKS.put("cr810.4 damageToOneHeadIsTheWholeTeams", ThreeHeadedGiantTest::damageToOneHeadIsTheWholeTeams);
++        CHECKS.put("cr810.11 twentyPoisonLosesTheThreeTogether", ThreeHeadedGiantTest::twentyPoisonLosesTheThreeTogether);
++        CHECKS.put("cr810.8b aConcessionConcedesForAllThree", ThreeHeadedGiantTest::aConcessionConcedesForAllThree);
++        CHECKS.put("cr805.10d theDefendingTeamOfThreeBlocksAsOneDecision", ThreeHeadedGiantTest::theDefendingTeamOfThreeBlocksAsOneDecision);
++        CHECKS.put("cr805.10d aRevisePromptNamesThePartnerWhoChanged", ThreeHeadedGiantTest::aRevisePromptNamesThePartnerWhoChanged);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            check(e.getKey(), e.getValue());
++        }
++        System.out.println(failed == 0 ? "PASS ThreeHeadedGiantTest" : "FAIL ThreeHeadedGiantTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static final String[] NAMES = {"White", "Red", "Yellow", "Green", "Blue", "Purple"};
++
++    private static GameRules rulesFor(final String variant) {
++        final StringBuilder players = new StringBuilder();
++        for (int i = 0; i < 6; i++) {
++            players.append(i == 0 ? "" : ",").append("{\"name\":\"").append(NAMES[i]).append("\",\"deck\":[{\"name\":\"Forest\"}],\"team\":").append(i < 3 ? 1 : 2).append("}");
++        }
++        final ManaBrewEngineAdapter.StartGameRequest request = ManaBrewEngineAdapter.parseStartGameRequest(
++                "{\"gameId\":\"three-headed-giant-test\",\"variant\":\"" + variant + "\",\"teamRules\":\"sharedLife\",\"players\":[" + players + "]}");
++        final GameType type = "Commander".equals(variant) ? GameType.Commander : GameType.Constructed;
++        final GameRules rules = new GameRules(type);
++        rules.setAppliedVariants(EnumSet.of(type));
++        ManaBrewEngineAdapter.configureTeamRules(rules, request, type);
++        return rules;
++    }
++
++    private static void theRequestGivesThreeHeads45LifeAnd20Poison() {
++        final GameRules rules = rulesFor("Constructed");
++        expect(rules.hasSharedTeamLife() && rules.getPoisonCountersToLose() == 20, "3HG: shared life " + rules.hasSharedTeamLife() + ", poison " + rules.getPoisonCountersToLose());
++        final Fixture f = new Fixture();
++        expect(f.game.getRules().getPoisonCountersToLose() == 20, "the fixture's poison to lose is " + f.game.getRules().getPoisonCountersToLose());
++        for (final Player p : f.game.getPlayers()) {
++            expect(p.getLife() == 45, p.getName() + " starts at " + p.getLife() + ", not the team's 45");
++        }
++    }
++
++    private static void damageToOneHeadIsTheWholeTeams() throws Exception {
++        final Fixture f = new Fixture();
++        final Card bolt = add("Lightning Bolt", f.p(0), ZoneType.Hand);
++        final SpellAbility sa = bolt.getFirstSpellAbility();
++        sa.getTargets().add(f.p(4));
++        resolve(f, sa, f.p(0));
++        expect(lives(f).equals(List.of(45, 45, 45, 42, 42, 42)), "after a Bolt to Blue the lives are " + lives(f) + ", not 45 x3 and 42 x3");
++    }
++
++    private static void twentyPoisonLosesTheThreeTogether() throws Exception {
++        final Fixture f = new Fixture();
++        f.p(5).setPoisonCounters(19, f.p(0));
++        gameOverCheck(f);
++        expect(!f.p(3).hasLost() && !f.p(4).hasLost() && !f.p(5).hasLost(), "19 poison lost the team");
++        expect(f.p(3).getPoisonCounters() == 19 && f.p(4).getPoisonCounters() == 19, "Purple's poison isn't the team's: Green " + f.p(3).getPoisonCounters() + ", Blue " + f.p(4).getPoisonCounters());
++        f.p(5).setPoisonCounters(20, f.p(0));
++        gameOverCheck(f);
++        expect(f.p(3).hasLost() && f.p(4).hasLost() && f.p(5).hasLost(), "20 poison: Green " + f.p(3).hasLost() + ", Blue " + f.p(4).hasLost() + ", Purple " + f.p(5).hasLost());
++        expect(!f.p(0).hasLost() && !f.p(1).hasLost() && !f.p(2).hasLost(), "the other team lost too");
++    }
++
++    private static void aConcessionConcedesForAllThree() throws Exception {
++        final Fixture f = new Fixture();
++        f.p(1).concede();
++        gameOverCheck(f);
++        expect(f.p(0).conceded() && f.p(1).conceded() && f.p(2).conceded(), "Red's concession: White " + f.p(0).getOutcome() + ", Yellow " + f.p(2).getOutcome());
++        expect(!f.p(3).hasLost() && !f.p(4).hasLost() && !f.p(5).hasLost(), "the other team lost");
++    }
++
++    private static void theDefendingTeamOfThreeBlocksAsOneDecision() throws Exception {
++        final Fixture f = new Fixture();
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        final Card giant = creature("Hill Giant", f.p(0));
++        final Card wall = creature("Wall of Wood", f.p(3));
++        creature("Centaur Courser", f.p(4));
++        final Card ox = creature("Trained Armodon", f.p(5));
++        final Combat combat = combatOf(f, f.p(0));
++        combat.addAttacker(bears, f.p(3));
++        combat.addAttacker(giant, f.p(3));
++        final List<String> asked = script(f, Map.of(f.p(3), List.of(Map.of(wall, bears)), f.p(4), List.of(Map.of()), f.p(5), List.of(Map.of(ox, giant))));
++        declareBlockers(f);
++        expect(asked.equals(List.of("Green", "Blue", "Purple", "Green after Purple", "Blue after Purple")),
++                "the defending team of three was asked " + asked + ", not Green, Blue, Purple, then Green and Blue again after Purple's change");
++        expect(new ArrayList<>(combat.getBlockers(bears)).equals(List.of(wall)) && new ArrayList<>(combat.getBlockers(giant)).equals(List.of(ox)),
++                "the team's block is " + combat.getBlockers(bears) + " / " + combat.getBlockers(giant));
++    }
++
++    private static void aRevisePromptNamesThePartnerWhoChanged() throws Exception {
++        final Fixture f = new Fixture();
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        final Card courser = creature("Centaur Courser", f.p(4));
++        final Card ox = creature("Trained Armodon", f.p(5));
++        final Combat combat = combatOf(f, f.p(0));
++        combat.addAttacker(bears, f.p(3));
++        combat.addBlocker(bears, ox);
++        combat.setTeamBlockRound(1);
++        combat.setTeamBlockChangedBy(f.p(5));
++        combat.setTeamBlockAnswer(f.p(4), List.of(Pair.of(courser, bears)));
++        final ManaBrewInteractiveController blue = new ManaBrewInteractiveController(f.game, f.p(4), f.p(4).getLobbyPlayer(), f.session);
++        f.p(4).dangerouslySetController(blue);
++        f.session.submitAction("{\"type\":\"chooseBlockers\",\"output\":{\"assignments\":[{\"blockerId\":\"" + SnapshotExtractor.javaCardId(courser)
++                + "\",\"attackerId\":\"" + SnapshotExtractor.javaCardId(bears) + "\"}]}}");
++        withoutPrompts(f, "Blue in a revise round", () -> asSeat(f, () -> blue.declareBlockers(f.p(4), combat)));
++        final String prompt = f.session.getLatestPromptJson();
++        expect(prompt.contains("\"title\":\"Purple changed the blocks. Agree or change?\""), "the revise prompt doesn't name Purple, who changed the block: " + prompt);
++        combat.setTeamBlockRound(0);
++        f.session.submitAction("{\"type\":\"chooseBlockers\",\"output\":{\"assignments\":[]}}");
++        withoutPrompts(f, "Blue in round 1", () -> asSeat(f, () -> blue.declareBlockers(f.p(4), combat)));
++        final String first = f.session.getLatestPromptJson();
++        expect(first.contains("\"title\":\"Block with Green and Purple\""), "the round 1 prompt doesn't name both partners: " + first);
++        combat.setTeamBlockRound(-1);
++    }
++
++    private static List<Integer> lives(final Fixture f) {
++        final List<Integer> out = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            out.add(p.getLife());
++        }
++        return out;
++    }
++
++    private static List<String> script(final Fixture f, final Map<Player, List<Map<Card, Card>>> answers) {
++        final List<String> asked = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            final List<Map<Card, Card>> mine = answers.getOrDefault(p, List.of(Map.of()));
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                private int asks;
++
++                @Override
++                public void declareBlockers(final Player defender, final Combat combat) {
++                    final Player changer = combat.getTeamBlockChangedBy();
++                    asked.add(defender.getName() + (combat.getTeamBlockRound() > 0 ? " after " + (changer == null ? "nobody" : changer.getName()) : ""));
++                    for (final Card own : new ArrayList<>(combat.getAllBlockers())) {
++                        if (own.getController() == defender) {
++                            combat.undoBlockingAssignment(own);
++                        }
++                    }
++                    for (final Map.Entry<Card, Card> e : mine.get(asks++ % mine.size()).entrySet()) {
++                        combat.addBlocker(e.getValue(), e.getKey());
++                    }
++                }
++
++                @Override
++                public void notifyOfValue(final SpellAbility sa, final GameObject target, final String value) {
++                }
++            });
++        }
++        return asked;
++    }
++
++    private static Combat combatOf(final Fixture f, final Player active) {
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, active);
++        final Combat combat = new Combat(active);
++        f.game.getPhaseHandler().setCombat(combat);
++        return combat;
++    }
++
++    private static void declareBlockers(final Fixture f) throws Exception {
++        final Method declare = PhaseHandler.class.getDeclaredMethod("declareBlockersTurnBasedAction");
++        declare.setAccessible(true);
++        withoutPrompts(f, "declaring blockers", () -> {
++            try {
++                declare.invoke(f.game.getPhaseHandler());
++            } catch (final ReflectiveOperationException e) {
++                throw new RuntimeException(e.getCause() != null ? e.getCause() : e);
++            }
++        });
++    }
++
++    private static void gameOverCheck(final Fixture f) throws Exception {
++        withoutPrompts(f, "checking the game over", () -> f.game.getAction().checkGameOverCondition());
++    }
++
++    private static void resolve(final Fixture f, final SpellAbility sa, final Player activator) throws Exception {
++        sa.setActivatingPlayer(activator);
++        withoutPrompts(f, "resolving " + sa.getHostCard(), () -> AbilityUtils.resolve(sa));
++    }
++
++    private static void asSeat(final Fixture f, final Runnable step) {
++        try {
++            final Field lock = ManaBrewInteractiveSession.class.getDeclaredField("gameLock");
++            lock.setAccessible(true);
++            final ReentrantLock gameLock = (ReentrantLock) lock.get(f.session);
++            gameLock.lock();
++            try {
++                step.run();
++            } finally {
++                gameLock.unlock();
++            }
++        } catch (final ReflectiveOperationException e) {
++            throw new RuntimeException(e);
++        }
++    }
++
++    private static void withoutPrompts(final Fixture f, final String what, final Runnable step) throws Exception {
++        final Throwable[] failure = new Throwable[1];
++        final Thread runner = new Thread(() -> {
++            try {
++                step.run();
++            } catch (final Throwable thrown) {
++                failure[0] = thrown;
++            }
++        }, what);
++        runner.setDaemon(true);
++        runner.start();
++        runner.join(30_000);
++        if (runner.isAlive()) {
++            throw new AssertionError(what + " asked " + f.session.getLatestPromptJson());
++        }
++        if (failure[0] != null) {
++            throw new AssertionError(what + " failed: " + failure[0], failure[0]);
++        }
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static Card creature(final String name, final Player p) {
++        final Card c = add(name, p, ZoneType.Battlefield);
++        c.setSickness(false);
++        return c;
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("three-headed-giant-test");
++        final Game game;
++
++        Fixture() {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            for (int i = 0; i < 6; i++) {
++                final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(NAMES[i], null));
++                rp.setStartingLife(45);
++                rp.setTeamNumber(i < 3 ? 1 : 2);
++                players.add(rp);
++            }
++            final GameRules rules = rulesFor("Constructed");
++            game = new Game(players, rules, new Match(rules, players, "ThreeHeadedGiantTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++            game.getPhaseHandler().onStackResolved();
++            for (final Player p : game.getPlayers()) {
++                for (int i = 0; i < 12; i++) {
++                    add("Plains", p, ZoneType.Library);
++                }
++            }
++            session.attach(game.getMatch(), game, Set.of(), false);
++        }
++
++        Player p(final int i) {
++            return game.getRegisteredPlayers().get(i);
++        }
 +    }
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/TurnCounterRewindTest.java b/forge-harness/src/test/java/forge/harness/host/TurnCounterRewindTest.java
