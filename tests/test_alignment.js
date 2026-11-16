@@ -266,5 +266,31 @@ const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringif
   harness.restore();
 }
 
+// ── the deploy also gives the save's Card Importer the built importer's script when that one has the DeckCheck links
+// (an object script, which the Global patch never touches): only that object's script, every other byte as it was;
+// once done, nothing more; an object the build hasn't changed, or whose script isn't in the file once, is left alone
+{
+  const { importerScripts } = require("../tools/patch-save");
+  const oldImp = "function onLoad()\n  -- \"importer\" é\nend\n";
+  const newImp = oldImp + "function deckcheckId(url)\n  return nil\nend\n";
+  const raw = `{\n  "SaveName": "mine",\n  "ObjectStates": [\n    {\n      "GUID": "988e5e",\n      "Nickname": "Card Importer",\n      "LuaScript": ${JSON.stringify(oldImp)}\n    },\n    {\n      "GUID": "deck01",\n      "Name": "Deck",\n      "LuaScript": "x"\n    }\n  ],\n  "LuaScript": "g"\n}\n`;
+  const built = { ObjectStates: [{ GUID: "988e5e", LuaScript: newImp }, { GUID: "deck01", LuaScript: "y" }] };
+  let r;
+  try { r = importerScripts(raw, built); } catch (e) { r = { raw, updated: [], skipped: [], threw: e.message }; }
+  ok("importer: precondition, it doesn't throw", !r.threw, r.threw);
+  const back = JSON.parse(r.raw);
+  same("importer: the Card Importer gets the built script with the DeckCheck links", back.ObjectStates[0].LuaScript, newImp);
+  same("importer: another object's script stays, even when the build's differs", back.ObjectStates[1].LuaScript, "x");
+  ok("importer: every other byte as it was", r.raw.replace(JSON.stringify(newImp), JSON.stringify(oldImp)) === raw, r.raw.slice(0, 300));
+  same("importer: what was updated is said", r.updated, ["Card Importer (988e5e)"]);
+  const call = (a, b) => { try { return importerScripts(a, b); } catch (e) { return { raw: `threw: ${e.message}` }; } };
+  same("importer: run again, nothing more", call(r.raw, built).raw, r.raw);
+  same("importer: a build without the DeckCheck links changes nothing", call(raw, { ObjectStates: [{ GUID: "988e5e", LuaScript: oldImp + "-- other\n" }] }).raw, raw);
+  const twice = raw.replace('"LuaScript": "g"', `"LuaScript": ${JSON.stringify(oldImp)}`);
+  let t;
+  try { t = importerScripts(twice, built); } catch (e) { t = { raw: "", skipped: [], threw: e.message }; }
+  ok("importer: a script that isn't in the file once is left alone and named", t.raw === twice && t.skipped.includes("988e5e"), t.threw || JSON.stringify(t.skipped));
+}
+
 process.stdout.write(failed ? `\n${failed} alignment checks failed (${passed} passed)\n` : `all ${passed} alignment checks pass\n`);
 process.exit(failed ? 1 : 0);
