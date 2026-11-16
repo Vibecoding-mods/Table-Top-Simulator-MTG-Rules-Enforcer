@@ -241,6 +241,38 @@ const labelOf = (p, id) => (p?.options || []).find((o) => o.id === id)?.label;
     ok("targets: triggers with targets offer no ×N", ids(shown(h).pop()) === "yes,no", ids(shown(h).pop()));
     harness.restore();
   }
+  // 10c. a priority for a player Blue controls (Mindslaver) is never passed unseen: the run ends there
+  {
+    const h = harness.load();
+    const { seat, calls } = setup(h, [tithe(3), tithe(2), tithe(1)]);
+    h.B.onPrompt(seat, payAsk(500)); await h.flush();
+    await answer(h, 500, "__repeat:no");
+    stackOf(seat, [tithe(3), tithe(2)]);
+    const gv = seat.board.state.gameView;
+    gv.players[1].controlledBy = "player-0";
+    gv.priorityPlayerId = "player-1";
+    h.B.onPrompt(seat, priority(501)); await h.flush();
+    ok("controlled player: AI 1's priority under Blue's control is asked, not passed", !calls.some((c) => c.promptId === 501) && shown(h).some((p) => p.promptId === 501), JSON.stringify(calls));
+    ok("controlled player: the run ends, said why", seat.repeatAnswer == null && chats(h).some((t) => /once\. Stopped early \(you have priority for AI 1\)/.test(t)), JSON.stringify(chats(h)));
+    harness.restore();
+  }
+  // 10d. the payer by Player when both Player and Activator are named; a payment naming no payer isn't counted
+  {
+    const h = harness.load();
+    const both = (n) => ({ ...tithe(n), text: `${TITHE} [Player: ${BLUE}, Activator: ${AI}]` });
+    const { seat } = setup(h, [both(2), both(1)]);
+    h.B.onPrompt(seat, payAsk(500)); await h.flush();
+    ok("payer: Player is read before Activator", labelOf(shown(h).pop(), "__repeat:no") === "No ×2", ids(shown(h).pop()));
+    harness.restore();
+  }
+  {
+    const h = harness.load();
+    const bare = (n) => ({ ...tithe(n), text: TITHE });
+    const { seat } = setup(h, [bare(2), bare(1)]);
+    h.B.onPrompt(seat, payAsk(500)); await h.flush();
+    ok("payer: a payment whose stack words name no payer isn't counted", ids(shown(h).pop()) === "yes,no", ids(shown(h).pop()));
+    harness.restore();
+  }
   // 11. a rewind forgets the run
   {
     const h = harness.load();
