@@ -139,7 +139,9 @@ five minutes:
   plays on your frame for everyone for 12 s, then holds a still picture. **Replay** under any frame plays it again.
   **Clear** empties your frame.
 - In chat: `mtg gif <words>` shows the first match, `mtg gif off` empties your frame, `mtg gifs hide` / `mtg gifs show`
-  hides or shows every frame on your screen only.
+  hides or shows every frame on your screen only. A GIF that is a **white square** for you (a Steam Deck, Mac or
+  Linux TTS can't play the video): `mtg gifs still` shows every frame's still picture instead, on your screen only;
+  `mtg gifs video` undoes it.
 - Host: `mtg gifs off` / `on` (everyone), `mtg gifs rating g|pg|pg-13` (PG-13 unless changed), `mtg gif clear
   <colour>` empties one player's frame.
 
@@ -211,6 +213,7 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 | `mtg debug <scenario>` / `list` / `off` | (testing) a test board from `scenarios/<name>.json`: 20 lands out (the commander's colours, or the lands the file names) and the scenario's cards in hand, plus anything it puts in other zones for you or the opponents. Typed before a game, it is set up at your first priority on your own turn (your opening hand is kept by itself); during one, at the next moment with nothing on the stack. Other players vote as for any fix |
 | `mtg gif <words>` / `mtg gif off` / `mtg gif help` | your GIF frame: the first match for the words / empty it / the GIF commands |
 | `mtg gifs hide` / `show` | every GIF frame hidden or shown on your screen only |
+| `mtg gifs still` / `video` | every GIF frame's still picture instead of the moving GIF, on your screen only (for a GIF that is a white square for you) |
 | `mtg gifs on\|off`, `mtg gifs rating g\|pg\|pg-13`, `mtg gif clear <colour>` | host: the GIF frames for everyone, their rating, one player's frame emptied |
 | `mtg aideck <name>[, <name>...]` | host: the deck(s) the Forge AI players get (one name per AI; a new list replaces the old) |
 
