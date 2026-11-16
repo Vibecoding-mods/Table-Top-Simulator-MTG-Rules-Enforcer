@@ -21,6 +21,8 @@ function loopPid(layout) {
 }
 
 // Runs until stopped. env: what the bridge gets on top of this process's (MTG_HOME, MTG_LOG_DIR, the shim's PATH).
+// The bridge runs with Node's diagnostic reports on, and a report prints the whole environment and command line: so a
+// server's key never comes in either, only the name of its file (MTG_KEY_FILE, Controller.serverEnv).
 function run(layout, nodeExe, env) {
   fs.mkdirSync(layout.logsDir, { recursive: true });
   const other = loopPid(layout);

@@ -31,7 +31,7 @@ const Fixes = {
   locksDuringGame(fix) { return fix === Fixes.ImagesLoad || fix === Fixes.StackRestart || fix === Fixes.BridgeRestart; },
 };
 
-const Actions = { StartDesktop: "start-desktop", Wait: "wait", Load: "load", StartBridge: "start-bridge" };
+const Actions = { StartDesktop: "start-desktop", Wait: "wait", Load: "load", StartBridge: "start-bridge", RestartBridge: "restart-bridge" };
 
 // ───────────────────────────── where the app runs from ─────────────────────────────
 
@@ -307,21 +307,24 @@ function decideStack(relay, room, login, game, friend) {
 // ───────────────────────────── own server (the engine runs on another computer) ─────────────────────────────
 // A host may run the engine (relay and Forge room) on their own server instead of this computer. server.json in the
 // package folder (in the repo: its root) says where: { "host": "mtg.example.org", "port": 9443, "key": "...",
-// "secure": false }; only "host" is needed. --server host[:port] does the same for one run (the key then comes from
-// server.json, else MTG_SERVER_KEY, else this package's own key). With a server, steps 1-3 start nothing here: the
-// engine step is a login to that server, and the bridge connects to it.
+// "secure": false }; "host" and a key are needed (the key from server.json, else MTG_SERVER_KEY; never this package's
+// own key, which is for the engine on this computer). --server host[:port] does the same for one run: for the host
+// server.json names it only changes the port; for another host the file's key, port and secure are dropped (a key is
+// never sent to a server it wasn't written for), so the key comes from MTG_SERVER_KEY. With a server, steps 1-3 start
+// nothing here: the engine step is a login to that server, and the bridge connects to it.
 const ServerFile = "server.json";
 const DefaultServerPort = 9443;
 const ServerKeys = ["host", "port", "key", "secure"];
 
-// a host name, an IPv4 address or a bracketed IPv6 one; nothing else (no scheme, path, user or spaces)
+// a host name (underscores and a trailing dot allowed, as DNS names have them), an IPv4 address or a bracketed IPv6
+// one; nothing else (no scheme, path, user or spaces)
 function serverHostProblem(h) {
   if (typeof h !== "string" || !h.trim()) return "\"host\" is missing: give the server's name or address, e.g. \"mtg.example.org\".";
   const host = h.trim();
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(host)) return `"host" is "${host}": give the name only, without ws:// or http:// (the port goes in "port").`;
   if (/^\[[0-9a-f:.]+\]$/i.test(host)) return null;
-  if (host.length > 253 || !/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i.test(host))
-    return `"host" is "${host}", which isn't a server name or address (letters, digits, dots and dashes; an IPv6 address in [brackets]).`;
+  if (host.length > 254 || !/^[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?)*\.?$/i.test(host))
+    return `"host" is "${host}", which isn't a server name or address (letters, digits, dots, dashes and underscores; an IPv6 address in [brackets]).`;
   return null;
 }
 
@@ -351,23 +354,55 @@ function serverSpec(spec) {
   return m[2] !== undefined ? { host: m[1], port: Number(m[2]) } : { host: m[1] };
 }
 
-// The server this run uses: null (the engine on this computer), or parseServer's result. fileText: server.json's text
-// (null: no file); spec: --server's value (null: none); envKey: MTG_SERVER_KEY.
+// the same server name: case and a trailing dot don't count
+const sameHost = (a, b) => typeof a === "string" && typeof b === "string" && a.trim().toLowerCase().replace(/\.$/, "") === b.trim().toLowerCase().replace(/\.$/, "");
+
+// The server this run uses: null (the engine on this computer), or parseServer's result, which must have a key.
+// fileText: server.json's text (null: no file); spec: --server's value (null: none); envKey: MTG_SERVER_KEY.
 function serverSetting(fileText, spec, envKey) {
+  const hasFile = fileText !== null && fileText !== undefined;
   let fromFile = null;
-  if (fileText !== null && fileText !== undefined) {
-    const o = parseJson(fileText);
-    if (o === null) return { ok: false, problem: `${ServerFile} isn't valid JSON. Write it like { "host": "mtg.example.org", "port": 9443 }, or delete it to run the engine on this computer.` };
-    fromFile = o;
+  if (hasFile) {
+    // (a UTF-8 BOM, as Notepad writes one, isn't JSON; any JSON value counts, so false or 0 is an error, never "no file")
+    try { fromFile = JSON.parse(String(fileText).replace(/^\uFEFF/, "")); } catch {
+      return { ok: false, problem: `${ServerFile} isn't valid JSON. Write it like { "host": "mtg.example.org", "port": 9443, "key": "..." }, or delete it to run the engine on this computer.` };
+    }
+    if (!isObj(fromFile)) return { ok: false, problem: `${ServerFile}: ${parseServer(fromFile).problem}` };
   }
   const cli = serverSpec(spec);
-  if (!fromFile && !cli) return null;
-  const merged = { ...(isObj(fromFile) ? fromFile : {}), ...(cli || {}) };
-  if (!isObj(fromFile) && fromFile !== null) return { ok: false, problem: `${ServerFile}: ${parseServer(fromFile).problem}` };
+  if (!hasFile && !cli) return null;
+  // --server naming another host than server.json's: none of the file's settings are for it (above all its key)
+  const otherHost = !!(cli && fromFile && !sameHost(cli.host, fromFile.host));
+  const merged = cli ? (otherHost ? { ...cli } : { ...fromFile, ...cli }) : fromFile;
   const r = parseServer(merged);
   if (!r.ok) return { ok: false, problem: `${cli ? "--server" : ServerFile}: ${r.problem}` };
   if (!r.server.key && typeof envKey === "string" && envKey.trim()) r.server.key = envKey.trim();
+  // (never this package's own key: that one is for the engine on this computer, and a server must not be sent it)
+  if (!r.server.key)
+    return { ok: false, noKey: true, problem: otherHost
+      ? `--server ${r.server.host}: no key for this server (${ServerFile}'s key is for ${String(fromFile.host).trim()}, so it isn't sent to another server). Set MTG_SERVER_KEY to this server's key (its MANABREW_SERVER_KEY), or put this server in ${ServerFile}.`
+      : `no key for your server (${serverWords(r.server)}). Put the server's key (its MANABREW_SERVER_KEY, in the server's stack/.env) in ${ServerFile} as "key", or set MTG_SERVER_KEY.` };
   return r;
+}
+
+// server.json holds the server's key: it should be readable by this account only (mode 0600). mode: the file's
+// st_mode. null: private already
+function serverFileModeProblem(mode) {
+  if (typeof mode !== "number" || (mode & 0o077) === 0) return null;
+  return `${ServerFile} can be read by other accounts on this computer (mode ${(mode & 0o777).toString(8).padStart(3, "0")}), and it holds your server's key`;
+}
+
+// What the running bridge's GET /versions says it connects to: its relay, and whether it runs for an engine elsewhere
+// (bridge.js answers relay and remoteEngine; an older bridge says neither: null)
+function bridgeRelay(body) {
+  const o = parseJson(body);
+  return has(o, "relay") ? { relay: str(o, "relay"), remote: get(o, "remoteEngine") === true } : null;
+}
+// Whether a running bridge connects to another engine than this run's: with a server, any relay but the server's (or
+// a bridge too old to say); without one, a bridge that runs for a server. running: bridgeRelay's result
+function relayDiffers(running, server) {
+  if (server) return !running || running.relay !== serverUrl(server) || !running.remote;
+  return !!running && running.remote;
 }
 
 const serverUrl = (s) => `${s.secure ? "wss" : "ws"}://${s.host}:${s.port}`;
@@ -552,9 +587,14 @@ function decidePorts(held, ourBridgeJs, friend) {
   return null;
 }
 
-function decideBridge(versions, portProblem, bridgeProcess, wantBridge, friend) {
+// server: this run's own server (parseServer's server), or null: the engine on this computer. A bridge running for
+// another engine (started before server.json was made or changed) is restarted: action RestartBridge.
+function decideBridge(versions, portProblem, bridgeProcess, wantBridge, friend, server) {
   if (portProblem) return portProblem;
   if (versions.kind === "ok" && versions.status === 200) {
+    const running = bridgeRelay(versions.body);
+    if (relayDiffers(running, server || null))
+      return verdict(Light.Amber, `Running, but for another engine (${running && running.relay ? running.relay : "it doesn't say which"}; this run's is ${server ? `your server, ${serverUrl(server)}` : "the one on this computer"}). It is restarted for this one.`, { fix: Fixes.BridgeRestart, label: "Restart the bridge", action: Actions.RestartBridge });
     const now = str(get(parseJson(versions.body), "now"), "bridge");
     if (wantBridge && now !== null && now !== wantBridge)
       return verdict(Light.Amber, `Running, but it isn't ${friend ? "this package's" : "the deployed"} bridge (${now}, expected ${wantBridge}). Restart it between games.`, { fix: Fixes.BridgeRestart, label: "Restart the bridge" });
@@ -850,7 +890,7 @@ module.exports = {
   httpOk, httpOf, parseJson, isObj, get, has, str, int, Game, decideGame, playersText, locked, lockText,
   DockerUrl, decideDocker, sameId, normId, deployedAfterLoad, shortId, decideImages,
   TableWorkshopId, SixWorkshopId, workshopUrl, workshopMissing, parseMakeTable, tableBuildFailed, saveDone, deployedWithTable,
-  decideStack, ServerFile, DefaultServerPort, parseServer, serverSpec, serverSetting, serverUrl, serverWords, serverNotNeeded, decideServer,
+  decideStack, ServerFile, DefaultServerPort, parseServer, serverSpec, sameHost, serverSetting, serverFileModeProblem, bridgeRelay, relayDiffers, serverUrl, serverWords, serverNotNeeded, decideServer,
   savesFolderVerdict, stopRefusal, writeProblem, composeFailure, SaveName, planSave, readSaveName,
   isBridgeCommandLine, decidePorts, decideBridge, countExits,
   DefaultSaveName, Room, ttsHowTo, decideTts, sha8, clip, relayKey, worst, overall,

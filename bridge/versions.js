@@ -36,7 +36,7 @@ function containerImages(done) {
   });
 }
 
-// now: { bridge, table, node, relay }. bridge: the hash of the code this process loaded. table: the stamp from the
+// now: { bridge, table, node, relay } (or { bridge, table, remote: true }: the engine on the host's own server). bridge: the hash of the code this process loaded. table: the stamp from the
 // table's messages: undefined until one came, null from a table older than stamps. Returns what doesn't match, in a
 // player's words.
 function outOfStep(now, deployed) {
@@ -46,7 +46,8 @@ function outOfStep(now, deployed) {
   if (now.table === null) out.push("This table has no version: it is older than the last deploy. Load the save again.");
   else if (now.table === "dev") out.push("This table was built from source, not deployed.");
   else if (now.table !== undefined && now.table !== deployed.table) out.push("This table isn't the deployed one. Load the save again, and don't save over it from an older session.");
-  if (now.node === null) out.push("Can't read the engine's containers: is Docker up?");
+  if (now.remote) { /* the engine runs on the host's own server: its images aren't this computer's to check */ }
+  else if (now.node === null) out.push("Can't read the engine's containers: is Docker up?");
   else {
     // (an image loaded from the friend package's tar has another id in Docker's classic store: its config digest,
     // which the package's record keeps as nodeConfig / relayConfig)
