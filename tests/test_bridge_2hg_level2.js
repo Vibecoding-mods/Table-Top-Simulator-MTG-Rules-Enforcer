@@ -219,6 +219,39 @@ const fixBoard = (i) => FIX.record[i].board;
     ok("level 1: no team refusal words", !ex.refused.some((c) => /Your team's blocks/.test(c)), ex.refused.join(" | "));
   });
 
+  // ── the first seat isn't the whole team: the other places that read whose turn it is ──
+  await run(async (h) => {
+    const seats = setGame(h);
+    const gv = clone(fixBoard(47)).gameView; // (turn 3, White + Red's team turn)
+    const l1 = asLevel1(fixBoard(47)).gameView;
+    same("precondition: the board is White + Red's shared turn", T.turnPlayerIds(gv), ["player-0", "player-1"]);
+    const red = (g) => ({ ...(g.players || []).find((p) => p.id === "player-1"), spellsCastThisTurn: 2 });
+    same("spells: the partner's spells this turn are counted on the team's turn", h.B._spellsMark(red(gv), { ...gv, stormCount: 3 }), "SPELLS THIS TURN: 2 (STORM 3)");
+    same("level 1: no spell count for Red on White's turn", h.B._spellsMark(red(l1), { ...l1, stormCount: 3 }), null);
+    const cp = { checkpointId: 7, turn: 3, activePlayerId: "player-0", step: "combatDeclareAttackers" };
+    ok("rewind list: a shared turn is the team's", /^turn 3, White \+ Red's /.test(h.B._checkpointLabel(cp, gv)), h.B._checkpointLabel(cp, gv));
+    ok("rewind list: the board's rewind points say the team", (h.B._rewindState({ ...gv, checkpoints: [cp] })?.points || []).some((p) => /White \+ Red's/.test(p.label)),
+      JSON.stringify(h.B._rewindState({ ...gv, checkpoints: [cp] })));
+    ok("level 1: the rewind list names the one player", /^turn 3, White's /.test(h.B._checkpointLabel(cp, l1)), h.B._checkpointLabel(cp, l1));
+    // (Mindslaver: Blue controls Red in the team's turn; the attack question is Red's, not White's)
+    const ctl = clone(gv);
+    for (const p of ctl.players) if (p.id === "player-1") p.controlledBy = "player-3";
+    const blue = seats.get("Blue");
+    same("mindslaver: Blue's attack question in the team's turn is for the partner she controls", h.B._actingFor(blue, { promptId: 990, decidingPlayerId: "player-3", input: { type: "chooseAttackers" } }, ctl), "player-1");
+    const ctl1 = asLevel1({ gameView: ctl }).gameView;
+    same("level 1: Blue's controlled Red doesn't attack on White's turn", h.B._actingFor(blue, { promptId: 992, decidingPlayerId: "player-3", input: { type: "chooseAttackers" } }, ctl1), null);
+    // (the debug tools: a setup waiting for Red's first priority opens on the team's turn)
+    for (const mode of ["shared", "level1"]) {
+      h.B._getGame().fix = null;
+      h.B._debugChoice.Red = { name: "test", scenario: {} };
+      try { h.B._debugPrompt(seats.get("Red"), "chooseAction", { promptId: 991, input: { type: "chooseAction" } }, mode === "shared" ? gv : l1); } catch (e) { /* (openFix's own state is not set up here) */ }
+      const used = !h.B._debugChoice.Red;
+      delete h.B._debugChoice.Red;
+      if (mode === "shared") ok("debug tools: Red's waiting setup opens at her priority on the team's turn", used);
+      else ok("level 1: Red's waiting setup waits for her own turn", !used);
+    }
+  });
+
   console.log(`${failed ? "FAIL" : "PASS"} test_bridge_2hg_level2: ${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.log(`FAIL test_bridge_2hg_level2: ${e.stack}`); process.exit(1); });
