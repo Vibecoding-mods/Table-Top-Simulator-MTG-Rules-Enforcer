@@ -5813,6 +5813,229 @@ index 0000000..930da08
 +        return game;
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/DrawCountRewindTest.java b/forge-harness/src/test/java/forge/harness/host/DrawCountRewindTest.java
+new file mode 100644
+index 0000000..ee28c34
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/DrawCountRewindTest.java
+@@ -0,0 +1,217 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.MagicStack;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.Deque;
++import java.util.List;
++import java.util.Set;
++
++public final class DrawCountRewindTest {
++    private DrawCountRewindTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++
++        check("rewindRestoresTheCardsDrawnThisTurn", DrawCountRewindTest::rewindRestoresTheCardsDrawnThisTurn);
++        check("faerieMastermindTriggersOnTheSecondDrawAfterARewind",
++                DrawCountRewindTest::faerieMastermindTriggersOnTheSecondDrawAfterARewind);
++        check("rewindRestoresLastTurnCounters", DrawCountRewindTest::rewindRestoresLastTurnCounters);
++        System.out.println(failed == 0 ? "PASS DrawCountRewindTest" : "FAIL DrawCountRewindTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static void rewindRestoresTheCardsDrawnThisTurn() throws Exception {
++        final Fixture f = new Fixture();
++        f.blue.drawCard();
++        f.recordCheckpoint();
++        final int drawn = f.blue.getNumDrawnThisTurn();
++        final int extra = f.blue.getNumExtraDrawnThisTurn();
++        f.blue.drawCards(2);
++        f.clearTriggers();
++        f.restoreFirstCheckpoint();
++        if (drawn != 1) {
++            throw new AssertionError("Blue drew " + drawn + " cards before the checkpoint, not 1");
++        }
++        if (f.blue.getNumDrawnThisTurn() != drawn) {
++            throw new AssertionError("after the rewind Blue has drawn " + f.blue.getNumDrawnThisTurn()
++                    + " cards this turn, not the checkpoint's " + drawn);
++        }
++        if (f.blue.getNumExtraDrawnThisTurn() != extra) {
++            throw new AssertionError("after the rewind Blue's extra draws are " + f.blue.getNumExtraDrawnThisTurn()
++                    + ", not the checkpoint's " + extra);
++        }
++        if (f.blue.getView().getNumDrawnThisTurn() != drawn) {
++            throw new AssertionError("Blue's view shows " + f.blue.getView().getNumDrawnThisTurn() + " cards drawn");
++        }
++    }
++
++    private static void faerieMastermindTriggersOnTheSecondDrawAfterARewind() throws Exception {
++        final Fixture f = new Fixture();
++        f.blue.drawCard();
++        expectTriggers(f, 0, "Blue's first card");
++        f.recordCheckpoint();
++        f.blue.drawCard();
++        expectTriggers(f, 1, "Blue's second card before the rewind");
++        f.clearTriggers();
++        f.restoreFirstCheckpoint();
++        f.blue.drawCard();
++        expectTriggers(f, 1, "Blue's second card after the rewind");
++    }
++
++    private static void rewindRestoresLastTurnCounters() throws Exception {
++        final Fixture f = new Fixture();
++        f.recordCheckpoint();
++        f.blue.setNumDrawnLastTurn(4);
++        f.blue.setLandsPlayedLastTurn(2);
++        f.restoreFirstCheckpoint();
++        if (f.blue.getNumDrawnLastTurn() != 0) {
++            throw new AssertionError("after the rewind Blue drew " + f.blue.getNumDrawnLastTurn() + " cards last turn");
++        }
++        if (f.blue.getLandsPlayedLastTurn() != 0) {
++            throw new AssertionError("after the rewind Blue played " + f.blue.getLandsPlayedLastTurn() + " lands last turn");
++        }
++    }
++
++    private static void expectTriggers(final Fixture f, final int wanted, final String when) throws Exception {
++        final int actual = f.mastermindTriggers();
++        if (actual != wanted) {
++            throw new AssertionError(when + ": Faerie Mastermind triggered " + actual + " times, not " + wanted
++                    + " (Blue has drawn " + f.blue.getNumDrawnThisTurn() + " this turn)");
++        }
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("draw-count-rewind-test");
++        final Game game = newGame();
++        final Player white = game.getPlayers().get(0);
++        final Player blue = game.getPlayers().get(1);
++        final Card mastermind;
++
++        Fixture() {
++            for (int i = 0; i < 6; i++) {
++                add("Island", blue, ZoneType.Library);
++                add("Island", white, ZoneType.Library);
++            }
++            mastermind = add("Faerie Mastermind", white, ZoneType.Hand);
++            game.getAction().moveToPlay(mastermind, null, null);
++            game.getTriggerHandler().resetActiveTriggers();
++            session.attach(game.getMatch(), game, Set.of(), true);
++        }
++
++        int mastermindTriggers() throws Exception {
++            int count = 0;
++            for (final SpellAbility sa : pending()) {
++                if (sa.getHostCard() != null && "Faerie Mastermind".equals(sa.getHostCard().getName())) {
++                    count++;
++                }
++            }
++            return count;
++        }
++
++        void clearTriggers() {
++            game.getStack().clearSimultaneousStack();
++        }
++
++        @SuppressWarnings("unchecked")
++        private List<SpellAbility> pending() throws Exception {
++            final Field field = MagicStack.class.getDeclaredField("simultaneousStackEntryList");
++            field.setAccessible(true);
++            return new ArrayList<>((List<SpellAbility>) field.get(game.getStack()));
++        }
++
++        void recordCheckpoint() throws Exception {
++            final Method record = ManaBrewInteractiveSession.class.getDeclaredMethod("recordCheckpoint");
++            record.setAccessible(true);
++            record.invoke(session);
++            if (checkpoints().isEmpty()) {
++                throw new AssertionError("no checkpoint was recorded");
++            }
++        }
++
++        void restoreFirstCheckpoint() throws Exception {
++            final Object first = checkpoints().peekFirst();
++            for (final Method method : ManaBrewInteractiveSession.class.getDeclaredMethods()) {
++                if (method.getName().equals("restore") && method.getParameterCount() == 1) {
++                    method.setAccessible(true);
++                    method.invoke(session, first);
++                    return;
++                }
++            }
++            throw new AssertionError("no restore method");
++        }
++
++        private Deque<?> checkpoints() throws Exception {
++            final Field field = ManaBrewInteractiveSession.class.getDeclaredField("checkpoints");
++            field.setAccessible(true);
++            return (Deque<?>) field.get(session);
++        }
++
++        private Game newGame() {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final Deck deck = new Deck();
++            players.add(new RegisteredPlayer(deck).setPlayer(new ManaBrewInteractiveLobbyPlayer("White", session)));
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Blue", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            final Game created = new Game(players, rules, new Match(rules, players, "DrawCountRewindTest"));
++            created.setAge(GameStage.Play);
++            created.getPhaseHandler().devModeSet(PhaseType.MAIN1, created.getPlayers().get(0));
++            created.getPhaseHandler().onStackResolved();
++            return created;
++        }
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/DungeonStateTest.java b/forge-harness/src/test/java/forge/harness/host/DungeonStateTest.java
 new file mode 100644
 index 0000000..4dd0af7
