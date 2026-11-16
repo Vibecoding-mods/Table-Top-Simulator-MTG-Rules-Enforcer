@@ -324,6 +324,15 @@ Step 2's leftovers and step 6. The report is `docs/handoff/archenemy-rules-repor
 - **Rewind:** no restore points in scheme games.
 - **Proof:** `ArchenemyTest` 14 of 14, each new check with a break-it.
 
+### 2.10 Spike done (2026-11-16, branch `cloud/archenemy-spike`)
+
+`ArchenemySchemeSweepTest` sets each of Forge's 102 schemes in motion in a harness game and answers its prompts
+through the session.
+
+- 102 of 102 pass after one fix: a discard of zero or fewer cards no longer prompts. Your Nightmares Are Delicious
+  threw on it.
+- Report: `docs/handoff/archenemy-spike-report.md`.
+
 ## 3. Recommended order and why
 
 1. **Finish Level 2 first (about 40 hours).** The code exists. It is the larger risk because it is a default flip.
