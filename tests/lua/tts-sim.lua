@@ -776,17 +776,33 @@ local function redraw(id, t)
   b.bg = b.own.color or TTS_BUTTON
 end
 function SIM.drawn(id)
-  local b = SIM.btn and SIM.btn[id]
+  local m = rawget(_G, "engineUiMap")
+  local b = SIM.btn and SIM.btn[(m and m.s[id]) or id]
   return b and (b.bg .. "|" .. b.fg) or "nil"
 end
+-- The script's screen UI has short ids (engineUiMap, engine-renderer.lua: s = long -> code, l = code -> long). The
+-- record names an element by its long id, so recordings read as before. A set made with a long id that has a code is a
+-- call that missed engineUI: in TTS it changes nothing. It is listed in SIM.longIds (run-sim makes it an error). A get
+-- takes either id (tests and tools read with the long one).
+local function uiMap() return rawget(_G, "engineUiMap") end
+local function uiShort(id) local m = uiMap() return (m and m.s[id]) or id end
+local function uiLong(id) local m = uiMap() return (m and m.l[id]) or id end
+local function uiSet(id)
+  local m = uiMap()
+  if m and m.s[id] ~= nil then SIM.longIds[#SIM.longIds + 1] = tostring(id) end
+  return uiShort(id)
+end
+SIM.longIds = {}
+-- the screen XML with the long ids back in (tests read the built XML by them)
+function SIM.longXml() local m = uiMap() if not m then return SIM.xml end return (SIM.xml:gsub(' id="([%w_]+)"', function(c) return ' id="' .. (m.l[c] or c) .. '"' end)) end
 UI = {
   setXml = function(x) SIM.xml = x readButtons(x) fx("UI.setXml", hash(x)) end,
   getXml = function() return SIM.xml end,
-  setAttribute = function(id, k, v) SIM.attrs[id .. "|" .. k] = tostring(v) redraw(id, { [k] = v }) fx("UI.setAttribute", id, k, tostring(v)) end,
-  setAttributes = function(id, t) for k, v in pairs(t) do SIM.attrs[id .. "|" .. k] = tostring(v) end redraw(id, t) fx("UI.setAttributes", id, t) end,
-  getAttribute = function(id, k) return SIM.attrs[id .. "|" .. k] end,
-  setValue = function(id, v) SIM.values[id] = v fx("UI.setValue", id, v) end,
-  getValue = function(id) return SIM.values[id] end,
+  setAttribute = function(id, k, v) id = uiSet(id) SIM.attrs[id .. "|" .. k] = tostring(v) redraw(id, { [k] = v }) fx("UI.setAttribute", uiLong(id), k, tostring(v)) end,
+  setAttributes = function(id, t) id = uiSet(id) for k, v in pairs(t) do SIM.attrs[id .. "|" .. k] = tostring(v) end redraw(id, t) fx("UI.setAttributes", uiLong(id), t) end,
+  getAttribute = function(id, k) return SIM.attrs[uiShort(id) .. "|" .. k] end,
+  setValue = function(id, v) id = uiSet(id) SIM.values[id] = v fx("UI.setValue", uiLong(id), v) end,
+  getValue = function(id) return SIM.values[uiShort(id)] end,
   show = function(id) fx("UI.show", id) end,
   hide = function(id) fx("UI.hide", id) end,
   setCustomAssets = function(t) fx("UI.setCustomAssets", #t) end,

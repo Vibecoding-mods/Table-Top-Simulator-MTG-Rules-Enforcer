@@ -110,6 +110,14 @@ Six seats need 30 trackers (each victim × 5 attackers). The table has bags, not
 
 ## 3. The UI shrink, in order (steps 1–6)
 
+**Done 2026-11-16 (branch `m6-ui-size`), without the changes players would notice:** steps 1, 2 (whitespace only),
+3 and 5, plus self-closing empty elements and short class names. Measured (`tests/test_ui_budget.js`, engine mode on):
+four seats 57,802 → 39,107; **six seats 77,831 → 52,789** (58,862 with engine mode off between games). Not done: step 4
+(shared copies) and 20 answer buttons a page; they stay in reserve. The budget test enforces under 60,000 and a +200
+ratchet per seat count (`tests/golden/ui-size.json`), not the 50,000 aim below. Details: `docs/m6-ui-size.md` §8.
+The id map ended up as `engineUI.*` (the long ids everywhere, mapped at the call) and `engineUiId(long)` for tests and
+tools; the fake TTS records long ids and fails a test on a set by a long id that has a code.
+
 What and why are in `docs/m6-ui-size.md` §3–4. The order is chosen so each step can be tested and kept on its own, and the risky id change comes last, after the budget test can catch a miss.
 
 1. **Budget test and id check** (1.5 h, §6.1). Start the budget at today's size and lower it after each step (a ratchet).

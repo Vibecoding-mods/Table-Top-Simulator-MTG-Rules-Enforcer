@@ -120,16 +120,16 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("paging: a button on page two answers that page's option", sent(r, "pick").includes('"choice":["o31"]'), sent(r, "pick").slice(0, 200));
   ok("paging: More answers nothing", !sent(r, "more 1").includes("choice"), sent(r, "more 1").slice(0, 200));
 }
-// four players' screen UI stays under 60 KB (two players at 64 KB lost the second player's buttons), and no event
-// attribute moves into <Defaults> (TTS was checked to honour "active" there, not onClick)
+// The size budget (six seats under 60 KB, each shrink by name) is tests/test_ui_budget.js. Here: the dead Scryfall
+// panels stay out, every seat is built, and no event attribute moves into <Defaults> (TTS was checked to honour
+// "active" there, not onClick). The screen ids are short (engineUiId gives an element's).
 {
   const seated = ["Blue", "White", "Red", "Yellow"];
-  const r = simulate({ save, seated, steps: [...prefix, q("return tostring(engineXmlSize)", "size"),
-    q('local x = UI.getXml() return ((x:find("SearchPanel", 1, true) or x:find("ListPanel", 1, true)) and "there" or "gone") .. " " .. ((x:find("<Defaults>", 1, true) and x:find("eng_opt_Blue_1", 1, true)) and "kept" or "lost")', "dead panels"),
-    q('local x = UI.getXml() local a = x:find("<Defaults>", 1, true) local b = a and x:find("</Defaults>", a, true) local d = b and x:sub(a, b) or "" return (d:find(" on%u%a*=") and "event" or "clean") .. " " .. tostring(select(2, x:gsub("eng_opt_Yellow_%d+", "")))', "defaults")] });
-  ok("UI size: four seats under 60 KB", Number(valueOf(r, "size")) > 20000 && Number(valueOf(r, "size")) < 60000, valueOf(r, "size"));
-  ok("UI size: the dead Scryfall panels are left out, the rest kept", valueOf(r, "dead panels") === "gone kept", valueOf(r, "dead panels"));
-  ok("UI size: every seat built, no events in <Defaults>", valueOf(r, "defaults") === "clean 30", valueOf(r, "defaults"));
+  const r = simulate({ save, seated, steps: [...prefix,
+    q('local x = UI.getXml() return ((x:find("SearchPanel", 1, true) or x:find("ListPanel", 1, true)) and "there" or "gone") .. " " .. ((x:find("<Defaults>", 1, true) and x:find(\' id="\' .. engineUiId("eng_opt_Blue_1") .. \'"\', 1, true)) and "kept" or "lost")', "dead panels"),
+    q('local x = UI.getXml() local a = x:find("<Defaults>", 1, true) local b = a and x:find("</Defaults>", a, true) local d = b and x:sub(a, b) or "" local n = 0 for k = 1, 40 do if x:find(\' id="\' .. engineUiId("eng_opt_Yellow_" .. k) .. \'"\', 1, true) then n = n + 1 end end return (d:find(" on%u%a*=") and "event" or "clean") .. " " .. n', "defaults")] });
+  ok("UI: the dead Scryfall panels are left out, the rest kept", valueOf(r, "dead panels") === "gone kept", valueOf(r, "dead panels"));
+  ok("UI: every seat built, no events in <Defaults>", valueOf(r, "defaults") === "clean 30", valueOf(r, "defaults"));
 }
 // flick containment: a movable card nobody holds that ends up off its owner's mat goes back (2026-10-23)
 {
@@ -612,10 +612,10 @@ for (const kind of ["Land", "Creature"]) {
   ok("panel picture: two in a row end on the newest", String(valueOf(r, "two")) === "https://img.example/c.jpg", String(valueOf(r, "two")));
   // (TTS draws whichever download ends last: an earlier picture still loading replaced the newest, hp-12 re-test
   // 2026-10-27. The simulator has no downloads; the late picture is written straight to the attribute here)
-  const r2 = run([q('engineSetImage("eng_pop_img", "https://img.example/d.jpg") __sim.frames(10) UI.setAttribute("eng_pop_img", "image", "https://img.example/late.jpg") __sim.frames(600) return tostring(UI.getAttribute("eng_pop_img", "image"))', "late")]);
+  const r2 = run([q('engineSetImage("eng_pop_img", "https://img.example/d.jpg") __sim.frames(10) engineUI.setAttribute("eng_pop_img", "image", "https://img.example/late.jpg") __sim.frames(600) return tostring(UI.getAttribute("eng_pop_img", "image"))', "late")]);
   ok("panel picture: a late earlier picture is replaced by the newest again", String(valueOf(r2, "late")) === "https://img.example/d.jpg", String(valueOf(r2, "late")) + " " + r2.errors.join(" | "));
   // (each re-assert pinned: a load landing in the first seconds is replaced within about 3 s, one landing later within 8 s)
-  const lateAt = (landFrame, checkFrame, mark) => q(`engineSetImage("eng_pop_img", "https://img.example/${mark}.jpg") __sim.frames(${landFrame}) UI.setAttribute("eng_pop_img", "image", "https://img.example/late.jpg") __sim.frames(${checkFrame - landFrame}) return tostring(UI.getAttribute("eng_pop_img", "image"))`, mark);
+  const lateAt = (landFrame, checkFrame, mark) => q(`engineSetImage("eng_pop_img", "https://img.example/${mark}.jpg") __sim.frames(${landFrame}) engineUI.setAttribute("eng_pop_img", "image", "https://img.example/late.jpg") __sim.frames(${checkFrame - landFrame}) return tostring(UI.getAttribute("eng_pop_img", "image"))`, mark);
   const r4 = run([lateAt(10, 200, "early"), lateAt(240, 500, "later")]);
   ok("panel picture: a late load in the first seconds is replaced within about 3 s", String(valueOf(r4, "early")) === "https://img.example/early.jpg", String(valueOf(r4, "early")));
   ok("panel picture: a late load after that is replaced within 8 s", String(valueOf(r4, "later")) === "https://img.example/later.jpg", String(valueOf(r4, "later")));
@@ -653,7 +653,7 @@ for (const kind of ["Land", "Creature"]) {
     q('return tostring(UI.getValue("eng_phase_Blue"))', "cleanup bar"),
     q('engineEffectsOff.Blue = true engineGameOverBanner({ winner = "Blue" }) return "over"', "game over"), banner("victory"),
     { frames: 150 }, banner("wins"), { frames: 260 }, banner("gone"),
-    q('engineEffectsOff.Blue = nil UI.setAttribute("eng_banner_Blue", "active", "false") engineGameOverBanner({ winner = "White" }) return "over2"', "game over, effects on"), banner("effects on")]);
+    q('engineEffectsOff.Blue = nil engineUI.setAttribute("eng_banner_Blue", "active", "false") engineGameOverBanner({ winner = "White" }) return "over2"', "game over, effects on"), banner("effects on")]);
   const b = (m) => String(valueOf(r, m));
   ok("step banner: a priority question in main 1 shows MAIN PHASE 1", b("main1 priority") === "true|MAIN PHASE 1", b("main1 priority") + " " + r.errors.join(" | "));
   ok("step banner: a second question in the same step shows nothing new", b("main1 again").startsWith("false"), b("main1 again"));
@@ -969,7 +969,7 @@ for (const kind of ["Land", "Creature"]) {
 // The "floating black boxes" (2026-11-09): the covers over TTS's tool bars, measured on one screen, floated on others.
 // None in the screen UI, and nothing sets one. The log panel is no empty black box either: hidden until the first line.
 {
-  const r = run([q('engineScoopRedraw()', "draw"), q('local x = UI.getXml() return tostring(x:find("eng_cover", 1, true) ~= nil) .. "|" .. tostring(engineToolCoverXml)', "xml"),
+  const r = run([q('engineScoopRedraw()', "draw"), q('local x = __sim.longXml() return tostring(x:find("eng_cover", 1, true) ~= nil) .. "|" .. tostring(engineToolCoverXml)', "xml"),
     q('engineLog = {} engineRenderPanels("none") return tostring(UI.getAttribute("eng_log_Blue", "active"))', "empty log"),
     q('engineOnLog({ lines = { "Blue casts Opt" } }) return tostring(UI.getAttribute("eng_log_Blue", "active"))', "first line")]);
   ok("black boxes: no tool covers in the screen UI", valueOf(r, "xml") === "false|nil", String(valueOf(r, "xml")) + " " + r.errors.join(" | "));
@@ -1075,7 +1075,7 @@ for (const kind of ["Land", "Creature"]) {
     q('onMtgUndo(Player.Blue, nil, "eng_undo_Blue")', "open undo"), st("undo"),
     slot(2, "undo pick"), st("after undo pick"),
     q('onMtgUndo(Player.Blue, nil, "eng_undo_Blue")', "undo again"), q('engineRewindUpdate(nil, false)', "points gone"), st("no points"),
-    q('local x = UI.getXml() local o = {} for _, id in ipairs({ "eng_setpanel_", "eng_undolist_", "eng_undopt_", "eng_pace_", "eng_dock_Blue" }) do o[#o + 1] = tostring(x:find(id, 1, true) ~= nil) end return table.concat(o, "|")', "xml")]);
+    q('local x = __sim.longXml() local o = {} for _, id in ipairs({ "eng_setpanel_", "eng_undolist_", "eng_undopt_", "eng_pace_", "eng_dock_Blue" }) do o[#o + 1] = tostring(x:find(id, 1, true) ~= nil) end return table.concat(o, "|")', "xml")]);
   const v = (m) => String(valueOf(r, m)).split("|");
   const gold = (c) => /^#FFD27[AB]$/i.test(c), white = (c) => /^#F[EF]F[EF]F[EF]$/i.test(c);
   ok("tabs: no errors", r.errors.length === 0, r.errors.join(" | "));
@@ -1117,7 +1117,7 @@ for (const kind of ["Land", "Creature"]) {
 // every Button that setText names is one isButton knows: real TTS ignores UI.setValue on a Button, so a label set that way
 // never shows. isButton is every Button of the built screen XML (engineBtnLook, 2026-11-10), so: every one is recorded.
 {
-  const r = run([q('local x = UI.getXml() local n, miss = 0, {} for id in x:gmatch(\'<Button id="([^"]+)"\') do n = n + 1 if engineBtnLook[id] == nil then miss[#miss + 1] = id end end return n .. "|" .. table.concat(miss, ",")', "buttons")]);
+  const r = run([q('local x = UI.getXml() local n, miss = 0, {} for id in x:gmatch(\'<Button id="([^"]+)"\') do n = n + 1 if engineBtnLook[engineUiMap.l[id] or id] == nil then miss[#miss + 1] = id end end return n .. "|" .. table.concat(miss, ",")', "buttons")]);
   const [n, missing] = String(valueOf(r, "buttons")).split("|");
   ok("setText: every Button of the screen UI sets the text attribute", Number(n) > 50 && missing === "", `${n} buttons, missing: ${missing} ${r.errors.join(" | ")}`);
 }
@@ -1172,7 +1172,7 @@ for (const kind of ["Land", "Creature"]) {
 // Fix, all at y -140 and right of TTS's left tool bar (82 px), the window under them. (The fake TTS keeps no layout:
 // read from the built XML.)
 {
-  const r = run([q('return UI.getXml()', "xml")]);
+  const r = run([q('return __sim.longXml()', "xml")]);
   const xml = String(valueOf(r, "xml"));
   const tagOf = (id) => (xml.match(new RegExp(`<\\w+ id="${id}"[^>]*>`)) || [""])[0];
   const cls = (tag) => { const m = /class="(\w+)"/.exec(tag); return m ? (xml.match(new RegExp(`<\\w+ class="${m[1]}"[^>]*>`)) || [""])[0] : ""; };
@@ -3688,7 +3688,7 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     const hideaway = add(`table.insert(blue.battlefield, { id = "${LAND}", n = "Mosswort Bridge", f = "https://img.example/bridge.jpg", ty = { "Land" }, ctl = "Blue" }) ` +
       `blue.exile = blue.exile or {} table.insert(blue.exile, { id = "${HID}", fd = true, ty = {}, ctl = "Blue", ew = "${LAND}", nt = { "Exiled with Mosswort Bridge" }, pk = { n = "Carnage Tyrant", f = "https://img.example/tyrant.jpg", v = { "Blue" } } })`);
     const objOf = (id) => `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${id}" then o = x end end `;
-    const panel = (color) => `local a = function(id, k) return tostring(UI.getAttribute(id, k)) end return a("eng_peekp_${color}", "active") .. "|" .. tostring(UI.getValue("eng_peekpt_${color}")) .. "|" .. a("eng_peekpi_${color}", "image") .. "|" .. tostring(tostring(UI.getXml() or ""):match('<Panel id="eng_peekp_${color}" visibility="([^"]*)"'))`;
+    const panel = (color) => `local a = function(id, k) return tostring(UI.getAttribute(id, k)) end return a("eng_peekp_${color}", "active") .. "|" .. tostring(UI.getValue("eng_peekpt_${color}")) .. "|" .. a("eng_peekpi_${color}", "image") .. "|" .. tostring(tostring(__sim.longXml() or ""):match('<Panel id="eng_peekp_${color}" visibility="([^"]*)"'))`;
     const hover = (color, id, mark) => q((id ? objOf(id) : "local o = nil ") + `onObjectHover("${color}", o) __sim.frames(200) ` + panel(color), mark);
     const r = both([q(hideaway, "board"), hover("Blue", LAND, "blue land"), hover("White", LAND, "white land"), q(panel("White"), "white after"),
       hover("Blue", null, "blue away"), hover("Blue", HID, "blue card"),
