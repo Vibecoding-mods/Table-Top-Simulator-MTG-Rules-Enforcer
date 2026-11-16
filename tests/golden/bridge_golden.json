@@ -925596,12 +925596,12 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Not started: Archenemy: Blue isn't in this game (seated: White; AI players take the free seats in turn order). Seat Blue, make it an AI seat (mtg ai Blue forge), or fill all four seats.\n"
+    "text": "[time] all    told: [MTG] Not started: Archenemy: Blue isn't in this game (seated: White; AI players take the free seats in turn order). Seat Blue, make it an AI seat (mtg ai Blue forge), or fill all four seats. The Archenemy switch is on for the next games: type  mtg archenemy off  to play without it.\n"
    },
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Not started: Archenemy: Blue isn't in this game (seated: White; AI players take the free seats in turn order). Seat Blue, make it an AI seat (mtg ai Blue forge), or fill all four seats.",
+     "text": "[MTG] Not started: Archenemy: Blue isn't in this game (seated: White; AI players take the free seats in turn order). Seat Blue, make it an AI seat (mtg ai Blue forge), or fill all four seats. The Archenemy switch is on for the next games: type  mtg archenemy off  to play without it.",
      "color": null
     }
    },
@@ -926181,6 +926181,19 @@
       ],
       "vote": null,
       "off": "Undo isn't available in Archenemy games: the schemes in play can't be rewound yet."
+     },
+     "teams": {
+      "rule": "teams",
+      "mode": "archenemy",
+      "sides": [
+       [
+        "Blue"
+       ],
+       [
+        "White"
+       ]
+      ],
+      "archenemy": "Blue"
      }
     }
    },
@@ -926537,6 +926550,19 @@
       ],
       "vote": null,
       "off": "Undo isn't available in Archenemy games: the schemes in play can't be rewound yet."
+     },
+     "teams": {
+      "rule": "teams",
+      "mode": "archenemy",
+      "sides": [
+       [
+        "Blue"
+       ],
+       [
+        "White"
+       ]
+      ],
+      "archenemy": "Blue"
      }
     }
    },
