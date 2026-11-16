@@ -1007,11 +1007,100 @@ function shim() {
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }
 
+function ownServer() {
+  section("own server (server.json, --server)");
+  const set = (o, spec = null, envKey = null) => L.serverSetting(o === null ? null : typeof o === "string" ? o : JSON.stringify(o), spec, envKey);
+  let r = set({ host: "Mtg.Example.org" });
+  check("server.json: host only: port 9443, ws://, no key", r && r.ok && r.server.host === "mtg.example.org" && r.server.port === 9443 && L.serverUrl(r.server) === "ws://mtg.example.org:9443" && r.server.key === null, r);
+  check("no server.json and no --server: the engine runs here", set(null) === null);
+  r = set({ host: "a.example.org", port: 9555, key: "file-key" }, "b.example.org:7000", "env-key");
+  check("--server host:port beats the file's host and port; the file's key is kept", r && r.ok && r.server.host === "b.example.org" && r.server.port === 7000 && r.server.key === "file-key", r);
+  r = set({ host: "a.example.org" }, null, "env-key");
+  check("no key in server.json: MTG_SERVER_KEY is used", r && r.ok && r.server.key === "env-key", r);
+  r = set({ host: "a.example.org", key: "file-key" }, null, "env-key");
+  check("the file's key beats MTG_SERVER_KEY", r && r.ok && r.server.key === "file-key", r);
+  r = set(null, "10.0.0.5", null);
+  check("--server with no port: 9443", r && r.ok && r.server.port === 9443 && r.server.host === "10.0.0.5", r);
+  r = set({ host: "[2001:db8::5]", port: "9444", secure: true });
+  check("secure: true is wss://, an IPv6 address in brackets, a port given as text", r && r.ok && L.serverUrl(r.server) === "wss://[2001:db8::5]:9444", r);
+  r = set({ host: "ws://mtg.example.org:9443" });
+  check("a ws:// in host is refused, saying to give the name only", r && !r.ok && r.problem.includes("without ws://"), r);
+  r = set({ host: "mtg.example.org", hots: "x" });
+  check("a misspelt setting is refused by name", r && !r.ok && r.problem.includes("\"hots\""), r);
+  for (const bad of [0, 70000, "x", 9443.5]) {
+    r = set({ host: "mtg.example.org", port: bad });
+    check(`port ${JSON.stringify(bad)} is refused (1 to 65535)`, r && !r.ok && r.problem.includes("1 to 65535"), r);
+  }
+  r = set("{ host: oops");
+  check("server.json that isn't JSON: refused, says how to write it or to delete it", r && !r.ok && r.problem.includes("isn't valid JSON") && r.problem.includes("delete it"), r);
+  r = set({ host: "my server" });
+  check("a host with a space is refused", r && !r.ok && r.problem.includes("isn't a server name"), r);
+  r = set({ host: "mtg.example.org", key: "" });
+  check("an empty key is refused", r && !r.ok && r.problem.includes("\"key\""), r);
+
+  const ok = set({ host: "mtg.example.org", port: 9443 });
+  const on = L.Game.on("a game is on");
+  const d = (login, game = L.Game.none("no game")) => L.decideServer(ok, login, game);
+  let v = d({ kind: "ok", roomFound: true, roomStatus: "Lobby", ms: 40 });
+  check("connected, room open: green, names the server", v.light === Light.Green && v.text.includes("mtg.example.org:9443") && v.text.includes(L.Room), v);
+  v = d({ kind: "refused", detail: "ECONNREFUSED" });
+  check("refused: red, says nothing listens on the port, Try again", v.light === Light.Red && v.text.includes("nothing listens on port 9443") && v.fix === Fixes.Retry, v);
+  v = d({ kind: "timeout", detail: "no connection" });
+  check("timeout: red, says the firewall and the address", v.light === Light.Red && v.text.includes("firewall") && v.text.includes("server.json"), v);
+  v = d({ kind: "closed", detail: "getaddrinfo ENOTFOUND" });
+  check("unreachable (a name that doesn't resolve): red, the reason shown", v.light === Light.Red && v.text.includes("Can't reach your server") && v.text.includes("ENOTFOUND"), v);
+  v = d({ kind: "authFailed", detail: "bad key" });
+  check("refused key: red, says to put the server's key in server.json", v.light === Light.Red && v.text.includes("refused the key") && v.text.includes("\"key\""), v);
+  v = d({ kind: "ok", roomFound: false });
+  check("connected, no Forge room: red, says to start it on the server", v.light === Light.Red && v.text.includes("isn't open"), v);
+  v = d({ kind: "ok", roomFound: true, roomStatus: "InGame" });
+  check("a busy room on the server is red when no game is on here", v.light === Light.Red && v.text.includes("busy"), v);
+  v = L.decideServer(ok, { kind: "ok", roomFound: true, roomStatus: "InGame" }, on);
+  check("the room in our own game: green", v.light === Light.Green, v);
+  v = L.decideServer(set({ host: "ws://x" }), null, null);
+  check("a server.json problem is the engine light's red, Try again", v.light === Light.Red && v.text.startsWith("Own server: server.json:") && v.fix === Fixes.Retry, v);
+  const rows = [L.serverNotNeeded(ok.server).light, L.serverNotNeeded(ok.server).light, Light.Green, Light.Grey, Light.Green];
+  check("steps 1-2 green with a server (engine up)", L.engineUp(rows), rows);
+}
+
+async function serverWiring() {
+  section("own server wiring (Controller: no container engine, a login to the server, the bridge's relay)");
+  const probes = require("./probes");
+  const real = probes.relayLogin, realReach = probes.tcpReach;
+  const logins = [];
+  probes.tcpReach = async () => ({ kind: "ok", detail: null });
+  probes.relayLogin = async (url, key, room, ms) => { logins.push({ url, key, ms }); return { kind: "ok", roomFound: true, roomStatus: "Lobby", ms: 5 }; };
+  const { c, tmp } = fakeController(false);
+  try {
+    let engineCalls = 0;
+    c.engine = { o: {}, cli: "docker", detect: async () => { engineCalls++; return { answers: true }; }, bridgeEnv: () => ({}), up: async () => { engineCalls++; return { code: 0 }; }, down: async () => { engineCalls++; }, stop: async () => { engineCalls++; } };
+    c.server = L.serverSetting(JSON.stringify({ host: "mtg.example.org", port: 9555, key: "server-key" }), null, null);
+    c.onlySteps = new Set([1, 2, 3]);
+    await c.runSequence(1);
+    check("own server: steps 1-2 not needed (green), nothing asked of the container engine", c.rows[L.Step.Docker].v.light === Light.Green && c.rows[L.Step.Images].v.light === Light.Green && engineCalls === 0, `${engineCalls} ${L.vText(c.rows[0].v)}`);
+    check("own server: the engine step logs in to the server with its key", logins.length === 1 && logins[0].url === "ws://mtg.example.org:9555" && logins[0].key === "server-key" && c.rows[L.Step.Stack].v.light === Light.Green, logins);
+    const env = c.serverEnv();
+    check("own server: the bridge gets the server's relay and key (MTG_RELAY, MTG_KEY)", env.MTG_RELAY === "ws://mtg.example.org:9555" && env.MTG_KEY === "server-key", env);
+    c.stopBridge = async () => {};
+    c.stopEverything(null);
+    await c.workOnce(async () => {});
+    check("own server: Stop everything stops the bridge only, never the server's engine", engineCalls === 0 && c.everythingStopped, engineCalls);
+    let watchError = null;
+    try { await c.monitorTick(); } catch (e) { watchError = e.message; }
+    check("own server: the watcher asks no container engine either", !watchError && engineCalls === 0 && c.rows[L.Step.Docker].v.light === Light.Green, watchError || engineCalls);
+    c.server = null;
+    check("no server: the bridge gets no relay setting (the engine here)", Object.keys(c.serverEnv()).length === 0);
+  } finally {
+    probes.relayLogin = real; probes.tcpReach = realReach;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
 async function main(outFile) {
   out = []; fails = 0; passes = 0;
   modes(); sequence(); docker(); images(); stack(); ports(); bridge(); gameLock(); saves(); tts(); misc(); update();
-  startEngineRules();
-  await parser(); await wiring(); await launchStartsNothing(); await watcherBeforeStart(); await saveFiles(); await workshopTable(); await server(); await notStartedStatus(); shim();
+  startEngineRules(); ownServer();
+  await parser(); await wiring(); await launchStartsNothing(); await watcherBeforeStart(); await saveFiles(); await workshopTable(); await server(); await notStartedStatus(); await serverWiring(); shim();
   out.push(`${passes} passed, ${fails} failed`);
   const text = `${out.join("\n")}\n`;
   if (outFile) fs.writeFileSync(outFile, text); else process.stdout.write(text);

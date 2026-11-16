@@ -29,5 +29,9 @@ What each file does:
   selftest.js     the checks: runtime/node/bin/node companion/companion.js --selftest
   breakit.js      proves the checks work: breaks one rule at a time in a copy and expects a red check
 
+Own server: a server.json in this folder ({ "host": "mtg.example.org", "port": 9443, "key": "..." }; only "host" is
+needed) points the companion at an engine on another computer instead of starting one here: steps 1-2 start
+nothing, step 3 is a login to that server, and the bridge connects to it. HOW-TO-PLAY.md, "Own server".
+
 It listens only on 127.0.0.1 (this computer), runs only these programs: docker or podman, steam or xdg-open (Linux),
 open, ps and lsof (Mac), sh (the shim), and the bundled node. Its log is logs/companion.log.

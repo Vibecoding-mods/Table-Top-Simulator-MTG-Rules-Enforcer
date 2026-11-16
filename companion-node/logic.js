@@ -44,6 +44,7 @@ function makeLayout(mode, home) {
   l.bridgeJs = path.join(home, "bridge", "bridge.js");
   l.envFile = path.join(home, "stack", ".env");
   l.deployedFile = path.join(home, "stack", "deployed.json");
+  l.serverFile = path.join(home, "server.json"); // (own server: where the engine runs, when not on this computer)
   if (l.friend) {
     l.versionFile = path.join(home, "version.json");
     l.project = "mtg-table";
@@ -300,6 +301,104 @@ function decideStack(relay, room, login, game, friend) {
       return verdict(Light.Red, "The room is busy with an earlier game, so a new start would be refused.", { fix: Fixes.StackRestart, label: "Restart relay and room" });
     default:
       return verdict(Light.Red, `The relay is up, but this computer can't log in to it (${String(login.kind).toLowerCase()}), so games would fail at setup. This happens after the container engine restarts, or after sleep.`, { fix: Fixes.StackRestart, label: "Restart relay and room" });
+  }
+}
+
+// ───────────────────────────── own server (the engine runs on another computer) ─────────────────────────────
+// A host may run the engine (relay and Forge room) on their own server instead of this computer. server.json in the
+// package folder (in the repo: its root) says where: { "host": "mtg.example.org", "port": 9443, "key": "...",
+// "secure": false }; only "host" is needed. --server host[:port] does the same for one run (the key then comes from
+// server.json, else MTG_SERVER_KEY, else this package's own key). With a server, steps 1-3 start nothing here: the
+// engine step is a login to that server, and the bridge connects to it.
+const ServerFile = "server.json";
+const DefaultServerPort = 9443;
+const ServerKeys = ["host", "port", "key", "secure"];
+
+// a host name, an IPv4 address or a bracketed IPv6 one; nothing else (no scheme, path, user or spaces)
+function serverHostProblem(h) {
+  if (typeof h !== "string" || !h.trim()) return "\"host\" is missing: give the server's name or address, e.g. \"mtg.example.org\".";
+  const host = h.trim();
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(host)) return `"host" is "${host}": give the name only, without ws:// or http:// (the port goes in "port").`;
+  if (/^\[[0-9a-f:.]+\]$/i.test(host)) return null;
+  if (host.length > 253 || !/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i.test(host))
+    return `"host" is "${host}", which isn't a server name or address (letters, digits, dots and dashes; an IPv6 address in [brackets]).`;
+  return null;
+}
+
+// one server setting: { ok: true, server: { host, port, key, secure } } or { ok: false, problem }
+function parseServer(o) {
+  if (!isObj(o)) return { ok: false, problem: "it isn't a JSON object like { \"host\": \"mtg.example.org\" }." };
+  const unknown = Object.keys(o).filter((k) => !ServerKeys.includes(k));
+  if (unknown.length) return { ok: false, problem: `unknown setting${unknown.length > 1 ? "s" : ""} ${unknown.map((k) => `"${k}"`).join(", ")} (the settings are ${ServerKeys.map((k) => `"${k}"`).join(", ")}).` };
+  const hp = serverHostProblem(o.host);
+  if (hp) return { ok: false, problem: hp };
+  let port = DefaultServerPort;
+  if (o.port !== undefined && o.port !== null) {
+    port = typeof o.port === "string" && /^\d+$/.test(o.port.trim()) ? Number(o.port.trim()) : o.port;
+    if (!Number.isInteger(port) || port < 1 || port > 65535) return { ok: false, problem: `"port" is ${JSON.stringify(o.port)}: a number from 1 to 65535 (the relay's is ${DefaultServerPort} unless you changed it).` };
+  }
+  if (o.key !== undefined && o.key !== null && (typeof o.key !== "string" || !o.key.trim())) return { ok: false, problem: "\"key\" must be the server's key as text (or left out)." };
+  if (o.secure !== undefined && o.secure !== null && typeof o.secure !== "boolean") return { ok: false, problem: "\"secure\" must be true or false (true: the server's relay is behind TLS, wss://)." };
+  return { ok: true, server: { host: o.host.trim().toLowerCase(), port, key: typeof o.key === "string" ? o.key.trim() : null, secure: o.secure === true } };
+}
+
+// "host[:port]" (--server) as a setting object, or null when it isn't one
+function serverSpec(spec) {
+  if (typeof spec !== "string" || !spec.trim()) return null;
+  const t = spec.trim();
+  const m = /^(\[[^\]]+\]|[^:\s]+)(?::(\d+))?$/.exec(t);
+  if (!m) return { host: t };
+  return m[2] !== undefined ? { host: m[1], port: Number(m[2]) } : { host: m[1] };
+}
+
+// The server this run uses: null (the engine on this computer), or parseServer's result. fileText: server.json's text
+// (null: no file); spec: --server's value (null: none); envKey: MTG_SERVER_KEY.
+function serverSetting(fileText, spec, envKey) {
+  let fromFile = null;
+  if (fileText !== null && fileText !== undefined) {
+    const o = parseJson(fileText);
+    if (o === null) return { ok: false, problem: `${ServerFile} isn't valid JSON. Write it like { "host": "mtg.example.org", "port": 9443 }, or delete it to run the engine on this computer.` };
+    fromFile = o;
+  }
+  const cli = serverSpec(spec);
+  if (!fromFile && !cli) return null;
+  const merged = { ...(isObj(fromFile) ? fromFile : {}), ...(cli || {}) };
+  if (!isObj(fromFile) && fromFile !== null) return { ok: false, problem: `${ServerFile}: ${parseServer(fromFile).problem}` };
+  const r = parseServer(merged);
+  if (!r.ok) return { ok: false, problem: `${cli ? "--server" : ServerFile}: ${r.problem}` };
+  if (!r.server.key && typeof envKey === "string" && envKey.trim()) r.server.key = envKey.trim();
+  return r;
+}
+
+const serverUrl = (s) => `${s.secure ? "wss" : "ws"}://${s.host}:${s.port}`;
+const serverWords = (s) => `${s.host}:${s.port}`;
+// steps 1 and 2 with a server: nothing to run here
+const serverNotNeeded = (s) => verdict(Light.Green, `Not needed here: the engine runs on your server (${serverWords(s)}).`);
+
+// The engine step with a server: its login (probes.relayLogin's result, or { kind: "skipped" } during a game) as a
+// light. setting: serverSetting's result.
+function decideServer(setting, login, game) {
+  if (!setting.ok) return verdict(Light.Red, `Own server: ${setting.problem}`, { fix: Fixes.Retry, label: "Try again" });
+  const s = setting.server, at = serverWords(s);
+  const again = { fix: Fixes.Retry, label: "Try again" };
+  if (!login || login.kind === "skipped") return verdict(Light.Green, `Your server (${at})${locked(game) ? ": not probed during a game" : ""}.`);
+  const why = login.detail ? ` (${clip(String(login.detail), 120)})` : "";
+  switch (login.kind) {
+    case "ok":
+      if (!login.roomFound) return verdict(Light.Red, `Connected to your server (${at}), but its Forge room (${Room}) isn't open. Start the Forge room on the server, then press Try again.`, again);
+      if (login.roomStatus === "Lobby") return verdict(Light.Green, `Your server (${at}): room ${Room} is open (login ${login.ms} ms).`);
+      if (locked(game)) return verdict(Light.Green, `Your server (${at}): room ${Room} is in a game.`);
+      return verdict(Light.Red, `Your server's room (${at}) is busy with an earlier game, so a new start would be refused. Restart the relay and the Forge room on the server.`, again);
+    case "authFailed":
+      return verdict(Light.Red, `Your server (${at}) refused the key${why}. Put the server's key (its MANABREW_SERVER_KEY) in ${ServerFile} as "key".`, again);
+    case "refused":
+      return verdict(Light.Red, `Your server (${at}) refused the connection${why}: nothing listens on port ${s.port} there. Check the port in ${ServerFile} and that the engine runs on the server.`, again);
+    case "notFound":
+      return verdict(Light.Red, `Your server's name "${s.host}" isn't known${why}: it doesn't resolve to an address. Check the spelling of "host" in ${ServerFile} (or use the server's IP address).`, again);
+    case "timeout":
+      return verdict(Light.Red, `Your server (${at}) didn't answer${why}. Check that it is on, that its firewall lets port ${s.port} in, and the address in ${ServerFile}.`, again);
+    default:
+      return verdict(Light.Red, `Can't reach your server (${at})${why}. Check the address in ${ServerFile}, that the server is on, and that port ${s.port} is open to this computer${s.secure ? " (secure: true needs TLS on the server)" : ""}.`, again);
   }
 }
 
@@ -751,7 +850,8 @@ module.exports = {
   httpOk, httpOf, parseJson, isObj, get, has, str, int, Game, decideGame, playersText, locked, lockText,
   DockerUrl, decideDocker, sameId, normId, deployedAfterLoad, shortId, decideImages,
   TableWorkshopId, SixWorkshopId, workshopUrl, workshopMissing, parseMakeTable, tableBuildFailed, saveDone, deployedWithTable,
-  decideStack, savesFolderVerdict, stopRefusal, writeProblem, composeFailure, SaveName, planSave, readSaveName,
+  decideStack, ServerFile, DefaultServerPort, parseServer, serverSpec, serverSetting, serverUrl, serverWords, serverNotNeeded, decideServer,
+  savesFolderVerdict, stopRefusal, writeProblem, composeFailure, SaveName, planSave, readSaveName,
   isBridgeCommandLine, decidePorts, decideBridge, countExits,
   DefaultSaveName, Room, ttsHowTo, decideTts, sha8, clip, relayKey, worst, overall,
   NotStartedPhase, StoppedPhase, StartHint, engineUp, beforeStart, nextHint, autoStart,
