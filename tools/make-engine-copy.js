@@ -1,17 +1,43 @@
 // Builds the "engine mode" copy of the group's table with the security issues removed
 // (table-review/COMPATIBILITY.md, "Must-fix before connecting the bridge").
 // The original workshop file is only read, never written.
-//   node make-engine-copy.js [source.json] [dest.json]
+//   node make-engine-copy.js [source.json] [dest.json] [--profile tools/profiles/<id>.json]
+// The table's profile (its seats, their objects, what to remove: tools/table-profile.js) is read from the source itself;
+// --profile names the file it must match, so a profile can't be put on the wrong table (the two tables reuse GUIDs for
+// different seats, docs/m6-six-seat-spec.md §2.1). Default source: the 4-player table.
 const fs = require("fs");
 const path = require("path");
+const tableProfile = require("./table-profile");
 
 const TTS = path.join(process.env.USERPROFILE || require("os").homedir(), "Documents", "My Games", "Tabletop Simulator");
-const SRC = process.argv[2] || path.join(TTS, "Mods", "Workshop", "2296042369.json");
-const DEST = process.argv[3] || path.join(TTS, "Saves", "MTG 4 player table - ENGINE MODE.json");
+const ARGS = process.argv.slice(2);
+const PROFILE_AT = ARGS.indexOf("--profile");
+const PROFILE_FILE = PROFILE_AT >= 0 ? ARGS[PROFILE_AT + 1] || "" : null;
+const POS = ARGS.filter((a, i) => !a.startsWith("--") && (PROFILE_AT < 0 || i !== PROFILE_AT + 1));
+const SRC = POS[0] || path.join(TTS, "Mods", "Workshop", "2296042369.json");
 const TAG = "-- [engine copy]";
 
 const save = JSON.parse(fs.readFileSync(SRC, "utf8"));
 const report = [];
+
+// The profile, from the source; a --profile file must be the same, byte for byte
+const PROFILE = (() => {
+  const { profile, errors } = tableProfile.extract(save);
+  if (!profile) { console.log(`FAIL table profile: ${errors.join("; ")}\n\nNot written: the table's profile is incomplete.`); process.exit(1); }
+  if (PROFILE_FILE != null) {
+    const given = fs.existsSync(PROFILE_FILE) ? fs.readFileSync(PROFILE_FILE, "utf8").replace(/\r\n/g, "\n") : null;
+    if (given !== tableProfile.profileText(profile)) {
+      console.log(`FAIL table profile: ${PROFILE_FILE || "(no file)"} is not this table's (node tools/table-profile.js <the table> writes it)\n\nNot written.`);
+      process.exit(1);
+    }
+  }
+  report.push(`OK   table profile ${profile.id}: ${profile.seats.length} seats, clockwise ${profile.seats.join(" -> ")}${profile.notFound.length ? ` (not on this table: ${profile.notFound.join("; ")})` : ""}`);
+  return profile;
+})();
+const SEATS = PROFILE.seats;
+const DEST = POS[1] || path.join(TTS, "Saves", `${PROFILE.saveName}.json`);
+// A patch for a tool this table doesn't have: said, not failed
+const skip = (label, why) => report.push(`SKIP ${label} (${why})`);
 
 // Every object, including ones inside bags and alternate states.
 function* allObjects(list) {
@@ -151,7 +177,7 @@ patchScripts("Card Importer: 'not supported' names DeckCheck",
   if (n < 1) process.exitCode = 1;
 }
 
-save.SaveName = "MTG 4 player table - ENGINE MODE";
+save.SaveName = PROFILE.saveName;
 // background: Ariande's Hideaway skybox (assets/ariande-skybox-4096.jpg), uploaded to Steam Cloud so every player
 // sees it (a file:// picture would show only on the host's PC). Since 2026-11-13 the floor is pulled 1.5x closer
 // (tools/warp-skybox.py, assets/ariande-skybox-4096-floor15.jpg, sha256 ce0f24a5...; the link downloaded back and
@@ -196,6 +222,31 @@ patchScripts("Global: hook 'mtg engine' chat command before other chat handling"
   "function onChat(message, pl)\n",
   `function onChat(message, pl)\n  local engineReply = engineChat(message, pl) if engineReply ~= nil then return engineReply end ${TAG}\n  if ENGINE_MODE then return end ${TAG} turn chat commands are the engine's job\n`,
   1, { global: true });
+// The profile as one Lua global (the renderer's per-table data, so no new main-chunk locals). Each table is written in
+// the profile's own order: Lua's pairs follows the order a table was built in.
+{
+  const list = (a) => `{ ${a.map((x) => (typeof x === "string" ? JSON.stringify(x) : String(x))).join(", ")} }`;
+  const map = (o, val) => `{ ${Object.entries(o).map(([k, v]) => `${k} = ${val(v)}`).join(", ")} }`;
+  const by = (f) => Object.fromEntries(SEATS.map((c) => [c, f(PROFILE.seat[c])]));
+  // every seat's button of one kind, west to east (then south to north): the order the renderer's list always had
+  const row = (role) => SEATS.map((c) => PROFILE.seat[c][role]).sort((a, b) => a.x - b.x || a.z - b.z).map((o) => o.guid);
+  save.LuaScript += `
+
+${TAG} the table's profile (tools/table-profile.js, docs/m6-six-seat-spec.md §2.2): its seats clockwise, each seat's life
+-- tracker, commander-damage trackers (victim -> attacker -> GUID; none on a table without them) and commander zones,
+-- the Start tile's spot, the table's own Untap / Reveal / Draw / Mill / Scry buttons and Mulligan tiles (every seat's)
+-- and the Draw buttons alone
+TABLE_PROFILE = {
+  id = ${JSON.stringify(PROFILE.id)},
+  seats = ${list(SEATS)},
+  life = ${map(by((s) => s.lifeTracker.guid), JSON.stringify)},
+  cmdDamage = ${map(PROFILE.cmdDamage || {}, (row) => map(row, JSON.stringify))},
+  tax = ${map(by((s) => s.commandZones.map((z) => z.guid)), list)},
+  start = ${list(PROFILE.start)},
+  buttons = ${list(["untapButton", "revealButton", "drawButton", "millButton", "scryButton", "mulliganButton"].flatMap(row))},
+  draw = ${list(row("drawButton"))},
+}`;
+}
 save.LuaScript += `
 
 ${TAG} ===================== ENGINE MODE =====================
@@ -277,7 +328,7 @@ function engineStartGame(pl, rest, cleared)
   if bots > 0 and not rest:find("builtin") then
     local seated = {}
     for _, c in ipairs(seats) do seated[c] = true end
-    for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do
+    for _, c in ipairs(TABLE_PROFILE.seats) do
       local zone = data[c] and data[c].libraryZone
       if not seated[c] and zone ~= nil and getDeckFromZone(zone) ~= nil and #aiSeats < bots then
         aiSeats[#aiSeats + 1] = c
@@ -444,8 +495,8 @@ function engineChat(message, pl)
     -- Treachery: the roles decide who wins; the host names the winner and everyone else at the table concedes
     if not isHost then pl.broadcast("[MTG] Only the host can declare the winner.") return false end
     local who = nil
-    for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do if c:lower() == rest then who = c end end
-    if who == nil then pl.broadcast("[MTG] Use:  mtg winner white|red|yellow|blue") return false end
+    for _, c in ipairs(TABLE_PROFILE.seats) do if c:lower() == rest then who = c end end
+    if who == nil then pl.broadcast("[MTG] Use:  mtg winner " .. table.concat(TABLE_PROFILE.seats, "|"):lower()) return false end
     engineSend("winner", { color = who, by = pl.color })
   elseif cmd == "autoresolve" then
     -- on other players' turns, pass priority by itself (also the Auto-resolve button)
@@ -561,7 +612,7 @@ function engineChat(message, pl)
 end
 
 -- ───── Step 2: "mtg ready" — read imported decks so the bridge can check them against the engine ─────
-local COMMAND_ZONES = { White = {"908f60", "ce8ea5"}, Red = {"9d380e", "16aed3"}, Yellow = {"baffa9", "dc9c6d"}, Blue = {"0c0c5e", "3b2d18"} }
+local COMMAND_ZONES = TABLE_PROFILE.tax
 local commanderPick = {} -- color -> { [guid] = true }, chosen with "mtg commander"
 local readyRequest = 0
 
@@ -791,7 +842,8 @@ guard("Reveal stack", "function revealStack", ["revealStack"], { global: true })
 guard("Typed numbers on table buttons", "function onObjectNumberTyped", ["onObjectNumberTyped"], { global: true, ret: "true", silent: true });
 guard("Hotkeys", "function onScriptingButtonDown", ["onScriptingButtonDown"], { global: true });
 guard("Zone context menus", "function onObjectEnterZone", ["onObjectEnterZone", "onObjectLeaveZone"], { global: true, silent: true });
-guard("Get basic land", "function deckRampW", ["deckRampW", "deckRampU", "deckRampR", "deckRampB", "deckRampG", "deckRampWa"], { global: true });
+guard("Get basic land", "function deckRampW", ["deckRampW", "deckRampU", "deckRampR", "deckRampB", "deckRampG", ...(PROFILE.features.wastes ? ["deckRampWa"] : [])], { global: true });
+if (!PROFILE.features.wastes) skip("gate Get basic land: deckRampWa", "this table has no Wastes button");
 guard("Make token copy", "function cardToken", ["cardToken"], { global: true });
 guard("Cascade", "function cardCascade", ["cardCascade", "deckCascade"], { global: true });
 guard("Random discard", "function randomDiscard", ["randomDiscard"], { global: true });
@@ -804,11 +856,11 @@ guard("Reveal until type", "function deckSeachType", ["deckSeachType"], { global
 // and TTS doesn't draw a 0-size button's text (checked live 2026-10-22): it gets a size and a dark backing while it
 // shows, and goes back to 0 afterwards so it never sits over the counter catching clicks.
 patchScripts("Life counter: engineLifeChange", "function sL(l,n)\n",
-  `function engineLifeChange(p) sL(p.life, p.delta) self.editButton({ index = 1, width = 760, height = 440, font_size = 420, color = { 0, 0, 0, 0.75 }, font_color = (p.delta or 0) < 0 and { 1, 0.3, 0.25 } or { 0.35, 1, 0.45 } }) if engineLifeColour ~= nil then Wait.stop(engineLifeColour) end engineLifeColour = Wait.time(function() engineLifeColour = nil self.editButton({ index = 1, label = '', width = 0, height = 0, font_size = 400, color = back, font_color = font1 }) end, 3.1) end ${TAG}\nfunction sL(l,n)\n`, 4);
+  `function engineLifeChange(p) sL(p.life, p.delta) self.editButton({ index = 1, width = 760, height = 440, font_size = 420, color = { 0, 0, 0, 0.75 }, font_color = (p.delta or 0) < 0 and { 1, 0.3, 0.25 } or { 0.35, 1, 0.45 } }) if engineLifeColour ~= nil then Wait.stop(engineLifeColour) end engineLifeColour = Wait.time(function() engineLifeColour = nil self.editButton({ index = 1, label = '', width = 0, height = 0, font_size = 400, color = back, font_color = font1 }) end, 3.1) end ${TAG}\nfunction sL(l,n)\n`, SEATS.length);
 // The hand counters count the hand's objects every second, and caught cards the table was re-laying out ("1 card" with
 // eight in hand while a question was open, hp-07 2026-10-27): in an engine game they show the engine's count.
 patchScripts("Hand counter: the engine's count", "local ncards = #player.getHandObjects()",
-  `local ncards = Global.call('engineHandCount', { color = colStr }) or #player.getHandObjects() ${TAG}`, 8);
+  `local ncards = Global.call('engineHandCount', { color = colStr }) or #player.getHandObjects() ${TAG}`, 2 * SEATS.length);
 guard("Life counter click", "function resetLife", ["option"], { call: "Global.call('engineLifeTrackerClick', { guid = self.getGUID(), color = c })", fixOpen: true });
 guard("Life counter", "function resetLife", ["click_changeValue", "resetLife", "onNumberTyped"], { fixOpen: true });
 guard("Life chat commands", "function resetLife", ["onChat"], { silent: true });
@@ -851,16 +903,18 @@ guard("Deck search tools", "function changeDeckDir", ["onCollisionEnter"], { min
 guard("Get deck data", "function fixDeckText", ["onCollisionEnter"]);
 
 // Treachery (honour-system layer): identity token buttons would create cards the engine doesn't know about
-guard("Treachery identity token buttons", "function getToken", ["getToken", "getToken1", "getToken2"], { min: 10 });
-guard("Treachery identity token buttons", "function green(obj,ply)", ["red"]);
+if (PROFILE.features.treachery) {
+  guard("Treachery identity token buttons", "function getToken", ["getToken", "getToken1", "getToken2"], { min: 10 });
+  guard("Treachery identity token buttons", "function green(obj,ply)", ["red"]);
+} else skip("gate Treachery identity token buttons (x2)", "this table has no Treachery cards");
 
 // Dungeons (wired to the engine later): room clicks may stay as a manual marker, but no token spawning
 guard("Dungeon tokens", "function spawnTokens", ["spawnTokens"], { silent: true, min: 5 });
 
 // No save Note: TTS shows it on screen over the table.
 
-// Hand counters relabel themselves every second even when the count is the same (8 counters = 8 UI rebuilds a
-// second all game). Only relabel when the number changes.
+// Hand counters relabel themselves every second even when the count is the same (two a seat: 8 UI rebuilds a second
+// all game on four seats). Only relabel when the number changes.
 {
   let n = 0;
   for (const o of allObjects(save.ObjectStates)) {
@@ -870,25 +924,20 @@ guard("Dungeon tokens", "function spawnTokens", ["spawnTokens"], { silent: true,
     o.LuaScript = L.replace('  for ind=0,nButs do', '  if lab == lastLab then return end ' + TAG + ' unchanged count: no relabel\n  lastLab = lab\n  for ind=0,nButs do');
     if (o.LuaScript !== before) n++;
   }
-  report.push((n === 8 ? 'OK  ' : 'FAIL') + ' hand counters relabel only on change (' + n + ')');
-  if (n !== 8) process.exitCode = 1;
+  report.push((n === 2 * SEATS.length ? 'OK  ' : 'FAIL') + ' hand counters relabel only on change (' + n + ')');
+  if (n !== 2 * SEATS.length) process.exitCode = 1;
 }
 
 
 // Manual-play clutter the engine replaces (the user's red boxes, 2026-10-18): the counter / dice / keyword /
 // commander-damage / dungeon / turn-order columns on both long sides, plus Treachery and Planechase next to White.
 // Only objects on the table surface (y > -1): the Encoder modules stored under the table stay.
-const SLIM = [
-  "b93b40", "ae12d3", "ad044a", "7a0067", "cd83de", "c5ea55", "b8b8df", "def0af", "c2df33", // Encoder modules
-  "222541", "5a7db4",                                                         // 2nd importer, Bruh Button (the Pirate Cannon and the
-                                                                               // first-player die stay: hidden in engine mode, 2026-10-21)
-  "809133", "29f427", "57b8f3", "9df6a3",                                      // turn timers
-  "eb479b", "a3e6a8", "a7a029", "4c02f8", "9c553c", "cb1610",                   // unnamed 3D bundles under the table
-];
-const CLUTTER_BOXES = [
-  { x: [-56, -44], z: [-8.5, 32] }, // beside Yellow/Red
-  { x: [44, 56], z: [-26, 8.5] },   // beside White/Blue
-];
+// Also the profile's remove list, wherever they lie (tools/table-profile.js says why each): Encoder modules, the 2nd
+// importer, the Bruh Button, the turn timers, the 3D bundles under the table and the Drafting tools / Enablers bags (the
+// Pirate Cannon and the first-player die stay: hidden in engine mode, 2026-10-21). The profile's clutter boxes: on the
+// 4-player table beside Yellow/Red and beside White/Blue; none yet on the 6-player table (M6 step 13).
+const REMOVE = new Set(PROFILE.remove);
+const CLUTTER_BOXES = PROFILE.clutterBoxes;
 // Status pieces (docs/status-objects-spec.md, 2026-11-11): the clutter's pieces for a player status come back, parked
 // under the table, and the table puts one on a player's mat while their marks say it (engineStatusPieces in
 // engine-renderer.lua). `mark`: the bridge's PLAYER_MARKS label it shows, alone or followed by a count ("POISON 3");
@@ -897,7 +946,7 @@ const CLUTTER_BOXES = [
 // doesn't do that: every piece is also invisible to every colour while parked); `count`: the count is drawn on it.
 // Their scripts go (spec "Scripts", first option): Day // Night's, The Ring's and Undercity's buttons would change what
 // the engine owns, and the counters' only draw a 0 the table now draws itself.
-const STATUS_SEATS = ["White", "Red", "Yellow", "Blue"];
+const STATUS_SEATS = SEATS;
 const STATUS_PIECES = [
   { mark: "MONARCH", guid: "8963ec", fade: true },          // the crown
   { mark: "MONARCH", guid: "197ab6" },                      // The Monarch card, under it
@@ -920,7 +969,7 @@ const STATUS_KEEP = new Set([...STATUS_PIECES.map((p) => p.guid), DAY_NIGHT]);
     // also: modules and extras that make Unity's clean-up pauses longer and that nothing in engine mode uses
     // (2026-10-18, research report "TTS stutter unload pause reduction"; the Encoder, πScry, πMenu and "Is it a token?"
     // stay because the table's own script calls them directly)
-    const hit = ["5c8648", "098c38", "2d3496", ...SLIM].includes(o.GUID) || t.posY > -1 && CLUTTER_BOXES.some((b) => t.posX >= b.x[0] && t.posX <= b.x[1] && t.posZ >= b.z[0] && t.posZ <= b.z[1]);
+    const hit = REMOVE.has(o.GUID) || t.posY > -1 && CLUTTER_BOXES.some((b) => t.posX >= b.x[0] && t.posX <= b.x[1] && t.posZ >= b.z[0] && t.posZ <= b.z[1]);
     if (hit) removed.push(`${(o.Nickname || o.Name || "").replace(/\[\/?[a-z]+\]/gi, "").split("\n")[0]} (${o.GUID})`);
     return !hit;
   });
