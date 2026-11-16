@@ -1010,35 +1010,58 @@ function shim() {
 function ownServer() {
   section("own server (server.json, --server)");
   const set = (o, spec = null, envKey = null) => L.serverSetting(o === null ? null : typeof o === "string" ? o : JSON.stringify(o), spec, envKey);
-  let r = set({ host: "Mtg.Example.org" });
-  check("server.json: host only: port 9443, ws://, no key", r && r.ok && r.server.host === "mtg.example.org" && r.server.port === 9443 && L.serverUrl(r.server) === "ws://mtg.example.org:9443" && r.server.key === null, r);
+  let r = set({ host: "Mtg.Example.org", key: "file-key" });
+  check("server.json: host and key only: port 9443, ws://", r && r.ok && r.server.host === "mtg.example.org" && r.server.port === 9443 && L.serverUrl(r.server) === "ws://mtg.example.org:9443" && r.server.key === "file-key", r);
+  r = set({ host: "mtg.example.org" });
+  check("no key anywhere: refused, says to put the server's key in server.json (never this package's key)", r && !r.ok && r.noKey && r.problem.includes("no key for your server") && r.problem.includes("\"key\"") && r.problem.includes("MTG_SERVER_KEY"), r);
   check("no server.json and no --server: the engine runs here", set(null) === null);
-  r = set({ host: "a.example.org", port: 9555, key: "file-key" }, "b.example.org:7000", "env-key");
-  check("--server host:port beats the file's host and port; the file's key is kept", r && r.ok && r.server.host === "b.example.org" && r.server.port === 7000 && r.server.key === "file-key", r);
+  r = set({ host: "a.example.org", port: 9555, key: "file-key", secure: true }, "A.example.org.:7000", "env-key");
+  check("--server host:port beats the file's host and port; for the file's own host its key and secure are kept", r && r.ok && r.server.host === "a.example.org." && r.server.port === 7000 && r.server.key === "file-key" && r.server.secure === true, r);
+  r = set({ host: "a.example.org", port: 9555, key: "file-key", secure: true }, "b.example.org", "env-key");
+  check("--server naming another host: the file's key, port and secure are dropped (MTG_SERVER_KEY, 9443, ws://)", r && r.ok && r.server.host === "b.example.org" && r.server.port === 9443 && r.server.key === "env-key" && r.server.secure === false, r);
+  r = set({ host: "a.example.org", key: "file-key" }, "b.example.org:7000", null);
+  check("--server naming another host, no MTG_SERVER_KEY: refused, says the file's key isn't sent to another server", r && !r.ok && r.noKey && r.problem.includes("isn't sent to another server") && !r.problem.includes("file-key"), r);
   r = set({ host: "a.example.org" }, null, "env-key");
   check("no key in server.json: MTG_SERVER_KEY is used", r && r.ok && r.server.key === "env-key", r);
   r = set({ host: "a.example.org", key: "file-key" }, null, "env-key");
   check("the file's key beats MTG_SERVER_KEY", r && r.ok && r.server.key === "file-key", r);
-  r = set(null, "10.0.0.5", null);
+  r = set(null, "10.0.0.5", "env-key");
   check("--server with no port: 9443", r && r.ok && r.server.port === 9443 && r.server.host === "10.0.0.5", r);
-  r = set({ host: "[2001:db8::5]", port: "9444", secure: true });
+  r = set({ host: "[2001:db8::5]", port: "9444", secure: true, key: "k" });
   check("secure: true is wss://, an IPv6 address in brackets, a port given as text", r && r.ok && L.serverUrl(r.server) === "wss://[2001:db8::5]:9444", r);
   r = set({ host: "ws://mtg.example.org:9443" });
   check("a ws:// in host is refused, saying to give the name only", r && !r.ok && r.problem.includes("without ws://"), r);
   r = set({ host: "mtg.example.org", hots: "x" });
   check("a misspelt setting is refused by name", r && !r.ok && r.problem.includes("\"hots\""), r);
   for (const bad of [0, 70000, "x", 9443.5]) {
-    r = set({ host: "mtg.example.org", port: bad });
+    r = set({ host: "mtg.example.org", port: bad, key: "k" });
     check(`port ${JSON.stringify(bad)} is refused (1 to 65535)`, r && !r.ok && r.problem.includes("1 to 65535"), r);
   }
   r = set("{ host: oops");
   check("server.json that isn't JSON: refused, says how to write it or to delete it", r && !r.ok && r.problem.includes("isn't valid JSON") && r.problem.includes("delete it"), r);
+  for (const v of ["false", "0", "null", "[]", "\"mtg.example.org\""]) {
+    r = set(v);
+    check(`server.json holding ${v}: an error, not the engine on this computer`, r !== null && !r.ok && r.problem.startsWith("server.json:"), r);
+  }
+  r = set("\uFEFF{ \"host\": \"mtg.example.org\", \"key\": \"k\" }");
+  check("server.json with a UTF-8 BOM (Notepad's) is read", r && r.ok && r.server.host === "mtg.example.org", r);
+  r = set({ host: "my_server.lan", key: "k" });
+  check("a host with an underscore is a name", r && r.ok && r.server.host === "my_server.lan", r);
+  r = set({ host: "mtg.example.org.", key: "k" });
+  check("a host with a trailing dot is a name", r && r.ok && r.server.host === "mtg.example.org.", r);
+  for (const bad of ["mtg..example.org", ".mtg.example.org", "mtg.example.org..", "-mtg.example.org"]) {
+    r = set({ host: bad, key: "k" });
+    check(`"${bad}" is still refused`, r && !r.ok && r.problem.includes("isn't a server name"), r);
+  }
+  check("same host: case and a trailing dot don't count", L.sameHost("A.example.org.", "a.example.org") && !L.sameHost("a.example.org", "b.example.org"));
   r = set({ host: "my server" });
   check("a host with a space is refused", r && !r.ok && r.problem.includes("isn't a server name"), r);
   r = set({ host: "mtg.example.org", key: "" });
   check("an empty key is refused", r && !r.ok && r.problem.includes("\"key\""), r);
+  check("server.json readable by others (0644): said, with the mode", (L.serverFileModeProblem(0o100644) || "").includes("644"), L.serverFileModeProblem(0o100644));
+  check("server.json readable by this account only (0600): nothing to say", L.serverFileModeProblem(0o100600) === null && L.serverFileModeProblem(0o100400) === null);
 
-  const ok = set({ host: "mtg.example.org", port: 9443 });
+  const ok = set({ host: "mtg.example.org", port: 9443, key: "server-key" });
   const on = L.Game.on("a game is on");
   const d = (login, game = L.Game.none("no game")) => L.decideServer(ok, login, game);
   let v = d({ kind: "ok", roomFound: true, roomStatus: "Lobby", ms: 40 });
@@ -1059,39 +1082,101 @@ function ownServer() {
   check("the room in our own game: green", v.light === Light.Green, v);
   v = L.decideServer(set({ host: "ws://x" }), null, null);
   check("a server.json problem is the engine light's red, Try again", v.light === Light.Red && v.text.startsWith("Own server: server.json:") && v.fix === Fixes.Retry, v);
+  v = L.decideServer(set({ host: "mtg.example.org" }), null, null);
+  check("no key: the engine light's red says so", v.light === Light.Red && v.text.includes("no key for your server"), v);
   const rows = [L.serverNotNeeded(ok.server).light, L.serverNotNeeded(ok.server).light, Light.Green, Light.Grey, Light.Green];
   check("steps 1-2 green with a server (engine up)", L.engineUp(rows), rows);
+
+  // the running bridge's engine (GET /versions relay, remoteEngine)
+  const vers = (o) => L.httpOk(JSON.stringify({ now: { bridge: "b1" }, ...o }));
+  const local = vers({ relay: "ws://127.0.0.1:9443", remoteEngine: false }), theirs = vers({ relay: "ws://mtg.example.org:9443", remoteEngine: true });
+  v = L.decideBridge(local, null, true, "b1", true, ok.server);
+  check("own server, the bridge still runs for the engine here: amber, restarted (RestartBridge)", v.light === Light.Amber && v.action === L.Actions.RestartBridge && v.fix === Fixes.BridgeRestart && v.text.includes("ws://127.0.0.1:9443"), v);
+  v = L.decideBridge(theirs, null, true, "b1", true, ok.server);
+  check("own server, the bridge runs for it: green", v.light === Light.Green, v);
+  v = L.decideBridge(vers({ relay: "ws://other.example.org:9443", remoteEngine: true }), null, true, "b1", true, ok.server);
+  check("own server, the bridge runs for another server: restarted", v.action === L.Actions.RestartBridge, v);
+  v = L.decideBridge(vers({}), null, true, "b1", true, ok.server);
+  check("own server, a bridge that doesn't say its relay: restarted (it can't be told apart)", v.action === L.Actions.RestartBridge && v.text.includes("doesn't say"), v);
+  v = L.decideBridge(theirs, null, true, "b1", true, null);
+  check("no server, the bridge runs for a server: restarted", v.action === L.Actions.RestartBridge, v);
+  v = L.decideBridge(vers({}), null, true, "b1", true, null);
+  check("no server, an older bridge that doesn't say: kept (green)", v.light === Light.Green, v);
 }
 
 async function serverWiring() {
   section("own server wiring (Controller: no container engine, a login to the server, the bridge's relay)");
   const probes = require("./probes");
-  const real = probes.relayLogin, realReach = probes.tcpReach;
+  const real = probes.relayLogin, realReach = probes.tcpReach, realGet = probes.httpGet;
   const logins = [];
   probes.tcpReach = async () => ({ kind: "ok", detail: null });
   probes.relayLogin = async (url, key, room, ms) => { logins.push({ url, key, ms }); return { kind: "ok", roomFound: true, roomStatus: "Lobby", ms: 5 }; };
   const { c, tmp } = fakeController(false);
+  const envHad = { MTG_KEY: process.env.MTG_KEY, MTG_SERVER_KEY: process.env.MTG_SERVER_KEY };
   try {
-    let engineCalls = 0;
-    c.engine = { o: {}, cli: "docker", detect: async () => { engineCalls++; return { answers: true }; }, bridgeEnv: () => ({}), up: async () => { engineCalls++; return { code: 0 }; }, down: async () => { engineCalls++; }, stop: async () => { engineCalls++; } };
+    let engineCalls = 0, downs = 0;
+    c.engine = { o: {}, cli: "docker", detect: async () => { engineCalls++; return { answers: true }; }, bridgeEnv: () => { engineCalls++; return { MTG_CONTAINER_CLI: "docker" }; }, up: async () => { engineCalls++; return { code: 0 }; }, down: async () => { engineCalls++; downs++; }, stop: async () => { engineCalls++; downs++; } };
     c.server = L.serverSetting(JSON.stringify({ host: "mtg.example.org", port: 9555, key: "server-key" }), null, null);
     c.onlySteps = new Set([1, 2, 3]);
     await c.runSequence(1);
     check("own server: steps 1-2 not needed (green), nothing asked of the container engine", c.rows[L.Step.Docker].v.light === Light.Green && c.rows[L.Step.Images].v.light === Light.Green && engineCalls === 0, `${engineCalls} ${L.vText(c.rows[0].v)}`);
     check("own server: the engine step logs in to the server with its key", logins.length === 1 && logins[0].url === "ws://mtg.example.org:9555" && logins[0].key === "server-key" && c.rows[L.Step.Stack].v.light === Light.Green, logins);
-    const env = c.serverEnv();
-    check("own server: the bridge gets the server's relay and key (MTG_RELAY, MTG_KEY)", env.MTG_RELAY === "ws://mtg.example.org:9555" && env.MTG_KEY === "server-key", env);
+    process.env.MTG_KEY = "stray-key"; process.env.MTG_SERVER_KEY = "server-key";
+    const env = c.bridgeLaunchEnv();
+    const keyFile = env.MTG_KEY_FILE;
+    let fileKey = null, mode = null;
+    try { fileKey = fs.readFileSync(keyFile, "utf8"); mode = fs.statSync(keyFile).mode & 0o777; } catch { /* none */ }
+    check("own server: the bridge gets the server's relay and a key file (MTG_RELAY, MTG_REMOTE_ENGINE, MTG_KEY_FILE)", env.MTG_RELAY === "ws://mtg.example.org:9555" && env.MTG_REMOTE_ENGINE === "1" && fileKey === "server-key" && typeof keyFile === "string" && path.dirname(keyFile) === c.stateDir, { env: { MTG_RELAY: env.MTG_RELAY, MTG_KEY_FILE: keyFile }, fileKey });
+    check("own server: the key is in none of the bridge's environment (MTG_KEY and MTG_SERVER_KEY dropped)", !Object.values(env).some((x) => String(x).includes("server-key") || String(x).includes("stray-key")) && !("MTG_KEY" in env), Object.keys(env).filter((k) => /KEY/.test(k)));
+    check("own server: the key file is readable by this account only (0600)", process.platform === "win32" || mode === 0o600, mode === null ? "no file" : mode.toString(8));
+    check("own server: the container engine isn't asked for the bridge's settings", engineCalls === 0, engineCalls);
     c.stopBridge = async () => {};
     c.stopEverything(null);
     await c.workOnce(async () => {});
     check("own server: Stop everything stops the bridge only, never the server's engine", engineCalls === 0 && c.everythingStopped, engineCalls);
+    check("own server: Stop everything removes the key file", typeof keyFile === "string" && !fs.existsSync(keyFile));
     let watchError = null;
     try { await c.monitorTick(); } catch (e) { watchError = e.message; }
     check("own server: the watcher asks no container engine either", !watchError && engineCalls === 0 && c.rows[L.Step.Docker].v.light === Light.Green, watchError || engineCalls);
+
+    // a bridge left running for the engine on this computer: restarted for the server (once), never during a game
+    const bodies = [];
+    let stops = 0;
+    c.stopBridge = async () => { stops++; };
+    c.startBridge = () => { bodies.push("started"); };
+    let answer = () => ({ relay: "ws://127.0.0.1:9443", remoteEngine: false });
+    probes.httpGet = async (url) => (url.endsWith("/versions") ? (stops > 0 && bodies.length === 0 ? L.httpOf("refused")
+      : L.httpOk(JSON.stringify({ now: { bridge: null }, ...(stops > 0 ? { relay: "ws://mtg.example.org:9555", remoteEngine: true } : answer()) }))) : L.httpOf("refused"));
+    c.bridgeProcessExists = async () => false;
+    let ok = await c.doBridge();
+    check("own server: a bridge running for the engine here is stopped and started again for the server", ok && stops === 1 && bodies.length === 1 && c.rows[L.Step.Bridge].v.light === Light.Green, { stops, bodies, v: L.vText(c.rows[L.Step.Bridge].v) });
+    stops = 0; bodies.length = 0;
+    const realRefresh = c.refreshGame;
+    c.refreshGame = async () => { c.game = L.Game.on("Game on: turn 3."); };
+    ok = await c.doBridge();
+    check("own server: during a game that bridge is left alone (amber, restart after the game)", stops === 0 && c.rows[L.Step.Bridge].v.light === Light.Amber && c.rows[L.Step.Bridge].v.text.includes("Locked"), { stops, v: L.vText(c.rows[L.Step.Bridge].v) });
+    c.refreshGame = realRefresh;
+    probes.httpGet = realGet;
+
+    // a server.json with a problem is no server for stopping: the engine here is stopped
+    c.server = L.serverSetting("{ \"host\": \"ws://x\" }", null, null);
+    c.stopBridge = async () => {};
+    engineCalls = 0; downs = 0;
+    c.stopEverything(null);
+    await c.workOnce(async () => {});
+    check("server.json with a problem: Stop everything stops the engine on this computer", downs === 1, { engineCalls, downs });
+    c.server = L.serverSetting("{ \"host\": \"mtg.example.org\" }", null, null);
+    logins.length = 0;
+    await c.runSequence(3);
+    check("own server with no key: the engine light is red, and no login is tried (this package's key never goes out)", logins.length === 0 && c.rows[L.Step.Stack].v.light === Light.Red && c.rows[L.Step.Stack].v.text.includes("no key"), { logins, v: L.vText(c.rows[L.Step.Stack].v) });
     c.server = null;
-    check("no server: the bridge gets no relay setting (the engine here)", Object.keys(c.serverEnv()).length === 0);
+    fs.mkdirSync(c.stateDir, { recursive: true });
+    fs.writeFileSync(c.keyFile(), "left-over");
+    const env2 = c.bridgeLaunchEnv();
+    check("no server: the bridge gets no relay or key file setting (the engine here), and an old key file is removed", !("MTG_RELAY" in env2) && !("MTG_KEY_FILE" in env2) && !("MTG_REMOTE_ENGINE" in env2) && !fs.existsSync(c.keyFile()), Object.keys(env2).filter((k) => k.startsWith("MTG_")));
   } finally {
-    probes.relayLogin = real; probes.tcpReach = realReach;
+    probes.relayLogin = real; probes.tcpReach = realReach; probes.httpGet = realGet;
+    for (const [k, v] of Object.entries(envHad)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 }
@@ -1100,7 +1185,9 @@ async function main(outFile) {
   out = []; fails = 0; passes = 0;
   modes(); sequence(); docker(); images(); stack(); ports(); bridge(); gameLock(); saves(); tts(); misc(); update();
   startEngineRules(); ownServer();
-  await parser(); await wiring(); await launchStartsNothing(); await watcherBeforeStart(); await saveFiles(); await workshopTable(); await server(); await notStartedStatus(); await serverWiring(); shim();
+  await parser(); await wiring(); await launchStartsNothing(); await watcherBeforeStart(); await saveFiles(); await workshopTable(); await server(); await notStartedStatus();
+  try { await serverWiring(); } catch (e) { check("own server wiring: ran to the end", false, e.stack || e.message); }
+  shim();
   out.push(`${passes} passed, ${fails} failed`);
   const text = `${out.join("\n")}\n`;
   if (outFile) fs.writeFileSync(outFile, text); else process.stdout.write(text);

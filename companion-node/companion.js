@@ -12,7 +12,8 @@
 //   --home DIR, --saves DIR, --state DIR, --log FILE, --bridge-url URL, --steps 4,5   overrides (tests)
 //   --runtime docker|podman  the container engine (default: Docker if it answers, else Podman)
 //   --server HOST[:PORT]     own server: the engine runs there, not here (as server.json in the package folder, which
-//                            also holds the key; HOW-TO-PLAY.md "Own server"); nothing is started or stopped here
+//                            also holds the key; for another host than the file's, the key comes from MTG_SERVER_KEY;
+//                            HOW-TO-PLAY.md "Own server"); nothing is started or stopped here
 //   --selftest [--out FILE]  the decision logic against canned inputs; exit code = failures (any OS)
 //   --bridge-loop --home DIR internal: the detached process that runs and restarts the bridge
 //   --stop                   stops this package's bridge and engine containers (stop.sh), then exits
@@ -50,7 +51,8 @@ async function main() {
     Log.file = layout.companionLog;
     const env = layout.friend ? { MTG_HOME: layout.home, MTG_LOG_DIR: layout.logsDir } : {};
     env.PATH = `${path.join(__dirname, "shim")}:${process.env.PATH || ""}`;
-    if (!process.env.MTG_CONTAINER_CLI) { await engine.detect(); Object.assign(env, engine.bridgeEnv()); }
+    // (own server, MTG_REMOTE_ENGINE: no container engine here to find, and the bridge touches none)
+    if (!process.env.MTG_CONTAINER_CLI && process.env.MTG_REMOTE_ENGINE !== "1") { await engine.detect(); Object.assign(env, engine.bridgeEnv()); }
     if (!env.MTG_PROJECT) env.MTG_PROJECT = layout.project;
     const nodeExe = layout.friend && probes.exists(layout.nodeExe) ? layout.nodeExe : process.execPath;
     const r = require("./bridge-loop").run(layout, nodeExe, env);
@@ -68,6 +70,18 @@ async function main() {
   const workshopCandidates = (savesDir, id) => P.workshopCandidates(process.platform, savesDir, id, opt("saves") ? null : home, process.env, probes.readText);
   // (own server: server.json in the package, or --server; null runs the engine on this computer)
   const server = L.serverSetting(probes.exists(layout.serverFile) ? probes.readText(layout.serverFile) : null, opt("server"), process.env.MTG_SERVER_KEY);
+  // (server.json holds the server's key: made private when others could read it, or said, when that can't be done)
+  if (probes.exists(layout.serverFile) && process.platform !== "win32") {
+    let mode = null;
+    try { mode = fs.statSync(layout.serverFile).mode; } catch { /* gone */ }
+    const open = L.serverFileModeProblem(mode);
+    if (open) {
+      let fixed = false;
+      try { fs.chmodSync(layout.serverFile, 0o600); fixed = L.serverFileModeProblem(fs.statSync(layout.serverFile).mode) === null; } catch { /* not ours to change */ }
+      const said = fixed ? `${open}: made readable by you only (chmod 600).` : `${open}. Make it private: chmod 600 "${layout.serverFile}"`;
+      console.log(said); Log.write(said);
+    }
+  }
   const controller = new Controller({ layout, observe, server, autoStart: !observe && L.autoStart(args), findSaves, workshopCandidates, stateDir, appDir: __dirname, platform: process.platform, arch: process.arch, engine, bridgeUrl: opt("bridge-url") || undefined });
   if (opt("steps")) controller.onlySteps = new Set(opt("steps").split(",").map(Number));
 
@@ -78,8 +92,12 @@ async function main() {
     if (no) { console.log(no); process.exit(3); }
     console.log("Stopping the bridge and the engine containers (the container engine and TTS keep running)...");
     await controller.stopBridge();
-    const f = server ? null : await engine.detect();
-    if (server) console.log(`Own server (${server.ok ? L.serverWords(server.server) : "server.json has a problem"}): its engine was left running.`);
+    controller.removeKeyFile();
+    // (a server.json with a problem counts as no server: the engine running may be this computer's, so it is stopped)
+    const remote = !!(server && server.ok);
+    if (server && !server.ok) console.log(`Own server: ${server.problem} Stopping the engine on this computer, as without a server.`);
+    const f = remote ? null : await engine.detect();
+    if (remote) console.log(`Own server (${L.serverWords(server.server)}): its engine was left running.`);
     else if (f.answers) await (layout.friend ? engine.down() : engine.stop());
     else console.log("The container engine isn't answering: its containers were left as they are.");
     console.log("Stopped.");
