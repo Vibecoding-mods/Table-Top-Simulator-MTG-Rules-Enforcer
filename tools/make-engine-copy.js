@@ -277,7 +277,7 @@ function engineStartGame(pl, rest, cleared)
   if bots > 0 and not rest:find("builtin") then
     local seated = {}
     for _, c in ipairs(seats) do seated[c] = true end
-    for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do
+    for _, c in ipairs(ENGINE_TABLE_SEATS or { "White", "Red", "Yellow", "Blue" }) do
       local zone = data[c] and data[c].libraryZone
       if not seated[c] and zone ~= nil and getDeckFromZone(zone) ~= nil and #aiSeats < bots then
         aiSeats[#aiSeats + 1] = c
@@ -297,9 +297,12 @@ function engineStartGame(pl, rest, cleared)
   if engineStartSentAt ~= nil and os.clock() - engineStartSentAt < 5 then return false end
   engineStartSentAt = os.clock()
   engineSendDecks(read, pl.color)
-  engineSend("start", { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true, friendly = engineFriendly, mode = engineModeSent(), teams = engineTeamsSent ~= nil and engineTeamsSent() or nil,
+  local start = { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true, friendly = engineFriendly, mode = engineModeSent(), teams = engineTeamsSent ~= nil and engineTeamsSent() or nil,
     teamMode = engineTeamModeSent ~= nil and engineTeamModeSent() or nil, juggernaut = engineJuggSent ~= nil and engineJuggSent() or nil,
-    teamTurns = engineTeamTurnsSent ~= nil and engineTeamTurnsSent() or nil })
+    teamTurns = engineTeamTurnsSent ~= nil and engineTeamTurnsSent() or nil }
+  -- (the table's seats, clockwise, when it isn't the 4-player table: engineHello, tools/engine-renderer.lua)
+  if ENGINE_TABLE_SEATS ~= nil then start.tableSeats = ENGINE_TABLE_SEATS end
+  engineSend("start", start)
 end
 
 -- All "mtg ..." chat commands. Returns false (hide the line) when handled, nil otherwise.
