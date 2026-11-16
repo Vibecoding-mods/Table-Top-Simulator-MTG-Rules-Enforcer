@@ -37,9 +37,9 @@ local function tick()
     cur().events = cur().events + 1
     WebRequest.custom("http://127.0.0.1:48787/msg", "POST", true, '{"t":"noop","json":"{}"}', { ["Content-Type"] = "application/json" }, function() end)
   elseif w == "panel" then
-    UI.setAttribute("eng_panel_White", "active", "true")
+    (engineUI or UI).setAttribute("eng_panel_White", "active", "true")
     cur().events = cur().events + 1
-    for k = 1, 5 do UI.setAttributes("eng_opt_White_" .. k, { text = "Option " .. k .. " #" .. n, textColor = (n % 2 == 0) and "#FFFFFF" or "#FEFEFE", active = "true" }) end
+    for k = 1, 5 do (engineUI or UI).setAttributes("eng_opt_White_" .. k, { text = "Option " .. k .. " #" .. n, textColor = (n % 2 == 0) and "#FFFFFF" or "#FEFEFE", active = "true" }) end
   end
   Wait.time(tick, 1)
 end

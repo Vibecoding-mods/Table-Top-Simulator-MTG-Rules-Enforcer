@@ -755,7 +755,7 @@ Players drag and use the table normally; every move is a request the engine acce
 - [x] The lobby's 4-seat limit doesn't block it: the room the node creates with `SELF_HOSTED_NODE_MAX_PLAYERS=6` seated all 6
 - [ ] A full game in TTS with 5 or 6 seats: **blocked by the table**, which has 4 playmats and 4 seat colours (`TABLE_COLORS`, the bridge refuses more). Needs the 6-seat table below and its geometry in `seatGeometry`
 - [x] A 6-player table found: Workshop 2293586471, on the host's PC (2026-10-31); compared with the 4-player table, plan in SPEC §7
-- [ ] Cut the screen UI first: six seats would be about 77.5 KB against the 60 KB limit
+- [x] Cut the screen UI first (2026-11-16, branch `m6-ui-size`, not merged): six seats 77,831 → 52,789 bytes (58,862 with engine mode off between games), four seats 57,802 → 39,107. Counter ids + one click handler `E`, self-closing empty elements, no line breaks, the table's Reveal/Cascade panels out in engine mode, short class names; nothing players see changed. Budget test `tests/test_ui_budget.js` (under 60,000, ratchet `tests/golden/ui-size.json`). Details `docs/m6-ui-size.md` §8. Shared copies and 20 answers a page not done; the two-player probe not run
 - [ ] `make-engine-copy.js` and the renderer: per-table profiles (seats, GUIDs, layout) instead of the 4-player values
 - [ ] 6-player engine table: our scripts patched in (not the 4-player script pasted over), background objects removed, table buttons added; then the full 5–6 seat game above
 
