@@ -590,34 +590,90 @@ index aa1a47c..14c82b4 100644
              return Integer.MAX_VALUE;
 diff --git a/forge-harness/src/main/java/forge/harness/host/Archenemy.java b/forge-harness/src/main/java/forge/harness/host/Archenemy.java
 new file mode 100644
-index 0000000..1587bdc
+index 0000000..44b5096
 --- /dev/null
 +++ b/forge-harness/src/main/java/forge/harness/host/Archenemy.java
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,124 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
++import forge.game.Game;
++import forge.game.GameType;
 +import forge.game.player.RegisteredPlayer;
 +import forge.harness.host.ManaBrewEngineAdapter.CardIdentity;
 +import forge.harness.host.ManaBrewEngineAdapter.PlayerConfig;
++import forge.harness.host.ManaBrewEngineAdapter.StartGameRequest;
 +import forge.item.PaperCard;
 +
 +import java.util.ArrayList;
++import java.util.LinkedHashMap;
 +import java.util.List;
++import java.util.Map;
 +
 +final class Archenemy {
++    static final int MIN_SCHEMES = 20;
++    static final int MAX_COPIES = 2;
++    static final int ARCHENEMY_TEAM = 1;
++    static final int OPPONENTS_TEAM = 2;
++
 +    private Archenemy() {}
 +
-+    static List<List<PaperCard>> schemeDecks(final List<PlayerConfig> players) {
++    static boolean isArchenemyGame(final Game game) {
++        return game.getRules().hasAppliedVariant(GameType.Archenemy);
++    }
++
++    static boolean isArchenemyGame(final StartGameRequest request, final List<List<PaperCard>> schemeDecks) {
++        return request.isArchenemy() || any(schemeDecks);
++    }
++
++    static List<List<PaperCard>> schemeDecks(final StartGameRequest request) {
 +        final List<List<PaperCard>> decks = new ArrayList<>();
-+        for (final PlayerConfig player : players) {
++        final List<String> archenemies = new ArrayList<>();
++        for (final PlayerConfig player : request.getPlayers()) {
 +            final List<PaperCard> deck = new ArrayList<>();
 +            for (final CardIdentity card : player.getSchemes()) {
 +                deck.add(schemeCard(card.getName()));
 +            }
++            if (!deck.isEmpty()) {
++                archenemies.add(player.getName());
++            }
 +            decks.add(deck);
 +        }
++        if (request.isArchenemy() && archenemies.isEmpty()) {
++            throw new IllegalArgumentException("an Archenemy game needs one player with a scheme deck: the archenemy");
++        }
++        if (archenemies.size() > 1) {
++            throw new IllegalArgumentException("an Archenemy game has one archenemy, but " + String.join(", ", archenemies)
++                    + " each brought a scheme deck");
++        }
++        if (!archenemies.isEmpty() && ManaBrewEngineAdapter.isSharedLife(request.getTeamRules())) {
++            throw new IllegalArgumentException("Archenemy plays with each player's own life and turns, not "
++                    + request.getTeamRules());
++        }
++        for (int i = 0; i < decks.size(); i++) {
++            checkDeck(request.getPlayers().get(i).getName(), decks.get(i));
++        }
 +        return decks;
++    }
++
++    private static void checkDeck(final String player, final List<PaperCard> deck) {
++        if (deck.isEmpty()) {
++            return;
++        }
++        if (deck.size() < MIN_SCHEMES) {
++            throw new IllegalArgumentException(player + "'s scheme deck has " + deck.size()
++                    + " schemes; it needs at least " + MIN_SCHEMES);
++        }
++        final Map<String, Integer> copies = new LinkedHashMap<>();
++        for (final PaperCard card : deck) {
++            copies.merge(card.getName(), 1, Integer::sum);
++        }
++        for (final Map.Entry<String, Integer> entry : copies.entrySet()) {
++            if (entry.getValue() > MAX_COPIES) {
++                throw new IllegalArgumentException(player + "'s scheme deck has " + entry.getValue() + " copies of "
++                        + entry.getKey() + "; a scheme deck holds at most " + MAX_COPIES + " of each");
++            }
++        }
 +    }
 +
 +    static boolean any(final List<List<PaperCard>> schemeDecks) {
@@ -633,6 +689,21 @@ index 0000000..1587bdc
 +        if (!schemes.isEmpty()) {
 +            player.setSchemes(schemes);
 +        }
++    }
++
++    static void seat(final RegisteredPlayer player, final PlayerConfig config, final List<PaperCard> schemes,
++            final boolean archenemyGame, final GameType gameType) {
++        if (!archenemyGame) {
++            return;
++        }
++        player.setTeamNumber(schemes.isEmpty() ? OPPONENTS_TEAM : ARCHENEMY_TEAM);
++        if (!schemes.isEmpty() && config.getStartingLife() == null) {
++            player.setStartingLife(startingLife(gameType));
++        }
++    }
++
++    static int startingLife(final GameType gameType) {
++        return gameType == GameType.Commander ? 80 : 40;
 +    }
 +
 +    private static PaperCard schemeCard(final String name) {
@@ -2110,7 +2181,7 @@ index 713e1ef..e272c0d 100644
          if (source == null) {
              return 0;
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
-index c69b549..63e4b7e 100644
+index c69b549..524a9d3 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
 @@ -47,6 +47,11 @@ import java.util.concurrent.ConcurrentHashMap;
@@ -2137,7 +2208,7 @@ index c69b549..63e4b7e 100644
          initialized = true;
      }
  
-@@ -85,7 +85,13 @@ public final class ManaBrewEngineAdapter {
+@@ -85,7 +85,14 @@ public final class ManaBrewEngineAdapter {
  
          final int playerCount = request.getPlayers().size();
          final GameType gameType = resolveGameType(request);
@@ -2147,12 +2218,13 @@ index c69b549..63e4b7e 100644
 +            requestedPlanes.add(playerConfig.getPlanes());
 +        }
 +        final List<List<PaperCard>> planarDecks = Planechase.planarDecks(requestedPlanes, request.getSeed());
-+        final List<List<PaperCard>> schemeDecks = Archenemy.schemeDecks(request.getPlayers());
-+        final Set<GameType> variants = appliedVariants(gameType, planarDecks != null, schemeDecks);
++        final List<List<PaperCard>> schemeDecks = Archenemy.schemeDecks(request);
++        final boolean archenemyGame = Archenemy.isArchenemyGame(request, schemeDecks);
++        final Set<GameType> variants = appliedVariants(gameType, planarDecks != null, archenemyGame);
          final GameRules rules = new GameRules(gameType);
          rules.setAppliedVariants(variants);
          rules.setSimTimeout(120);
-@@ -95,6 +101,8 @@ public final class ManaBrewEngineAdapter {
+@@ -95,6 +102,8 @@ public final class ManaBrewEngineAdapter {
          // those filters the whole battlefield, which on a four-player board is
          // a quarter of the engine's time.
          rules.setRenderAbilityText(false);
@@ -2161,7 +2233,7 @@ index c69b549..63e4b7e 100644
  
          // Resetting global counters under a live session would collide its ids;
          // multiplexed processes only reset between idle periods.
-@@ -112,10 +120,14 @@ public final class ManaBrewEngineAdapter {
+@@ -112,10 +121,15 @@ public final class ManaBrewEngineAdapter {
                  botSeats.add(registeredPlayers.size());
              }
              Deck deck = buildDeck(playerConfig);
@@ -2171,6 +2243,7 @@ index c69b549..63e4b7e 100644
 +                    planarDecks == null ? null : planarDecks.get(registeredPlayers.size()),
 +                    schemeDecks.get(registeredPlayers.size()));
 +            configurePlayer(registeredPlayer, playerConfig, request, gameType);
++            Archenemy.seat(registeredPlayer, playerConfig, schemeDecks.get(registeredPlayers.size()), archenemyGame, gameType);
              if (playerConfig.isAi()) {
 -                registeredPlayer.setPlayer(new LobbyPlayerAi(playerConfig.getName(), null));
 +                registeredPlayer.setPlayer(PassiveLobbyPlayerAi.isLandsOnly(deck)
@@ -2179,7 +2252,7 @@ index c69b549..63e4b7e 100644
              } else {
                  registeredPlayer.setPlayer(new ManaBrewInteractiveLobbyPlayer(
                          playerConfig.getName(), session));
-@@ -125,6 +137,7 @@ public final class ManaBrewEngineAdapter {
+@@ -125,6 +139,7 @@ public final class ManaBrewEngineAdapter {
  
          final Match match = new Match(rules, registeredPlayers, "ManaBrew");
          final Game game = match.createGame();
@@ -2187,7 +2260,7 @@ index c69b549..63e4b7e 100644
          session.attach(match, game, botSeats, request.isSnapshotRecording());
          if (request.checkpointMetrics) {
              session.enableCheckpointMetrics();
-@@ -357,6 +370,127 @@ public final class ManaBrewEngineAdapter {
+@@ -357,6 +372,127 @@ public final class ManaBrewEngineAdapter {
          }
      }
  
@@ -2247,12 +2320,12 @@ index c69b549..63e4b7e 100644
 +        return registeredPlayer;
 +    }
 +
-+    static Set<GameType> appliedVariants(final GameType gameType, final boolean planechase, final List<List<PaperCard>> schemeDecks) {
++    static Set<GameType> appliedVariants(final GameType gameType, final boolean planechase, final boolean archenemy) {
 +        final Set<GameType> variants = EnumSet.of(gameType);
 +        if (planechase) {
 +            variants.add(GameType.Planechase);
 +        }
-+        if (Archenemy.any(schemeDecks)) {
++        if (archenemy) {
 +            variants.add(GameType.Archenemy);
 +        }
 +        return variants;
@@ -2315,7 +2388,7 @@ index c69b549..63e4b7e 100644
      private static GameType resolveGameType(final StartGameRequest request) {
          final String variant = request.getVariant();
          if (variant != null && !variant.isBlank()) {
-@@ -380,7 +514,7 @@ public final class ManaBrewEngineAdapter {
+@@ -380,7 +516,7 @@ public final class ManaBrewEngineAdapter {
          return commanderGame ? GameType.Commander : GameType.Constructed;
      }
  
@@ -2324,7 +2397,7 @@ index c69b549..63e4b7e 100644
          JsonObject root = JsonParser.parseString(requestJson).getAsJsonObject();
          String gameId = requiredString(root, "gameId");
          String variant = optionalString(root, "variant");
-@@ -426,11 +560,31 @@ public final class ManaBrewEngineAdapter {
+@@ -426,11 +562,33 @@ public final class ManaBrewEngineAdapter {
              boolean bot = playerObject.has("bot")
                      && !playerObject.get("bot").isJsonNull()
                      && playerObject.get("bot").getAsBoolean();
@@ -2354,10 +2427,12 @@ index c69b549..63e4b7e 100644
 +                optionalString(root, "teamRules") == null ? TEAM_RULES_NONE : optionalString(root, "teamRules"),
 +                optionalInt(root, "poisonToLose"),
 +                optionalInt(root, "commanderDamageToLose"));
++        request.setArchenemy(root.has("archenemy") && !root.get("archenemy").isJsonNull()
++                && root.get("archenemy").getAsBoolean());
          return request;
      }
  
-@@ -455,6 +609,25 @@ public final class ManaBrewEngineAdapter {
+@@ -455,6 +613,25 @@ public final class ManaBrewEngineAdapter {
          return value;
      }
  
@@ -2383,17 +2458,18 @@ index c69b549..63e4b7e 100644
      private static String optionalString(final JsonObject object, final String key) {
          if (!object.has(key) || object.get(key).isJsonNull()) {
              return null;
-@@ -470,6 +643,9 @@ public final class ManaBrewEngineAdapter {
+@@ -470,6 +647,10 @@ public final class ManaBrewEngineAdapter {
          private final boolean snapshotRecording;
          private boolean checkpointMetrics;
          private final List<PlayerConfig> players;
 +        private String teamRules = TEAM_RULES_NONE;
++        private boolean archenemy;
 +        private Integer poisonToLose;
 +        private Integer commanderDamageToLose;
  
          public StartGameRequest(
                  final String gameId,
-@@ -516,6 +692,29 @@ public final class ManaBrewEngineAdapter {
+@@ -516,6 +697,38 @@ public final class ManaBrewEngineAdapter {
          public List<PlayerConfig> getPlayers() {
              return players;
          }
@@ -2413,6 +2489,15 @@ index c69b549..63e4b7e 100644
 +            return teamRules;
 +        }
 +
++        public StartGameRequest setArchenemy(final boolean archenemy) {
++            this.archenemy = archenemy;
++            return this;
++        }
++
++        public boolean isArchenemy() {
++            return archenemy;
++        }
++
 +        public Integer getPoisonToLose() {
 +            return poisonToLose;
 +        }
@@ -2423,7 +2508,7 @@ index c69b549..63e4b7e 100644
      }
  
      public static final class PlayerConfig {
-@@ -526,6 +725,14 @@ public final class ManaBrewEngineAdapter {
+@@ -526,6 +739,14 @@ public final class ManaBrewEngineAdapter {
          private final List<String> commanderNames;
          private final boolean ai;
          private final boolean bot;
@@ -2438,7 +2523,7 @@ index c69b549..63e4b7e 100644
  
          public PlayerConfig(
                  final String name,
-@@ -535,6 +742,19 @@ public final class ManaBrewEngineAdapter {
+@@ -535,6 +756,19 @@ public final class ManaBrewEngineAdapter {
                  final List<String> commanderNames,
                  final boolean ai,
                  final boolean bot
@@ -2458,7 +2543,7 @@ index c69b549..63e4b7e 100644
          ) {
              if (name == null || name.isBlank()) {
                  throw new IllegalArgumentException("player name is required");
-@@ -549,6 +769,20 @@ public final class ManaBrewEngineAdapter {
+@@ -549,6 +783,20 @@ public final class ManaBrewEngineAdapter {
              this.commanderNames = commanderNames == null ? List.of() : List.copyOf(commanderNames);
              this.ai = ai;
              this.bot = bot;
@@ -2479,7 +2564,7 @@ index c69b549..63e4b7e 100644
          }
  
          public String getName() {
-@@ -578,6 +812,45 @@ public final class ManaBrewEngineAdapter {
+@@ -578,6 +826,45 @@ public final class ManaBrewEngineAdapter {
          public boolean isBot() {
              return bot;
          }
@@ -2812,7 +2897,7 @@ index fb82e6d..550846b 100644
              return null;
          }
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..819dec1 100644
+index 643e5de..b05a0c3 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,12 +6,15 @@ import forge.harness.common.ParityCardMap;
@@ -3406,7 +3491,7 @@ index 643e5de..819dec1 100644
          }
 -        if (!snapshotRecording || !game.getStack().isEmpty() || game.getStack().hasSimultaneousStackEntries()) {
 +        if (!snapshotRecording || !game.getStack().isEmpty() || game.getStack().hasSimultaneousStackEntries()
-+                || Planechase.isPlanechase(game)) {
++                || Planechase.isPlanechase(game) || Archenemy.isArchenemyGame(game)) {
              return;
          }
          checkpointTurn = handler.getTurn();
@@ -3706,7 +3791,7 @@ index 643e5de..819dec1 100644
 +        if (lastPlayer != null) {
 +            handler.setPriority(lastPlayer);
 +        }
-+        if (snapshotRecording && !Planechase.isPlanechase(game)) {
++        if (snapshotRecording && !Planechase.isPlanechase(game) && !Archenemy.isArchenemyGame(game)) {
 +            addCheckpoint(before, priority);
 +        }
 +        publishStateFix(fixId, true, null, dropped);
@@ -5201,10 +5286,10 @@ index 0000000..26ce99d
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ArchenemyTest.java b/forge-harness/src/test/java/forge/harness/host/ArchenemyTest.java
 new file mode 100644
-index 0000000..f09ca3c
+index 0000000..34bbd74
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/ArchenemyTest.java
-@@ -0,0 +1,252 @@
+@@ -0,0 +1,466 @@
 +package forge.harness.host;
 +
 +import forge.ai.LobbyPlayerAi;
@@ -5212,6 +5297,7 @@ index 0000000..f09ca3c
 +import forge.game.Game;
 +import forge.game.GameRules;
 +import forge.game.GameStage;
++import forge.game.GameEndReason;
 +import forge.game.GameType;
 +import forge.game.Match;
 +import forge.game.ability.AbilityFactory;
@@ -5229,8 +5315,11 @@ index 0000000..f09ca3c
 +import forge.localinstance.properties.ForgePreferences.FPref;
 +import forge.model.FModel;
 +
++import com.google.gson.JsonParser;
++
 +import java.lang.reflect.Method;
 +import java.util.ArrayList;
++import java.util.Arrays;
 +import java.util.List;
 +import java.util.Set;
 +
@@ -5240,6 +5329,9 @@ index 0000000..f09ca3c
 +    private static final String SKYWARD = "Look Skyward and Despair";
 +    private static final String ROOTS = "Roots of All Evil";
 +    private static final String UNTOUCHABLE = "I Am Untouchable";
++    private static final List<String> FILLER = List.of("A Display of My Dark Power", "A Premonition of Your Demise",
++            "A Reckoning Approaches", "All Shall Smolder in My Wake", "Approach My Molten Realm", "Behold My Grandeur",
++            "Behold the Power of Destruction", "Chaos Is My Plaything", "Choose Your Champion", "Choose Your Demise");
 +
 +    public static void main(final String[] args) throws Exception {
 +        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
@@ -5253,6 +5345,15 @@ index 0000000..f09ca3c
 +        check("aNonOngoingSchemeReturnsToTheBottom", ArchenemyTest::aNonOngoingSchemeReturnsToTheBottom);
 +        check("anOngoingSchemeStaysUntilAbandoned", ArchenemyTest::anOngoingSchemeStaysUntilAbandoned);
 +        check("anArchenemyWithEverySchemeInMotionStaysTheArchenemy", ArchenemyTest::anArchenemyWithEverySchemeInMotionStaysTheArchenemy);
++        check("aStartWithNoArchenemyIsRefused", ArchenemyTest::aStartWithNoArchenemyIsRefused);
++        check("aStartWithTwoArchenemiesIsRefused", ArchenemyTest::aStartWithTwoArchenemiesIsRefused);
++        check("aSchemeDeckOfTheWrongSizeIsRefused", ArchenemyTest::aSchemeDeckOfTheWrongSizeIsRefused);
++        check("archenemyWithSharedLifeIsRefused", ArchenemyTest::archenemyWithSharedLifeIsRefused);
++        check("theArchenemyStartsAtDoubleTheFormatsLife", ArchenemyTest::theArchenemyStartsAtDoubleTheFormatsLife);
++        check("theArchenemyPlaysAloneAgainstOneTeam", ArchenemyTest::theArchenemyPlaysAloneAgainstOneTeam);
++        check("theArchenemyWinsAlone", ArchenemyTest::theArchenemyWinsAlone);
++        check("theOtherPlayersWinAsOneTeam", ArchenemyTest::theOtherPlayersWinAsOneTeam);
++        check("aSchemeGameTakesNoRestorePoints", ArchenemyTest::aSchemeGameTakesNoRestorePoints);
 +        System.out.println(failed == 0 ? "PASS ArchenemyTest" : "FAIL ArchenemyTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
 +    }
@@ -5276,24 +5377,18 @@ index 0000000..f09ca3c
 +    private static void aSchemeDeckReachesTheSchemeDeckZone() {
 +        final Fixture f = new Fixture(SKYWARD, UNTOUCHABLE, ROOTS);
 +        expect(f.game.getRules().hasAppliedVariant(GameType.Archenemy), "a start request with schemes did not apply the Archenemy variant");
-+        expect(Set.copyOf(names(f.white.getCardsIn(ZoneType.SchemeDeck))).equals(Set.of(SKYWARD, UNTOUCHABLE, ROOTS)),
++        expect(sorted(names(f.white.getCardsIn(ZoneType.SchemeDeck))).equals(sorted(deck(SKYWARD, UNTOUCHABLE, ROOTS))),
 +                "White's scheme deck holds " + names(f.white.getCardsIn(ZoneType.SchemeDeck)));
 +        expect(f.blue.getCardsIn(ZoneType.SchemeDeck).isEmpty(), "Blue, who brought no schemes, has " + names(f.blue.getCardsIn(ZoneType.SchemeDeck)));
 +        expect(f.white.isArchenemy() && !f.blue.isArchenemy(), "archenemy: White " + f.white.isArchenemy() + ", Blue " + f.blue.isArchenemy());
-+        expect(f.registered.get(0).getStartingLife() == f.registered.get(1).getStartingLife(),
-+                "the schemes changed White's starting life to " + f.registered.get(0).getStartingLife());
 +        final Fixture none = new Fixture();
 +        expect(!none.game.getRules().hasAppliedVariant(GameType.Archenemy), "a start request without schemes applied Archenemy");
-+        try {
-+            new Fixture("Plains");
-+        } catch (final IllegalArgumentException expected) {
-+            return;
-+        }
-+        throw new AssertionError("a scheme list naming Plains was accepted");
++        expectRefused(Setup.of().schemes(0, deck("Plains")), "no scheme named Plains");
 +    }
 +
 +    private static void aSchemeIsSetInMotionAtTheArchenemysFirstMainPhase() throws Exception {
 +        final Fixture f = new Fixture(SKYWARD);
++        f.order(SKYWARD);
 +        f.game.getPhaseHandler().devModeSet(PhaseType.DRAW, f.white, 1);
 +        f.stepTo(PhaseType.MAIN1);
 +        expect(f.white.getCardsIn(ZoneType.Command).stream().anyMatch(c -> c.getName().equals(SKYWARD)),
@@ -5332,6 +5427,7 @@ index 0000000..f09ca3c
 +
 +    private static void anArchenemyWithEverySchemeInMotionStaysTheArchenemy() throws Exception {
 +        final Fixture f = new Fixture(UNTOUCHABLE);
++        f.order(UNTOUCHABLE);
 +        final Card host = f.white.getCardsIn(ZoneType.SchemeDeck).get(0);
 +        final SpellAbility twice = AbilityFactory.getAbility("DB$ SetInMotion | RepeatNum$ 2", host);
 +        twice.setActivatingPlayer(f.white);
@@ -5346,6 +5442,106 @@ index 0000000..f09ca3c
 +        expect(f.commandScheme(UNTOUCHABLE) != null, "the next main phase moved " + UNTOUCHABLE);
 +    }
 +
++    private static void aStartWithNoArchenemyIsRefused() {
++        expectRefused(Setup.of().archenemy(), "an Archenemy game needs one player with a scheme deck");
++        new Fixture(Setup.of().archenemy().schemes(0, deck()));
++    }
++
++    private static void aStartWithTwoArchenemiesIsRefused() {
++        expectRefused(Setup.of().schemes(0, deck()).schemes(1, deck()), "has one archenemy, but White, Blue each brought a scheme deck");
++    }
++
++    private static void aSchemeDeckOfTheWrongSizeIsRefused() {
++        final List<String> short19 = new ArrayList<>(deck());
++        short19.remove(short19.size() - 1);
++        expectRefused(Setup.of().schemes(0, short19), "White's scheme deck has 19 schemes; it needs at least 20");
++        final List<String> threeCopies = new ArrayList<>(deck());
++        threeCopies.set(threeCopies.size() - 1, FILLER.get(0));
++        expectRefused(Setup.of().schemes(0, threeCopies), "has 3 copies of " + FILLER.get(0) + "; a scheme deck holds at most 2 of each");
++        new Fixture(Setup.of().schemes(0, deck()));
++    }
++
++    private static void archenemyWithSharedLifeIsRefused() {
++        expectRefused(Setup.of().schemes(0, deck()).teamRules("sharedLife"), "Archenemy plays with each player's own life and turns, not sharedLife");
++    }
++
++    private static void theArchenemyStartsAtDoubleTheFormatsLife() {
++        final Fixture standard = new Fixture(Setup.of().players(3).schemes(0, deck()));
++        expect(lives(standard).equals(List.of(40, 20, 20)), "Standard starting life " + lives(standard) + ", not the archenemy at 40 and the others at 20");
++        final Fixture commander = new Fixture(Setup.of().players(3).commander().schemes(0, deck()));
++        expect(lives(commander).equals(List.of(80, 40, 40)), "Commander starting life " + lives(commander) + ", not the archenemy at 80 and the others at 40");
++        final Fixture named = new Fixture(Setup.of().players(3).schemes(0, deck()).startingLife(0, 25));
++        expect(lives(named).get(0) == 25, "a starting life the host named for the archenemy became " + lives(named).get(0));
++        final Fixture plain = new Fixture(Setup.of().players(3));
++        expect(lives(plain).equals(List.of(20, 20, 20)), "a game without schemes starts at " + lives(plain));
++    }
++
++    private static void theArchenemyPlaysAloneAgainstOneTeam() {
++        final Fixture f = new Fixture(Setup.of().players(3).schemes(0, deck()));
++        final Player red = f.game.getPlayers().get(2);
++        expect(f.white.isOpponentOf(f.blue) && f.white.isOpponentOf(red), "the archenemy is not every other player's opponent");
++        expect(!f.blue.isOpponentOf(red), "Blue and Red, the archenemy's opponents, are not one team");
++    }
++
++    private static void theArchenemyWinsAlone() {
++        final Fixture f = new Fixture(Setup.of().players(3).schemes(0, deck()));
++        final Player red = f.game.getPlayers().get(2);
++        f.lose(f.blue);
++        expect(!f.game.isGameOver() && !f.white.hasWon(), "the game ended with only Blue of the archenemy's opponents out");
++        f.lose(red);
++        expect(f.game.isGameOver() && f.white.hasWon(), "White, the archenemy, did not win with both opponents out: " + f.white.getOutcome());
++    }
++
++    private static void theOtherPlayersWinAsOneTeam() {
++        final Fixture f = new Fixture(Setup.of().players(3).schemes(0, deck()));
++        final Player red = f.game.getPlayers().get(2);
++        f.lose(f.white);
++        expect(f.game.isGameOver() && f.game.getOutcome().getWinCondition() == GameEndReason.AllOpposingTeamsLost,
++                "the archenemy's loss did not end the game as a team win: " + (f.game.getOutcome() == null ? "running" : f.game.getOutcome().getWinCondition()));
++        expect(f.blue.hasWon() && red.hasWon(), "Blue and Red did not win together: Blue " + f.blue.getOutcome() + ", Red " + red.getOutcome());
++    }
++
++    private static void aSchemeGameTakesNoRestorePoints() throws Exception {
++        final Fixture f = new Fixture(Setup.of().schemes(0, deck()));
++        f.recordCheckpoint();
++        expect(f.checkpoints() == 0, "an Archenemy game took a restore point");
++        final Fixture plain = new Fixture(Setup.of());
++        plain.recordCheckpoint();
++        expect(plain.checkpoints() == 1, "a game without schemes took no restore point");
++    }
++
++    private static List<Integer> lives(final Fixture f) {
++        final List<Integer> lives = new ArrayList<>();
++        for (final RegisteredPlayer rp : f.registered) {
++            lives.add(rp.getStartingLife());
++        }
++        return lives;
++    }
++
++    private static void expectRefused(final Setup setup, final String message) {
++        try {
++            new Fixture(setup);
++        } catch (final IllegalArgumentException refused) {
++            expect(refused.getMessage().contains(message), "refused with \"" + refused.getMessage() + "\", not \"" + message + "\"");
++            return;
++        }
++        throw new AssertionError("a start was accepted that should be refused with \"" + message + "\"");
++    }
++
++    private static List<String> deck(final String... named) {
++        final List<String> deck = new ArrayList<>(Arrays.asList(named));
++        for (int i = 0; deck.size() < Archenemy.MIN_SCHEMES; i++) {
++            deck.add(FILLER.get(i / 2));
++        }
++        return deck;
++    }
++
++    private static List<String> sorted(final List<String> names) {
++        final List<String> out = new ArrayList<>(names);
++        out.sort(null);
++        return out;
++    }
++
 +    private static List<String> names(final Iterable<Card> cards) {
 +        final List<String> names = new ArrayList<>();
 +        for (final Card card : cards) {
@@ -5354,14 +5550,83 @@ index 0000000..f09ca3c
 +        return names;
 +    }
 +
-+    private static String json(final String... schemes) {
-+        final StringBuilder list = new StringBuilder();
-+        for (final String scheme : schemes) {
-+            list.append(list.length() == 0 ? "" : ",").append("{\"name\":\"").append(scheme).append("\"}");
++    private static final class Setup {
++        private int players = 2;
++        private boolean commander;
++        private boolean archenemy;
++        private String teamRules;
++        private final java.util.Map<Integer, List<String>> schemes = new java.util.HashMap<>();
++        private final java.util.Map<Integer, Integer> startingLife = new java.util.HashMap<>();
++
++        static Setup of() {
++            return new Setup();
 +        }
-+        return "{\"gameId\":\"archenemy-test\",\"variant\":\"Constructed\",\"players\":["
-+                + "{\"name\":\"White\",\"deck\":[{\"name\":\"Plains\"}]" + (schemes.length == 0 ? "" : ",\"schemes\":[" + list + "]") + "},"
-+                + "{\"name\":\"Blue\",\"deck\":[{\"name\":\"Island\"}]}]}";
++
++        Setup players(final int n) {
++            players = n;
++            return this;
++        }
++
++        Setup commander() {
++            commander = true;
++            return this;
++        }
++
++        Setup archenemy() {
++            archenemy = true;
++            return this;
++        }
++
++        Setup teamRules(final String rules) {
++            teamRules = rules;
++            return this;
++        }
++
++        Setup schemes(final int seat, final List<String> names) {
++            schemes.put(seat, names);
++            return this;
++        }
++
++        Setup startingLife(final int seat, final int life) {
++            startingLife.put(seat, life);
++            return this;
++        }
++
++        GameType gameType() {
++            return commander ? GameType.Commander : GameType.Constructed;
++        }
++
++        String json() {
++            final String[] seats = {"White", "Blue", "Red", "Yellow"};
++            final StringBuilder out = new StringBuilder("{\"gameId\":\"archenemy-test\",\"variant\":\"")
++                    .append(commander ? "Commander" : "Constructed").append("\"");
++            if (archenemy) {
++                out.append(",\"archenemy\":true");
++            }
++            if (teamRules != null) {
++                out.append(",\"teamRules\":\"").append(teamRules).append("\"");
++            }
++            out.append(",\"players\":[");
++            for (int i = 0; i < players; i++) {
++                out.append(i == 0 ? "" : ",").append("{\"name\":\"").append(seats[i]).append("\",\"deck\":[{\"name\":\"Plains\"}]");
++                if (teamRules != null) {
++                    out.append(",\"team\":").append(i % 2 + 1);
++                }
++                if (startingLife.containsKey(i)) {
++                    out.append(",\"startingLife\":").append(startingLife.get(i));
++                }
++                if (schemes.containsKey(i)) {
++                    out.append(",\"schemes\":[");
++                    final List<String> names = schemes.get(i);
++                    for (int j = 0; j < names.size(); j++) {
++                        out.append(j == 0 ? "" : ",").append("{\"name\":\"").append(names.get(j)).append("\"}");
++                    }
++                    out.append("]");
++                }
++                out.append("}");
++            }
++            return out.append("]}").toString();
++        }
 +    }
 +
 +    private static void expect(final boolean condition, final String message) {
@@ -5376,20 +5641,37 @@ index 0000000..f09ca3c
 +        final Player blue;
 +        final List<RegisteredPlayer> registered = new ArrayList<>();
 +
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("archenemy-test");
++
 +        Fixture(final String... schemes) {
-+            final ManaBrewEngineAdapter.StartGameRequest request = ManaBrewEngineAdapter.parseStartGameRequest(json(schemes));
-+            final List<List<PaperCard>> schemeDecks = Archenemy.schemeDecks(request.getPlayers());
-+            final GameRules rules = new GameRules(GameType.Constructed);
-+            final Set<GameType> variants = ManaBrewEngineAdapter.appliedVariants(GameType.Constructed, false, schemeDecks);
++            this(schemes.length == 0 ? Setup.of() : Setup.of().schemes(0, deck(schemes)));
++        }
++
++        Fixture(final Setup setup) {
++            final ManaBrewEngineAdapter.StartGameRequest request = ManaBrewEngineAdapter.parseStartGameRequest(setup.json());
++            final List<List<PaperCard>> schemeDecks = Archenemy.schemeDecks(request);
++            final boolean archenemyGame = Archenemy.isArchenemyGame(request, schemeDecks);
++            final GameType gameType = setup.gameType();
++            final GameRules rules = new GameRules(gameType);
++            final Set<GameType> variants = ManaBrewEngineAdapter.appliedVariants(gameType, false, archenemyGame);
 +            rules.setAppliedVariants(variants);
 +            for (int i = 0; i < request.getPlayers().size(); i++) {
-+                final Deck deck = new Deck(request.getPlayers().get(i).getName());
++                final ManaBrewEngineAdapter.PlayerConfig config = request.getPlayers().get(i);
++                final Deck deck = new Deck(config.getName());
 +                deck.getMain().add(i == 0 ? "Plains" : "Island", 20);
-+                final RegisteredPlayer rp = ManaBrewEngineAdapter.registeredPlayer(2, variants, deck, null, schemeDecks.get(i));
-+                rp.setPlayer(new LobbyPlayerAi(request.getPlayers().get(i).getName(), null));
++                final RegisteredPlayer rp = ManaBrewEngineAdapter.registeredPlayer(request.getPlayers().size(), variants, deck, null, schemeDecks.get(i));
++                ManaBrewEngineAdapter.configurePlayer(rp, config, request, gameType);
++                Archenemy.seat(rp, config, schemeDecks.get(i), archenemyGame, gameType);
++                rp.setPlayer(new LobbyPlayerAi(config.getName(), null));
 +                registered.add(rp);
 +            }
-+            game = new Game(registered, rules, new Match(rules, registered, "ArchenemyTest"));
++            final Set<GameType> playedVariants = java.util.EnumSet.copyOf(variants);
++            if (playedVariants.remove(GameType.Commander)) {
++                playedVariants.add(GameType.Constructed);
++            }
++            final GameRules played = new GameRules(GameType.Constructed);
++            played.setAppliedVariants(playedVariants);
++            game = new Game(registered, played, new Match(played, registered, "ArchenemyTest"));
 +            for (int i = 0; i < registered.size(); i++) {
 +                game.getPlayers().get(i).initVariantsZones(registered.get(i));
 +            }
@@ -5398,6 +5680,23 @@ index 0000000..f09ca3c
 +            blue = game.getPlayers().get(1);
 +            game.getPhaseHandler().devModeSet(PhaseType.MAIN2, blue, 1);
 +            game.getPhaseHandler().onStackResolved();
++            session.attach(game.getMatch(), game, Set.of(), true);
++        }
++
++        void lose(final Player p) {
++            p.setLife(0, null);
++            game.getAction().checkStateEffects(true);
++            game.getAction().checkGameOverCondition();
++        }
++
++        void recordCheckpoint() throws Exception {
++            final Method record = ManaBrewInteractiveSession.class.getDeclaredMethod("recordCheckpoint");
++            record.setAccessible(true);
++            record.invoke(session);
++        }
++
++        int checkpoints() {
++            return JsonParser.parseString(session.getSnapshotJson(0)).getAsJsonObject().getAsJsonArray("checkpoints").size();
 +        }
 +
 +        void order(final String... top) {
@@ -15028,7 +15327,7 @@ index ed50370..6f54c53 100644
                          )
                          .await?;
 diff --git a/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs b/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
-index e19dcde..c037edd 100644
+index e19dcde..376dfb9 100644
 --- a/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
 +++ b/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
 @@ -1427,6 +1427,7 @@ pub fn run_hosted_engine_game(
@@ -15096,7 +15395,7 @@ index e19dcde..c037edd 100644
                      }
                      Some("mulliganPutBack") if !*put_back_done => {
                          let count = prompt
-@@ -3041,6 +3048,45 @@ pub struct StartGameRequest {
+@@ -3041,6 +3048,49 @@ pub struct StartGameRequest {
      seed: u64,
      players: Vec<PlayerConfig>,
      checkpoint_metrics: bool,
@@ -15106,6 +15405,8 @@ index e19dcde..c037edd 100644
 +    poison_to_lose: Option<i32>,
 +    #[serde(skip_serializing_if = "Option::is_none")]
 +    commander_damage_to_lose: Option<i32>,
++    #[serde(skip_serializing_if = "std::ops::Not::not")]
++    archenemy: bool,
 +}
 +
 +#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize)]
@@ -15119,6 +15420,8 @@ index e19dcde..c037edd 100644
 +    pub commander_damage_to_lose: Option<i32>,
 +    #[serde(default)]
 +    pub players: Vec<GameConfigPlayer>,
++    #[serde(default)]
++    pub archenemy: bool,
 +}
 +
 +#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize)]
@@ -15142,7 +15445,7 @@ index e19dcde..c037edd 100644
  }
  
  #[derive(Debug, Clone, Serialize)]
-@@ -3050,9 +3096,24 @@ pub struct PlayerConfig {
+@@ -3050,9 +3100,24 @@ pub struct PlayerConfig {
      deck: Vec<CardIdentityForJava>,
      sideboard: Vec<CardIdentityForJava>,
      attractions: Vec<CardIdentityForJava>,
@@ -15167,13 +15470,14 @@ index e19dcde..c037edd 100644
  }
  
  #[derive(Debug, Clone, Serialize)]
-@@ -3087,6 +3148,38 @@ impl StartGameRequest {
+@@ -3087,6 +3152,40 @@ impl StartGameRequest {
              seed,
              players,
              checkpoint_metrics: false,
 +            team_rules: None,
 +            poison_to_lose: None,
 +            commander_damage_to_lose: None,
++            archenemy: false,
 +        }
 +    }
 +
@@ -15181,6 +15485,7 @@ index e19dcde..c037edd 100644
 +        self.team_rules = config.team_rules.clone();
 +        self.poison_to_lose = config.poison_to_lose;
 +        self.commander_damage_to_lose = config.commander_damage_to_lose;
++        self.archenemy = config.archenemy;
 +        for (player, name) in self.players.iter_mut().zip(player_names) {
 +            let Some(seat) = config.players.iter().find(|seat| &seat.username == name) else {
 +                continue;
@@ -15206,7 +15511,7 @@ index e19dcde..c037edd 100644
          }
      }
  
-@@ -3102,9 +3195,17 @@ impl PlayerConfig {
+@@ -3102,9 +3201,17 @@ impl PlayerConfig {
              deck: deck.iter().map(CardIdentityForJava::from).collect(),
              sideboard: Vec::new(),
              attractions: Vec::new(),
@@ -15224,7 +15529,7 @@ index e19dcde..c037edd 100644
          }
      }
  
-@@ -3120,6 +3221,18 @@ impl PlayerConfig {
+@@ -3120,6 +3227,18 @@ impl PlayerConfig {
              .flatten()
              .map(|card| CardIdentityForJava::from(&card.identity))
              .collect();
@@ -15243,7 +15548,7 @@ index e19dcde..c037edd 100644
          self
      }
  }
-@@ -3219,8 +3332,8 @@ fn parse_gc_pause(line: &str) -> Option<GcPause> {
+@@ -3219,8 +3338,8 @@ fn parse_gc_pause(line: &str) -> Option<GcPause> {
  
  #[cfg(test)]
  mod gc_log_tests {
@@ -15254,7 +15559,7 @@ index e19dcde..c037edd 100644
  
      #[test]
      fn reads_a_full_collection() {
-@@ -3298,4 +3411,58 @@ mod gc_log_tests {
+@@ -3298,4 +3417,75 @@ mod gc_log_tests {
              r#""deck":[{"name":"Forest","setCode":"EOE","collectorNumber":"266","foil":true}]"#
          ));
      }
@@ -15311,6 +15616,23 @@ index e19dcde..c037edd 100644
 +
 +        assert!(json.contains(r#""schemes":[{"name":"Roots of All Evil","setCode":null,"collectorNumber":null,"foil":false},{"name":"I Am Untouchable","setCode":null,"collectorNumber":null,"foil":false}]"#), "{json}");
 +        assert_eq!(json.matches(r#""schemes""#).count(), 1, "{json}");
++    }
++
++    #[test]
++    fn a_game_config_archenemy_flag_reaches_java() {
++        let mut request = scheme_test_request(&Deck::default());
++        let names = ["White".to_string(), "Blue".to_string()];
++        request.apply_game_config(&GameConfig::default(), &names);
++        let json = request.to_json().expect("serialized");
++        assert!(!json.contains(r#""archenemy""#), "{json}");
++
++        let config = GameConfig {
++            archenemy: true,
++            ..Default::default()
++        };
++        request.apply_game_config(&config, &names);
++        let json = request.to_json().expect("serialized");
++        assert!(json.contains(r#""archenemy":true"#), "{json}");
 +    }
  }
 diff --git a/manabrew-rs/crates/self-hosted-node/src/host.rs b/manabrew-rs/crates/self-hosted-node/src/host.rs
