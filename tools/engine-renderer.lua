@@ -10870,6 +10870,10 @@ engineGif = {
   frames = {},           -- colour -> its frame object
   state = {},            -- colour -> the GIF it shows { id, mp4, still, title, w, h }, nil: empty
   hidden = {},           -- colour -> true: that player hides every frame on their own screen
+  -- colour -> true: that player sees every frame's still picture all the time, never the video (mtg gifs still: a
+  -- client whose TTS can't play .mp4 draws the tile blank white, live 2026-11-15; the host's Lua can't see that)
+  stills = {},
+  hinted = false,        -- the one-time "white square? mtg gifs still" hint was said this session
   open = {},             -- colour -> true: the owner's search panel is open
   results = {},          -- colour -> { q, page, items, total, gen } of the panel's last search
   -- colour -> number of the last results page drawn: its thumbnails' asset names carry it ("t3_1"). Real TTS never
@@ -10967,6 +10971,14 @@ function engineGif.viewers()
   if not any then return "" end
   return ' visibility="' .. (#list > 0 and table.concat(list, "|") or "None") .. '"'
 end
+-- the still picture over the whole frame for the stills-only players (not the hiders: hide wins), always on, so the
+-- video tile under it never shows for them; "" when there are none (an empty visibility shows it to everyone)
+function engineGif.stillXml(c, fw, fh)
+  local G, list = engineGif, {}
+  for _, h in ipairs(G.COLORS) do if G.stills[h] and not G.hidden[h] then list[#list + 1] = h end end
+  if #list == 0 then return "" end
+  return '<Image id="gifstill_' .. c .. '" image="still" visibility="' .. table.concat(list, "|") .. '" width="' .. fw .. '" height="' .. fh .. '" preserveAspect="true" raycastTarget="false"/>'
+end
 function engineGif.panelXml(c, fw)
   local G = engineGif
   local fav = G.tab[c] == "fav"
@@ -11023,7 +11035,7 @@ function engineGif.xml(c)
     x[#x + 1] = '<Panel width="' .. fw .. '" height="' .. fh .. '" color="#141414" raycastTarget="false"><Text fontSize="40" fontStyle="Bold" color="#E0E0E0" position="0 24 0" width="190" height="60">GIF</Text>'
       .. '<Text fontSize="14" color="#9A9A9A" position="0 -30 0" width="186" height="70">' .. c .. "'s frame: GIF... below picks one" .. '</Text></Panel>'
   else
-    x[#x + 1] = '<Image id="gifhold_' .. c .. '" image="still" width="' .. fw .. '" height="' .. fh .. '" preserveAspect="true" raycastTarget="false" active="' .. (G.playing[c] and "false" or "true") .. '"/>'
+    x[#x + 1] = '<Image id="gifhold_' .. c .. '" image="still" width="' .. fw .. '" height="' .. fh .. '" preserveAspect="true" raycastTarget="false" active="' .. (G.playing[c] and "false" or "true") .. '"/>' .. G.stillXml(c, fw, fh)
     x[#x + 1] = '<Button id="gifplay_' .. c .. '" position="0 ' .. by .. ' 0" width="80" height="32" fontSize="16" onClick="Global/engineGifUiClick">Replay</Button>'
     x[#x + 1] = '<Button id="gifcol_' .. c .. '" visibility="' .. c .. '" position="88 ' .. by .. ' 0" width="80" height="32" fontSize="16" tooltip="Collapse your GIF to a small tile (everyone sees it so; Show brings it back)" onClick="Global/engineGifUiClick">Hide</Button>'
   end
@@ -11170,6 +11182,11 @@ function engineGif.spawn(c)
       end
       G.spawning[c] = nil
       G.loaded[c] = id
+      -- (the first video shown this session: one hint to everyone, for a client that draws it blank white)
+      if not G.hinted and G.retried[c] ~= 2 and G.state[c] ~= nil and G.state[c].collapsed ~= true then
+        G.hinted = true
+        broadcastToAll("[MTG] GIF shows as a white square (Steam Deck, Mac or Linux)? Type  mtg gifs still", { 1, 0.85, 0.4 })
+      end
       G.retried[c] = nil
       if G.dirty[c] then G.dirty[c] = nil return G.spawn(c) end
       if not G.same(G.frames[c], obj) then return end
@@ -11211,6 +11228,7 @@ function engineGif.sync()
   -- (hide-for-me belongs to the player: whoever sits in a colour next doesn't inherit it; spectators keep theirs)
   local unhid = false
   for h in pairs(G.hidden) do if not seated[h] and h ~= "Grey" and h ~= "Black" then G.hidden[h] = nil unhid = true end end
+  for h in pairs(G.stills) do if not seated[h] and h ~= "Grey" and h ~= "Black" then G.stills[h] = nil unhid = true end end
   if unhid then for f in pairs(G.frames) do if want[f] then G.redraw(f) end end end
   local gone = 0
   for c, o in pairs(G.frames) do
@@ -11416,7 +11434,7 @@ function engineGifUiSearch(player, value, id)
 end
 
 -- ───── chat: mtg gif ... / mtg gifs ... ─────
-engineGif.HELP = "GIF frames: click GIF... under your frame, or type  mtg gif <words>  (the first match),  mtg gif off  (empty it),  mtg gifs hide  /  mtg gifs show  (every frame, on your screen only). Host:  mtg gifs on  /  mtg gifs off ,  mtg gifs rating g | pg | pg-13 ,  mtg gif clear <colour> ."
+engineGif.HELP = "GIF frames: click GIF... under your frame, or type  mtg gif <words>  (the first match),  mtg gif off  (empty it),  mtg gifs hide  /  mtg gifs show  (every frame, on your screen only),  mtg gifs still  /  mtg gifs video  (a GIF is a white square for you: show every frame's still picture instead, on your screen only). Host:  mtg gifs on  /  mtg gifs off ,  mtg gifs rating g | pg | pg-13 ,  mtg gif clear <colour> ."
 function engineGif.chat(message, pl)
   local G = engineGif
   local lower = string.lower(message)
@@ -11432,6 +11450,11 @@ function engineGif.chat(message, pl)
       G.hidden[c] = (low == "hide") or nil
       for f in pairs(G.frames) do G.redraw(f) end
       tellMe(low == "hide" and "GIF frames hidden on your screen (the others still see them). Type  mtg gifs show  to see them again." or "GIF frames shown on your screen.")
+    elseif low == "still" or low == "video" then
+      G.stills[c] = (low == "still") or nil
+      -- (a new picture element on their screen: drawn white until its asset loads, so the XML is set again at 2 s and 6 s)
+      for f in pairs(G.frames) do G.assetSig[f] = nil G.redraw(f) end
+      tellMe(low == "still" and "On your screen every GIF frame now shows its still picture instead of the moving GIF (the others still see them move). Type  mtg gifs video  to see them move again." or "GIF frames move again on your screen.")
     elseif low == "on" or low == "off" then
       if not isHost then tellMe("Only the host can turn the GIF frames on or off (everyone sees them).") return false end
       G.hostOff = (low == "off")

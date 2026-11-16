@@ -407,7 +407,7 @@ const SEATED = ["White", "Blue"];
   const r = simulate({ save, seated: SEATED, host: "Blue", steps: [CHAT("White", "mtg help", "help")] });
   ok("help: no errors", !r.errors.length, r.errors.join(" | "));
   const said = fxOf(r, "help").join("\n");
-  ok("help: mtg help lists mtg gif, mtg gif off, mtg gifs hide/show and mtg gif help", /mtg gif <words> \/ mtg gif off - your GIF frame/.test(said) && /mtg gifs hide\/show/.test(said) && /mtg gif help - every GIF command/.test(said), said.slice(-400));
+  ok("help: mtg help lists mtg gif, mtg gif off, mtg gifs hide/show and mtg gif help", /mtg gif <words> \/ mtg gif off - your GIF frame/.test(said) && /mtg gifs hide\/show/.test(said) && /mtg gifs still - a GIF is a white square/.test(said) && /mtg gif help - every GIF command/.test(said), said.slice(-400));
 }
 
 // ── a reload: the save's frames are adopted (with their GIF), not doubled, and the bridge is asked about its key
@@ -458,6 +458,67 @@ const SEATED = ["White", "Blue"];
   ok("collapse: a reload keeps it collapsed (the memo)", (() => { try { const j = JSON.parse(raw(r, "adopted")); return j.c === true && j.mp4 === ITEMS[0].mp4; } catch { return false; } })(), raw(r, "adopted"));
   const ex = byC(val(r, "expanded"), "White");
   ok("collapse: Show brings the same GIF back, playing, at full size", ex && ex.img === ITEMS[0].mp4 && ex.stretch === true && Math.abs(ex.sx - 0.765) < 0.001 && ex.hold === "false" && !JSON.parse(ex.memo || "{}").collapsed, ex && [ex.img, ex.sx, ex.hold, ex.memo]);
+}
+
+// ── stills only (live 2026-11-15: a friend's TTS drew every GIPHY .mp4 tile blank white): mtg gifs still covers every
+// frame with its still picture all the time on that player's screen only; mtg gifs video undoes it; hide wins; it
+// goes with its player; one hint to everyone at the first video shown
+{
+  // what colour c sees of a frame's UI: the still over the video (gifstill, always on), the timed still (gifhold), or
+  // nothing over the video. An element shows to the colours in its visibility (none: everyone), inside its root's
+  const sees = (f, c) => {
+    if (!f) return "no frame";
+    const vis = (tag) => { const m = tag.match(/visibility="([^"]*)"/); return !m || m[1].split("|").includes(c); };
+    const root = (f.xml.match(/^<Panel position="0 0 -11"[^>]*>/) || [""])[0];
+    if (!vis(root) || f.inv.split(",").includes(c)) return "hidden";
+    const still = (f.xml.match(/<Image id="gifstill_[^"]*"[^>]*>/) || [null])[0];
+    if (still && vis(still) && /image="still"/.test(still) && !/active="false"/.test(still) && f.assets.some((a) => a.startsWith("still="))) return "still";
+    if (f.hold === "true") return "held";
+    return "video";
+  };
+  const pick = (req, items) => msg("gif_results", { color: "White", req, first: true, q: "cats", page: 0, items, total: items.length, error: null }, 10);
+  const r = simulate({ save, seated: [...SEATED, "Red"], host: "Blue", steps: [
+    SPY, CONFIG(true), { frames: 10 },
+    CHAT("White", "mtg gif cats", "w search"), pick(1, ITEMS), { frames: 10 }, FRAMES("playing"),
+    CHAT("Blue", "mtg gifs still", "blue still"), FRAMES("blue still view"),
+    { frames: 12 * 60 + 10 }, FRAMES("held"),
+    ACT("Red", "Select", "White", "red replays"), FRAMES("replay"),
+    CHAT("White", "mtg gif dogs", "w search 2"), pick(2, ITEMS.slice(1)), { frames: 7 * 60 }, FRAMES("repick"),
+    CHAT("Blue", "mtg gifs hide", "blue hides"), FRAMES("blue hides view"),
+    CHAT("Blue", "mtg gifs show", "blue shows"), FRAMES("blue shows view"),
+    CLICK("White", "gifcol_White", "collapse"), { frames: 10 }, FRAMES("collapsed"),
+    CLICK("White", "gifcol_White", "expand"), { frames: 10 }, FRAMES("expanded"),
+    CHAT("Blue", "mtg gifs video", "blue video"), FRAMES("blue video view"),
+    CHAT("Blue", "mtg gifs still", "blue still again"), lua("return 'ok'", "after toggle", 7 * 60), CHAT("Grey", "mtg gifs still", "grey still"),
+    lua("__sim.seated.Blue = nil onPlayerChangeColor('Grey') return 'ok'", "blue leaves", 180), FRAMES("blue gone"),
+    lua("return JSON.encode({ blue = engineGif.stills.Blue == true, grey = engineGif.stills.Grey == true })", "stills after"),
+    CHAT("White", "mtg gifs", "state"),
+  ] });
+  ok("stills: no errors", !r.errors.length, r.errors.join(" | "));
+  const W = (mark) => byC(val(r, mark), "White");
+  const view = (mark) => Object.fromEntries(["White", "Blue", "Red"].map((c) => [c, sees(W(mark), c)]));
+  const eq = (mark, want) => JSON.stringify(view(mark)) === JSON.stringify(want);
+  ok("stills: before, everyone sees the video playing", eq("playing", { White: "video", Blue: "video", Red: "video" }), view("playing"));
+  ok("stills: mtg gifs still: Blue sees the still at once, while it plays; the others the video", eq("blue still view", { White: "video", Blue: "still", Red: "video" }), view("blue still view"));
+  ok("stills: the still is Blue's alone (visibility Blue), over the whole frame", /<Image id="gifstill_White" image="still" visibility="Blue" width="200" height="100"/.test(W("blue still view")?.xml || ""), W("blue still view")?.xml);
+  ok("stills: an empty frame (Blue's) gets no still", !(byC(val(r, "blue still view"), "Blue")?.xml || "gifstill_").includes("gifstill_"), byC(val(r, "blue still view"), "Blue")?.xml);
+  ok("stills: told in plain words, Blue only", fxOf(r, "blue still").some((f) => f.includes('"Player.broadcast" "Blue"') && f.includes("still picture instead of the moving GIF") && f.includes("mtg gifs video")), fxOf(r, "blue still"));
+  const reset = r.steps.filter((x) => x.step === "after toggle").flatMap((x) => x.fx || []).filter((f) => f.includes('"objUI.setXml"'));
+  ok("stills: the toggle sets every frame's XML again later (a picture loading shows white on real TTS)", (() => { const n = {}; for (const f of reset) { const o = (f.match(/obj:(\S+)/) || [])[1]; n[o] = (n[o] || 0) + 1; } return Object.values(n).filter((k) => k >= 2).length === 3; })(), reset);
+  ok("stills: after 12 s the others get the timed still, Blue keeps the always-on one", eq("held", { White: "held", Blue: "still", Red: "held" }), view("held"));
+  ok("stills: a Replay plays for the others only", eq("replay", { White: "video", Blue: "still", Red: "video" }), view("replay"));
+  const rp = W("repick");
+  ok("stills: a new pick keeps Blue on its new still (asset set, XML set again after it loads)", eq("repick", { White: "video", Blue: "still", Red: "video" }) && rp.assets.includes(`still=${ITEMS[1].still}`) && rp.shown.still === ITEMS[1].still, [view("repick"), rp?.assets, rp?.shown]);
+  ok("stills: hide wins (no still element left for Blue, the frame hidden)", eq("blue hides view", { White: "video", Blue: "hidden", Red: "video" }) && !(W("blue hides view")?.xml || "").includes("gifstill_"), [view("blue hides view"), W("blue hides view")?.xml]);
+  ok("stills: show brings Blue's still back", eq("blue shows view", { White: "video", Blue: "still", Red: "video" }), view("blue shows view"));
+  ok("stills: a collapsed frame is unchanged (no still)", !(W("collapsed")?.xml || "").includes("gifstill_") && !(W("collapsed")?.xml || "").includes("gifhold_"), W("collapsed")?.xml);
+  ok("stills: expanded again, Blue's still is back", sees(W("expanded"), "Blue") === "still", view("expanded"));
+  ok("stills: mtg gifs video undoes it", eq("blue video view", { White: "video", Blue: "video", Red: "video" }) && !(W("blue video view")?.xml || "").includes("gifstill_") && fxOf(r, "blue video").some((f) => f.includes("move again")), [view("blue video view"), fxOf(r, "blue video")]);
+  const st = val(r, "stills after");
+  ok("stills: it goes with its player; a spectator's stays", st && st.blue === false && st.grey === true && /<Image id="gifstill_White" image="still" visibility="Grey"/.test(W("blue gone")?.xml || ""), [st, W("blue gone")?.xml]);
+  const hints = r.steps.flatMap((x) => x.fx || []).filter((f) => f.includes("broadcastToAll") && f.includes("white square"));
+  ok("stills: one hint to everyone at the first video, not again", hints.length === 1 && hints[0].includes("broadcastToAll") && hints[0].includes("(Steam Deck, Mac or Linux)? Type  mtg gifs still"), hints);
+  ok("stills: the mtg gifs help line names it", fxOf(r, "state").some((f) => f.includes("mtg gifs still") && f.includes("white square")), fxOf(r, "state"));
 }
 
 console.log(`${passed} passed, ${failed} failed`);
