@@ -590,16 +590,22 @@ index aa1a47c..14c82b4 100644
              return Integer.MAX_VALUE;
 diff --git a/forge-harness/src/main/java/forge/harness/host/Archenemy.java b/forge-harness/src/main/java/forge/harness/host/Archenemy.java
 new file mode 100644
-index 0000000..44b5096
+index 0000000..397af63
 --- /dev/null
 +++ b/forge-harness/src/main/java/forge/harness/host/Archenemy.java
-@@ -0,0 +1,124 @@
+@@ -0,0 +1,156 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
 +import forge.game.Game;
++import forge.card.CardType;
++import forge.game.GameRules;
 +import forge.game.GameType;
++import forge.game.card.Card;
++import forge.game.player.Player;
 +import forge.game.player.RegisteredPlayer;
++import forge.game.zone.ZoneType;
++import forge.harness.common.SnapshotExtractor;
 +import forge.harness.host.ManaBrewEngineAdapter.CardIdentity;
 +import forge.harness.host.ManaBrewEngineAdapter.PlayerConfig;
 +import forge.harness.host.ManaBrewEngineAdapter.StartGameRequest;
@@ -676,6 +682,20 @@ index 0000000..44b5096
 +        }
 +    }
 +
++    static List<Map<String, Object>> schemesInMotion(final Player player) {
++        final List<Map<String, Object>> schemes = new ArrayList<>();
++        for (final Card card : player.getCardsIn(ZoneType.Command)) {
++            if (card.isScheme()) {
++                final Map<String, Object> scheme = new LinkedHashMap<>();
++                scheme.put("id", SnapshotExtractor.javaCardId(card));
++                scheme.put("name", card.getName());
++                scheme.put("ongoing", card.getType().hasSupertype(CardType.Supertype.Ongoing));
++                schemes.add(scheme);
++            }
++        }
++        return schemes;
++    }
++
 +    static boolean any(final List<List<PaperCard>> schemeDecks) {
 +        for (final List<PaperCard> deck : schemeDecks) {
 +            if (!deck.isEmpty()) {
@@ -683,6 +703,18 @@ index 0000000..44b5096
 +            }
 +        }
 +        return false;
++    }
++
++    static void firstPlayer(final GameRules rules, final List<List<PaperCard>> schemeDecks) {
++        if (rules.getStartingPlayer() >= 0) {
++            return;
++        }
++        for (int i = 0; i < schemeDecks.size(); i++) {
++            if (!schemeDecks.get(i).isEmpty()) {
++                rules.setStartingPlayer(i);
++                return;
++            }
++        }
 +    }
 +
 +    static void giveSchemes(final RegisteredPlayer player, final List<PaperCard> schemes) {
@@ -1116,13 +1148,14 @@ index 0000000..1ecaebb
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/EngineEventLog.java b/forge-harness/src/main/java/forge/harness/host/EngineEventLog.java
 new file mode 100644
-index 0000000..ca35fdf
+index 0000000..2e04fd9
 --- /dev/null
 +++ b/forge-harness/src/main/java/forge/harness/host/EngineEventLog.java
-@@ -0,0 +1,409 @@
+@@ -0,0 +1,419 @@
 +package forge.harness.host;
 +
 +import com.google.common.eventbus.Subscribe;
++import forge.card.CardType;
 +import forge.game.Game;
 +import forge.game.GameEntity;
 +import forge.game.GameLogEntryType;
@@ -1326,6 +1359,11 @@ index 0000000..ca35fdf
 +                entry.how = "destroyed";
 +            }
 +        }
++        if (entry.from == ZoneType.SchemeDeck && entry.to == ZoneType.Command) {
++            entry.how = "setInMotion";
++        } else if (entry.from == ZoneType.Command && entry.to == ZoneType.SchemeDeck) {
++            entry.how = isOngoing(card) ? "abandoned" : "returned";
++        }
 +        if (entry.from == ZoneType.Library && entry.to == ZoneType.Hand) {
 +            maybeDrawn.add(entry);
 +        }
@@ -1399,7 +1437,11 @@ index 0000000..ca35fdf
 +        return player == null ? -1 : SnapshotExtractor.playerIndex(game, player);
 +    }
 +
-+    private static boolean isPublic(final ZoneType zone) {
++    private static boolean isOngoing(final CardView card) {
++        return card.getCurrentState() != null && card.getCurrentState().getType().hasSupertype(CardType.Supertype.Ongoing);
++    }
++
++        private static boolean isPublic(final ZoneType zone) {
 +        return zone != null && !zone.isHidden();
 +    }
 +
@@ -1624,7 +1666,7 @@ index 0000000..9d713d1
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..e272c0d 100644
+index 713e1ef..9793ba2 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 @@ -26,27 +26,40 @@ import forge.card.MagicColor;
@@ -1868,7 +1910,7 @@ index 713e1ef..e272c0d 100644
          final Player controller = player.getControllingPlayer();
          if (controller != null && controller != player) {
              out.put("controlledBy", "player-" + SnapshotExtractor.playerIndex(game, controller));
-@@ -299,10 +427,11 @@ public final class InteractiveSnapshotExtractor {
+@@ -299,18 +427,34 @@ public final class InteractiveSnapshotExtractor {
          out.put("ringLevel", player.getNumRingTemptedYou());
          out.put("speed", player.getSpeed());
          out.put("hasEnduringStory", player.hasEnduringStory());
@@ -1881,7 +1923,16 @@ index 713e1ef..e272c0d 100644
          final List<String> activeSchemeNames = activeSchemeNames(player);
          if (!activeSchemeNames.isEmpty()) {
              out.put("activeSchemeNames", activeSchemeNames);
-@@ -311,6 +440,13 @@ public final class InteractiveSnapshotExtractor {
+         }
++        if (Archenemy.isArchenemyGame(game)) {
++            out.put("isArchenemy", player.isArchenemy());
++            out.put("schemeDeckCount", player.getCardsIn(ZoneType.SchemeDeck).size());
++        }
++        final List<Map<String, Object>> schemes = Archenemy.schemesInMotion(player);
++        if (!schemes.isEmpty()) {
++            out.put("schemes", schemes);
++        }
+         final Integer teamNumber = teamNumber(game, player);
          if (teamNumber != null) {
              out.put("teamNumber", teamNumber);
          }
@@ -1895,7 +1946,7 @@ index 713e1ef..e272c0d 100644
          return out;
      }
  
-@@ -325,19 +461,6 @@ public final class InteractiveSnapshotExtractor {
+@@ -325,19 +469,6 @@ public final class InteractiveSnapshotExtractor {
          return names;
      }
  
@@ -1915,7 +1966,7 @@ index 713e1ef..e272c0d 100644
      private static List<String> activeSchemeNames(final Player player) {
          final List<String> names = new ArrayList<>();
          for (final Card card : player.getCardsIn(ZoneType.Command)) {
-@@ -348,6 +471,26 @@ public final class InteractiveSnapshotExtractor {
+@@ -348,6 +479,26 @@ public final class InteractiveSnapshotExtractor {
          return names;
      }
  
@@ -1942,7 +1993,7 @@ index 713e1ef..e272c0d 100644
      private static Integer teamNumber(final Game game, final Player player) {
          for (final Player other : game.getRegisteredPlayers()) {
              if (other != player && other.getTeam() == player.getTeam()) {
-@@ -367,7 +510,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -367,7 +518,7 @@ public final class InteractiveSnapshotExtractor {
          return counters;
      }
  
@@ -1951,7 +2002,7 @@ index 713e1ef..e272c0d 100644
          if (value > 0) {
              map.put(key, value);
          }
-@@ -444,13 +587,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -444,13 +595,14 @@ public final class InteractiveSnapshotExtractor {
              final boolean castable,
              final Player viewerPlayer,
              final boolean keepHiddenEntries,
@@ -1968,7 +2019,7 @@ index 713e1ef..e272c0d 100644
                  views.add(visibleCard(toCard(
                          game, card, ownerIndex, castable, viewerPlayer, secretChoiceVisibility)));
              } else if (keepHiddenEntries) {
-@@ -499,6 +643,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -499,6 +651,7 @@ public final class InteractiveSnapshotExtractor {
          dto.effectiveManaCost = null;
          dto.commanderTax = null;
          dto.madnessCost = null;
@@ -1976,7 +2027,7 @@ index 713e1ef..e272c0d 100644
      }
  
      private static Player playerForIndex(final Game game, final int viewer) {
-@@ -685,6 +830,22 @@ public final class InteractiveSnapshotExtractor {
+@@ -685,6 +838,22 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -1999,7 +2050,7 @@ index 713e1ef..e272c0d 100644
      private static CardDto toCard(
              final Game game,
              final Card card,
-@@ -714,6 +875,11 @@ public final class InteractiveSnapshotExtractor {
+@@ -714,6 +883,11 @@ public final class InteractiveSnapshotExtractor {
              dto.toughness = String.valueOf(card.getNetToughness());
              dto.basePower = card.getBasePower();
              dto.baseToughness = card.getBaseToughness();
@@ -2011,7 +2062,7 @@ index 713e1ef..e272c0d 100644
          }
          if (card.isInPlay()) {
              if (card.getType().hasSubtype("Saga") && card.hasChapter()) {
-@@ -746,17 +912,47 @@ public final class InteractiveSnapshotExtractor {
+@@ -746,17 +920,47 @@ public final class InteractiveSnapshotExtractor {
          dto.isFaceDown = card.isFaceDown();
          dto.isBestowed = card.isBestowed();
          dto.phasedOut = card.isPhasedOut();
@@ -2060,7 +2111,7 @@ index 713e1ef..e272c0d 100644
          }
          final List<String> attachmentIds = new ArrayList<>();
          for (final Card attachment : card.getAttachedCards()) {
-@@ -802,6 +998,70 @@ public final class InteractiveSnapshotExtractor {
+@@ -802,6 +1006,70 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -2131,7 +2182,7 @@ index 713e1ef..e272c0d 100644
      private static String normalizedOracle(final Card card) {
          return card.getOracleText().replace("\\n", "\n");
      }
-@@ -1078,12 +1338,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -1078,12 +1346,14 @@ public final class InteractiveSnapshotExtractor {
              stackItem.put("identity", stackIdentity(name, source));
              stackItem.put("text", item.getStackDescription());
              putIfNotBlank(stackItem, "sourceAbilityText", sourceAbilityText(sa));
@@ -2146,7 +2197,7 @@ index 713e1ef..e272c0d 100644
              out.add(stackItem);
              index++;
          }
-@@ -1131,6 +1393,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -1131,6 +1401,7 @@ public final class InteractiveSnapshotExtractor {
          stackItem.put("isDoubleFaced", source.isDoubleFaced() || source.isModal());
          stackItem.put("faceIndex", stackFaceIndex(source, castingAbility));
          stackItem.put("targets", stackTargets(game, castingAbility));
@@ -2154,7 +2205,7 @@ index 713e1ef..e272c0d 100644
          return stackItem;
      }
  
-@@ -1163,6 +1426,25 @@ public final class InteractiveSnapshotExtractor {
+@@ -1163,6 +1434,25 @@ public final class InteractiveSnapshotExtractor {
          }
      }
  
@@ -2181,7 +2232,7 @@ index 713e1ef..e272c0d 100644
          if (source == null) {
              return 0;
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
-index c69b549..524a9d3 100644
+index c69b549..92d71e9 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
 @@ -47,6 +47,11 @@ import java.util.concurrent.ConcurrentHashMap;
@@ -2224,16 +2275,15 @@ index c69b549..524a9d3 100644
          final GameRules rules = new GameRules(gameType);
          rules.setAppliedVariants(variants);
          rules.setSimTimeout(120);
-@@ -95,6 +102,8 @@ public final class ManaBrewEngineAdapter {
+@@ -95,6 +102,7 @@ public final class ManaBrewEngineAdapter {
          // those filters the whole battlefield, which on a four-player board is
          // a quarter of the engine's time.
          rules.setRenderAbilityText(false);
-+        configureTeamRules(rules, request, gameType);
-+        configurePlayerRules(rules, request);
++        configureStart(rules, request, gameType, schemeDecks);
  
          // Resetting global counters under a live session would collide its ids;
          // multiplexed processes only reset between idle periods.
-@@ -112,10 +121,15 @@ public final class ManaBrewEngineAdapter {
+@@ -112,10 +120,15 @@ public final class ManaBrewEngineAdapter {
                  botSeats.add(registeredPlayers.size());
              }
              Deck deck = buildDeck(playerConfig);
@@ -2252,7 +2302,7 @@ index c69b549..524a9d3 100644
              } else {
                  registeredPlayer.setPlayer(new ManaBrewInteractiveLobbyPlayer(
                          playerConfig.getName(), session));
-@@ -125,6 +139,7 @@ public final class ManaBrewEngineAdapter {
+@@ -125,6 +138,7 @@ public final class ManaBrewEngineAdapter {
  
          final Match match = new Match(rules, registeredPlayers, "ManaBrew");
          final Game game = match.createGame();
@@ -2260,7 +2310,7 @@ index c69b549..524a9d3 100644
          session.attach(match, game, botSeats, request.isSnapshotRecording());
          if (request.checkpointMetrics) {
              session.enableCheckpointMetrics();
-@@ -357,6 +372,127 @@ public final class ManaBrewEngineAdapter {
+@@ -357,6 +371,144 @@ public final class ManaBrewEngineAdapter {
          }
      }
  
@@ -2331,6 +2381,13 @@ index c69b549..524a9d3 100644
 +        return variants;
 +    }
 +
++    static void configureStart(final GameRules rules, final StartGameRequest request, final GameType gameType,
++            final List<List<PaperCard>> schemeDecks) {
++        configureTeamRules(rules, request, gameType);
++        configurePlayerRules(rules, request);
++        Archenemy.firstPlayer(rules, schemeDecks);
++    }
++
 +    static void configurePlayerRules(final GameRules rules, final StartGameRequest request) {
 +        final List<PlayerConfig> seats = request.getPlayers();
 +        int first = -1;
@@ -2346,6 +2403,16 @@ index c69b549..524a9d3 100644
 +                }
 +                first = i;
 +            }
++        }
++        final Integer named = request.getFirstPlayer();
++        if (named != null) {
++            if (named < 0 || named >= seats.size()) {
++                throw new IllegalArgumentException("firstPlayer " + named + " is not a seat: the seats are 0 to " + (seats.size() - 1));
++            }
++            if (first >= 0 && first != named) {
++                throw new IllegalArgumentException("firstPlayer " + named + " disagrees with goesFirst on seat " + first);
++            }
++            first = named;
 +        }
 +        rules.setStartingPlayer(first);
 +    }
@@ -2388,7 +2455,7 @@ index c69b549..524a9d3 100644
      private static GameType resolveGameType(final StartGameRequest request) {
          final String variant = request.getVariant();
          if (variant != null && !variant.isBlank()) {
-@@ -380,7 +516,7 @@ public final class ManaBrewEngineAdapter {
+@@ -380,7 +532,7 @@ public final class ManaBrewEngineAdapter {
          return commanderGame ? GameType.Commander : GameType.Constructed;
      }
  
@@ -2397,7 +2464,7 @@ index c69b549..524a9d3 100644
          JsonObject root = JsonParser.parseString(requestJson).getAsJsonObject();
          String gameId = requiredString(root, "gameId");
          String variant = optionalString(root, "variant");
-@@ -426,11 +562,33 @@ public final class ManaBrewEngineAdapter {
+@@ -426,11 +578,34 @@ public final class ManaBrewEngineAdapter {
              boolean bot = playerObject.has("bot")
                      && !playerObject.get("bot").isJsonNull()
                      && playerObject.get("bot").getAsBoolean();
@@ -2427,12 +2494,13 @@ index c69b549..524a9d3 100644
 +                optionalString(root, "teamRules") == null ? TEAM_RULES_NONE : optionalString(root, "teamRules"),
 +                optionalInt(root, "poisonToLose"),
 +                optionalInt(root, "commanderDamageToLose"));
++        request.setFirstPlayer(optionalInt(root, "firstPlayer"));
 +        request.setArchenemy(root.has("archenemy") && !root.get("archenemy").isJsonNull()
 +                && root.get("archenemy").getAsBoolean());
          return request;
      }
  
-@@ -455,6 +613,25 @@ public final class ManaBrewEngineAdapter {
+@@ -455,6 +630,25 @@ public final class ManaBrewEngineAdapter {
          return value;
      }
  
@@ -2458,18 +2526,19 @@ index c69b549..524a9d3 100644
      private static String optionalString(final JsonObject object, final String key) {
          if (!object.has(key) || object.get(key).isJsonNull()) {
              return null;
-@@ -470,6 +647,10 @@ public final class ManaBrewEngineAdapter {
+@@ -470,6 +664,11 @@ public final class ManaBrewEngineAdapter {
          private final boolean snapshotRecording;
          private boolean checkpointMetrics;
          private final List<PlayerConfig> players;
 +        private String teamRules = TEAM_RULES_NONE;
 +        private boolean archenemy;
++        private Integer firstPlayer;
 +        private Integer poisonToLose;
 +        private Integer commanderDamageToLose;
  
          public StartGameRequest(
                  final String gameId,
-@@ -516,6 +697,38 @@ public final class ManaBrewEngineAdapter {
+@@ -516,6 +715,47 @@ public final class ManaBrewEngineAdapter {
          public List<PlayerConfig> getPlayers() {
              return players;
          }
@@ -2498,6 +2567,15 @@ index c69b549..524a9d3 100644
 +            return archenemy;
 +        }
 +
++        public StartGameRequest setFirstPlayer(final Integer firstPlayer) {
++            this.firstPlayer = firstPlayer;
++            return this;
++        }
++
++        public Integer getFirstPlayer() {
++            return firstPlayer;
++        }
++
 +        public Integer getPoisonToLose() {
 +            return poisonToLose;
 +        }
@@ -2508,7 +2586,7 @@ index c69b549..524a9d3 100644
      }
  
      public static final class PlayerConfig {
-@@ -526,6 +739,14 @@ public final class ManaBrewEngineAdapter {
+@@ -526,6 +766,14 @@ public final class ManaBrewEngineAdapter {
          private final List<String> commanderNames;
          private final boolean ai;
          private final boolean bot;
@@ -2523,7 +2601,7 @@ index c69b549..524a9d3 100644
  
          public PlayerConfig(
                  final String name,
-@@ -535,6 +756,19 @@ public final class ManaBrewEngineAdapter {
+@@ -535,6 +783,19 @@ public final class ManaBrewEngineAdapter {
                  final List<String> commanderNames,
                  final boolean ai,
                  final boolean bot
@@ -2543,7 +2621,7 @@ index c69b549..524a9d3 100644
          ) {
              if (name == null || name.isBlank()) {
                  throw new IllegalArgumentException("player name is required");
-@@ -549,6 +783,20 @@ public final class ManaBrewEngineAdapter {
+@@ -549,6 +810,20 @@ public final class ManaBrewEngineAdapter {
              this.commanderNames = commanderNames == null ? List.of() : List.copyOf(commanderNames);
              this.ai = ai;
              this.bot = bot;
@@ -2564,7 +2642,7 @@ index c69b549..524a9d3 100644
          }
  
          public String getName() {
-@@ -578,6 +826,45 @@ public final class ManaBrewEngineAdapter {
+@@ -578,6 +853,45 @@ public final class ManaBrewEngineAdapter {
          public boolean isBot() {
              return bot;
          }
@@ -6212,6 +6290,275 @@ index 0000000..34bbd74
 +        }
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/ArchenemyViewTest.java b/forge-harness/src/test/java/forge/harness/host/ArchenemyViewTest.java
+new file mode 100644
+index 0000000..52feb0d
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/ArchenemyViewTest.java
+@@ -0,0 +1,263 @@
++package forge.harness.host;
++
++import com.google.gson.JsonArray;
++import com.google.gson.JsonElement;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.ability.AbilityUtils;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.util.ArrayList;
++import java.util.EnumSet;
++import java.util.List;
++import java.util.Set;
++
++public final class ArchenemyViewTest {
++    private ArchenemyViewTest() {}
++
++    private static final String SKYWARD = "Look Skyward and Despair";
++    private static final String ROOTS = "Roots of All Evil";
++    private static final String UNTOUCHABLE = "I Am Untouchable";
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        check("eachPlayerShowsTheSchemeDeckCountAndTheArchenemy", ArchenemyViewTest::eachPlayerShowsTheSchemeDeckCountAndTheArchenemy);
++        check("theSchemeDeckOrderIsNeverSent", ArchenemyViewTest::theSchemeDeckOrderIsNeverSent);
++        check("schemesInMotionAreListedWithOngoingMarked", ArchenemyViewTest::schemesInMotionAreListedWithOngoingMarked);
++        check("aGameWithoutSchemesHasNoArchenemyFields", ArchenemyViewTest::aGameWithoutSchemesHasNoArchenemyFields);
++        check("settingASchemeInMotionIsAnEvent", ArchenemyViewTest::settingASchemeInMotionIsAnEvent);
++        check("abandoningASchemeIsAnEvent", ArchenemyViewTest::abandoningASchemeIsAnEvent);
++        check("aNonOngoingSchemeReturningIsAnEvent", ArchenemyViewTest::aNonOngoingSchemeReturningIsAnEvent);
++        System.out.println(failed == 0 ? "PASS ArchenemyViewTest" : "FAIL ArchenemyViewTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static void eachPlayerShowsTheSchemeDeckCountAndTheArchenemy() {
++        final Fixture f = new Fixture(true, ROOTS, SKYWARD, UNTOUCHABLE);
++        for (final int viewer : new int[] {0, 1}) {
++            final JsonObject white = f.player(viewer, 0);
++            final JsonObject blue = f.player(viewer, 1);
++            expect(white.has("isArchenemy") && white.get("isArchenemy").getAsBoolean(), "viewer " + viewer + ": White is not marked the archenemy: " + white.get("isArchenemy"));
++            expect(blue.has("isArchenemy") && !blue.get("isArchenemy").getAsBoolean(), "viewer " + viewer + ": Blue is marked " + blue.get("isArchenemy"));
++            expect(white.has("schemeDeckCount") && white.get("schemeDeckCount").getAsInt() == 3, "viewer " + viewer + ": White's scheme deck count " + white.get("schemeDeckCount"));
++            expect(blue.has("schemeDeckCount") && blue.get("schemeDeckCount").getAsInt() == 0, "viewer " + viewer + ": Blue's scheme deck count " + blue.get("schemeDeckCount"));
++        }
++        f.white.setSchemeInMotion(null);
++        expect(f.player(1, 0).get("schemeDeckCount").getAsInt() == 2, "after a scheme was set in motion the count is " + f.player(1, 0).get("schemeDeckCount"));
++    }
++
++    private static void theSchemeDeckOrderIsNeverSent() {
++        final Fixture f = new Fixture(true, ROOTS, SKYWARD, UNTOUCHABLE);
++        for (final int viewer : new int[] {0, 1}) {
++            final String json = f.session.getSnapshotJson(viewer);
++            for (final String name : List.of(ROOTS, SKYWARD, UNTOUCHABLE)) {
++                expect(!json.contains(name), "viewer " + viewer + " is sent the scheme deck's " + name);
++            }
++            for (final Card card : f.white.getCardsIn(ZoneType.SchemeDeck)) {
++                expect(!json.contains("\"" + SnapshotExtractor.javaCardId(card) + "\""), "viewer " + viewer + " is sent a scheme deck card's id");
++            }
++        }
++    }
++
++    private static void schemesInMotionAreListedWithOngoingMarked() {
++        final Fixture f = new Fixture(true, UNTOUCHABLE, SKYWARD, ROOTS);
++        f.white.setSchemeInMotion(null);
++        f.white.setSchemeInMotion(null);
++        final JsonArray schemes = f.player(1, 0).getAsJsonArray("schemes");
++        expect(schemes != null && schemes.size() == 2, "schemes in motion: " + schemes);
++        for (final JsonElement element : schemes) {
++            final JsonObject scheme = element.getAsJsonObject();
++            final Card card = f.commandCard(scheme.get("name").getAsString());
++            expect(card != null, "a listed scheme is not in the command zone: " + scheme);
++            expect(scheme.get("id").getAsString().equals(SnapshotExtractor.javaCardId(card)), "the scheme id " + scheme.get("id") + " is not its card's id");
++            expect(scheme.get("ongoing").getAsBoolean() == scheme.get("name").getAsString().equals(UNTOUCHABLE),
++                    scheme.get("name").getAsString() + " is marked ongoing " + scheme.get("ongoing"));
++        }
++        expect(!f.player(1, 1).has("schemes"), "Blue, with no schemes in motion, has " + f.player(1, 1).get("schemes"));
++    }
++
++    private static void aGameWithoutSchemesHasNoArchenemyFields() {
++        final Fixture f = new Fixture(false);
++        final JsonObject white = f.player(0, 0);
++        expect(!white.has("isArchenemy") && !white.has("schemeDeckCount") && !white.has("schemes"),
++                "a game without schemes sends isArchenemy " + white.get("isArchenemy") + ", schemeDeckCount " + white.get("schemeDeckCount"));
++    }
++
++    private static void settingASchemeInMotionIsAnEvent() {
++        final Fixture f = new Fixture(true, UNTOUCHABLE, ROOTS);
++        f.white.setSchemeInMotion(null);
++        final Card untouchable = f.commandCard(UNTOUCHABLE);
++        f.player(1, 0);
++        final JsonObject event = f.lastEvent(1, "setInMotion");
++        expect(event != null, "no setInMotion event: " + f.events(1));
++        expect(event.get("cardId").getAsString().equals(SnapshotExtractor.javaCardId(untouchable)), "the event's card is " + event.get("cardId"));
++        expect("SchemeDeck".equals(event.get("from").getAsString()) && "Command".equals(event.get("to").getAsString()) && "player-0".equals(event.get("ownerId").getAsString()),
++                "the event reads " + event);
++    }
++
++    private static void abandoningASchemeIsAnEvent() {
++        final Fixture f = new Fixture(true, UNTOUCHABLE, ROOTS);
++        f.white.setSchemeInMotion(null);
++        final Card untouchable = f.commandCard(UNTOUCHABLE);
++        final String id = f.schemeId(UNTOUCHABLE);
++        final SpellAbility abandon = AbilityFactory.getAbility("DB$ Abandon", untouchable);
++        abandon.setActivatingPlayer(f.white);
++        AbilityUtils.resolve(abandon);
++        final JsonObject event = f.lastEvent(1, "abandoned");
++        expect(event != null, "no abandoned event: " + f.events(1));
++        expect(id.equals(event.has("cardId") ? event.get("cardId").getAsString() : ""), "the abandoned event's card is " + event.get("cardId") + ", not " + id);
++        expect("Command".equals(event.get("from").getAsString()) && "SchemeDeck".equals(event.get("to").getAsString()), "the event reads " + event);
++        expect(f.lastEvent(1, "returned") == null, "abandoning an ongoing scheme was reported as returned");
++    }
++
++    private static void aNonOngoingSchemeReturningIsAnEvent() {
++        final Fixture f = new Fixture(true, SKYWARD, ROOTS);
++        f.white.setSchemeInMotion(null);
++        final String id = f.schemeId(SKYWARD);
++        f.settle();
++        expect(f.commandCard(SKYWARD) == null, SKYWARD + " did not leave the command zone");
++        final JsonObject event = f.lastEvent(1, "returned");
++        expect(event != null, "no returned event: " + f.events(1));
++        expect(id.equals(event.has("cardId") ? event.get("cardId").getAsString() : ""), "the returned event's card is " + event.get("cardId") + ", not " + id);
++        expect(f.lastEvent(1, "abandoned") == null, "a non-ongoing scheme going back was reported as abandoned");
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("archenemy-view");
++        final Game game;
++        final Player white;
++        final Player blue;
++
++        Fixture(final boolean archenemy, final String... schemes) {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("White", null)));
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("Blue", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setAppliedVariants(archenemy ? EnumSet.of(GameType.Constructed, GameType.Archenemy) : EnumSet.of(GameType.Constructed));
++            game = new Game(players, rules, new Match(rules, players, "ArchenemyViewTest"));
++            game.setAge(GameStage.Play);
++            white = game.getPlayers().get(0);
++            blue = game.getPlayers().get(1);
++            for (final String scheme : schemes) {
++                add(scheme, white, ZoneType.SchemeDeck);
++            }
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, white, 1);
++            game.getPhaseHandler().onStackResolved();
++            session.attach(game.getMatch(), game, Set.of(), false);
++        }
++
++        JsonObject view(final int viewer) {
++            return JsonParser.parseString(session.getSnapshotJson(viewer)).getAsJsonObject();
++        }
++
++        JsonObject player(final int viewer, final int index) {
++            return view(viewer).getAsJsonArray("players").get(index).getAsJsonObject();
++        }
++
++        JsonArray events(final int viewer) {
++            return view(viewer).getAsJsonArray("events");
++        }
++
++        JsonObject lastEvent(final int viewer, final String how) {
++            JsonObject found = null;
++            for (final JsonElement element : events(viewer)) {
++                final JsonObject event = element.getAsJsonObject();
++                if (event.has("how") && how.equals(event.get("how").getAsString())) {
++                    found = event;
++                }
++            }
++            return found;
++        }
++
++        String schemeId(final String name) {
++            final JsonArray schemes = player(1, 0).getAsJsonArray("schemes");
++            for (final JsonElement element : schemes) {
++                if (element.getAsJsonObject().get("name").getAsString().equals(name)) {
++                    return element.getAsJsonObject().get("id").getAsString();
++                }
++            }
++            throw new AssertionError(name + " is not listed in schemes: " + schemes);
++        }
++
++        Card commandCard(final String name) {
++            for (final Card card : white.getCardsIn(ZoneType.Command)) {
++                if (card.getName().equals(name)) {
++                    return card;
++                }
++            }
++            return null;
++        }
++
++        void settle() {
++            for (int i = 0; i < 20; i++) {
++                game.getAction().checkStateEffects(true);
++                game.getStack().addAllTriggeredAbilitiesToStack();
++                if (game.getStack().isEmpty()) {
++                    game.getAction().checkStateEffects(true);
++                    return;
++                }
++                game.getStack().resolveStack();
++            }
++            throw new AssertionError("the stack never emptied");
++        }
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = StaticData.instance().fetchCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = StaticData.instance().fetchCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/AttackDefenderChoiceTest.java b/forge-harness/src/test/java/forge/harness/host/AttackDefenderChoiceTest.java
 new file mode 100644
 index 0000000..c11442b
@@ -8492,6 +8839,198 @@ index 0000000..a109449
 +            created.getPhaseHandler().devModeSet(PhaseType.MAIN1, created.getPlayers().get(0));
 +            created.getPhaseHandler().onStackResolved();
 +            return created;
++        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/FirstPlayerTest.java b/forge-harness/src/test/java/forge/harness/host/FirstPlayerTest.java
+new file mode 100644
+index 0000000..40be4ce
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/FirstPlayerTest.java
+@@ -0,0 +1,186 @@
++package forge.harness.host;
++
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameAction;
++import forge.game.GameOutcome;
++import forge.game.GameRules;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.PaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Set;
++import java.util.TreeSet;
++
++public final class FirstPlayerTest {
++    private FirstPlayerTest() {}
++
++    private static final int TRIES = 12;
++    private static final List<String> SCHEMES = List.of("A Display of My Dark Power", "A Premonition of Your Demise",
++            "A Reckoning Approaches", "All Shall Smolder in My Wake", "Approach My Molten Realm", "Behold My Grandeur",
++            "Behold the Power of Destruction", "Chaos Is My Plaything", "Choose Your Champion", "Choose Your Demise");
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        check("theNamedFirstPlayerTakesTheFirstTurn", FirstPlayerTest::theNamedFirstPlayerTakesTheFirstTurn);
++        check("theArchenemyTakesTheFirstTurnWhenNoneIsNamed", FirstPlayerTest::theArchenemyTakesTheFirstTurnWhenNoneIsNamed);
++        check("aNamedFirstPlayerBeatsTheArchenemyDefault", FirstPlayerTest::aNamedFirstPlayerBeatsTheArchenemyDefault);
++        check("withoutTheFieldTheFirstPlayerStaysRandom", FirstPlayerTest::withoutTheFieldTheFirstPlayerStaysRandom);
++        check("aFirstPlayerThatIsNoSeatIsRefused", FirstPlayerTest::aFirstPlayerThatIsNoSeatIsRefused);
++        check("aFirstPlayerThatDisagreesWithGoesFirstIsRefused", FirstPlayerTest::aFirstPlayerThatDisagreesWithGoesFirstIsRefused);
++        check("goesFirstStillWorksAlone", FirstPlayerTest::goesFirstStillWorksAlone);
++        System.out.println(failed == 0 ? "PASS FirstPlayerTest" : "FAIL FirstPlayerTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static void theNamedFirstPlayerTakesTheFirstTurn() throws Exception {
++        expect(firsts(json(4, ",\"firstPlayer\":2", -1, -1)).equals(Set.of(2)), "with firstPlayer 2 the first turns went to seats " + firsts(json(4, ",\"firstPlayer\":2", -1, -1)));
++        expect(firsts(json(4, ",\"firstPlayer\":0", -1, -1)).equals(Set.of(0)), "with firstPlayer 0 the first turns went to seats " + firsts(json(4, ",\"firstPlayer\":0", -1, -1)));
++    }
++
++    private static void theArchenemyTakesTheFirstTurnWhenNoneIsNamed() throws Exception {
++        final Set<Integer> firsts = firsts(json(4, "", 2, -1));
++        expect(firsts.equals(Set.of(2)), "with the archenemy on seat 2 the first turns went to seats " + firsts + " (rule 904.6)");
++        final Fixture f = new Fixture(json(4, "", 2, -1));
++        expect(f.rules.getStartingPlayer() == 2, "the start request names seat " + f.rules.getStartingPlayer() + " to go first, not the archenemy's seat 2");
++    }
++
++    private static void aNamedFirstPlayerBeatsTheArchenemyDefault() throws Exception {
++        final Set<Integer> firsts = firsts(json(4, ",\"firstPlayer\":1", 2, -1));
++        expect(firsts.equals(Set.of(1)), "with firstPlayer 1 and the archenemy on seat 2 the first turns went to seats " + firsts);
++    }
++
++    private static void withoutTheFieldTheFirstPlayerStaysRandom() throws Exception {
++        final Fixture f = new Fixture(json(4, "", -1, -1));
++        expect(f.rules.getStartingPlayer() == -1, "a start request without firstPlayer names seat " + f.rules.getStartingPlayer());
++        final Set<Integer> firsts = firsts(json(4, "", -1, -1));
++        expect(firsts.size() > 1, "without firstPlayer every one of " + TRIES + " starts went to seat " + firsts);
++    }
++
++    private static void aFirstPlayerThatIsNoSeatIsRefused() {
++        expectRefused(json(4, ",\"firstPlayer\":4", -1, -1), "firstPlayer 4 is not a seat: the seats are 0 to 3");
++        expectRefused(json(4, ",\"firstPlayer\":-1", -1, -1), "firstPlayer -1 is not a seat");
++    }
++
++    private static void aFirstPlayerThatDisagreesWithGoesFirstIsRefused() {
++        expectRefused(json(4, ",\"firstPlayer\":1", -1, 3), "firstPlayer 1 disagrees with goesFirst on seat 3");
++        new Fixture(json(4, ",\"firstPlayer\":3", -1, 3));
++    }
++
++    private static void goesFirstStillWorksAlone() throws Exception {
++        final Set<Integer> firsts = firsts(json(4, "", -1, 3));
++        expect(firsts.equals(Set.of(3)), "with goesFirst on seat 3 the first turns went to seats " + firsts);
++    }
++
++    private static Set<Integer> firsts(final String json) throws Exception {
++        final Set<Integer> seats = new TreeSet<>();
++        for (int i = 0; i < TRIES; i++) {
++            final Fixture f = new Fixture(json);
++            seats.add(f.game.getPlayers().indexOf(f.firstTurnPlayer()));
++        }
++        return seats;
++    }
++
++    private static void expectRefused(final String json, final String message) {
++        try {
++            new Fixture(json);
++        } catch (final IllegalArgumentException refused) {
++            expect(refused.getMessage().contains(message), "refused with \"" + refused.getMessage() + "\", not \"" + message + "\"");
++            return;
++        }
++        throw new AssertionError("a start was accepted that should be refused with \"" + message + "\"");
++    }
++
++    private static String json(final int players, final String extra, final int archenemy, final int goesFirst) {
++        final String[] names = {"White", "Blue", "Red", "Yellow"};
++        final StringBuilder out = new StringBuilder("{\"gameId\":\"first-player-test\",\"variant\":\"Constructed\"").append(extra).append(",\"players\":[");
++        for (int i = 0; i < players; i++) {
++            out.append(i == 0 ? "" : ",").append("{\"name\":\"").append(names[i]).append("\",\"deck\":[{\"name\":\"Plains\"}]");
++            if (i == goesFirst) {
++                out.append(",\"goesFirst\":true");
++            }
++            if (i == archenemy) {
++                out.append(",\"schemes\":[");
++                for (int j = 0; j < 20; j++) {
++                    out.append(j == 0 ? "" : ",").append("{\"name\":\"").append(SCHEMES.get(j / 2)).append("\"}");
++                }
++                out.append("]");
++            }
++            out.append("}");
++        }
++        return out.append("]}").toString();
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static final class Fixture {
++        final GameRules rules;
++        final Game game;
++
++        Fixture(final String json) {
++            final ManaBrewEngineAdapter.StartGameRequest request = ManaBrewEngineAdapter.parseStartGameRequest(json);
++            final List<List<PaperCard>> schemeDecks = Archenemy.schemeDecks(request);
++            final boolean archenemyGame = Archenemy.isArchenemyGame(request, schemeDecks);
++            final Set<GameType> variants = ManaBrewEngineAdapter.appliedVariants(GameType.Constructed, false, archenemyGame);
++            rules = new GameRules(GameType.Constructed);
++            rules.setAppliedVariants(variants);
++            ManaBrewEngineAdapter.configureStart(rules, request, GameType.Constructed, schemeDecks);
++            final List<RegisteredPlayer> registered = new ArrayList<>();
++            for (int i = 0; i < request.getPlayers().size(); i++) {
++                final ManaBrewEngineAdapter.PlayerConfig config = request.getPlayers().get(i);
++                final Deck deck = new Deck(config.getName());
++                deck.getMain().add("Plains", 20);
++                final RegisteredPlayer rp = ManaBrewEngineAdapter.registeredPlayer(request.getPlayers().size(), variants, deck, null, schemeDecks.get(i));
++                ManaBrewEngineAdapter.configurePlayer(rp, config, request, GameType.Constructed);
++                Archenemy.seat(rp, config, schemeDecks.get(i), archenemyGame, GameType.Constructed);
++                rp.setPlayer(new LobbyPlayerAi(config.getName(), null));
++                registered.add(rp);
++            }
++            game = new Game(registered, rules, new Match(rules, registered, "FirstPlayerTest"));
++            for (int i = 0; i < registered.size(); i++) {
++                game.getPlayers().get(i).initVariantsZones(registered.get(i));
++            }
++        }
++
++        Player firstTurnPlayer() throws Exception {
++            final Method decide = GameAction.class.getDeclaredMethod("determineFirstTurnPlayer", GameOutcome.class);
++            decide.setAccessible(true);
++            return (Player) decide.invoke(game.getAction(), (GameOutcome) null);
 +        }
 +    }
 +}
@@ -15039,7 +15578,7 @@ index 3385214..d968b3c 100644
          Reorder(reorder::ReorderInput {
              presentation: common::PromptPresentation {
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
-index 76fdc4f..1b77f7a 100644
+index 76fdc4f..2dbf963 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
 @@ -789,6 +789,28 @@ fn card_to_dto_for_viewer(game: &GameState, cid: CardId, viewer: Option<PlayerId
@@ -15080,7 +15619,7 @@ index 76fdc4f..1b77f7a 100644
                  })
              });
              let active_scheme_names: Vec<String> = command_zone
-@@ -936,9 +960,14 @@ impl GameViewDtoExt for GameViewDto {
+@@ -936,9 +960,17 @@ impl GameViewDtoExt for GameViewDto {
                  player_keywords,
                  commander_casts,
                  dungeon_state,
@@ -15092,10 +15631,13 @@ index 76fdc4f..1b77f7a 100644
 +                spells_cast_this_turn: None,
 +                life_gained_this_turn: None,
 +                life_lost_this_turn: None,
++                is_archenemy: None,
++                scheme_deck_count: None,
++                schemes: None,
                  counters,
                  mana_pool: mana_pool_to_map(&pool),
                  commander_damage,
-@@ -1015,6 +1044,7 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1015,6 +1047,7 @@ impl GameViewDtoExt for GameViewDto {
                      identity,
                      text: entry.spell_ability.ability_text.clone(),
                      source_ability_text: stack_source_ability_text(game, &entry.spell_ability),
@@ -15103,7 +15645,7 @@ index 76fdc4f..1b77f7a 100644
                      is_permanent_spell: entry.is_creature_spell || entry.is_permanent_spell,
                      is_casting: entry.is_pending_cast,
                      is_double_faced: source_card.map(|c| c.is_double_faced()).unwrap_or(false),
-@@ -1022,6 +1052,7 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1022,6 +1055,7 @@ impl GameViewDtoExt for GameViewDto {
                          .map(|c| u8::from(c.is_transformed))
                          .unwrap_or_default(),
                      targets: collect_stack_targets(&entry.spell_ability),
@@ -15111,7 +15653,7 @@ index 76fdc4f..1b77f7a 100644
                  }
              })
              .collect();
-@@ -1061,9 +1092,15 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1061,9 +1095,15 @@ impl GameViewDtoExt for GameViewDto {
              initiative_holder_id: game.initiative_holder.map(player_id_str),
              day_time: day_time_of(game),
              active_plane_names: (!active_plane_names.is_empty()).then_some(active_plane_names),
@@ -15128,7 +15670,7 @@ index 76fdc4f..1b77f7a 100644
      }
  
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
-index 0f579af..ec60705 100644
+index 0f579af..de354f8 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
 +++ b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
 @@ -149,12 +149,147 @@ pub struct GameViewDto {
@@ -15279,7 +15821,7 @@ index 0f579af..ec60705 100644
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-@@ -216,6 +351,48 @@ pub enum PlayerStatus {
+@@ -216,6 +351,58 @@ pub enum PlayerStatus {
  pub struct DungeonStateDto {
      pub name: String,
      pub room: String,
@@ -15321,6 +15863,16 @@ index 0f579af..ec60705 100644
 +#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 +#[serde(rename_all = "camelCase")]
 +#[ts(export, export_to = "game/index.ts")]
++pub struct SchemeDto {
++    pub id: String,
++    pub name: String,
++    #[serde(default)]
++    pub ongoing: bool,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "game/index.ts")]
 +pub struct PlanarRollDto {
 +    pub player_id: String,
 +    pub result: String,
@@ -15328,7 +15880,7 @@ index 0f579af..ec60705 100644
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-@@ -254,10 +431,24 @@ pub struct PlayerDto {
+@@ -254,10 +441,36 @@ pub struct PlayerDto {
      pub commander_casts: HashMap<String, u32>,
      #[ts(optional)]
      pub dungeon_state: Option<DungeonStateDto>,
@@ -15350,10 +15902,22 @@ index 0f579af..ec60705 100644
 +    #[serde(default, skip_serializing_if = "Option::is_none")]
 +    #[ts(optional)]
 +    pub life_lost_this_turn: Option<u32>,
++    /// Archenemy games only: whether this player is the archenemy.
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub is_archenemy: Option<bool>,
++    /// Archenemy games only: how many schemes are left in this player's scheme deck (the order is never sent).
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub scheme_deck_count: Option<u32>,
++    /// The schemes this player has in motion in the command zone.
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub schemes: Option<Vec<SchemeDto>>,
      pub counters: BTreeMap<PlayerCounterKind, u32>,
      pub mana_pool: BTreeMap<ManaColor, u32>,
      #[ts(type = "Record<string, number>")]
-@@ -397,6 +588,59 @@ pub struct CardDto {
+@@ -397,6 +610,59 @@ pub struct CardDto {
      #[serde(default, skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub zone: Option<ZoneKind>,
@@ -15413,7 +15977,7 @@ index 0f579af..ec60705 100644
  }
  
  #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-@@ -412,11 +656,15 @@ pub struct StackObjectDto {
+@@ -412,11 +678,47 @@ pub struct StackObjectDto {
      #[serde(skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub source_ability_text: Option<String>,
@@ -15426,10 +15990,42 @@ index 0f579af..ec60705 100644
      pub targets: Vec<TargetRef>,
 +    #[serde(default, skip_serializing_if = "Vec::is_empty")]
 +    pub optional_costs: Vec<String>,
++}
++
++#[cfg(test)]
++mod archenemy_view_tests {
++    use super::PlayerDto;
++
++    const PLAYER: &str = r#"{"id":"player-0","name":"White","status":"playing","isHuman":true,"life":40,
++        "playerKeywords":[],"commanderCasts":{},"completedDungeons":[],"counters":{},"manaPool":{},"commanderDamage":{},
++        "hasCityBlessing":false,"hasEnduringStory":false,"ringLevel":0,"speed":0,
++        "isArchenemy":true,"schemeDeckCount":19,
++        "schemes":[{"id":"card-7","name":"I Am Untouchable","ongoing":true}]}"#;
++
++    #[test]
++    fn keeps_the_archenemy_fields_of_a_java_player() {
++        let player: PlayerDto = serde_json::from_str(PLAYER).expect("a Java player parses");
++        let value = serde_json::to_value(player).unwrap();
++        assert_eq!(value["isArchenemy"], true);
++        assert_eq!(value["schemeDeckCount"], 19);
++        assert_eq!(value["schemes"][0]["id"], "card-7");
++        assert_eq!(value["schemes"][0]["name"], "I Am Untouchable");
++        assert_eq!(value["schemes"][0]["ongoing"], true);
++    }
++
++    #[test]
++    fn leaves_the_archenemy_fields_out_of_other_games() {
++        let plain = r#"{"id":"player-0","name":"White","status":"playing","isHuman":true,"life":20,
++            "playerKeywords":[],"commanderCasts":{},"completedDungeons":[],"counters":{},"manaPool":{},"commanderDamage":{},
++            "hasCityBlessing":false,"hasEnduringStory":false,"ringLevel":0,"speed":0}"#;
++        let player: PlayerDto = serde_json::from_str(plain).expect("a plain player parses");
++        let value = serde_json::to_value(player).unwrap();
++        assert!(value.get("isArchenemy").is_none() && value.get("schemeDeckCount").is_none() && value.get("schemes").is_none(), "{value}");
++    }
  }
  
  #[cfg(test)]
-@@ -433,11 +681,13 @@ mod stack_object_tests {
+@@ -433,11 +735,13 @@ mod stack_object_tests {
              identity: CardIdentity::default(),
              text: String::new(),
              source_ability_text: Some("When this enters, draw a card.".into()),
@@ -15783,7 +16379,7 @@ index ed50370..6f54c53 100644
                          )
                          .await?;
 diff --git a/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs b/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
-index e19dcde..376dfb9 100644
+index e19dcde..53dc343 100644
 --- a/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
 +++ b/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
 @@ -1427,6 +1427,7 @@ pub fn run_hosted_engine_game(
@@ -15851,7 +16447,7 @@ index e19dcde..376dfb9 100644
                      }
                      Some("mulliganPutBack") if !*put_back_done => {
                          let count = prompt
-@@ -3041,6 +3048,49 @@ pub struct StartGameRequest {
+@@ -3041,6 +3048,53 @@ pub struct StartGameRequest {
      seed: u64,
      players: Vec<PlayerConfig>,
      checkpoint_metrics: bool,
@@ -15863,6 +16459,8 @@ index e19dcde..376dfb9 100644
 +    commander_damage_to_lose: Option<i32>,
 +    #[serde(skip_serializing_if = "std::ops::Not::not")]
 +    archenemy: bool,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    first_player: Option<i32>,
 +}
 +
 +#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize)]
@@ -15878,6 +16476,8 @@ index e19dcde..376dfb9 100644
 +    pub players: Vec<GameConfigPlayer>,
 +    #[serde(default)]
 +    pub archenemy: bool,
++    #[serde(default)]
++    pub first_player: Option<i32>,
 +}
 +
 +#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize)]
@@ -15901,7 +16501,7 @@ index e19dcde..376dfb9 100644
  }
  
  #[derive(Debug, Clone, Serialize)]
-@@ -3050,9 +3100,24 @@ pub struct PlayerConfig {
+@@ -3050,9 +3104,24 @@ pub struct PlayerConfig {
      deck: Vec<CardIdentityForJava>,
      sideboard: Vec<CardIdentityForJava>,
      attractions: Vec<CardIdentityForJava>,
@@ -15926,7 +16526,7 @@ index e19dcde..376dfb9 100644
  }
  
  #[derive(Debug, Clone, Serialize)]
-@@ -3087,6 +3152,40 @@ impl StartGameRequest {
+@@ -3087,6 +3156,42 @@ impl StartGameRequest {
              seed,
              players,
              checkpoint_metrics: false,
@@ -15934,6 +16534,7 @@ index e19dcde..376dfb9 100644
 +            poison_to_lose: None,
 +            commander_damage_to_lose: None,
 +            archenemy: false,
++            first_player: None,
 +        }
 +    }
 +
@@ -15942,6 +16543,7 @@ index e19dcde..376dfb9 100644
 +        self.poison_to_lose = config.poison_to_lose;
 +        self.commander_damage_to_lose = config.commander_damage_to_lose;
 +        self.archenemy = config.archenemy;
++        self.first_player = config.first_player;
 +        for (player, name) in self.players.iter_mut().zip(player_names) {
 +            let Some(seat) = config.players.iter().find(|seat| &seat.username == name) else {
 +                continue;
@@ -15967,7 +16569,7 @@ index e19dcde..376dfb9 100644
          }
      }
  
-@@ -3102,9 +3201,17 @@ impl PlayerConfig {
+@@ -3102,9 +3207,17 @@ impl PlayerConfig {
              deck: deck.iter().map(CardIdentityForJava::from).collect(),
              sideboard: Vec::new(),
              attractions: Vec::new(),
@@ -15985,7 +16587,7 @@ index e19dcde..376dfb9 100644
          }
      }
  
-@@ -3120,6 +3227,18 @@ impl PlayerConfig {
+@@ -3120,6 +3233,18 @@ impl PlayerConfig {
              .flatten()
              .map(|card| CardIdentityForJava::from(&card.identity))
              .collect();
@@ -16004,7 +16606,7 @@ index e19dcde..376dfb9 100644
          self
      }
  }
-@@ -3219,8 +3338,8 @@ fn parse_gc_pause(line: &str) -> Option<GcPause> {
+@@ -3219,8 +3344,8 @@ fn parse_gc_pause(line: &str) -> Option<GcPause> {
  
  #[cfg(test)]
  mod gc_log_tests {
@@ -16015,7 +16617,7 @@ index e19dcde..376dfb9 100644
  
      #[test]
      fn reads_a_full_collection() {
-@@ -3298,4 +3417,75 @@ mod gc_log_tests {
+@@ -3298,4 +3423,92 @@ mod gc_log_tests {
              r#""deck":[{"name":"Forest","setCode":"EOE","collectorNumber":"266","foil":true}]"#
          ));
      }
@@ -16072,6 +16674,23 @@ index e19dcde..376dfb9 100644
 +
 +        assert!(json.contains(r#""schemes":[{"name":"Roots of All Evil","setCode":null,"collectorNumber":null,"foil":false},{"name":"I Am Untouchable","setCode":null,"collectorNumber":null,"foil":false}]"#), "{json}");
 +        assert_eq!(json.matches(r#""schemes""#).count(), 1, "{json}");
++    }
++
++    #[test]
++    fn a_game_config_first_player_reaches_java() {
++        let mut request = scheme_test_request(&Deck::default());
++        let names = ["White".to_string(), "Blue".to_string()];
++        request.apply_game_config(&GameConfig::default(), &names);
++        let json = request.to_json().expect("serialized");
++        assert!(!json.contains(r#""firstPlayer""#), "{json}");
++
++        let config = GameConfig {
++            first_player: Some(1),
++            ..Default::default()
++        };
++        request.apply_game_config(&config, &names);
++        let json = request.to_json().expect("serialized");
++        assert!(json.contains(r#""firstPlayer":1"#), "{json}");
 +    }
 +
 +    #[test]

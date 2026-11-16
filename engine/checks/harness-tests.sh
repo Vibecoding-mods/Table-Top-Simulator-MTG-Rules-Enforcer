@@ -22,7 +22,7 @@ cd /build
   InteractiveSnapshotExtractorTest MayPlayVisibilityTest PassiveAiTest ApplyStateCreateCardTest AttackDefenderChoiceTest \
   ApplyStateDrawMillTest DungeonStateTest PlanechaseTest CardStateFlagsTest EffectsViewTest EngineEventDamageTest \
   TeamGameTest RejoinRewindTest PlayerRulesTest DrawCountRewindTest TurnCounterRewindTest SharedTurnsTest \
-  SharedTurnsDevTest SharedCombatTest SharedTurnsPlayTest ArchenemyTest ArchenemySchemeSweepTest
+  SharedTurnsDevTest SharedCombatTest SharedTurnsPlayTest ArchenemyTest ArchenemySchemeSweepTest ArchenemyViewTest FirstPlayerTest
 failed=""
 for c in "$@"; do
   echo "=== $c"
