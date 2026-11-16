@@ -23,11 +23,14 @@ const sentLog = 'local real = engineSend __sent = {} engineSend = function(t, p)
 const sent = (mark) => q('local s = table.concat(__sent, "\\n") __sent = {} return s', mark);
 const mode = (mark) => q("return tostring(ENGINE_GAME_MODE) .. '|' .. tostring(engineModeNow())", mark);
 const tile = (mark) => q('local t = {} for _, o in ipairs(getObjects()) do if o.getGMNotes() == "mtgsetup" then for _, b in ipairs(o.getButtons() or {}) do t[#t + 1] = b.label end end end return table.concat(t, ",")', mark);
-// the pieces' GUIDs, as the renderer's main-chunk locals hold them (CMD_DAMAGE, TAX_LABELS, LIFE_TRACKERS)
-const RENDERER = fs.readFileSync(path.join(__dirname, "..", "tools", "engine-renderer.lua"), "utf8");
-// (CMD_DAMAGE runs over lines to its closing "}" at a line's start; the others are one line)
-const block = (name) => { const at = RENDERER.indexOf(`local ${name} = {`); return RENDERER.slice(at, RENDERER.indexOf(name === "CMD_DAMAGE" ? "\n}" : "\n", at)); };
-const guids = (name) => [...block(name).matchAll(/"([0-9a-f]{6})"/g)].map((m) => m[1]);
+// the pieces' GUIDs, from the 4-player table's profile (M6 step 11: the renderer reads TABLE_PROFILE, built from it)
+const PROFILE = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "tools", "profiles", "2296042369.json"), "utf8"));
+const FROM_PROFILE = {
+  CMD_DAMAGE: Object.values(PROFILE.cmdDamage || {}).flatMap((row) => Object.values(row)),
+  TAX_LABELS: PROFILE.seats.flatMap((c) => PROFILE.seat[c].commandZones.map((z) => z.guid)),
+  LIFE_TRACKERS: PROFILE.seats.map((c) => PROFILE.seat[c].lifeTracker.guid),
+};
+const guids = (name) => FROM_PROFILE[name];
 const luaList = (name) => `{ ${guids(name).map((g) => `"${g}"`).join(", ")} }`;
 // every commander damage tracker: "y#memo#invisible-to count#locked"; the tax labels' first button labels; the life counters
 const pieces = (mark) => q(`local out = {}
