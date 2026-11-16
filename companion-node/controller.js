@@ -92,7 +92,7 @@ class Controller {
   start() {
     Log.write(`start: ${this.L.mode} mode, home ${this.L.home}${this.observe ? " (observe only: no changes)" : ""}; ${this.platform}/${this.arch}; saves ${this.savesDir}`);
     if (this.L.friend) Log.write(`package: ${JSON.stringify(this.version)}`);
-    if (this.server) Log.write(this.server.ok ? `own server: ${L.serverWords(this.server.server)}${this.server.server.secure ? " (wss)" : ""}, ${this.server.server.key ? "its key from server.json or MTG_SERVER_KEY" : "this package's key"}` : `own server: ${this.server.problem}`);
+    if (this.server) Log.write(this.server.ok ? `own server: ${L.serverWords(this.server.server)}${this.server.server.secure ? " (wss)" : ""}, its key from server.json or MTG_SERVER_KEY` : `own server: ${this.server.problem}`);
     if (!this.observe) Log.write(this.autoStart ? "launch: --start: running the start sequence" : "launch: checking only; Start engine starts the engine");
     this.loopDone = this.loop();
   }
@@ -280,11 +280,36 @@ class Controller {
     this.set(Step.Stack, this.unstarted(Step.Stack, L.decideServer(this.server, login, this.game)));
   }
 
-  // what the bridge needs to use the server: its relay address and key (MTG_RELAY, MTG_KEY: bridge.js's arg())
+  // what the bridge needs to use the server: its relay (MTG_RELAY), that the engine isn't on this computer
+  // (MTG_REMOTE_ENGINE: no container to restart here) and its key in a file (MTG_KEY_FILE, bridge.js): never the key
+  // itself, since the environment and the command line both go into Node's crash reports (bridge-loop.js)
   serverEnv() {
     if (!this.server || !this.server.ok) return {};
     const s = this.server.server;
-    return { MTG_RELAY: L.serverUrl(s), ...(s.key ? { MTG_KEY: s.key } : {}) };
+    return { MTG_RELAY: L.serverUrl(s), MTG_REMOTE_ENGINE: "1", MTG_KEY_FILE: this.writeKeyFile(s.key) };
+  }
+
+  // the key file of this package's bridge: in the companion's state folder, readable by this account only
+  keyFile() { return path.join(this.stateDir, `bridge-key-${L.sha8(this.L.home)}`); }
+  writeKeyFile(key) {
+    const f = this.keyFile(), tmp = `${f}.tmp-${process.pid}`;
+    fs.mkdirSync(this.stateDir, { recursive: true });
+    try { fs.unlinkSync(tmp); } catch { /* none */ }
+    fs.writeFileSync(tmp, key, { mode: 0o600, flag: "wx" });
+    fs.chmodSync(tmp, 0o600); // (the mode above is masked by the umask; this isn't)
+    fs.renameSync(tmp, f);
+    return f;
+  }
+  removeKeyFile() { try { fs.unlinkSync(this.keyFile()); } catch { /* none */ } }
+
+  // the bridge loop's environment: this process's, the container engine's (only for the engine here) and the server's.
+  // With a server, no key in it at all: MTG_KEY and MTG_SERVER_KEY set on this computer are dropped (the key file has it)
+  bridgeLaunchEnv() {
+    const own = this.server && this.server.ok;
+    const env = { ...process.env, ...(own ? {} : this.engine.bridgeEnv()) };
+    if (own) { delete env.MTG_KEY; delete env.MTG_SERVER_KEY; delete env.MANABREW_SERVER_KEY; }
+    else { delete env.MTG_KEY_FILE; delete env.MTG_REMOTE_ENGINE; this.removeKeyFile(); }
+    return { ...env, ...this.serverEnv() };
   }
 
   // ── 1. the container engine
@@ -359,7 +384,9 @@ class Controller {
     const own = this.server && this.server.ok ? this.server.server : null;
     // (own server: a TCP connection first, which says why a server can't be reached; the WebSocket doesn't)
     const reach = own ? await probes.tcpReach(own.host, own.port, 5000) : null;
-    const r = reach && reach.kind !== "ok" ? { kind: reach.kind, roomFound: false, roomStatus: null, ms: 0, detail: reach.detail } : await probes.relayLogin(own ? L.serverUrl(own) : "ws://127.0.0.1:9443", own && own.key ? own.key : this.relayKey, L.Room, own ? 5000 : 3000);
+    // (the server's key only, the one the bridge gets: serverSetting refuses a server without one, so this package's
+    // own key never goes to another computer)
+    const r = reach && reach.kind !== "ok" ? { kind: reach.kind, roomFound: false, roomStatus: null, ms: 0, detail: reach.detail } : await probes.relayLogin(own ? L.serverUrl(own) : "ws://127.0.0.1:9443", own ? own.key : this.relayKey, L.Room, own ? 5000 : 3000);
     this.loginCache = r; this.loginAt = Date.now();
     if (r.kind !== "ok") Log.write(`relay login: ${r.kind} ${r.detail || ""}`);
     return r;
@@ -562,11 +589,11 @@ class Controller {
       const l = known[0];
       portProblem = verdict(Light.Red, `${l.name || "A program"} (process ${l.pid}) holds port ${l.port}, which the bridge needs. Close it (or: kill ${l.pid}), then press the button.`, { fix: Fixes.ShowProgram, label: "I closed it: try again" });
     }
-    return L.decideBridge(vers, portProblem, proc, this.want("bridge"), this.L.friend);
+    return L.decideBridge(vers, portProblem, proc, this.want("bridge"), this.L.friend, this.server && this.server.ok ? this.server.server : null);
   }
 
   async doBridge() {
-    let started = false, t0 = Date.now();
+    let started = false, restarted = false, t0 = Date.now();
     while (!this.quit) {
       const vers = await probes.httpGet(`${this.bridgeUrl}/versions`, 15000);
       if (vers.kind === "ok") { this.versionsCache = vers; this.versionsAt = Date.now(); }
@@ -577,6 +604,20 @@ class Controller {
         else if (v.action === Actions.StartBridge) v = verdict(Light.Red, "The bridge isn't running (the app would start it).");
         this.set(Step.Bridge, v);
         return v.light === Light.Green;
+      }
+      // a bridge left running for another engine (the one here, before server.json; or another server): restarted
+      // for this run's, once, and never during a game
+      if (v.action === Actions.RestartBridge) {
+        await this.refreshGame();
+        if (this.isLocked) { this.set(Step.Bridge, verdict(Light.Amber, `${v.text.replace(/ It is restarted for this one\.$/, "")} ${L.lockText(this.game)}`, { fix: Fixes.BridgeRestart, label: "Restart the bridge" })); return true; }
+        if (restarted) { this.set(Step.Bridge, verdict(Light.Red, `${v.text.replace(/ It is restarted for this one\.$/, "")} Restarting it didn't help: another bridge may hold its port. Stop it, then press Try again.`, { fix: Fixes.Retry, label: "Try again" })); return false; }
+        Log.write(`the bridge runs for another engine: restarting it (${v.text})`);
+        this.set(Step.Bridge, verdict(Light.Busy, "Restarting the bridge: it ran for another engine."));
+        await this.stopBridge();
+        restarted = true; started = false; this.versionsCache = null;
+        // (until the old one has let go of its port: else its answer would be taken for the new one's)
+        for (let i = 0; i < 20 && (await probes.httpGet(`${this.bridgeUrl}/versions`, 2000)).kind !== "refused"; i++) if (!(await this.pause(250))) return false;
+        continue;
       }
       if (v.action === Actions.StartBridge && !started) {
         // a folder the bridge can't write would only crash it again every 3 s: say so once instead
@@ -608,7 +649,7 @@ class Controller {
     const args = [path.join(this.appDir, "companion.js"), "--bridge-loop", "--home", this.L.home];
     if (this.engine.o.override) args.push("--runtime", this.engine.o.override);
     Log.write(`starting the bridge loop: ${process.execPath} ${args.join(" ")}`);
-    probes.launch(process.execPath, args, { ...process.env, ...this.engine.bridgeEnv(), ...this.serverEnv() });
+    probes.launch(process.execPath, args, this.bridgeLaunchEnv());
   }
 
   async stopBridge() { Log.write("stopping the bridge loop and the bridge"); await bridgeLoop.stop(this.L); }
@@ -744,7 +785,13 @@ class Controller {
       this.everythingStopped = true; this.pendingFrom = 0; this.stoppedAt = 0; this.engineStarted = false;
       this.setPhase("Stopping");
       await this.stopBridge();
-      if (!this.server && this.engine.cli && this.rows[Step.Docker].v.light === Light.Green) await (this.L.friend ? this.engine.down() : this.engine.stop());
+      this.removeKeyFile();
+      // (a server.json with a problem counts as no server here: the engine running may well be this computer's, from
+      // before the file was made. The watcher hasn't asked the container engine then, so ask it now.)
+      if (!(this.server && this.server.ok)) {
+        const answers = this.server ? (await this.engine.detect()).answers : this.engine.cli && this.rows[Step.Docker].v.light === Light.Green;
+        if (answers) await (this.L.friend ? this.engine.down() : this.engine.stop());
+      }
       for (let i = 0; i < this.rows.length; i++)
         if (i !== Step.Docker) this.rows[i].v = verdict(Light.Grey, i === Step.Save ? (this.L.friend ? "Installed (unchanged)." : this.rows[i].v.text) : "Stopped.");
       this.setPhase(L.StoppedPhase);

@@ -50,9 +50,11 @@ runs on a server of yours, instead of starting one on this computer. TTS and the
    { "host": "mtg.example.org", "port": 9443, "key": "the MANABREW_SERVER_KEY from the server's stack/.env" }
    ```
 
-   Only `host` is needed: a name or an IP address (an IPv6 address in `[brackets]`), without `ws://`. `port` is 9443 unless
-   given. `key` is the server's relay key; leave it out to use the `MTG_SERVER_KEY` environment variable, or this
-   package's own key. `"secure": true` connects with `wss://` (the relay behind TLS).
+   `host` and a key are needed. `host` is a name or an IP address (an IPv6 address in `[brackets]`), without `ws://`.
+   `port` is 9443 unless given. `key` is the server's relay key; leave it out only to use the `MTG_SERVER_KEY` environment
+   variable instead (with neither, the light says so: this package's own key is never sent to a server).
+   `"secure": true` connects with `wss://` (the relay behind TLS). Keep the file private: `chmod 600 server.json` (the
+   companion does this itself when it finds the file readable by others).
 3. Start the companion as usual. Its window says "Own server: the engine runs on mtg.example.org:9443". On the status page,
    **Container engine** and **Engine images** say "Not needed here", and **Engine stack** logs in to your server:
    green when its Forge room is open.
@@ -65,10 +67,15 @@ If the light is red, it says why, for example:
 - "refused the key": put the server's key in `server.json` as `"key"`;
 - "its Forge room isn't open" or "busy with an earlier game": start or restart the Forge room on the server.
 
-Fix it, then press **Try again**. To use it for one run only: `./start.sh --server mtg.example.org:9443` (the key still comes
-from `server.json` or `MTG_SERVER_KEY`). To go back to the engine on this computer, delete `server.json`. **Stop everything**
-stops the bridge only; the server's engine keeps running. Keep `server.json` to yourself: the key in it lets anyone
-into your server's games.
+Fix it, then press **Try again**. To use it for one run only: `./start.sh --server mtg.example.org:9443`. For the host
+`server.json` names, that changes only the port; for another host, nothing of `server.json` is used (not its key, port
+or `secure`: a key is never sent to a server it wasn't written for), so set `MTG_SERVER_KEY` to that server's key. To go
+back to the engine on this computer, delete `server.json`. **Stop everything** stops the bridge only; the server's engine
+keeps running (with a `server.json` that has a problem, it stops the engine on this computer, as without a server).
+`mtg reset` can't restart the Forge room on a server: when a room is stuck ("busy with another game"), restart it on the
+server (`docker compose -f stack/compose.yml restart forge-room` in its folder). A bridge left running for another engine
+is restarted when you press **Start engine** (never during a game). Keep `server.json` to yourself: the key in it lets
+anyone into your server's games.
 
 ## Everyone: getting into a game
 

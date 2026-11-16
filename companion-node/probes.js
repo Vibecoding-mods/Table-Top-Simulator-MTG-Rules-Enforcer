@@ -71,7 +71,7 @@ function run(cmd, args, o) {
 
 // started and left alone (TTS, the browser, Docker Desktop)
 function launch(cmd, args, env) {
-  try { const p = spawn(cmd, args, { detached: true, stdio: "ignore", env: env || process.env }); p.on("error", () => {}); p.unref(); return true; } catch { return false; }
+  try { const p = spawn(cmd, args, { detached: true, stdio: "ignore", windowsHide: true, env: env || process.env }); p.on("error", () => {}); p.unref(); return true; } catch { return false; }
 }
 
 // bytes a process has read so far (Linux /proc/<pid>/io rchar), -1 when unknown (the image load's percentage)

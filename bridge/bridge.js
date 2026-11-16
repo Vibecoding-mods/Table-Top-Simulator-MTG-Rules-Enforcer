@@ -24,7 +24,22 @@ const arg = (name, def) => {
   return i > 0 ? process.argv[i + 1] : process.env[env.replace(/-/g, "_")] || process.env[env] || def;
 };
 const RELAY = arg("relay", "ws://127.0.0.1:9443");
-const KEY = arg("key", "tts-local");
+// MTG_KEY_FILE (the companion's own-server mode): the key is read from that file, so it is in neither the environment
+// nor the command line, which Node's diagnostic reports print (companion-node/bridge-loop.js starts the bridge with
+// them on); an MTG_KEY beside it is dropped from the environment. --key still wins. Unset: MTG_KEY, as before.
+function keyFromFile(file) {
+  try {
+    const k = fs.readFileSync(file, "utf8").replace(/^\uFEFF/, "").trim();
+    if (k) return k;
+    console.error(`MTG_KEY_FILE ${file} is empty`);
+  } catch (e) { console.error(`MTG_KEY_FILE ${file} can't be read: ${e.code || e.message}`); }
+  process.exit(2);
+}
+const KEY = process.env.MTG_KEY_FILE && !process.argv.includes("--key") ? keyFromFile(process.env.MTG_KEY_FILE) : arg("key", "tts-local");
+if (process.env.MTG_KEY_FILE) delete process.env.MTG_KEY;
+// MTG_REMOTE_ENGINE=1 (the companion's own-server mode): the relay and the Forge room run on another computer, so the
+// bridge never restarts or inspects a container here ("mtg reset" says the room is restarted on the server)
+const REMOTE_ENGINE = process.env.MTG_REMOTE_ENGINE === "1";
 const ROOM = arg("room", "tts-commander");
 const CLIENT_VERSION = "3.56.0"; // ≥ 3.17.0 → relay sends change-only patches
 const TTS_IN = Number(arg("tts-in", 39998)); // TTS sends to us here
@@ -225,7 +240,8 @@ function noteGuess(kind, detail) {
   fs.appendFile(GUESS_LOG, `[${clockNow()}] ${kind}: ${detail}\n`, () => {});
 }
 
-function versionsNow(done) { versions.containerImages((images) => done({ bridge: BRIDGE_HASH, table: tableStamp, ...images })); }
+// (own server: no container here to read; the engine check is left out, versions.outOfStep)
+function versionsNow(done) { if (REMOTE_ENGINE) return done({ bridge: BRIDGE_HASH, table: tableStamp, remote: true }); versions.containerImages((images) => done({ bridge: BRIDGE_HASH, table: tableStamp, ...images })); }
 function warnOutOfStep(now, deployed) { for (const w of versions.outOfStep(now, deployed)) chat(`[MTG] ${w}`); }
 function warnIfOutOfStep() {
   if (!LIVE) return;
@@ -1305,8 +1321,8 @@ class Seat {
             setTimeout(() => { if (!this.closed && game && !game.closing && !this.roomId) this.send({ type: "ListRooms" }); }, 2000);
             return;
           }
-          if (!room) { log(`room ${ROOM} not found`); chat(`[MTG] Room "${ROOM}" not found. Is the Docker stack running?`); return; }
-          log(`room ${ROOM} busy (${room.status})`); chat(`[MTG] Room is busy with another game. Type "mtg reset".`); return;
+          if (!room) { log(`room ${ROOM} not found`); chat(REMOTE_ENGINE ? `[MTG] Room "${ROOM}" not found on your server (${RELAY}). Start the Forge room there.` : `[MTG] Room "${ROOM}" not found. Is the Docker stack running?`); return; }
+          log(`room ${ROOM} busy (${room.status})`); chat(REMOTE_ENGINE ? "[MTG] Room is busy with another game. The engine runs on your own server: restart the Forge room there (docker compose -f stack/compose.yml restart forge-room), then press Start again." : `[MTG] Room is busy with another game. Type "mtg reset".`); return;
         }
         this.roomId = room.room_id;
         game.roomId = room.room_id;
@@ -10913,6 +10929,13 @@ const afterRestart = [];     // what to do once it is done (a Start pressed mean
 // Restarts the Forge room (a fresh engine for the next game); `then` runs when it is back (or at once if a restart
 // is already running, when that one finishes).
 function restartRoom(then) {
+  if (REMOTE_ENGINE) {
+    // (own server: the Forge room isn't a container here. The start goes on at once: a room that is free starts the
+    // game, a busy one says so, and nothing waits for a restart that never comes.)
+    chat(`[MTG] The engine runs on your own server (${RELAY}), so the bridge can't restart its Forge room from here. If a game is stuck there, restart the Forge room on the server: docker compose -f stack/compose.yml restart forge-room`);
+    if (then) guarded("start (own server)", then);
+    return;
+  }
   if (then) afterRestart.push(then);
   if (roomRestarting) return;
   roomRestarting = true;
@@ -11005,7 +11028,7 @@ function onTTS(m) {
           chat("[MTG] Your game is still running: it's back on the table. To start a new one instead, the host types  mtg reset  first.");
           return;
         }
-        if (game) resetGame("Starting fresh: restarting the Forge room, ~15 s...");
+        if (game) resetGame(REMOTE_ENGINE ? "Starting fresh." : "Starting fresh: restarting the Forge room, ~15 s...");
         restartRoom(go);
       } else go();
       break;
@@ -11026,7 +11049,7 @@ function onTTS(m) {
       for (const c of Object.keys(readyDecks)) delete readyDecks[c]; // the next game reads decks from the table again
       for (const c of Object.keys(deckGen)) deckGen[c]++; // (and a check waiting on Scryfall is dropped)
       if (roomRestarting) { chat("[MTG] Already restarting the Forge room, one moment..."); break; }
-      resetGame("Resetting: restarting the Forge room, ~10 s...");
+      resetGame(REMOTE_ENGINE ? "Reset." : "Resetting: restarting the Forge room, ~10 s...");
       restartRoom(null);
       break;
     case "deck":
@@ -12428,8 +12451,9 @@ const debugServer = http.createServer((req, res) => {
       // tableHeardMs: how long ago the table last spoke (null: not since the bridge started). now.table is the stamp the
       // table said then, which outlives that TTS: the companion's light was green while a relaunched TTS sat on its main
       // menu (live check 2026-11-11), so it compares this with how long TTS has been running
+      // relay, remoteEngine: the engine this bridge was started for (the companion restarts a bridge left running for another)
       res.end(JSON.stringify({ now, deployed, outOfStep: versions.outOfStep(now, deployed), waiting: versions.waiting(deployed), alignment,
-        tableHeardMs: ttsLink.tableAt ? Date.now() - ttsLink.tableAt : null }, null, 1));
+        tableHeardMs: ttsLink.tableAt ? Date.now() - ttsLink.tableAt : null, relay: RELAY, remoteEngine: REMOTE_ENGINE }, null, 1));
     });
   } else if (req.url === "/state") {
     const seats = game ? [...game.seats.values()].map((st) => {
@@ -12470,7 +12494,7 @@ if (require.main === module) {
     summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword, playWindow,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
     _spellsMark: spellsMark, _actingFor: actingFor, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice,
-    _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
+    _engineSetting: () => ({ RELAY, KEY, REMOTE_ENGINE }), _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, setPickedHand, splitHandText, handOps, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _customArt: customArt, artProblem, isCustomArt,
     fixOps, phaseNumber, fxFacts, gameEndWords, mutateWords,
