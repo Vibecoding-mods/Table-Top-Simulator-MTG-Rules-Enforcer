@@ -499,6 +499,7 @@ const SEATED = ["White", "Blue"];
     CHAT("Red", "mtg gifs still", "red still"), CHAT("White", "mtg gif plain", "w search 3"),
     pick(3, [{ ...ITEMS[2], id: "noStill", still: undefined }]), { frames: 10 }, FRAMES("no still view"),
     lua("return tostring(engineGif.state.White and engineGif.state.White.still)", "no still state"),
+    { frames: 12 * 60 + 10 }, FRAMES("no still later"),
     CHAT("White", "mtg gifs", "state"),
   ] });
   ok("stills: no errors", !r.errors.length, r.errors.join(" | "));
@@ -525,6 +526,7 @@ const SEATED = ["White", "Blue"];
   ok("stills: it goes with its player", st && st.blue === false && !(W("blue gone")?.xml || "").includes("gifstill_"), [st, W("blue gone")?.xml]);
   ok("stills: a spectator is refused in plain words, nothing set", st && st.grey === false && fxOf(r, "grey still").some((f) => f.includes("Stills only is for seated players: take a seat first.")), [st, fxOf(r, "grey still")]);
   ok("stills: Grey and Black never in the still's visibility", !(W("spectators view")?.xml || "").includes("gifstill_"), W("spectators view")?.xml);
+  ok("stills: a GIF with no still link gets no timed still either: it keeps playing after 12 s", !(W("no still view")?.xml || "gifhold_").includes("gifhold_") && !(W("no still later")?.xml || "gifhold_").includes("gifhold_") && W("no still later")?.img === ITEMS[2].mp4, W("no still later")?.xml);
   ok("stills: a GIF with no still link gets no still element and keeps none", W("no still view")?.img === ITEMS[2].mp4 && JSON.parse(W("no still view")?.memo || "{}").id === "noStill" && !(W("no still view")?.xml || "").includes("gifstill_") && raw(r, "no still state") === "nil", [W("no still view")?.img, W("no still view")?.xml, raw(r, "no still state")]);
   const hints = r.steps.flatMap((x) => x.fx || []).filter((f) => f.includes("broadcastToAll") && f.includes("white square"));
   ok("stills: one hint to everyone at the first video, not again", hints.length === 1 && hints[0].includes("broadcastToAll") && hints[0].includes("(Steam Deck, Mac or Linux)? Type  mtg gifs still"), hints);

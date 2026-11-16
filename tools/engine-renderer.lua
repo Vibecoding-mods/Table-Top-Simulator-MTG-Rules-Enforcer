@@ -11037,7 +11037,8 @@ function engineGif.xml(c)
     x[#x + 1] = '<Panel width="' .. fw .. '" height="' .. fh .. '" color="#141414" raycastTarget="false"><Text fontSize="40" fontStyle="Bold" color="#E0E0E0" position="0 24 0" width="190" height="60">GIF</Text>'
       .. '<Text fontSize="14" color="#9A9A9A" position="0 -30 0" width="186" height="70">' .. c .. "'s frame: GIF... below picks one" .. '</Text></Panel>'
   else
-    x[#x + 1] = '<Image id="gifhold_' .. c .. '" image="still" width="' .. fw .. '" height="' .. fh .. '" preserveAspect="true" raycastTarget="false" active="' .. (G.playing[c] and "false" or "true") .. '"/>' .. G.stillXml(c, fw, fh)
+    -- (no still link: no timed still, the GIF keeps playing; an Image of a missing asset is a blank white card)
+    x[#x + 1] = type(st.still) ~= "string" and "" or '<Image id="gifhold_' .. c .. '" image="still" width="' .. fw .. '" height="' .. fh .. '" preserveAspect="true" raycastTarget="false" active="' .. (G.playing[c] and "false" or "true") .. '"/>' .. G.stillXml(c, fw, fh)
     x[#x + 1] = '<Button id="gifplay_' .. c .. '" position="0 ' .. by .. ' 0" width="80" height="32" fontSize="16" onClick="Global/engineGifUiClick">Replay</Button>'
     x[#x + 1] = '<Button id="gifcol_' .. c .. '" visibility="' .. c .. '" position="88 ' .. by .. ' 0" width="80" height="32" fontSize="16" tooltip="Collapse your GIF to a small tile (everyone sees it so; Show brings it back)" onClick="Global/engineGifUiClick">Hide</Button>'
   end
@@ -11091,6 +11092,7 @@ function engineGif.play(c, fresh)
   if G.state[c] == nil or G.state[c].collapsed == true then return end
   G.playing[c] = true
   local o = G.frames[c]
+  if type(G.state[c].still) ~= "string" then return end -- (no timed still to take off or put back)
   if G.alive(o) and not fresh then o.UI.setAttribute("gifhold_" .. c, "active", "false") end
   if G.holdWait[c] ~= nil then Wait.stop(G.holdWait[c]) end
   G.holdWait[c] = Wait.time(function()
