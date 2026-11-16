@@ -32,6 +32,14 @@
 // Juggernaut's own normal turns skipped (Forge ReplaceBeginTurn ExtraTurn$ False), so rewinds and extra turns stay
 // Forge's. The Juggernaut wins when all three have lost; the three win together when the Juggernaut loses.
 
+// Archenemy (docs/team-turns-archenemy-plan.md §2, the user's answers §2.7): one player, the archenemy, against everyone
+// else as one team, in Commander or Standard. The archenemy starts at twice the format's life (80, or 40 in Standard: a
+// house rule), goes first (CR 904.6) and has a scheme deck: 20 random schemes from Forge's (bridge/forge-schemes.json)
+// or the host's list. The others keep the format's life and their own turns. The engine (cloud/archenemy-rules) takes
+// gameConfig's archenemy flag and the archenemy's schemes, refuses a bad scheme deck, forces the teams and takes no
+// restore points in a scheme game, so the bridge says Undo is off. The bridge keeps the setting ("mtg archenemy",
+// "mtg schemes", like Planechase's) and a start from the table can also carry it (teamMode "archenemy").
+
 const TEAM_COLORS = ["White", "Red", "Yellow", "Blue"]; // (the table's seats in turn order, bridge.js TABLE_COLORS)
 // the default sides: the two seats on each long side of the table, which are next to each other in turn order
 const DEFAULT_TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
@@ -53,6 +61,10 @@ function teamsOf(raw) {
 // sent. turns: "shared" for a Two-Headed Giant start whose teamTurns is "shared" (Level 2, the table's "mtg 2hg turns
 // shared"), else null (Level 1: each player takes their own turn).
 function setupOf(m) {
+  if (m?.teamMode === "archenemy") {
+    const arch = archOf(m.archenemy);
+    return { teams: juggTeams(arch.color), mode: "archenemy", jugg: null, turns: null, arch };
+  }
   if (m?.teamMode === "juggernaut") {
     const jugg = juggOf(m.juggernaut);
     return { teams: juggTeams(jugg.color), mode: "juggernaut", jugg, turns: null };
@@ -69,11 +81,13 @@ const TEAM_MODES = {
   "2hg": { rule: "sharedLife", name: "Two-Headed Giant", gameMode: "commander" },
   "2v2": { rule: "teams", name: "2v2", gameMode: "standard" },
   juggernaut: { rule: "teams", name: "Juggernaut", gameMode: "commander" },
+  archenemy: { rule: "teams", name: "Archenemy", gameMode: null }, // (either game mode, §2.7 answer 1)
 };
 const teamModeOf = (raw) => (Object.prototype.hasOwnProperty.call(TEAM_MODES, raw) ? raw : "2hg");
 // Why a team mode can't be played in a game mode ("commander" | "standard"), in words for chat; null when it can.
 function teamModeProblem(teamMode, gameMode) {
   const t = TEAM_MODES[teamModeOf(teamMode)];
+  if (t.gameMode === null) return null;
   if (t.gameMode === gameMode) return null;
   const words = (k) => (k === "standard" ? "Standard" : "Commander");
   return `${t.name} is played in ${words(t.gameMode)} only, and the game mode is ${words(gameMode)}. Switch with  mtg mode ${t.gameMode}  or pick another Teams mode.`;
@@ -124,6 +138,33 @@ function juggWords(jugg, std) {
     jugg.order === "after" ? "a turn after every challenger's" : "goes first"].join(", ");
 }
 
+// The archenemy's settings: who (any seat: a seated player or an AI one) and the host's scheme list (null: 20 at random).
+const ARCH_DEFAULTS = { color: "White", schemes: null };
+// The scheme deck's rules, as the engine checks them (Archenemy.schemeDecks, cloud/archenemy-rules): at least 20
+// schemes, at most 2 of each (Forge's DeckFormat), and 20 drawn at random when the host names none.
+const ARCH_SCHEMES = 20, ARCH_COPIES = 2;
+// a start's archenemy field -> a clean copy (a bad colour the default; schemes kept only as a list of names)
+function archOf(raw) {
+  const r = raw && typeof raw === "object" ? raw : {};
+  const out = { ...ARCH_DEFAULTS };
+  if (TEAM_COLORS.indexOf(r.color) >= 0) out.color = r.color;
+  if (Array.isArray(r.schemes) && r.schemes.length && r.schemes.every((n) => typeof n === "string" && n.trim())) out.schemes = r.schemes.map((n) => n.trim());
+  return out;
+}
+// the archenemy's starting life: twice the format's (80 in Commander, 40 in Standard)
+const archLife = (std) => (std ? 40 : 80);
+// Why a scheme list can't be the archenemy's deck (null when it can): count is the list's size, copies its names counted
+function schemeDeckProblem(names) {
+  if (!Array.isArray(names)) return "no scheme deck";
+  if (names.length < ARCH_SCHEMES) return `a scheme deck needs at least ${ARCH_SCHEMES} schemes; this one has ${names.length}`;
+  const count = {};
+  for (const n of names) count[n] = (count[n] || 0) + 1;
+  const many = Object.entries(count).filter(([, k]) => k > ARCH_COPIES).map(([n, k]) => `${n} (${k})`);
+  return many.length ? `a scheme deck holds at most ${ARCH_COPIES} of each scheme: ${many.join(", ")}` : null;
+}
+// the archenemy's setup in words, for chat: "80 life, goes first, 20 random schemes"
+const archWords = (arch, std) => `${archLife(std)} life, goes first, ${arch.schemes ? `${plural(arch.schemes.length, "chosen scheme")}` : `${ARCH_SCHEMES} random schemes`}`;
+
 // colour list -> "White + Red"
 const teamWords = (colors) => colors.join(" + ");
 // the colours of each team, in turn order: { 1: [...], 2: [...] }
@@ -139,6 +180,8 @@ function sides(teams) {
 // "2v2": two teams of two, any split. "juggernaut": four players (the teams come from the Juggernaut's colour, juggTeams).
 function teamsProblem(teams, total, mode = "2hg") {
   const fill = "Add AI players with  mtg start ai N  or  mtg ai <colour> forge.";
+  // (Archenemy: the archenemy against one to three others; the teams come from the archenemy's colour)
+  if (mode === "archenemy") return total >= 2 ? null : `Archenemy needs the archenemy and at least one other player. ${fill}`;
   if (mode === "juggernaut") return total === 4 ? null : `Juggernaut is one against three: all four seats filled (seated players + AI players), not ${total}. ${fill}`;
   const s = sides(teams);
   const split = `two teams of two (now team 1: ${teamWords(s[1]) || "nobody"}, team 2: ${teamWords(s[2]) || "nobody"}). Use  mtg team <colour> <1|2>.`;
@@ -161,10 +204,13 @@ function teamsProblem(teams, total, mode = "2hg") {
 // teamRules "teams", each player's life the engine's default. Juggernaut (jugg: juggOf; std: a Standard game): teams
 // "teams", and the Juggernaut's life, hand, perks, own commander limit (only when not 21, Forge's) and first turn.
 // turns "shared" (Two-Headed Giant only): teamRules "sharedTurns", Level 2's one turn for the team (CR 805, 810.2).
-function gameConfig(teams, usernames, colors, mode = "2hg", jugg = null, std = false, turns = null) {
+// Archenemy (arch: { color, names }, names the scheme deck to play): the flag archenemy, and the archenemy's life,
+// first turn and schemes (the engine reads players[].schemes).
+function gameConfig(teams, usernames, colors, mode = "2hg", jugg = null, std = false, turns = null, arch = null) {
   const rule = mode === "2hg" && turns === "shared" ? "sharedTurns" : TEAM_MODES[teamModeOf(mode)].rule;
-  return { type: "gameConfig", teamRules: rule, players: usernames.map((u, i) => {
+  return { type: "gameConfig", teamRules: rule, ...(mode === "archenemy" ? { archenemy: true } : {}), players: usernames.map((u, i) => {
     const p = { username: u, team: teams[colors[i]] };
+    if (mode === "archenemy") return arch && colors[i] === arch.color ? { ...p, startingLife: archLife(std), goesFirst: true, schemes: [...(arch.names || [])] } : p;
     if (mode !== "juggernaut" || !jugg || colors[i] !== jugg.color) return p;
     const perks = juggPerks(jugg);
     return { ...p, startingLife: juggLife(jugg, std), startingHand: jugg.hand, ...(perks.length ? { perks } : {}),
@@ -214,7 +260,8 @@ function withTeamDamage(p, pub) {
 // { rule: "teams", mode, sides, juggernaut, won } in a 2v2 or Juggernaut game (mode: the bridge's game.teamMode when
 // known; juggernaut: the lone side's colour in a Juggernaut game); else nothing. won: the winning team's colours once
 // the game is over with a winner.
-function teamsField(pub, slotColor, mode = null) {
+// archColor: the archenemy's colour in an Archenemy game (the board's archenemy).
+function teamsField(pub, slotColor, mode = null, archColor = null) {
   const t = boardTeams(pub, slotColor);
   if (!t) return {};
   const winner = pub.winnerId && (pub.players || []).find((p) => p.id === pub.winnerId);
@@ -222,7 +269,8 @@ function teamsField(pub, slotColor, mode = null) {
   const sideList = [...t.byTeam.values()];
   if (t.rule === "teams") {
     const lone = mode === "juggernaut" ? sideList.find((side) => side.length === 1) : null;
-    return { teams: { rule: "teams", ...(mode ? { mode } : {}), sides: sideList, ...(lone ? { juggernaut: lone[0] } : {}), ...(pub.gameOver && won ? { won } : {}) } };
+    return { teams: { rule: "teams", ...(mode ? { mode } : {}), sides: sideList, ...(lone ? { juggernaut: lone[0] } : {}),
+      ...(mode === "archenemy" && archColor ? { archenemy: archColor } : {}), ...(pub.gameOver && won ? { won } : {}) } };
   }
   return { teams: { poison: t.poison, ...(t.cmd != null ? { cmd: t.cmd } : {}), sides: sideList, ...(t.rule === "sharedTurns" ? { turns: "shared" } : {}),
     ...(pub.gameOver && won ? { won } : {}) } };
@@ -246,8 +294,12 @@ function poisonLabel(label, pub) {
 const teamWinWords = (won, nameOf) => `${teamWords(won.map(nameOf))} ${won.length === 1 ? "wins" : "win"}`;
 
 // The teams said at setup, by mode (jugg: juggOf; std: a Standard game; turns: setupOf's, Two-Headed Giant's level)
-function setupWords(mode, teams, jugg, std, turns = null) {
+function setupWords(mode, teams, jugg, std, turns = null, arch = null) {
   const s = sides(teams);
+  if (mode === "archenemy" && arch) {
+    const others = TEAM_COLORS.filter((c) => c !== arch.color);
+    return `Archenemy: ${arch.color} (${archWords(arch, std)}) vs ${teamWords(others)} (${std ? 20 : 40} life each, their own turns). The archenemy sets a scheme in motion at each of their first main phases; the archenemy wins when all the others have lost, and they win together when the archenemy loses. Undo is off in Archenemy games.`;
+  }
   if (mode === "juggernaut") {
     return `Juggernaut: ${jugg.color} (${juggWords(jugg, std)}) vs ${teamWords(TEAM_COLORS.filter((c) => c !== jugg.color))} (${std ? 20 : 40} life each). The Juggernaut wins when all three have lost; the three win together when the Juggernaut loses.`;
   }
@@ -401,4 +453,4 @@ function teamBlockNotice(text) {
 }
 module.exports = { jointBlock, jointBlockLines, teamBlockNotice, SEAT_HEX, teamTriggerWords, teamRefusalWords, sharesLife, sharesTurns, turnPlayerIds, isTurnOf, turnPartners, turnPartnerOf, turnWhose, teamAttackLines, teamBlockLines, TEAM_COLORS, DEFAULT_TEAMS, TEAM_MODES, JUGG_DEFAULTS, setupOf, teamModeOf, teamModeProblem, juggOf, juggLife, juggTeams, juggPerks, juggWords,
   setupWords, teamsOf, teamWords, sides, teamsProblem, gameConfig, boardTeams, teamOf, withTeamDamage, teamsField, teamLifeTip,
-  poisonLabel, teamWinWords };
+  poisonLabel, teamWinWords, ARCH_DEFAULTS, ARCH_SCHEMES, ARCH_COPIES, archOf, archLife, schemeDeckProblem, archWords };
