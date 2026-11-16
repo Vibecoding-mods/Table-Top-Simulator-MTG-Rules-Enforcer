@@ -98,7 +98,14 @@ Cloud session, 2026-11-16, branch `cloud/archenemy-polish`, from `origin/cloud/a
   restored by sha256.
 - One of the 29 had to follow the new code: "start: an archenemy not in the game let through" now mutates the new seat
   check.
-- The `--golden` run is recorded in the commit that follows this report.
+- With `--golden` (each mutation also against `test_bridge_golden`): **40 caught, 0 survived**, every file restored by
+  sha256.
+- **How the source got committed:** the golden run took about 50 minutes and edits the source files in place.
+  - `teams.js` and `engine-renderer.lua` went in from copies taken at moments when they were clean. "Clean" was
+    checked as: every mutation's `from` text present exactly once.
+  - `bridge.js` was rebuilt from the committed file with the same edits, then tested on a separate worktree: all the
+    suites above pass, and the golden matches 1081 of 1081.
+  - After the run, the restored working files are byte-identical to the pushed ones.
 
 ## Left
 
