@@ -1,3 +1,26 @@
+diff --git a/forge-ai/src/main/java/forge/ai/AiAttackController.java b/forge-ai/src/main/java/forge/ai/AiAttackController.java
+index c3b3b8ab..e5ca9a24 100644
+--- a/forge-ai/src/main/java/forge/ai/AiAttackController.java
++++ b/forge-ai/src/main/java/forge/ai/AiAttackController.java
+@@ -126,6 +126,18 @@ public class AiAttackController {
+     }
+ 
+     public static List<Card> getOpponentCreatures(final Player defender) {
++        if (!defender.getGame().getRules().hasSharedTeamLife()) {
++            return getPlayersPossibleBlockers(defender);
++        }
++        // CR 805.10d: with shared team life the defender's teammates may block a creature attacking the defender
++        List<Card> defenders = new ArrayList<>();
++        for (Player p : defender.getYourTeam()) {
++            defenders.addAll(getPlayersPossibleBlockers(p));
++        }
++        return defenders;
++    }
++
++    private static List<Card> getPlayersPossibleBlockers(final Player defender) {
+         List<Card> defenders = defender.getCreaturesInPlay();
+         int totalMana = ComputerUtilMana.getAvailableManaEstimate(defender, true);
+         int manaReserved = 0; // for paying the cost to transform
 diff --git a/forge-ai/src/main/java/forge/ai/AiBlockController.java b/forge-ai/src/main/java/forge/ai/AiBlockController.java
 index eb732342..5358c962 100644
 --- a/forge-ai/src/main/java/forge/ai/AiBlockController.java
