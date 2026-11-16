@@ -118,6 +118,39 @@ patchScripts("rikrassen importer: disable check_version (downloads importer code
   "function M.check_version(base_url, asset_base_url, cb)",
   `function M.check_version(base_url, asset_base_url, cb) do return end ${TAG}`);
 
+// 7. Card Importer: DeckCheck deck links (docs/deckcheck-spec.md, "Import"), next to Archidekt and Moxfield. The
+// link goes to fetchDeckCheckDeck (tools/deckcheck-import.lua, appended with tools/deckcheck.lua below), which spawns
+// through the importer's own spawnDeckEntries; the spawned deck carries qTbl.gmNotes (the DeckCheck tag) in its GM notes.
+patchScripts("Card Importer: DeckCheck links",
+  "      if qTbl.url:find('archidekt%.com') then\n",
+  `      if qTbl.url:lower():find('deckcheck.co/', 1, true) then ${TAG} DeckCheck (tools/deckcheck-import.lua)
+        qTbl.mode='Deck'
+        fetchDeckCheckDeck(qTbl.url, qTbl)
+        return true
+      end
+      if qTbl.url:find('archidekt%.com') then\n`);
+patchScripts("Card Importer: a spawned deck keeps the import's GM notes",
+  `            Description=qTbl.full or "Deck",\n`,
+  `            Description=qTbl.full or "Deck",\n            GMNotes=qTbl.gmNotes, ${TAG} (the DeckCheck tag; nil for every other import)\n`);
+patchScripts("Card Importer: help names DeckCheck",
+  "Scryfall deck <url>           Import deck (Archidekt, Moxfield, legacy sites)",
+  "Scryfall deck <url>           Import deck (Archidekt, Moxfield, DeckCheck, legacy sites)");
+patchScripts("Card Importer: 'not supported' names DeckCheck",
+  "Use Archidekt/Moxfield or paste a deck list.",
+  "Use Archidekt, Moxfield or DeckCheck, or paste a deck list.");
+{
+  const lua = ["deckcheck.lua", "deckcheck-import.lua"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n\n");
+  let n = 0;
+  for (const o of allObjects(save.ObjectStates)) {
+    if (typeof o.LuaScript === "string" && o.LuaScript.includes("fetchDeckCheckDeck(qTbl.url, qTbl)")) {
+      o.LuaScript += `\n\n${lua}`;
+      n++;
+    }
+  }
+  report.push(`${n >= 1 ? "OK  " : "FAIL"} Card Importer: DeckCheck functions added (${n} script${n === 1 ? "" : "s"})`);
+  if (n < 1) process.exitCode = 1;
+}
+
 save.SaveName = "MTG 4 player table - ENGINE MODE";
 // background: Ariande's Hideaway skybox (assets/ariande-skybox-4096.jpg), uploaded to Steam Cloud so every player
 // sees it (a file:// picture would show only on the host's PC). Since 2026-11-13 the floor is pulled 1.5x closer
@@ -739,6 +772,9 @@ end
 // The decoder for the bridge's messages (engineJsonDecode) goes first, also its own file: its backslashes would need
 // doubling in a template literal.
 save.LuaScript += "\n\n" + fs.readFileSync(path.join(__dirname, "engine-json.lua"), "utf8");
+// (the DeckCheck tag reader and label words, for the bracket and threat label beside each commander zone: the same
+// file the Card Importer gets, step 7)
+save.LuaScript += "\n\n" + fs.readFileSync(path.join(__dirname, "deckcheck.lua"), "utf8");
 save.LuaScript += "\n\n" + fs.readFileSync(path.join(__dirname, "engine-renderer.lua"), "utf8");
 
 // Global: table buttons, hotkeys, typed numbers, zone context menus, rules context tools
