@@ -85,7 +85,7 @@ const HAND = `local out = {} for _, id in ipairs({ "engine-card-601", "engine-ca
   end end return table.concat(out, " ")`;
 // Yellow's corner button and whether the screen UI has Yellow's panel
 const VIEW = `engineUpdateCorner("Yellow", enginePrompts.Yellow)
-  return JSON.encode({ panel = (tostring(UI.getXml() or ""):find('id="eng_big_Yellow"', 1, true) ~= nil), big = tostring(UI.getAttribute("eng_big_Yellow", "text") or UI.getValue("eng_big_Yellow")),
+  return JSON.encode({ panel = (tostring(__sim.longXml() or ""):find('id="eng_big_Yellow"', 1, true) ~= nil), big = tostring(UI.getAttribute("eng_big_Yellow", "text") or UI.getValue("eng_big_Yellow")),
     open = enginePrompts.Yellow and enginePrompts.Yellow.promptId or "none", active = tostring(UI.getAttribute("eng_big_Yellow", "active")) })`;
 const setXml = (r, mark) => fxOf(r, mark).filter((l) => /UI\.setXml/.test(l)).length;
 const sent = (r, mark) => fxOf(r, mark).filter((l) => /WebRequest\.custom/.test(l)).join(" ").split("\\").join("");

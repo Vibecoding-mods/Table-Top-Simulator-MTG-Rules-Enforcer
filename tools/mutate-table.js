@@ -135,10 +135,10 @@ const M = [
   // 2026-10-21 playtest fixes: Scoop on screen, the cannon and die hidden in engine mode, the "can't be chosen" hint
   ["pt3 scoop: shown for a player who lost", "if pl.color == c and pl.status == \"playing\" then show = true end", "if pl.color == c then show = true end"],
   ["pt3 scoop: shown outside a game", "if running and Player[c] ~= nil and Player[c].seated then", "if Player[c] ~= nil and Player[c].seated then"],
-  ["pt3 scoop: anyone opens anyone's box", "if id == \"eng_scoop_\" .. player.color then UI.setAttribute", "if true then UI.setAttribute"],
+  ["pt3 scoop: anyone opens anyone's box", "if id == \"eng_scoop_\" .. player.color then engineUI.setAttribute", "if true then engineUI.setAttribute"],
   ["pt3 scoop: anyone concedes for anyone", "if id ~= \"eng_scoopyes_\" .. player.color then return end", "if false then return end"],
-  ["pt3 scoop: box stays open after Scoop", "  UI.setAttribute(\"eng_scoopask_\" .. player.color, \"active\", \"false\")\r\n  engineSend(\"concede\"", "  engineSend(\"concede\""],
-  ["pt3 scoop: Keep playing does nothing", "if id == \"eng_scoopno_\" .. player.color then UI.setAttribute(\"eng_scoopask_\" .. player.color, \"active\", \"false\") end", ""],
+  ["pt3 scoop: box stays open after Scoop", "  engineUI.setAttribute(\"eng_scoopask_\" .. player.color, \"active\", \"false\")\r\n  engineSend(\"concede\"", "  engineSend(\"concede\""],
+  ["pt3 scoop: Keep playing does nothing", "if id == \"eng_scoopno_\" .. player.color then engineUI.setAttribute(\"eng_scoopask_\" .. player.color, \"active\", \"false\") end", ""],
   ["pt3 scoop: not in the screen UI", "rewindXml(c) .. scoopXml(c)", "rewindXml(c)"],
   ["pt3 hide: the die stays out", "local HIDE_IN_ENGINE_MODE = { \"540e21\", \"ee33ec\" }", "local HIDE_IN_ENGINE_MODE = { \"540e21\" }"],
   ["pt3 hide: lock not restored", "o.setLock(locked == \"true\")", "o.setLock(false)"],

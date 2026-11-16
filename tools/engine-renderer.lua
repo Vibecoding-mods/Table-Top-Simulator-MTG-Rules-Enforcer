@@ -2155,8 +2155,8 @@ engineImgWant = {} -- UI element id -> the picture it should show
 function engineSetImage(id, url)
   if engineImgWant[id] == url then return end
   engineImgWant[id] = url
-  UI.setAttribute(id, "image", engineUiImage(ENGINE_BACK))
-  local function again() if engineImgWant[id] == url then UI.setAttribute(id, "image", url) end end
+  engineUI.setAttribute(id, "image", engineUiImage(ENGINE_BACK))
+  local function again() if engineImgWant[id] == url then engineUI.setAttribute(id, "image", url) end end
   Wait.frames(again, 2)
   Wait.time(again, 3)
   Wait.time(again, 8)
@@ -2179,16 +2179,16 @@ do
     local v = {}
     for _, c in ipairs(POP_COLOURS) do if not enginePopClosed[c] and not engineEffectsOff[c] then v[#v + 1] = c end end
     -- (an empty list would show it to everyone)
-    if #v == 0 then UI.setAttribute("eng_pop", "active", "false") else UI.setAttribute("eng_pop", "visibility", table.concat(v, "|")) end
+    if #v == 0 then engineUI.setAttribute("eng_pop", "active", "false") else engineUI.setAttribute("eng_pop", "visibility", table.concat(v, "|")) end
   end
   local popXFlip = false
   function enginePopOpen()
     enginePopClosed = {}
     popVisibility()
-    UI.setAttribute("eng_pop", "active", "true")
+    engineUI.setAttribute("eng_pop", "active", "true")
     -- (showing a button again draws its label dark unless its text colour changes: see nextWhite)
     popXFlip = not popXFlip
-    UI.setAttribute("eng_pop_x", "textColor", popXFlip and "#FFFFFF" or "#FEFEFE")
+    engineUI.setAttribute("eng_pop_x", "textColor", popXFlip and "#FFFFFF" or "#FEFEFE")
   end
   function enginePopRefresh() popVisibility() end
   function onMtgPopClose(player)
@@ -2368,7 +2368,7 @@ function enginePopups(m)
   local function named(st) return engineStackLabel(st) .. (st.ctl and (" - " .. tostring(st.ctl)) or "") end
   if newest == nil and popShown ~= nil then
     for _, st in ipairs(m.stack or {}) do
-      if st.id == popShown.id and named(st) ~= popShown.who then popShown.who = named(st) UI.setValue("eng_pop_who", popShown.who) end
+      if st.id == popShown.id and named(st) ~= popShown.who then popShown.who = named(st) engineUI.setValue("eng_pop_who", popShown.who) end
     end
   end
   if newest == nil or not panelReadyForPopup() then return end
@@ -2380,8 +2380,8 @@ function enginePopups(m)
   local _, cut = text:sub(1, 120):find("%(%d+%) %- ")
   if cut ~= nil then text = text:sub(cut + 1) end
   engineSetImage("eng_pop_img", img)
-  UI.setValue("eng_pop_who", named(newest))
-  UI.setValue("eng_pop_text", engineCut(text, 260))
+  engineUI.setValue("eng_pop_who", named(newest))
+  engineUI.setValue("eng_pop_text", engineCut(text, 260))
   enginePopOpen()
   popToken = popToken + 1
   popShown = { id = newest.id, at = os.clock(), token = popToken, who = named(newest) }
@@ -2395,7 +2395,7 @@ function enginePopupsClose(m)
   for _, st in ipairs(m.stack or {}) do if st.id == shown.id then return end end
   popShown = nil
   local left = POP_MIN - (os.clock() - shown.at)
-  local hide = function() if popToken == shown.token then UI.setAttribute("eng_pop", "active", "false") end end
+  local hide = function() if popToken == shown.token then engineUI.setAttribute("eng_pop", "active", "false") end end
   if left > 0 then Wait.time(hide, left) else hide() end
 end
 
@@ -3415,18 +3415,18 @@ do
   end
   local function result(c, text, color, outline, hold, size)
     if engineEffectsOff[c] or Player[c] == nil or not Player[c].seated then return end
-    UI.setValue("eng_result_" .. c, text)
+    engineUI.setValue("eng_result_" .. c, text)
     -- (a long line smaller: "<NAME> WINS THE GAME" ran past the 1600-wide banner at 120)
-    UI.setAttribute("eng_result_" .. c, "fontSize", tostring(size or 120))
-    UI.setAttribute("eng_result_" .. c, "color", color)
-    UI.setAttribute("eng_result_" .. c, "outline", outline)
+    engineUI.setAttribute("eng_result_" .. c, "fontSize", tostring(size or 120))
+    engineUI.setAttribute("eng_result_" .. c, "color", color)
+    engineUI.setAttribute("eng_result_" .. c, "outline", outline)
     -- (not UI.show: it showed the text to every player, VICTORY over DEFEAT, playtest 2026-10-23)
-    UI.setAttribute("eng_result_" .. c, "active", "true")
+    engineUI.setAttribute("eng_result_" .. c, "active", "true")
     -- (one mark per player: a banner shown to two players at once hid only the second one's)
     FX.resultMark = FX.resultMark or {}
     FX.resultMark[c] = (FX.resultMark[c] or 0) + 1
     local mark = FX.resultMark[c]
-    Wait.time(function() if FX.resultMark[c] == mark then UI.setAttribute("eng_result_" .. c, "active", "false") end end, hold)
+    Wait.time(function() if FX.resultMark[c] == mark then engineUI.setAttribute("eng_result_" .. c, "active", "false") end end, hold)
   end
   local function seatedColors(m)
     local out = {}
@@ -3545,16 +3545,16 @@ do
       if countered[st.id] and (st.spell or st.sp) and panelReadyForPopup() then
         local stc = st.src and not st.fd and engineStatic[st.src] or nil
         engineSetImage("eng_pop_img", engineUiImage(st.f or (stc and stc.f) or ENGINE_BACK))
-        UI.setValue("eng_pop_who", "COUNTERED: " .. tostring(st.n))
-        UI.setAttribute("eng_pop_who", "color", "#FF6B5A")
-        UI.setValue("eng_pop_text", " ")
+        engineUI.setValue("eng_pop_who", "COUNTERED: " .. tostring(st.n))
+        engineUI.setAttribute("eng_pop_who", "color", "#FF6B5A")
+        engineUI.setValue("eng_pop_text", " ")
         enginePopOpen()
         popToken = popToken + 1
         local token = popToken
         popShown = nil
         Wait.time(function()
-          UI.setAttribute("eng_pop_who", "color", "#FFD27A")
-          if popToken == token then UI.setAttribute("eng_pop", "active", "false") end
+          engineUI.setAttribute("eng_pop_who", "color", "#FFD27A")
+          if popToken == token then engineUI.setAttribute("eng_pop", "active", "false") end
         end, 1.8)
         break
       end
@@ -4175,7 +4175,7 @@ local function setButton(id, attrs)
     changed.color = uiCache[id .. "|color"] or look.bg or ENGINE_THEME.button
   end
   if engineProfile then engineProfile.uiCalls = engineProfile.uiCalls + 1 end
-  UI.setAttributes(id, changed)
+  engineUI.setAttributes(id, changed)
 end
 
 local function setText(id, text)
@@ -4184,7 +4184,7 @@ local function setText(id, text)
   if uiCache[id] == text then return end
   uiCache[id] = text
   if engineProfile then engineProfile.uiCalls = engineProfile.uiCalls + 1 end
-  UI.setValue(id, text) -- Text and InputField elements draw their value
+  engineUI.setValue(id, text) -- Text and InputField elements draw their value
 end
 
 local function setAttr(id, attr, value)
@@ -4194,7 +4194,7 @@ local function setAttr(id, attr, value)
   if uiCache[key] == value then return end
   uiCache[key] = value
   if engineProfile then engineProfile.uiCalls = engineProfile.uiCalls + 1 end
-  UI.setAttribute(id, attr, value)
+  engineUI.setAttribute(id, attr, value)
 end
 
 local function statusText()
@@ -5256,17 +5256,23 @@ end
 -- the element: TTS honours "active" and the layout attributes from <Defaults> (checked in TTS, 2026-10-23), onClick
 -- there was not checked. An element that already has a class is left as written.
 -- Returns the compacted XML and the class entries it needs (they go into the document's one <Defaults> block).
-function engineXmlCompact(xml)
+-- With base (the table's own XML, M6 2026-11-16: six seats came to 77.8 KB) it also shortens what only the script reads:
+-- each eng_ id becomes a counter code (engineUiMap: the code stays the long id's for the session, so a click from an
+-- older XML still means its own element), each of their events calls E, which hands the handler the long id, a class
+-- is a code too, and an element with nothing inside closes itself. No code is one of base's ids or classes.
+function engineXmlCompact(xml, base)
   local tags, uses, pos = {}, {}, 1
   while true do
     local i, j, name = xml:find("<(%a%w*)", pos)
     if i == nil then break end
-    local keep, rest, has, k = {}, {}, false, j + 1
+    local keep, rest, has, k, id, events = {}, {}, false, j + 1, nil, {}
     while true do
       local _, e, key, val = xml:find('^%s+([%w_]+)="([^"]*)"', k)
       if e == nil then break end
       local pair = " " .. key .. '="' .. val .. '"'
-      if key == "id" or key == "visibility" or key:find("^on%u") then keep[#keep + 1] = pair
+      if key == "id" then id = val
+      elseif key:find("^on%u") then events[#events + 1] = { key, val }
+      elseif key == "visibility" then keep[#keep + 1] = pair
       else
         if key == "class" then has = true end
         rest[#rest + 1] = pair
@@ -5276,18 +5282,33 @@ function engineXmlCompact(xml)
     local _, e, close = xml:find("^%s*(/?)>", k)
     if e == nil then pos = j + 1
     else
+      local short = base ~= nil and id ~= nil and id:sub(1, 4) == "eng_"
+      if short then id = engineUiCodeFor(id, base) end
+      local front = id ~= nil and (' id="' .. id .. '"') or ""
+      for n, ev in ipairs(events) do
+        -- (one handler per element: a second event keeps its own, and gets the code)
+        if short and n == 1 then engineUiMap.h[id] = ev[2] front = front .. " " .. ev[1] .. '="E"'
+        else front = front .. " " .. ev[1] .. '="' .. ev[2] .. '"' end
+      end
       local look = (not has and #rest > 0) and (name .. table.concat(rest)) or nil
-      tags[#tags + 1] = { i = i, e = e, name = name, keep = table.concat(keep), rest = table.concat(rest), close = close, look = look }
+      -- (<X ...></X> as <X .../>: the XML means the same, 4 KB at six seats)
+      local shut = base ~= nil and close == "" and xml:sub(e + 1, e + 3 + #name) == "</" .. name .. ">"
+      tags[#tags + 1] = { i = i, e = shut and (e + 3 + #name) or e, name = name, keep = front .. table.concat(keep), rest = table.concat(rest), close = shut and "/" or close, look = look }
       if look ~= nil then uses[look] = (uses[look] or 0) + 1 end
       pos = e + 1
     end
   end
-  local out, defaults, class, last = {}, {}, {}, 1
+  local out, defaults, class, last, cn = {}, {}, {}, 1, 0
   for _, t in ipairs(tags) do
     out[#out + 1] = xml:sub(last, t.i - 1)
     if t.look ~= nil and uses[t.look] > 1 then
       if class[t.look] == nil then
-        class[t.look] = "m" .. (#defaults + 1)
+        local name = "m" .. (#defaults + 1)
+        if base ~= nil then
+          name, cn = engineUiCode(cn), cn + 1
+          while base:find('class="' .. name .. '"', 1, true) do name, cn = engineUiCode(cn), cn + 1 end
+        end
+        class[t.look] = name
         defaults[#defaults + 1] = "<" .. t.name .. ' class="' .. class[t.look] .. '"' .. t.rest .. "/>"
       end
       out[#out + 1] = "<" .. t.name .. t.keep .. ' class="' .. class[t.look] .. '"' .. t.close .. ">"
@@ -5299,6 +5320,44 @@ function engineXmlCompact(xml)
   out[#out + 1] = xml:sub(last)
   return table.concat(out), table.concat(defaults)
 end
+-- The screen UI's short ids (engineXmlCompact): s = long -> code, l = code -> long, h = code -> its handler's name.
+-- Everything else keeps using the long ids: engineUI below maps them at the call to TTS.
+engineUiMap = { s = {}, l = {}, h = {}, n = 0 }
+-- n -> "a".."z", then a letter and base 36 ("a1".."zz", "a10"...): unique, and a letter first
+function engineUiCode(n)
+  local q, tail = math.floor(n / 26), ""
+  while q > 0 do
+    local r = q % 36
+    tail = ("0123456789abcdefghijklmnopqrstuvwxyz"):sub(r + 1, r + 1) .. tail
+    q = math.floor(q / 36)
+  end
+  return string.char(97 + n % 26) .. tail
+end
+function engineUiCodeFor(long, base)
+  local m = engineUiMap
+  if m.s[long] ~= nil then return m.s[long] end
+  local code = engineUiCode(m.n)
+  m.n = m.n + 1
+  while base:find('id="' .. code .. '"', 1, true) do code = engineUiCode(m.n) m.n = m.n + 1 end
+  m.s[long], m.l[code] = code, long
+  return code
+end
+function engineUiId(id) return engineUiMap.s[id] or id end
+-- every eng_ event: the element's handler, with the long id it was written with
+function E(player, value, id)
+  local h = engineUiMap.h[id]
+  local f = h ~= nil and _G[h] or nil
+  if f == nil then return end
+  return f(player, value, engineUiMap.l[id] or id)
+end
+-- UI.* for the screen UI's own elements, by their long ids (a table id passes through unchanged)
+engineUI = {
+  setAttribute = function(id, k, v) return UI.setAttribute(engineUiId(id), k, v) end,
+  setAttributes = function(id, t) return UI.setAttributes(engineUiId(id), t) end,
+  setValue = function(id, v) return UI.setValue(engineUiId(id), v) end,
+  getAttribute = function(id, k) return UI.getAttribute(engineUiId(id), k) end,
+  getValue = function(id) return UI.getValue(engineUiId(id)) end,
+}
 -- the classes into the table's own <Defaults> block (one per document), or a block of their own
 function engineXmlJoin(base, ours, defaults)
   if defaults == "" then return base .. "\n" .. ours end
@@ -5307,13 +5366,40 @@ function engineXmlJoin(base, ours, defaults)
   return "<Defaults>" .. defaults .. "</Defaults>\n" .. base .. "\n" .. ours
 end
 function engineXmlMinify(xml) return (xml:gsub("\r?\n%s*", " "):gsub(">%s+<", "><")) end
+-- One <Panel id="..."> of an XML and everything in it, cut out by plain finds (nil when there's none).
+function engineXmlCut(xml, id)
+  local i = xml:find('<Panel id="' .. id .. '"', 1, true)
+  if i == nil then return nil end
+  local depth, pos = 0, i
+  while true do
+    local o, c = xml:find("<Panel", pos, true), xml:find("</Panel>", pos, true)
+    if c == nil then return nil end
+    if o ~= nil and o < c then
+      local e = xml:find(">", o, true)
+      if xml:sub(e - 1, e - 1) ~= "/" then depth = depth + 1 end
+      pos = e + 1
+    else
+      depth, pos = depth - 1, c + 8
+      if depth == 0 then return xml:sub(1, i - 1) .. xml:sub(pos) end
+    end
+  end
+end
+-- The table's own UI in engine mode, without its "Reveal until type" and Cascade panels: both tools are blocked while
+-- the engine runs the game (make-engine-copy.js guard), and they are 6 KB of the screen UI (M6, 2026-11-16).
+-- setEngineMode rebuilds the UI, so the normal table has them back.
+ENGINE_DEAD_PANELS = { "SearchTypePanel", "GetValuePanel" }
+function engineTablePanels(base)
+  for _, id in ipairs(ENGINE_DEAD_PANELS) do base = engineXmlCut(base, id) or base end
+  return base
+end
 
 -- Builds the panels once (and again only when the seated colours change); otherwise just updates them.
 -- promptColor: refresh that colour's options too ("none" = status lines only, nil = everyone's options).
 function engineRenderPanels(promptColor)
   local seated = {}
   for _, c in ipairs(getSeatedPlayers()) do if data[c] then seated[#seated + 1] = c end end
-  local key = table.concat(seated, ",")
+  -- (engine mode in the key: its UI leaves out two of the table's panels, engineTablePanels)
+  local key = table.concat(seated, ",") .. (ENGINE_MODE and "|engine" or "")
   if key ~= builtFor then
     builtFor, panelReady, uiCache = key, false, {}
     if engineAbPanelFor ~= nil then engineAbPanelFor = {} end -- (rebuilt hidden: pointing at the card shows it again)
@@ -5324,13 +5410,15 @@ function engineRenderPanels(promptColor)
     for _, c in ipairs(seated) do parts[#parts + 1] = panelXml(c) parts[#parts + 1] = cornerXml(c) end
     parts[#parts + 1] = POPUP_XML
     parts[#parts + 1] = engineAutoListXml()
-    local raw = table.concat(parts, "\n")
+    -- (the line breaks between our elements out: a lone space inside an element is its text and stays)
+    local raw = table.concat(parts, "\n"):gsub(">%s*\n%s*<", "><")
     engineBtnLook = {}
     engineRecordButtons(raw)
-    local ours, defaults = engineXmlCompact(raw)
+    local ours, defaults = engineXmlCompact(raw, baseXml)
     -- (without the table's Scryfall search and deck panels, the last thing in its UI: only an "MTG Importer" object opens
     -- them, and the table has none, docs/table-functions-global-importer.md 1.8. 3.8 KB of the 60 KB limit, 2026-10-30)
     local base = baseXml:sub(1, (baseXml:find('<Panel id="SearchPanel"', 1, true) or #baseXml + 1) - 1)
+    if ENGINE_MODE then base = engineTablePanels(base) end
     local xml = engineXmlJoin(base, ours, defaults)
     engineXmlSize = #xml
     if engineXmlSize > 60000 then
@@ -8422,6 +8510,7 @@ function setEngineMode(on)
   engineTableButtons(false) -- (back for everyone; READY hides a player's own set again)
   engineHideForEngine(on)
   if not on and engineStatusParkAll ~= nil then pcall(engineStatusParkAll) end -- (the normal table never shows them)
+  engineRenderPanels("none") -- (a new screen UI: engine mode leaves out two of the table's panels, engineTablePanels)
 end
 Wait.frames(function() engineTableButtons(false) engineHideForEngine(ENGINE_MODE) end, 20)
 
@@ -9113,7 +9202,7 @@ function engineScoopRedraw()
     end
     -- (through setAttr: shown with a plain UI.setAttribute, its label was drawn dark red on red, 2026-11-10 screenshots)
     setAttr("eng_scoop_" .. c, "active", show and "true" or "false")
-    if not show then UI.setAttribute("eng_scoopask_" .. c, "active", "false") end
+    if not show then engineUI.setAttribute("eng_scoopask_" .. c, "active", "false") end
   end
 end
 
@@ -9125,15 +9214,15 @@ end
 
 -- Scoop: the button opens the "Concede this game?" box; Scoop there concedes (each player sees only their own)
 function onMtgScoopAsk(player, value, id)
-  if id == "eng_scoop_" .. player.color then UI.setAttribute("eng_scoopask_" .. player.color, "active", "true") end
+  if id == "eng_scoop_" .. player.color then engineUI.setAttribute("eng_scoopask_" .. player.color, "active", "true") end
 end
 function onMtgScoopYes(player, value, id)
   if id ~= "eng_scoopyes_" .. player.color then return end
-  UI.setAttribute("eng_scoopask_" .. player.color, "active", "false")
+  engineUI.setAttribute("eng_scoopask_" .. player.color, "active", "false")
   engineSend("concede", { color = player.color })
 end
 function onMtgScoopNo(player, value, id)
-  if id == "eng_scoopno_" .. player.color then UI.setAttribute("eng_scoopask_" .. player.color, "active", "false") end
+  if id == "eng_scoopno_" .. player.color then engineUI.setAttribute("eng_scoopask_" .. player.color, "active", "false") end
 end
 
 function onMtgSetupReady(obj, playerColor)

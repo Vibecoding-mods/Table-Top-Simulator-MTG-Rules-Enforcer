@@ -1,0 +1,12 @@
+{
+ "note": "screen UI bytes by seats, engine mode on (tests/test_ui_budget.js)",
+ "engineOn": {
+  "1": 16785,
+  "2": 25465,
+  "3": 32256,
+  "4": 39107,
+  "5": 45938,
+  "6": 52789
+ },
+ "sixEngineOff": 58862
+}

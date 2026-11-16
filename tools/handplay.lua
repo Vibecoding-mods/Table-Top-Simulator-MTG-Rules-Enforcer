@@ -36,8 +36,8 @@ end
 -- what the player sees for the open question (ease-of-use review, 2026-10-22): the instruction line, the corner
 -- buttons, the card row and whether the Engine panel had to open, with its title, text and buttons
 function HP.seen(color)
-  local A = function(id, k) return UI.getAttribute(id, k) end
-  local V = function(id) return UI.getValue(id) end
+  local A = function(id, k) return (engineUI or UI).getAttribute(id, k) end -- (engineUI: the screen ids are short, M6)
+  local V = function(id) return (engineUI or UI).getValue(id) end
   local s = { hint = V("eng_hint_" .. color), big = A("eng_big_" .. color, "active") == "true" and A("eng_big_" .. color, "text") or nil,
     big2 = A("eng_big2_" .. color, "active") == "true" and A("eng_big2_" .. color, "text") or nil,
     row = A("eng_row_" .. color, "active") == "true", panel = A("eng_panel_" .. color, "active") == "true" }
