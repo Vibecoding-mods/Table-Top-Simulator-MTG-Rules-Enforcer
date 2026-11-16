@@ -480,6 +480,68 @@ function onPlanes(m) {
   for (const n of names) cachedImage(n); // (their pictures ahead of the game: a plane is in no table deck)
   chat(`[MTG] Planar decks: ${names.join(", ")}.${planechase.on ? "" : " (Planechase is off: mtg planechase on)"}`);
 }
+// ───────────────────────── Archenemy (docs/team-turns-archenemy-plan.md §2.7, step 8) ─────────────────────────
+// The host's switch for the next games ("mtg archenemy <colour>" / "mtg archenemy off", like Planechase's) and the
+// scheme deck ("mtg schemes random" for 20 of Forge's schemes at random, or "mtg schemes <name>; <name>; ...", a name
+// twice for two copies, "2 <name>" too). The archenemy is the colour's seat: a seated player, or an AI one. The deck goes
+// to the engine in gameConfig (teams2hg.gameConfig, players[].schemes); the engine checks it again.
+const archenemy = { on: false, color: "White", names: null };
+let forgeSchemeList = null;
+function forgeSchemes() {
+  if (!forgeSchemeList) {
+    try { const j = JSON.parse(fs.readFileSync(path.join(__dirname, "forge-schemes.json"), "utf8")); forgeSchemeList = [...(j.schemes || []), ...(j.ongoing || [])]; }
+    catch { forgeSchemeList = []; log("forge-schemes.json missing: run node tools/build-forge-scheme-list.js"); }
+  }
+  return forgeSchemeList;
+}
+// a typed name as Forge spells it, or null
+function schemeNamed(typed) {
+  const k = normName(typed);
+  return forgeSchemes().find((n) => normName(n) === k) || null;
+}
+// 20 different schemes at random, or null when the bridge's list has fewer
+const randomSchemes = () => (forgeSchemes().length >= teams2hg.ARCH_SCHEMES ? shuffled(forgeSchemes()).slice(0, teams2hg.ARCH_SCHEMES) : null);
+const schemeWords = () => (archenemy.names ? `${archenemy.names.length} chosen schemes` : `${teams2hg.ARCH_SCHEMES} random schemes`);
+function onArchenemy(m) {
+  const text = String(m.text || "").trim();
+  const color = TABLE_COLORS.find((c) => c.toLowerCase() === text.toLowerCase());
+  if (text === "") return chat(`[MTG] Archenemy is ${archenemy.on ? `on: ${archenemy.color} is the archenemy, with ${schemeWords()}` : "off"}. The host sets it:  mtg archenemy <colour>  (the next games),  mtg archenemy off,  mtg schemes random  or  mtg schemes <name>; <name>; ...`, m.color);
+  if (/^off$/i.test(text)) { archenemy.on = false; return chat("[MTG] Archenemy off for the next games."); }
+  if (!color) return chat(`[MTG] Use:  mtg archenemy <colour>  (${TABLE_COLORS.join(", ")}: a seated player, or an AI seat) or  mtg archenemy off`, m.color);
+  Object.assign(archenemy, { on: true, color });
+  chat(`[MTG] Archenemy on for the next games: ${color} is the archenemy (${schemeWords()}; mtg schemes to choose), against everyone else as one team. Undo is off in Archenemy games.`);
+}
+function onSchemes(m) {
+  const text = String(m.text || "").trim();
+  if (text === "" || /^random$/i.test(text)) {
+    archenemy.names = null;
+    return chat(`[MTG] Scheme deck: ${schemeWords()}.${archenemy.on ? "" : " (Archenemy is off: mtg archenemy <colour>)"}`);
+  }
+  const typed = [];
+  for (const part of text.split(/\s*[;\n]\s*/).filter(Boolean)) {
+    const q = /^(\d+)x?\s+(.+)$/i.exec(part);
+    const k = q ? Number(q[1]) : 1;
+    for (let i = 0; i < Math.min(k, 9); i++) typed.push(q ? q[2] : part);
+  }
+  const found = typed.map((t) => schemeNamed(t));
+  const unknown = [...new Set(typed.filter((t, i) => !found[i]))];
+  if (unknown.length) return chat(`[MTG] Not schemes Forge knows: ${unknown.join("; ")}. Separate names with ;`, m.color);
+  const problem = teams2hg.schemeDeckProblem(found);
+  if (problem) return chat(`[MTG] Not a scheme deck: ${problem}.`, m.color);
+  archenemy.names = found;
+  for (const n of new Set(found)) cachedImage(n); // (their pictures ahead of the game: a scheme is in no table deck)
+  chat(`[MTG] Scheme deck: ${found.length} chosen schemes.${archenemy.on ? "" : " (Archenemy is off: mtg archenemy <colour>)"}`);
+}
+// The bridge's Archenemy switch makes the next start an Archenemy game, whatever teams the table sent (setup:
+// teams2hg.setupOf's); a start that is already one keeps its archenemy, with the host's scheme list when it has none.
+function withArchenemy(setup) {
+  if (setup.mode === "archenemy") return { ...setup, arch: { ...setup.arch, schemes: setup.arch.schemes || archenemy.names } };
+  if (!archenemy.on) return setup;
+  return { teams: teams2hg.juggTeams(archenemy.color), mode: "archenemy", jugg: null, turns: null, arch: { color: archenemy.color, schemes: archenemy.names } };
+}
+// Undo in an Archenemy game: the engine takes no restore points there (the schemes in play aren't rewind-safe yet)
+const ARCH_NO_UNDO = "Undo isn't available in Archenemy games: the schemes in play can't be rewound yet.";
+
 // a plane for the deck sent to the engine (as a preset's cards are, loadPreset)
 const planeDeckCard = (name) => ({ identity: { name, setCode: "", cardNumber: "" }, manaCost: "", cmc: 0, types: [planeNamed(name)?.phenomenon ? "Phenomenon" : "Plane"],
   subtypes: [], supertypes: [], colorIdentity: [], text: "", uris: {} });
@@ -1601,7 +1663,8 @@ const forgeBotCount = () => game.bots - (game.harmlessWanted || []).length;
 // (the default with teams), "2v2" or "juggernaut"; jugg: the Juggernaut's settings (teams2hg.juggOf). A Juggernaut
 // start's teams are already the Juggernaut's (setupOf, the start handler).
 // turns: "shared" for Two-Headed Giant Level 2 (the team's one turn, teamRules "sharedTurns"), else null (setupOf).
-function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0, mode = gameMode.mode, teams = null, teamMode = "2hg", jugg = null, turns = null) {
+// arch: Archenemy's { color, schemes } (schemes null: 20 at random), withArchenemy.
+function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0, mode = gameMode.mode, teams = null, teamMode = "2hg", jugg = null, turns = null, arch = null) {
   if (game) { chat('[MTG] A game is already set up. Type "mtg reset" first.'); return; }
   const std = mode === "standard";
   // (a deck checked for the other mode is no deck for this one: checked again with Ready)
@@ -1620,6 +1683,20 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   // check for every other path to a start)
   const teamProblem = teams && (teams2hg.teamModeProblem(teamMode, mode) || teams2hg.teamsProblem(teams, total, teamMode));
   if (teamProblem) { chat(`[MTG] Not started: ${teamProblem}`); return; }
+  // (Archenemy: the archenemy's seat in this game, and the scheme deck, checked as the engine checks it)
+  let archGame = null;
+  if (teams && teamMode === "archenemy") {
+    const a = arch || teams2hg.archOf(null);
+    if (!(total === TABLE_COLORS.length || seatList.includes(a.color) || preset.includes(a.color))) {
+      chat(`[MTG] Not started: Archenemy: ${a.color} isn't in this game (seated: ${seatList.join(", ")}; AI players take the free seats in turn order). Seat ${a.color}, make it an AI seat (mtg ai ${a.color} forge), or fill all four seats.`);
+      return;
+    }
+    const names = a.schemes || randomSchemes();
+    const problem = names ? teams2hg.schemeDeckProblem(names) : "the bridge's scheme list is empty (node tools/build-forge-scheme-list.js)";
+    if (problem) { chat(`[MTG] Not started: Archenemy: ${problem}.`); return; }
+    archGame = { color: a.color, names, chosen: !!a.schemes };
+    for (const n of new Set(names)) cachedImage(n);
+  }
   const aiTable = aiSeats.filter((c) => readyFor(c, mode) && !preset.includes(c)).slice(0, bots - preset.length); // (empty seats' ready decks, in order: see below)
   // (a debug scenario with "planechase" turns it on for this game with its own planes, debugPlanechase)
   const dbgPlanes = fromTable ? debugPlanechase(seatList) : null;
@@ -1631,7 +1708,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   game = { seats: new Map(), bots, total, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false, fromTable, setupAt: Date.now(), pendingPlays: [],
     friendly: friendlyCount(friendly), mode,
     teams: teams || null, // (a team mode: sent to the engine as gameConfig before StartGame, onRoomUpdate)
-    ...(teams ? { teamMode, ...(teamMode === "juggernaut" ? { jugg } : {}), ...(teamMode === "2hg" && turns === "shared" ? { teamTurns: "shared" } : {}) } : {}),
+    ...(teams ? { teamMode, ...(teamMode === "juggernaut" ? { jugg } : {}), ...(archGame ? { arch: archGame } : {}), ...(teamMode === "2hg" && turns === "shared" ? { teamTurns: "shared" } : {}) } : {}),
     // (Planechase: the planar pool, sent in the first seated player's deck, onRoomUpdate)
     planes: pool?.names || null, planeSeat: pool ? seatList[0] : null,
     // decks put in empty seats' library zones (checked by "mtg ready" like a player's) are played by the AI; the seat
@@ -1652,7 +1729,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   const harmlessN = game.harmlessWanted.length, forgeN = forgeBotCount();
   chat(`[MTG] Setting up${std ? ` ${teams ? "Standard" : modeWords(mode, total)}` : ""}: ${seatList.join(", ")}${forgeN ? ` + ${forgeN} Forge AI` : ""}${harmlessN ? ` + ${harmlessN} harmless bot${harmlessN > 1 ? "s" : ""}` : ""}...`);
   if (preset.length) chat(`[MTG] AI seats: ${aiSeatsText(preset)}.`);
-  if (teams) chat(`[MTG] ${teams2hg.setupWords(teamMode, teams, jugg, std, game.teamTurns || null)}`);
+  if (teams) chat(`[MTG] ${teams2hg.setupWords(teamMode, teams, jugg, std, game.teamTurns || null, game.arch ? { color: game.arch.color, schemes: game.arch.chosen ? game.arch.names : null } : null)}`);
   log(`setup: seats ${seatList.join(", ")}, bots ${bots}, relay ${RELAY}`);
 }
 
@@ -1739,7 +1816,7 @@ function onRoomUpdate(seat, room) {
     // (a team mode: the teams first, which the node keeps for the game it starts next, host.rs gameConfig)
     if (game.teams) controllerOf(room, seats).send({ type: "BroadcastState", state: {
       kind: "roomRelay", protocol: "self-hosted-node", version: 1, messageId: `tts-${Date.now()}-teams`, roomId: seat.roomId,
-      payload: teams2hg.gameConfig(game.teams, order, game.seatColors, game.teamMode, game.jugg, game.mode === "standard", game.teamTurns || null) } });
+      payload: teams2hg.gameConfig(game.teams, order, game.seatColors, game.teamMode, game.jugg, game.mode === "standard", game.teamTurns || null, game.arch || null) } });
     controllerOf(room, seats).send({ type: "StartGame", format: MODES[game.mode || "commander"].format, seat_order: order });
   }
 }
@@ -5915,7 +5992,7 @@ function sendTable() {
     winner: pub.winnerId ? game.slotColor[pub.winnerId] || nameOf(pub.winnerId) : null, players, stack, cards: statics,
     rewind, // restore points and the open vote (in the board update: a message of its own doubled the traffic)
     ...(planes.length || planar ? { planes, planar } : {}), // (Planechase: planarRow)
-    ...teams2hg.teamsField(pub, game.slotColor, game.teamMode), // (a team game: the sides, 2HG's poison limit, the Juggernaut, who won)
+    ...teams2hg.teamsField(pub, game.slotColor, game.teamMode, game.arch?.color || null), // (a team game: the sides, 2HG's poison limit, the Juggernaut, who won)
     ...(game.fix ? { fix: fixState() } : {}), // (a manual fix under way, PLAN M7)
   };
   // An update identical to the last one costs TTS a decode and a redraw for nothing (and feeds its GC pauses).
@@ -6062,7 +6139,7 @@ function gameEndWords(gv) {
   const lost = [lossReasons(gv), decked.length ? `${andList(decked)} drew from an empty library` : null,
     conceded.length ? `${andList(conceded)} conceded` : null, other.length ? `${andList(other)} lost the game` : null].filter(Boolean).join(", ") || null;
   // (Two-Headed Giant: the winning team, "White + Red win")
-  const team = gv?.winnerId ? teams2hg.teamsField(gv, game?.slotColor || {}, game?.teamMode).teams?.won : null;
+  const team = gv?.winnerId ? teams2hg.teamsField(gv, game?.slotColor || {}, game?.teamMode, game?.arch?.color || null).teams?.won : null;
   const won = team ? teams2hg.teamWinWords(team, (c) => nameOf((game && slotOfColor(c)) || c)) : gv?.winnerId ? `${nameOf(gv.winnerId)} wins` : null;
   if (lost) return won ? `${lost}. ${won}` : lost;
   // (a draw only when the engine says the game is over: a gameOver question with a board still playing tells nothing)
@@ -10946,7 +11023,7 @@ function onTTS(m) {
       warnIfOutOfStep();
       const go = () => {
         noteTableSeats(m, false); // (the table's seats, if it says them: a bridge started after its hello)
-        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m), ...(({ teams, mode, jugg, turns }) => [teams, mode || "2hg", jugg, turns])(teams2hg.setupOf(m)));
+        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m), ...(({ teams, mode, jugg, turns, arch }) => [teams, mode || "2hg", jugg, turns, arch || null])(withArchenemy(teams2hg.setupOf(m))));
         if (game && m.autoplay) game.autoplay = true;
       };
       // the table's Start button (autoReset): a game left over from before is reset first, and a room that is still
@@ -11090,6 +11167,12 @@ function onTTS(m) {
     case "planes":
       onPlanes(m);
       break;
+    case "archenemy": // "mtg archenemy <colour>|off" (host, checked on the table)
+      onArchenemy(m);
+      break;
+    case "schemes": // "mtg schemes random|<name>; <name>" (host, checked on the table)
+      onSchemes(m);
+      break;
     case "art": // "mtg art on|off" (host, checked on the table)
       onArt(m);
       break;
@@ -11148,7 +11231,8 @@ function rewindState(gv) {
     vote.note = busy.length ? `Everyone agreed. ${busy.map((st) => `${st.color} still has "${st.prompt.ui?.title || st.prompt.type}" open`).join(" and ")}: press Rewind to go now.`
       : "Agreed: rewinding...";
   }
-  return { points, vote };
+  // (an Archenemy game takes no restore points: the table says why instead of "no restore points yet")
+  return { points, vote, ...(game?.arch ? { off: ARCH_NO_UNDO } : {}) };
 }
 // the rewind part of a board update, announcing a vote's changes in chat
 function rewindNews(pub) {
@@ -11172,6 +11256,7 @@ function onRewind(color, checkpointId) {
   // "Players who are out can't ask to rewind", Kykar hand test #16)
   if (gv.gameOver || game.over) { const why = gameEndWords(gv); return chat(`[MTG] The game has ended${why ? ` (${why})` : ""}, so it can't be rewound. Start a new game.`, color); }
   if (game.fix) return chat("[MTG] Finish the manual fix first (or cancel it).", color);
+  if (game.arch) return chat(`[MTG] ${ARCH_NO_UNDO}`, color);
   const cp = (gv.checkpoints || []).find((c) => String(c.checkpointId) === String(checkpointId));
   if (!cp) return chat("[MTG] That point is no longer kept. Type  mtg undo  for the current list.", color);
   if (gv.restoreVote?.status?.type === "pending") return chat("[MTG] A rewind vote is already open.", color);
@@ -12437,6 +12522,7 @@ if (require.main === module) {
     summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword, playWindow,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
     _spellsMark: spellsMark, _actingFor: actingFor, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice,
+    _archenemy: archenemy, _onArchenemy: onArchenemy, _onSchemes: onSchemes, _withArchenemy: withArchenemy, _forgeSchemes: forgeSchemes, ARCH_NO_UNDO,
     _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, setPickedHand, splitHandText, handOps, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _customArt: customArt, artProblem, isCustomArt,
