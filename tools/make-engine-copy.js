@@ -472,7 +472,7 @@ function engineChat(message, pl)
     -- rewind by vote: "mtg undo" lists the restore points, "mtg undo 3" asks to go back to the third
     local pts = (engineRewind and engineRewind.points) or {}
     local k = tonumber(rest:match("^(%d+)") or "")
-    if #pts == 0 then pl.broadcast("[MTG] No restore points yet (they come with a running engine game).")
+    if #pts == 0 then pl.broadcast((engineRewind and engineRewind.off) and ("[MTG] " .. engineRewind.off) or "[MTG] No restore points yet (they come with a running engine game).")
     elseif k ~= nil then
       if not engineAskRewind(pl.color, k) then pl.broadcast("[MTG] No point " .. k .. ". Type  mtg undo  for the list.") end
     else
@@ -615,6 +615,12 @@ function engineChat(message, pl)
     if not isHost then pl.broadcast("[MTG] Only the host can set up Planechase.") return false end
     if cmd == "planechase" then engineSend("planechase", { color = pl.color, on = rest ~= "off" })
     else engineSend("planes", { color = pl.color, text = rest }) end
+  elseif cmd == "archenemy" or cmd == "schemes" then
+    -- Archenemy for the next games (host): mtg archenemy <colour> / off; mtg schemes random / mtg schemes <name>; <name>
+    -- (the bridge checks the colour and the names against Forge's schemes, docs/team-turns-archenemy-plan.md §2.7)
+    if not isHost and rest ~= "" then pl.broadcast("[MTG] Only the host can set up Archenemy.") return false end
+    if cmd == "archenemy" then engineSend("archenemy", { color = pl.color, text = rest })
+    else engineSend("schemes", { color = pl.color, text = rest }) end
   elseif cmd == "mode" then
     -- the next games' mode (host): mtg mode standard / mtg mode commander (docs/game-modes-spec.md §3.4); "mtg mode" says it
     if rest == "" then pl.broadcast("[MTG] Game mode: " .. (ENGINE_GAME_MODE == "standard" and "Standard" or "Commander") .. (ENGINE_TEAMS ~= nil and engineTeamsText ~= nil and (", " .. (ENGINE_TEAM_NAMES[ENGINE_TEAM_MODE or "2hg"] or "Two-Headed Giant") .. " (" .. engineTeamsText() .. ")") or "") .. ". The host changes it:  mtg mode standard  or  mtg mode commander  (or the Game mode button); teams:  mtg mode 2hg,  mtg mode 2v2,  mtg mode juggernaut  or  mtg mode ffa  (or the Teams button).")
@@ -663,6 +669,7 @@ function engineChat(message, pl)
       " mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off",
       " mtg hand <card>, <card> ... (debug tools on, against the AI) - your next game's starting hand, the rest dealt from your deck; mtg hand off",
       " mtg planechase on|off (host) - Planechase in the next games; mtg planes random [N] / mtg planes <name>; <name> - the planar decks",
+      " mtg archenemy <colour>|off (host) - Archenemy in the next games: that seat (a player or an AI) against everyone else; mtg schemes random / mtg schemes <name>; <name> - the scheme deck (20 or more, 2 of each at most)",
       " mtg art off|on (host) - the players' own card pictures (1 Sol Ring #https://... in the deck list) or the normal ones, for everyone",
       " mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)",
       " mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)",

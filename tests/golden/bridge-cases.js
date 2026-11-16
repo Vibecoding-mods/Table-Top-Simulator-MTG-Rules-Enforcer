@@ -7327,4 +7327,61 @@ add(promptCase("rebuilt #7: an opponent's reveal said once as theirs", D2.board,
   } });
 }
 
+// ── Archenemy (docs/team-turns-archenemy-plan.md step 8): the host's chat commands, a start to the engine's gameConfig,
+// the refusals at start, and Undo off ──
+{
+  const SCH = require("../../bridge/forge-schemes.json");
+  const TWENTY = [...SCH.schemes, ...SCH.ongoing].slice(0, 20);
+  const say = (h, t, json) => h.B.onTTS({ t, json: JSON.stringify(json) });
+  // Blue at the table, three Forge AIs: the start's messages to the relay up to StartGame
+  const toStart = async (h) => {
+    const blue = h.B._getGame().seats.get("Blue");
+    blue.heartbeat = () => {};
+    blue.ws.emit("open");
+    const frame = (msg) => blue.ws.emit("message", JSON.stringify(msg));
+    frame({ type: "AuthResult", success: true });
+    frame({ type: "RoomList", rooms: [{ room_id: "room-1", room_name: "tts-commander", status: "Lobby" }] });
+    const bots = ["Forge AI", "Forge AI 2", "Forge AI 3"].map((u) => ({ username: u, ready: true, connected: true, is_bot: true }));
+    frame({ type: "RoomUpdate", room: { room_id: "room-1", status: "Lobby", max_players: 4, players: [{ username: blue.username, ready: true, connected: true }, ...bots] } });
+    await h.flush();
+  };
+  const summary = (h) => { const g = h.B._getGame(); return g ? { teams: g.teams, teamMode: g.teamMode || null, arch: g.arch || null } : null; };
+  add({ name: "archenemy: mtg archenemy Blue, random schemes, a start to gameConfig", run: async (h) => {
+    say(h, "archenemy", { color: "Blue", text: "" }); await h.flush();
+    say(h, "archenemy", { color: "Blue", text: "Blue" }); await h.flush();
+    say(h, "schemes", { color: "Blue", text: "random" }); await h.flush();
+    say(h, "start", { seats: ["Blue"], bots: 3 }); await h.flush();
+    await toStart(h);
+    return summary(h);
+  } });
+  add({ name: "archenemy: a pasted scheme list, two of one", run: async (h) => {
+    say(h, "archenemy", { color: "Blue", text: "red" }); await h.flush();
+    say(h, "schemes", { color: "Blue", text: `2 ${TWENTY[0]}; ${TWENTY.slice(1, 19).join("; ")}` }); await h.flush();
+    say(h, "schemes", { color: "Blue", text: `${TWENTY.slice(0, 19).join("; ")}; Not A Scheme` }); await h.flush();
+    say(h, "schemes", { color: "Blue", text: TWENTY.slice(0, 10).join("; ") }); await h.flush();
+    say(h, "start", { seats: ["Blue"], bots: 3 }); await h.flush();
+    await toStart(h);
+    return summary(h);
+  } });
+  add({ name: "archenemy: a Standard start from the table, an AI archenemy", run: async (h) => {
+    say(h, "start", { seats: ["Blue"], bots: 3, mode: "standard", teamMode: "archenemy", archenemy: { color: "White", schemes: TWENTY } }); await h.flush();
+    await toStart(h);
+    return summary(h);
+  } });
+  add({ name: "archenemy: refused starts (the archenemy not in the game, a short list)", run: async (h) => {
+    say(h, "archenemy", { color: "White", text: "Blue" }); await h.flush();
+    say(h, "start", { seats: ["White"], bots: 1 }); await h.flush();
+    say(h, "archenemy", { color: "White", text: "off" }); await h.flush();
+    say(h, "start", { seats: ["Blue"], bots: 3, teamMode: "archenemy", archenemy: { color: "Blue", schemes: TWENTY.slice(0, 5) } }); await h.flush();
+    return summary(h);
+  } });
+  add({ name: "archenemy: undo refused, the board says why", run: async (h) => {
+    const seat = game(h, D2.board, { game: { teamMode: "archenemy", teams: { White: 2, Blue: 1 }, arch: { color: "Blue", names: TWENTY, chosen: true } } });
+    seat.board.state.gameView.checkpoints = [{ checkpointId: 1, turn: 10, activePlayerId: "player-0", step: "main1" }];
+    say(h, "rewind", { color: "Blue", checkpointId: 1 }); await h.flush();
+    h.B.sendTable(); await h.flush();
+    return summary(h);
+  } });
+}
+
 module.exports = cases;
