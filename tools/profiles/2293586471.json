@@ -468,12 +468,314 @@
    ]
   }
  },
- "cmdDamage": null,
+ "cmdDamage": {
+  "White": {
+   "Red": "4ead70",
+   "Yellow": "14cce7",
+   "Green": "d674eb",
+   "Blue": "cec148",
+   "Purple": "ba8762"
+  },
+  "Purple": {
+   "Blue": "aeaf73",
+   "Green": "9bfad1",
+   "Yellow": "0a3464",
+   "Red": "ed5cfe",
+   "White": "af5048"
+  },
+  "Blue": {
+   "Purple": "b8ff72",
+   "White": "8b9546",
+   "Red": "0d9c7f",
+   "Yellow": "d76a07",
+   "Green": "8ccd8c"
+  },
+  "Green": {
+   "Blue": "e8fcd4",
+   "Purple": "d47ab9",
+   "White": "c41b0e",
+   "Red": "ddce39",
+   "Yellow": "2be20d"
+  },
+  "Yellow": {
+   "Red": "18440d",
+   "White": "5555db",
+   "Purple": "a93821",
+   "Blue": "1398dc",
+   "Green": "e5c73e"
+  },
+  "Red": {
+   "Yellow": "53a908",
+   "Green": "130bf5",
+   "Blue": "4d1783",
+   "Purple": "cec137",
+   "White": "e0019f"
+  }
+ },
+ "cmdDamageMade": [
+  {
+   "guid": "4ead70",
+   "victim": "White",
+   "attacker": "Red",
+   "x": 38.97,
+   "z": -3,
+   "rotY": 180
+  },
+  {
+   "guid": "14cce7",
+   "victim": "White",
+   "attacker": "Yellow",
+   "x": 40.37,
+   "z": -3,
+   "rotY": 180
+  },
+  {
+   "guid": "d674eb",
+   "victim": "White",
+   "attacker": "Green",
+   "x": 41.77,
+   "z": -3,
+   "rotY": 180
+  },
+  {
+   "guid": "cec148",
+   "victim": "White",
+   "attacker": "Blue",
+   "x": 43.17,
+   "z": -3,
+   "rotY": 180
+  },
+  {
+   "guid": "ba8762",
+   "victim": "White",
+   "attacker": "Purple",
+   "x": 44.57,
+   "z": -3,
+   "rotY": 180
+  },
+  {
+   "guid": "53a908",
+   "victim": "Red",
+   "attacker": "Yellow",
+   "x": 9.57,
+   "z": -3,
+   "rotY": 180
+  },
+  {
+   "guid": "130bf5",
+   "victim": "Red",
+   "attacker": "Green",
+   "x": 10.97,
+   "z": -3,
+   "rotY": 180
+  },
+  {
+   "guid": "4d1783",
+   "victim": "Red",
+   "attacker": "Blue",
+   "x": 12.37,
+   "z": -3,
+   "rotY": 180
+  },
+  {
+   "guid": "cec137",
+   "victim": "Red",
+   "attacker": "Purple",
+   "x": 13.77,
+   "z": -3,
+   "rotY": 180
+  },
+  {
+   "guid": "e0019f",
+   "victim": "Red",
+   "attacker": "White",
+   "x": 15.17,
+   "z": -3,
+   "rotY": 180
+  },
+  {
+   "guid": "e5c73e",
+   "victim": "Yellow",
+   "attacker": "Green",
+   "x": -19.84,
+   "z": -3,
+   "rotY": 180
+  },
+  {
+   "guid": "1398dc",
+   "victim": "Yellow",
+   "attacker": "Blue",
+   "x": -18.44,
+   "z": -3,
+   "rotY": 180
+  },
+  {
+   "guid": "a93821",
+   "victim": "Yellow",
+   "attacker": "Purple",
+   "x": -17.04,
+   "z": -3,
+   "rotY": 180
+  },
+  {
+   "guid": "5555db",
+   "victim": "Yellow",
+   "attacker": "White",
+   "x": -15.64,
+   "z": -3,
+   "rotY": 180
+  },
+  {
+   "guid": "18440d",
+   "victim": "Yellow",
+   "attacker": "Red",
+   "x": -14.24,
+   "z": -3,
+   "rotY": 180
+  },
+  {
+   "guid": "e8fcd4",
+   "victim": "Green",
+   "attacker": "Blue",
+   "x": -38.95,
+   "z": 3,
+   "rotY": 0
+  },
+  {
+   "guid": "d47ab9",
+   "victim": "Green",
+   "attacker": "Purple",
+   "x": -40.35,
+   "z": 3,
+   "rotY": 0
+  },
+  {
+   "guid": "c41b0e",
+   "victim": "Green",
+   "attacker": "White",
+   "x": -41.75,
+   "z": 3,
+   "rotY": 0
+  },
+  {
+   "guid": "ddce39",
+   "victim": "Green",
+   "attacker": "Red",
+   "x": -43.15,
+   "z": 3,
+   "rotY": 0
+  },
+  {
+   "guid": "2be20d",
+   "victim": "Green",
+   "attacker": "Yellow",
+   "x": -44.55,
+   "z": 3,
+   "rotY": 0
+  },
+  {
+   "guid": "b8ff72",
+   "victim": "Blue",
+   "attacker": "Purple",
+   "x": -9.55,
+   "z": 3,
+   "rotY": 0
+  },
+  {
+   "guid": "8b9546",
+   "victim": "Blue",
+   "attacker": "White",
+   "x": -10.95,
+   "z": 3,
+   "rotY": 0
+  },
+  {
+   "guid": "0d9c7f",
+   "victim": "Blue",
+   "attacker": "Red",
+   "x": -12.35,
+   "z": 3,
+   "rotY": 0
+  },
+  {
+   "guid": "d76a07",
+   "victim": "Blue",
+   "attacker": "Yellow",
+   "x": -13.75,
+   "z": 3,
+   "rotY": 0
+  },
+  {
+   "guid": "8ccd8c",
+   "victim": "Blue",
+   "attacker": "Green",
+   "x": -15.15,
+   "z": 3,
+   "rotY": 0
+  },
+  {
+   "guid": "af5048",
+   "victim": "Purple",
+   "attacker": "White",
+   "x": 19.85,
+   "z": 3,
+   "rotY": 0
+  },
+  {
+   "guid": "ed5cfe",
+   "victim": "Purple",
+   "attacker": "Red",
+   "x": 18.45,
+   "z": 3,
+   "rotY": 0
+  },
+  {
+   "guid": "0a3464",
+   "victim": "Purple",
+   "attacker": "Yellow",
+   "x": 17.05,
+   "z": 3,
+   "rotY": 0
+  },
+  {
+   "guid": "9bfad1",
+   "victim": "Purple",
+   "attacker": "Green",
+   "x": 15.65,
+   "z": 3,
+   "rotY": 0
+  },
+  {
+   "guid": "aeaf73",
+   "victim": "Purple",
+   "attacker": "Blue",
+   "x": 14.25,
+   "z": 3,
+   "rotY": 0
+  }
+ ],
  "start": [
   0,
   0.95,
   0
  ],
+ "spots": {
+  "mode": [
+   -49,
+   1.1,
+   -2.5
+  ],
+  "friendly": [
+   -49,
+   1.1,
+   7.5
+  ],
+  "teams": [
+   -49,
+   1.1,
+   17.5
+  ]
+ },
  "remove": [
   "5c8648",
   "098c38",
@@ -504,12 +806,31 @@
   "5f75f7",
   "cb1610"
  ],
- "clutterBoxes": [],
+ "clutterBoxes": [
+  {
+   "x": [
+    -56,
+    -45
+   ],
+   "z": [
+    -8.5,
+    33
+   ]
+  },
+  {
+   "x": [
+    45,
+    56
+   ],
+   "z": [
+    -33,
+    8.5
+   ]
+  }
+ ],
  "features": {
   "wastes": false,
   "treachery": false
  },
- "notFound": [
-  "cmdDamage: no Commander Damage trackers on the table (M6 step 12 adds them)"
- ]
+ "notFound": []
 }
