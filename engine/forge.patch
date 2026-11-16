@@ -1838,7 +1838,7 @@ index 0f15acf6..dbf57908 100644
          // TODO extend for "SharedTurnModes"
          for (final Card possibleAttacker : possibleAttackers) {
 diff --git a/forge-game/src/main/java/forge/game/combat/Combat.java b/forge-game/src/main/java/forge/game/combat/Combat.java
-index 79f6139c..839fc14a 100644
+index 79f6139c..f24e531a 100644
 --- a/forge-game/src/main/java/forge/game/combat/Combat.java
 +++ b/forge-game/src/main/java/forge/game/combat/Combat.java
 @@ -58,6 +58,8 @@ import java.util.Map.Entry;
@@ -1861,7 +1861,7 @@ index 79f6139c..839fc14a 100644
  
          //update view for all attackers and blockers
          for (Card c : attackers) {
-@@ -180,14 +184,90 @@ public class Combat {
+@@ -180,14 +184,102 @@ public class Combat {
  
      public final void clearAttackers() {
          for (final Card attacker : getAttackers()) {
@@ -1893,6 +1893,7 @@ index 79f6139c..839fc14a 100644
 +        teamBlockRound = round;
 +        if (round < 0) {
 +            teamBlockAnswers.clear();
++            teamBlockChangedBy = null;
          }
      }
  
@@ -1902,6 +1903,17 @@ index 79f6139c..839fc14a 100644
 +
 +    public final void setTeamBlockAnswer(final Player p, final List<Pair<Card, Card>> answer) {
 +        teamBlockAnswers.put(p, answer);
++    }
++
++    // the defender whose answer last changed the team's block (a team of three: the one a revise round names)
++    private Player teamBlockChangedBy = null;
++
++    public final Player getTeamBlockChangedBy() {
++        return teamBlockRound < 0 ? null : teamBlockChangedBy;
++    }
++
++    public final void setTeamBlockChangedBy(final Player p) {
++        teamBlockChangedBy = p;
 +    }
 +
 +    public final int getRefusedTeamAttacks() {
@@ -1953,7 +1965,7 @@ index 79f6139c..839fc14a 100644
      public final AttackConstraints getAttackConstraints() {
          return attackConstraints;
      }
-@@ -198,12 +278,18 @@ public class Combat {
+@@ -198,12 +290,18 @@ public class Combat {
      //gets attacked player opponents (ignores planeswalkers)
      public final FCollection<Player> getAttackedOpponents(Player atk) {
          FCollection<Player> attackedOpps = new FCollection<>();
@@ -1973,7 +1985,7 @@ index 79f6139c..839fc14a 100644
          }
          return attackedOpps;
      }
-@@ -497,13 +583,13 @@ public class Combat {
+@@ -497,13 +595,13 @@ public class Combat {
          }
  
          // Damage Ordering needs to take cards like Melee into account, is that happening?
@@ -1989,7 +2001,7 @@ index 79f6139c..839fc14a 100644
          sb.append(" has ordered blockers for ");
          sb.append(attacker);
          sb.append(": ");
-@@ -529,7 +615,7 @@ public class Combat {
+@@ -529,7 +627,7 @@ public class Combat {
          if (oldBlockers == null || oldBlockers.isEmpty()) {
              blockersOrderedForDamageAssignment.get().put(attacker, new CardCollection(blocker));
          } else if (this.legacyOrderCombatants) {
@@ -1998,7 +2010,7 @@ index 79f6139c..839fc14a 100644
              blockersOrderedForDamageAssignment.get().put(attacker, orderedBlockers);
          } else {
              oldBlockers.add(blocker);
-@@ -673,6 +759,7 @@ public class Combat {
+@@ -673,6 +771,7 @@ public class Combat {
      public final void fireTriggersForUnblockedAttackers(final Game game) {
          boolean bFlag = false;
          List<GameEntity> defenders = Lists.newArrayList();
@@ -2006,7 +2018,7 @@ index 79f6139c..839fc14a 100644
          for (AttackingBand ab : attackedByBands.get().values()) {
              Collection<Card> blockers = blockedBands.get().get(ab);
              boolean isBlocked = blockers != null && !blockers.isEmpty();
-@@ -682,6 +769,7 @@ public class Combat {
+@@ -682,6 +781,7 @@ public class Combat {
                  bFlag = true;
                  defenders.add(getDefenderByAttacker(ab));
                  for (Card attacker : ab.getAttackers()) {
@@ -2014,7 +2026,7 @@ index 79f6139c..839fc14a 100644
                      // Run Unblocked Trigger
                      final Map<AbilityKey, Object> runParams = AbilityKey.newMap();
                      runParams.put(AbilityKey.Attacker, attacker);
-@@ -693,11 +781,12 @@ public class Combat {
+@@ -693,11 +793,12 @@ public class Combat {
          }
          if (bFlag) {
              // triggers for Coveted Jewel
@@ -2029,7 +2041,7 @@ index 79f6139c..839fc14a 100644
              game.getTriggerHandler().runTrigger(TriggerType.AttackerUnblockedOnce, runParams, false);
          }
      }
-@@ -740,7 +829,7 @@ public class Combat {
+@@ -740,7 +841,7 @@ public class Combat {
                  }
  
                  if (AttackingBand.isValidBand(attackers, true))
@@ -2038,7 +2050,7 @@ index 79f6139c..839fc14a 100644
  
                  assignedDamage = true;
                  Map<Card, Integer> map = assigningPlayer.getController().assignCombatDamage(blocker, attackers, null, damage, defender, divideCombatDamageAsChoose || assigningPlayer != blocker.getController() || !this.legacyOrderCombatants);
-@@ -791,7 +880,7 @@ public class Combat {
+@@ -791,7 +892,7 @@ public class Combat {
              }
  
              GameEntity defender = getDefenderByAttacker(band);
@@ -2047,7 +2059,7 @@ index 79f6139c..839fc14a 100644
              orderedBlockers = blockersOrderedForDamageAssignment.get().get(attacker);
              // Defensive Formation is very similar to Banding with Blockers
              // It allows the defending player to assign damage instead of the attacking player
-@@ -875,7 +964,7 @@ public class Combat {
+@@ -875,7 +976,7 @@ public class Combat {
                  } // No damage happens if blocked but no blockers left
              } else {
                  Map<Card, Integer> map = assigningPlayer.getController().assignCombatDamage(attacker, orderedBlockers, attackers,
@@ -2177,7 +2189,7 @@ index 0b747a2f..f1b06281 100644
       * <p>
       * Add a hardcoded trigger that will execute "at <phase>".
 diff --git a/forge-game/src/main/java/forge/game/phase/PhaseHandler.java b/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
-index 4a3a94df..08b2d88f 100644
+index 4a3a94df..88d2210e 100644
 --- a/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
 +++ b/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
 @@ -20,6 +20,8 @@ package forge.game.phase;
@@ -2759,7 +2771,7 @@ index 4a3a94df..08b2d88f 100644
                      possibleExerters.addAll(possibleEnlisters);
                  }
  
-@@ -653,77 +881,281 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -653,77 +881,282 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
          game.fireEvent(new GameEventCombatChanged());
      }
  
@@ -2885,6 +2897,7 @@ index 4a3a94df..08b2d88f 100644
 +                }
 +            }
 +            if (partnerAnswered) {
++                combat.setTeamBlockChangedBy(member);
 +                tellTeam(team, blockChanges(member, before, after));
 +            }
 +        }
@@ -3095,7 +3108,7 @@ index 4a3a94df..08b2d88f 100644
              // map: defender => (many) attacker => (many) blocker
              Map<GameEntity, Multimap<Card, Card>> blockers = Maps.newHashMap();
              for (GameEntity ge : combat.getDefendersControlledBy(p)) {
-@@ -734,6 +1166,45 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -734,6 +1167,45 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                  blockers.put(ge, protectThisDefender);
              }
              game.fireEvent(new GameEventBlockersDeclared(p, blockers));
@@ -3141,7 +3154,7 @@ index 4a3a94df..08b2d88f 100644
          } while (p != playerTurn);
  
          // CR 509.2
-@@ -860,15 +1331,21 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -860,15 +1332,21 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
  
      private Player getNextActivePlayer() {
          ExtraTurn extraTurn = !extraTurns.isEmpty() ? extraTurns.pop() : null;
@@ -3167,7 +3180,7 @@ index 4a3a94df..08b2d88f 100644
          if (repres != ReplacementResult.NotReplaced) {
              if (extraTurn == null) {
                  setPlayerTurn(nextPlayer);
-@@ -876,7 +1353,9 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -876,7 +1354,9 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
              return getNextActivePlayer();
          }
  
@@ -3178,7 +3191,7 @@ index 4a3a94df..08b2d88f 100644
          if (extraTurn != null) {
              for (Trigger deltrig : extraTurn.getDelayedTriggers()) {
                  game.getTriggerHandler().registerThisTurnDelayedTrigger(deltrig);
-@@ -892,7 +1371,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -892,7 +1372,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
      }
  
      public final synchronized boolean is(final PhaseType phase0, final Player player0) {
@@ -3187,7 +3200,7 @@ index 4a3a94df..08b2d88f 100644
      }
      public final synchronized boolean is(final PhaseType phase0) {
          return phase == phase0;
-@@ -900,16 +1379,16 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -900,16 +1380,16 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
  
      public final Player getNextTurn() {
          if (extraTurns.isEmpty()) {
@@ -3207,7 +3220,7 @@ index 4a3a94df..08b2d88f 100644
          } else {
              previous = extraTurns.peek().getPlayer();
          }
-@@ -989,6 +1468,32 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -989,6 +1469,32 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
          return nMainsThisTurn;
      }
  
@@ -3240,7 +3253,7 @@ index 4a3a94df..08b2d88f 100644
      public final boolean beforeFirstPostCombatMainEnd() {
          return nMainsThisTurn <= (is(PhaseType.MAIN2) ? 2 : 1);
      }
-@@ -1080,6 +1585,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -1080,6 +1586,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                          // 117.3c If a player has priority when they cast a spell, activate an ability, [play a land]
                          // that player receives priority afterward.
                          pFirstPriority = pPlayerPriority; // all opponents have to pass before stack is allowed to resolve
@@ -3248,7 +3261,7 @@ index 4a3a94df..08b2d88f 100644
                      } else if (game.EXPERIMENTAL_RESTORE_SNAPSHOT) {
                          rollback = true;
                      }
-@@ -1129,7 +1635,22 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -1129,7 +1636,22 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
          if (DEBUG_PHASES) {
              System.out.println(TextUtil.concatWithSpace(playerTurn.toString(),TextUtil.addSuffix(phase.toString(),":"), pPlayerPriority.toString(),"is active, previous was", nextPlayer.toString()));
          }
