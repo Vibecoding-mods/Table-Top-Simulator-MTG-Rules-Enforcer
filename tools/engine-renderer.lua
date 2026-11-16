@@ -977,6 +977,21 @@ function engineMyTurn(t, color)
   for _, c in ipairs(t.activeTeam or {}) do if c == color then return true end end
   return false
 end
+-- the colour TTS's turn shows: the active player's when they are seated; in a shared team turn (the board's
+-- activeTeam) the first seated player of the team, so the team's turn lights a human partner of an AI; nil when nobody
+-- of the turn is seated
+function engineTurnColor(m)
+  if m == nil or m.active == nil then return nil end
+  if Player[m.active] ~= nil and Player[m.active].seated then return m.active end
+  for _, c in ipairs(m.activeTeam or {}) do
+    if Player[c] ~= nil and Player[c].seated then return c end
+  end
+  return nil
+end
+-- the turn, as the turn colour follows it: the active player and their team ("White" or "White+Yellow")
+function engineTurnKey(m)
+  return tostring(m.active) .. (m.activeTeam ~= nil and ("+" .. table.concat(m.activeTeam, "+")) or "")
+end
 -- whose turn in a shared-turn game: "YOUR TEAM'S TURN" or "TEAM WHITE + RED'S TURN"
 function engineTeamTurnWords(t, color)
   if engineMyTurn(t, color) then return "YOUR TEAM'S TURN" end
@@ -1598,10 +1613,13 @@ local function updateTrackers(m)
   end
   if engineStatusPieces ~= nil then pcall(engineStatusPieces, m) end -- (the pieces for the marks: under the last box)
   if engineTeamLooks ~= nil then pcall(engineTeamLooks, m) end -- (Two-Headed Giant: the team tint, life and commander damage)
-  if m.active ~= nil and m.active ~= lastTurnSet then
-    lastTurnSet = m.active
-    if Player[m.active] ~= nil and Player[m.active].seated and Turns.turn_color ~= m.active then
-      pcall(function() Turns.enable = true Turns.turn_color = m.active end)
+  -- (TTS's turn colour: the active player's; in a shared team turn, 2HG Level 2, the team's: the active player if seated,
+  -- else their seated partner, so an AI's team turn still lights the human partner, engineTurnColor)
+  if m.active ~= nil and engineTurnKey(m) ~= lastTurnSet then
+    lastTurnSet = engineTurnKey(m)
+    local turnColor = engineTurnColor(m)
+    if turnColor ~= nil and Turns.turn_color ~= turnColor then
+      pcall(function() Turns.enable = true Turns.turn_color = turnColor end)
     end
   end
 end
