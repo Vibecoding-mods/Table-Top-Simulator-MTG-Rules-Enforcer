@@ -154,6 +154,10 @@ const PLAYER_FACTS = {
   spellsCastThisTurn: { to: ["allMarks"], show: "SPELLS THIS TURN: 2 (STORM 3) on the active player" },
   lifeGainedThisTurn: { to: ["lifeTip"], show: "the life counter's hover: Gained 5 life this turn" },
   lifeLostThisTurn: { to: ["lifeTip"], show: "the life counter's hover: Lost 4 life this turn" },
+  // (engine1119, the Archenemy view; the table marker is plan step 9, cloud/archenemy-polish)
+  isArchenemy: { gap: "the archenemy isn't marked on the table yet; the bridge knows it from its own setting" },
+  schemeDeckCount: { gap: "the scheme deck's size isn't shown yet" },
+  schemes: { gap: "schemes in motion aren't shown yet; the log says each set in motion" },
 };
 
 module.exports = { CARD_FACTS, TABLE_ONLY_KEYS, ZONES, GESTURES, PLAYER_FACTS };
