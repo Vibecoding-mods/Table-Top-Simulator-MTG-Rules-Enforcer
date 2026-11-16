@@ -39,7 +39,7 @@ services:
       SELF_HOSTED_NODE_ROOM_NAME: "tts-commander"
       SELF_HOSTED_NODE_ENGINE_BACKEND: forge
       SELF_HOSTED_NODE_FORMAT: commander
-      SELF_HOSTED_NODE_MAX_PLAYERS: "${SEATS:-4}"   # try 5-8 later (SPEC §7)
+      SELF_HOSTED_NODE_MAX_PLAYERS: "${SEATS:-6}"   # the 6-player table (M6); needs a relay with the 8-seat cap
       SELF_HOSTED_NODE_AUTO_START: "true"
       RUST_LOG: "self_hosted_node=info"
     depends_on: [relay]

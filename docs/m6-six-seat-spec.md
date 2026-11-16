@@ -23,8 +23,8 @@ Inputs:
 | 4 | Shared copies: Undo list, Concede box, rewind vote (2 copies), 5 buttons | 6 | |
 | 5 | Counter ids and one click dispatcher | 5 | |
 | 6 | Table gates and golden refresh after the UI work | 1 | |
-| 7 | Relay seat cap, relay image rebuild, stack default 6 seats (§4) | 2 | lead's OK to rebuild the image |
-| 8 | Bridge seat handling (§5) | 2.5 | |
+| 7 | Relay seat cap, relay image rebuild, stack default 6 seats (§4). **Source done 2026-11-16** (branch `m6-seats`); image not built | 2 | lead's OK to rebuild the image |
+| 8 | Bridge seat handling (§5). **Done 2026-11-16** (branch `m6-seats`, not live) | 2.5 | |
 | 9 | Table profile extractor (§2.2) | 3 | |
 | 10 | `make-engine-copy.js` takes a profile; patches re-checked on the 6-player scripts | 4 | |
 | 11 | Renderer: per-table data instead of the 4-player tables | 3 | |
@@ -205,6 +205,8 @@ Expected sizes after step 5 (review re-run in `docs/m6-ui-size.md` §4.1): 2 sea
 
 ## 4. Relay seat cap (step 7, 2 h)
 
+**Source done 2026-11-16 (branch `m6-seats`):** the clamp hunk is in `engine/manabrew.patch` (lobby.rs section regenerated, `git apply --check` clean on `fd16e2f`), the compose default is 6 (and `tools/setup-server.sh --seats` defaults to 6). The relay image is **not rebuilt yet**: it goes with the next engine image (docs/engine-changes.md section 3). The test below waits for it.
+
 - Change, in `manabrew/manabrew-rs/crates/manabrew-server/src/lobby.rs:640` (`set_max_players_sync`):
   - from `room.max_players = max_players.clamp(floor, 4);`
   - to `room.max_players = max_players.clamp(floor, 8);`
@@ -216,6 +218,8 @@ Expected sizes after step 5 (review re-run in `docs/m6-ui-size.md` §4.1): 2 sea
 - Upstream Manabrew may want its 4: a question for the PR, later (no upstream PR yet).
 
 ## 5. Bridge seat handling (step 8, 2.5 h)
+
+**Done 2026-11-16 (branch `m6-seats`, not live).** As built: the table field is `tableSeats` (with `hello` and every `start`; the start's own `seats` are the seated players), from the global `ENGINE_TABLE_SEATS` (`tools/engine-renderer.lua` `engineHello`, `make-engine-copy.js` `engineStartGame`). It is nil on the 4-player table, so nothing it sends changes; step 10's profile sets the 6-player table's six. The bridge (`noteTableSeats`) takes 2–6 distinct TTS seat colours; a hello without a list sets the default four back; nothing changes while a game is set up; a running game's list is kept in the resume file. The fifth/sixth human: retry, not an early `SetMaxPlayers` (a seat refused `room_full` during setup sends `JoinRoom` again every 2 s, 15 times). The deck cycle: the unused built-in decks first, then the used ones, round and round. Not checked with 5 test clients yet (`engine-test.js --seats 5 --bots 0` needs the stack and the rebuilt relay).
 
 `bridge/bridge.js` today:
 - `TABLE_COLORS = ["White", "Red", "Yellow", "Blue"]` (line 774). It sets the player limit (line 672, "Need 2–4 players"), the clockwise order (`clockwiseOrder`, line 741), the AI players' colours (`onGameStarted`, line 754) and which slots are AI (lines 657, 762).
