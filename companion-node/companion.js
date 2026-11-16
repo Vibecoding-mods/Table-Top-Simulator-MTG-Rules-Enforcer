@@ -11,6 +11,8 @@
 //   --no-web, --web-port N, --no-browser     the status page (default 127.0.0.1:48790)
 //   --home DIR, --saves DIR, --state DIR, --log FILE, --bridge-url URL, --steps 4,5   overrides (tests)
 //   --runtime docker|podman  the container engine (default: Docker if it answers, else Podman)
+//   --server HOST[:PORT]     own server: the engine runs there, not here (as server.json in the package folder, which
+//                            also holds the key; HOW-TO-PLAY.md "Own server"); nothing is started or stopped here
 //   --selftest [--out FILE]  the decision logic against canned inputs; exit code = failures (any OS)
 //   --bridge-loop --home DIR internal: the detached process that runs and restarts the bridge
 //   --stop                   stops this package's bridge and engine containers (stop.sh), then exits
@@ -64,7 +66,9 @@ async function main() {
   const observe = flag("observe");
   // (the Workshop table: beside Saves, wherever TTS keeps them, then in the game's own folder of each Steam library)
   const workshopCandidates = (savesDir, id) => P.workshopCandidates(process.platform, savesDir, id, opt("saves") ? null : home, process.env, probes.readText);
-  const controller = new Controller({ layout, observe, autoStart: !observe && L.autoStart(args), findSaves, workshopCandidates, stateDir, appDir: __dirname, platform: process.platform, arch: process.arch, engine, bridgeUrl: opt("bridge-url") || undefined });
+  // (own server: server.json in the package, or --server; null runs the engine on this computer)
+  const server = L.serverSetting(probes.exists(layout.serverFile) ? probes.readText(layout.serverFile) : null, opt("server"), process.env.MTG_SERVER_KEY);
+  const controller = new Controller({ layout, observe, server, autoStart: !observe && L.autoStart(args), findSaves, workshopCandidates, stateDir, appDir: __dirname, platform: process.platform, arch: process.arch, engine, bridgeUrl: opt("bridge-url") || undefined });
   if (opt("steps")) controller.onlySteps = new Set(opt("steps").split(",").map(Number));
 
   if (flag("stop")) {
@@ -74,8 +78,9 @@ async function main() {
     if (no) { console.log(no); process.exit(3); }
     console.log("Stopping the bridge and the engine containers (the container engine and TTS keep running)...");
     await controller.stopBridge();
-    const f = await engine.detect();
-    if (f.answers) await (layout.friend ? engine.down() : engine.stop());
+    const f = server ? null : await engine.detect();
+    if (server) console.log(`Own server (${server.ok ? L.serverWords(server.server) : "server.json has a problem"}): its engine was left running.`);
+    else if (f.answers) await (layout.friend ? engine.down() : engine.stop());
     else console.log("The container engine isn't answering: its containers were left as they are.");
     console.log("Stopped.");
     process.exit(0);
@@ -129,6 +134,7 @@ async function main() {
   process.on("SIGINT", bye); process.on("SIGTERM", bye); process.on("SIGHUP", bye);
 
   console.log(`MTG Companion (${layout.mode} mode, ${process.platform}) for ${layout.home}`);
+  if (server) console.log(server.ok ? `Own server: the engine runs on ${L.serverWords(server.server)}${server.server.secure ? " (wss)" : ""}; nothing is started here but the bridge.` : `Own server: ${server.problem}`);
   console.log(web ? `Status page: ${web.url}  (open it in a browser on this computer)` : "Status page: off");
   console.log("Closing this window stops the companion only; the engine and the bridge keep running. To stop them: stop.sh, or Stop everything on the status page.");
   console.log(`Log: ${Log.file}`);

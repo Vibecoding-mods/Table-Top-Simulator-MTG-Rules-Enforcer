@@ -36,6 +36,8 @@ class Controller {
     this.appDir = o.appDir; this.platform = o.platform; this.arch = o.arch;
     this.bridgeUrl = o.bridgeUrl || "http://127.0.0.1:48787";
     this.engine = o.engine;
+    // own server (logic.serverSetting): null runs the engine here; else steps 1-2 are not needed and step 3 is a login
+    this.server = o.server || null;
     // the Workshop table: where to look ((savesDir, id) => [files]; default: Mods/Workshop beside Saves only), and the
     // patcher ((workshop, out) => make-table.js's result; default: the package's own, run by its Node). Tests: fakes.
     this.workshopCandidates = o.workshopCandidates || ((savesDir, id) => [path.join(path.dirname(savesDir), "Mods", "Workshop", `${id}.json`)]);
@@ -90,6 +92,7 @@ class Controller {
   start() {
     Log.write(`start: ${this.L.mode} mode, home ${this.L.home}${this.observe ? " (observe only: no changes)" : ""}; ${this.platform}/${this.arch}; saves ${this.savesDir}`);
     if (this.L.friend) Log.write(`package: ${JSON.stringify(this.version)}`);
+    if (this.server) Log.write(this.server.ok ? `own server: ${L.serverWords(this.server.server)}${this.server.server.secure ? " (wss)" : ""}, ${this.server.server.key ? "its key from server.json or MTG_SERVER_KEY" : "this package's key"}` : `own server: ${this.server.problem}`);
     if (!this.observe) Log.write(this.autoStart ? "launch: --start: running the start sequence" : "launch: checking only; Start engine starts the engine");
     this.loopDone = this.loop();
   }
@@ -229,9 +232,9 @@ class Controller {
       this.setPhase(this.observe ? "Checking (observe only)" : this.checking ? `Checking: step ${step} of 6` : `Starting: step ${step} of 6`);
       let ok;
       switch (step - 1) {
-        case Step.Docker: ok = await this.doDocker(); break;
-        case Step.Images: ok = await this.doImages(); break;
-        case Step.Stack: ok = await this.doStack(fresh); break;
+        case Step.Docker: ok = this.server ? this.serverNotNeeded(Step.Docker) : await this.doDocker(); break;
+        case Step.Images: ok = this.server ? this.serverNotNeeded(Step.Images) : await this.doImages(); break;
+        case Step.Stack: ok = this.server ? await this.doServer() : await this.doStack(fresh); break;
         case Step.Save: ok = await this.doSave(); break;
         case Step.Bridge: ok = await this.doBridge(); break;
         default: ok = await this.doTts(); break;
@@ -251,6 +254,37 @@ class Controller {
     }
     if (this.checking && L.engineUp(this.rows.map((r) => r.v.light))) { this.engineStarted = true; Log.write("launch check: the engine is already up"); }
     this.setPhase(this.observe ? "Observing (no changes)" : this.checking && !this.engineStarted ? L.NotStartedPhase : "Ready");
+  }
+
+  // ── own server: steps 1-2 run nothing here, step 3 logs in to the server
+
+  serverNotNeeded(step) {
+    this.set(step, this.server.ok ? L.serverNotNeeded(this.server.server) : verdict(Light.Grey, "Own server: see the engine stack light."));
+    return true;
+  }
+
+  async doServer() {
+    if (!this.server.ok) { this.set(Step.Stack, L.decideServer(this.server, null, this.game)); return false; }
+    await this.refreshGame();
+    this.set(Step.Stack, verdict(Light.Busy, `Connecting to your server (${L.serverWords(this.server.server)}).`));
+    const login = this.isLocked ? { kind: "skipped" } : await this.login();
+    const v = L.decideServer(this.server, login, this.game);
+    this.set(Step.Stack, v);
+    return v.light === Light.Green;
+  }
+
+  async monitorServer() {
+    this.serverNotNeeded(Step.Docker); this.serverNotNeeded(Step.Images);
+    if (!this.server.ok) { this.set(Step.Stack, L.decideServer(this.server, null, this.game)); return; }
+    const login = this.isLocked ? { kind: "skipped" } : !this.loginCache || Date.now() - this.loginAt > 60000 ? await this.login() : this.loginCache;
+    this.set(Step.Stack, this.unstarted(Step.Stack, L.decideServer(this.server, login, this.game)));
+  }
+
+  // what the bridge needs to use the server: its relay address and key (MTG_RELAY, MTG_KEY: bridge.js's arg())
+  serverEnv() {
+    if (!this.server || !this.server.ok) return {};
+    const s = this.server.server;
+    return { MTG_RELAY: L.serverUrl(s), ...(s.key ? { MTG_KEY: s.key } : {}) };
   }
 
   // ── 1. the container engine
@@ -322,7 +356,10 @@ class Controller {
   // ── 3. engine stack
 
   async login() {
-    const r = await probes.relayLogin("ws://127.0.0.1:9443", this.relayKey, L.Room, 3000);
+    const own = this.server && this.server.ok ? this.server.server : null;
+    // (own server: a TCP connection first, which says why a server can't be reached; the WebSocket doesn't)
+    const reach = own ? await probes.tcpReach(own.host, own.port, 5000) : null;
+    const r = reach && reach.kind !== "ok" ? { kind: reach.kind, roomFound: false, roomStatus: null, ms: 0, detail: reach.detail } : await probes.relayLogin(own ? L.serverUrl(own) : "ws://127.0.0.1:9443", own && own.key ? own.key : this.relayKey, L.Room, own ? 5000 : 3000);
     this.loginCache = r; this.loginAt = Date.now();
     if (r.kind !== "ok") Log.write(`relay login: ${r.kind} ${r.detail || ""}`);
     return r;
@@ -571,7 +608,7 @@ class Controller {
     const args = [path.join(this.appDir, "companion.js"), "--bridge-loop", "--home", this.L.home];
     if (this.engine.o.override) args.push("--runtime", this.engine.o.override);
     Log.write(`starting the bridge loop: ${process.execPath} ${args.join(" ")}`);
-    probes.launch(process.execPath, args, { ...process.env, ...this.engine.bridgeEnv() });
+    probes.launch(process.execPath, args, { ...process.env, ...this.engine.bridgeEnv(), ...this.serverEnv() });
   }
 
   async stopBridge() { Log.write("stopping the bridge loop and the bridge"); await bridgeLoop.stop(this.L); }
@@ -619,12 +656,13 @@ class Controller {
 
   async monitorTick() {
     await this.refreshGame();
-    const f = await this.engine.detect();
-    if (f.answers) this.set(Step.Docker, L.decideDocker(f));
+    const f = this.server ? null : await this.engine.detect();
+    if (this.server) await this.monitorServer();
+    else if (f.answers) this.set(Step.Docker, L.decideDocker(f));
     else if (!this.engineStarted && !this.observe) this.set(Step.Docker, L.beforeStart(Step.Docker, L.decideDocker(f))); // (before Start engine: no red light for a Docker nobody asked to start)
     else this.set(Step.Docker, verdict(f.desktopRunning ? Light.Amber : Light.Red, f.desktopRunning ? "Docker Desktop runs, but its engine isn't answering (starting or stopped)." : L.decideDocker({ ...f, desktopFound: false }).text,
       f.desktopFound ? { fix: Fixes.DockerStart, label: "Start Docker Desktop" } : { fix: Fixes.Retry, label: "Try again" }));
-    if (f.answers) {
+    if (f && f.answers) {
       if (Date.now() - this.imagesAt > 5 * 60000 && this.rows[Step.Images].v.light !== Light.Busy) {
         this.imagesAt = Date.now();
         const r1 = await this.engine.imageId(P.Images.relay), r2 = await this.engine.imageId(P.Images["forge-room"]);
@@ -642,7 +680,7 @@ class Controller {
         const login = !canLogin ? { kind: "skipped" } : !this.loginCache || Date.now() - this.loginAt > 60000 ? await this.login() : this.loginCache;
         this.set(Step.Stack, this.unstarted(Step.Stack, L.decideStack(rc, oc, login, this.game, this.L.friend)));
       }
-    } else this.set(Step.Stack, verdict(Light.Grey, "Waiting for the container engine."));
+    } else if (!this.server) this.set(Step.Stack, verdict(Light.Grey, "Waiting for the container engine."));
     // bridge: /versions every 30 s, not more (each call runs an inspect inside the bridge)
     if (Date.now() - this.versionsAt > 30000) {
       const vers = await probes.httpGet(`${this.bridgeUrl}/versions`, 15000);
@@ -706,7 +744,7 @@ class Controller {
       this.everythingStopped = true; this.pendingFrom = 0; this.stoppedAt = 0; this.engineStarted = false;
       this.setPhase("Stopping");
       await this.stopBridge();
-      if (this.engine.cli && this.rows[Step.Docker].v.light === Light.Green) await (this.L.friend ? this.engine.down() : this.engine.stop());
+      if (!this.server && this.engine.cli && this.rows[Step.Docker].v.light === Light.Green) await (this.L.friend ? this.engine.down() : this.engine.stop());
       for (let i = 0; i < this.rows.length; i++)
         if (i !== Step.Docker) this.rows[i].v = verdict(Light.Grey, i === Step.Save ? (this.L.friend ? "Installed (unchanged)." : this.rows[i].v.text) : "Stopped.");
       this.setPhase(L.StoppedPhase);

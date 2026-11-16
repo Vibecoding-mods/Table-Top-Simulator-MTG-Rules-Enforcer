@@ -35,6 +35,41 @@ five minutes:
 - The key stays on this PC: never in the table save or the friend package. Don't share it or paste it in chats.
 - No key: the GIF frames don't appear, and everything else works as usual. **Remove key** takes them away again.
 
+### Optional: Own server (the engine on another computer)
+
+The MTG Companion for Linux and macOS (`start.sh`, or "MTG Companion.command") can use an engine (the relay and the Forge room) that
+runs on a server of yours, instead of starting one on this computer. TTS and the bridge still run here.
+
+1. On the server (Ubuntu or Debian): `sudo bash tools/setup-server.sh`. It runs the relay and a Forge room in Docker, binds
+   the relay to your Tailscale address if there is one (else to the server itself: `--bind <ip>` or `--public` change that;
+   use `--public` only behind your own firewall), and writes the server's key to `stack/.env` there
+   (`MANABREW_SERVER_KEY=...`).
+2. In the companion's folder, make a file named `server.json`:
+
+   ```json
+   { "host": "mtg.example.org", "port": 9443, "key": "the MANABREW_SERVER_KEY from the server's stack/.env" }
+   ```
+
+   Only `host` is needed: a name or an IP address (an IPv6 address in `[brackets]`), without `ws://`. `port` is 9443 unless
+   given. `key` is the server's relay key; leave it out to use the `MTG_SERVER_KEY` environment variable, or this
+   package's own key. `"secure": true` connects with `wss://` (the relay behind TLS).
+3. Start the companion as usual. Its window says "Own server: the engine runs on mtg.example.org:9443". On the status page,
+   **Container engine** and **Engine images** say "Not needed here", and **Engine stack** logs in to your server:
+   green when its Forge room is open.
+
+If the light is red, it says why, for example:
+
+- "refused the connection: nothing listens on port 9443 there": the port is wrong, or the engine isn't running on the server;
+- "didn't answer": the server is off, or its firewall blocks the port;
+- "isn't known": the name in `host` doesn't resolve (check the spelling, or use the IP address);
+- "refused the key": put the server's key in `server.json` as `"key"`;
+- "its Forge room isn't open" or "busy with an earlier game": start or restart the Forge room on the server.
+
+Fix it, then press **Try again**. To use it for one run only: `./start.sh --server mtg.example.org:9443` (the key still comes
+from `server.json` or `MTG_SERVER_KEY`). To go back to the engine on this computer, delete `server.json`. **Stop everything**
+stops the bridge only; the server's engine keeps running. Keep `server.json` to yourself: the key in it lets anyone
+into your server's games.
+
 ## Everyone: getting into a game
 
 1. **Sit at a colour** (White, Red, Yellow, Blue).
