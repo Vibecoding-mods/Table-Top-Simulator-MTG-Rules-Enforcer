@@ -2686,7 +2686,7 @@ index 7fe22ffe..a85836fa 100644
          }
      }
 diff --git a/forge-game/src/main/java/forge/game/player/Player.java b/forge-game/src/main/java/forge/game/player/Player.java
-index 4cbb6deb..c4fee965 100644
+index 4cbb6deb..a918a572 100644
 --- a/forge-game/src/main/java/forge/game/player/Player.java
 +++ b/forge-game/src/main/java/forge/game/player/Player.java
 @@ -107,6 +107,7 @@ public class Player extends GameEntity implements Comparable<Player> {
@@ -2697,7 +2697,27 @@ index 4cbb6deb..c4fee965 100644
      private int committedCrimeThisTurn;
      private int numFlipsThisTurn;
      private int numRollsThisTurn;
-@@ -343,7 +344,19 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -268,11 +269,18 @@ public class Player extends GameEntity implements Comparable<Player> {
+         teamNumber = iTeam;
+     }
+ 
++    // a player dealt a scheme deck stays the archenemy while every scheme is in motion (ongoing ones stay out)
++    private boolean archenemy = false;
++
+     public boolean isArchenemy() {
+-        return getZone(ZoneType.SchemeDeck).size() > 0; //Only the archenemy has schemes.
++        return archenemy || getZone(ZoneType.SchemeDeck).size() > 0; //Only the archenemy has schemes.
+     }
+ 
+     public void setSchemeInMotion(SpellAbility cause) {
++        // with every scheme already in motion there is none to set in motion
++        if (getZone(ZoneType.SchemeDeck).isEmpty()) {
++            return;
++        }
+         setSchemeInMotion(cause, getZone(ZoneType.SchemeDeck).get(0));
+     }
+     public void setSchemeInMotion(SpellAbility cause, Card scheme) {
+@@ -343,7 +351,19 @@ public class Player extends GameEntity implements Comparable<Player> {
       * Get the total number of poison counters amongst this player's opponents.
       */
      public final int getOpponentsTotalPoisonCounters() {
@@ -2718,7 +2738,7 @@ index 4cbb6deb..c4fee965 100644
      }
  
      /**
-@@ -467,7 +480,8 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -467,7 +487,8 @@ public class Player extends GameEntity implements Comparable<Player> {
          int oldLife = life;
          life += lifeGain;
          view.updateLife(this);
@@ -2728,7 +2748,7 @@ index 4cbb6deb..c4fee965 100644
          lifeGainedThisTurn += lifeGain;
          lifeGainedTimesThisTurn++;
  
-@@ -488,7 +502,64 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -488,7 +509,64 @@ public class Player extends GameEntity implements Comparable<Player> {
      }
  
      public final boolean canGainLife() {
@@ -2794,7 +2814,7 @@ index 4cbb6deb..c4fee965 100644
      }
  
      public final int loseLife(int toLose, final boolean damage, final boolean manaBurn, final SpellAbility cause) {
-@@ -525,13 +596,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -525,13 +603,14 @@ public class Player extends GameEntity implements Comparable<Player> {
  
          life -= toLose;
          view.updateLife(this);
@@ -2810,7 +2830,7 @@ index 4cbb6deb..c4fee965 100644
          lifeLostThisTurn += toLose;
  
          final Map<AbilityKey, Object> runParams = AbilityKey.mapFromPlayer(this);
-@@ -544,13 +616,29 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -544,13 +623,29 @@ public class Player extends GameEntity implements Comparable<Player> {
      }
  
      public final boolean canLoseLife() {
@@ -2841,7 +2861,7 @@ index 4cbb6deb..c4fee965 100644
          return lifePayment <= 0 || !StaticAbilityCantGainLosePayLife.anyCantPayLife(this, effect, cause);
      }
  
-@@ -834,6 +922,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -834,6 +929,14 @@ public class Player extends GameEntity implements Comparable<Player> {
          if (StaticAbilityCantPutCounter.anyCantPutCounter(this, type)) {
              return false;
          }
@@ -2856,7 +2876,7 @@ index 4cbb6deb..c4fee965 100644
          return true;
      }
  
-@@ -919,6 +1015,17 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -919,6 +1022,17 @@ public class Player extends GameEntity implements Comparable<Player> {
          int old = getCounters(counterType);
          setCounters(counterType, num);
          view.updateCounters(this);
@@ -2874,7 +2894,7 @@ index 4cbb6deb..c4fee965 100644
          if (fireEvents) {
              getGame().fireEvent(new GameEventPlayerCounters(this, counterType, old, num));
              if (counterType.is(CounterEnumType.POISON)) {
-@@ -1101,6 +1208,16 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1101,6 +1215,16 @@ public class Player extends GameEntity implements Comparable<Player> {
          scryThisTurn++;
      }
  
@@ -2891,7 +2911,7 @@ index 4cbb6deb..c4fee965 100644
      public boolean canMulligan() {
          return !getZone(ZoneType.Hand).isEmpty();
      }
-@@ -1803,6 +1920,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1803,6 +1927,14 @@ public class Player extends GameEntity implements Comparable<Player> {
          stats.nextTurn();
      }
  
@@ -2906,7 +2926,7 @@ index 4cbb6deb..c4fee965 100644
      public final int getLastTurnNr() {
          return this.lastTurnNr;
      }
-@@ -1972,6 +2097,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1972,6 +2104,14 @@ public class Player extends GameEntity implements Comparable<Player> {
      }
  
      public final boolean loseConditionMet(final GameLossReason state, final String spellName) {
@@ -2921,7 +2941,7 @@ index 4cbb6deb..c4fee965 100644
          if (state != GameLossReason.OpponentWon) {
              Map<AbilityKey, Object> repParams = AbilityKey.mapFromAffected(this);
              repParams.put(AbilityKey.LoseReason, state);
-@@ -1983,6 +2116,12 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -1983,6 +2123,12 @@ public class Player extends GameEntity implements Comparable<Player> {
          return true;
      }
  
@@ -2934,7 +2954,7 @@ index 4cbb6deb..c4fee965 100644
      public final void concede() { // No cantLose checks - just lose
          setOutcome(PlayerOutcome.concede());
      }
-@@ -2016,7 +2155,13 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2016,7 +2162,13 @@ public class Player extends GameEntity implements Comparable<Player> {
      }
  
      public final boolean cantWin() {
@@ -2949,7 +2969,7 @@ index 4cbb6deb..c4fee965 100644
      }
  
      public final boolean checkLoseCondition() {
-@@ -2044,13 +2189,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2044,13 +2196,14 @@ public class Player extends GameEntity implements Comparable<Player> {
  
          // Rule 704.5c - If a player has ten or more poison counters, he or she loses the game.
          // 704.6b In a Two-Headed Giant game, if a team has fifteen or more poison counters, that team loses the game. See rule 810, “Two-Headed Giant Variant.”
@@ -2966,7 +2986,7 @@ index 4cbb6deb..c4fee965 100644
                      return true;
                  }
              }
-@@ -2251,9 +2397,72 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2251,9 +2404,72 @@ public class Player extends GameEntity implements Comparable<Player> {
      public final void setLandsPlayedLastTurn(int num) {
          landsPlayedLastTurn = num;
      }
@@ -3039,7 +3059,7 @@ index 4cbb6deb..c4fee965 100644
  
      public final int getInvestigateNumThisTurn() {
          return investigatedThisTurn;
-@@ -2387,6 +2596,12 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2387,6 +2603,12 @@ public class Player extends GameEntity implements Comparable<Player> {
          return controller.getLobbyPlayer();
      }
  
@@ -3052,7 +3072,7 @@ index 4cbb6deb..c4fee965 100644
      public final RegisteredPlayer getRegisteredPlayer() {
          return game.getMatch().getPlayers().get(game.getRegisteredPlayers().indexOf(this));
      }
-@@ -2477,6 +2692,7 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2477,6 +2699,7 @@ public class Player extends GameEntity implements Comparable<Player> {
          investigatedThisTurn = 0;
          scryThisTurn = 0;
          surveilThisTurn = 0;
@@ -3060,7 +3080,7 @@ index 4cbb6deb..c4fee965 100644
          resetDiscardedThisTurn();
          resetSacrificedThisTurn();
          resetVenturedThisTurn();
-@@ -2798,6 +3014,38 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2798,6 +3021,38 @@ public class Player extends GameEntity implements Comparable<Player> {
          toPlayer.speedEffect = mapEffectCard(speedEffect, mapper);
      }
  
@@ -3099,7 +3119,7 @@ index 4cbb6deb..c4fee965 100644
      private static Card mapEffectCard(Card effect, Function<Card, Card> mapper) {
          // An effect card in no zone was not part of the copy; leave the
          // snapshot's field unset so its lazy creation path stays consistent.
-@@ -2842,6 +3090,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2842,6 +3097,14 @@ public class Player extends GameEntity implements Comparable<Player> {
      public Iterable<Entry<Card, Integer>> getCommanderDamage() {
          return commanderDamage.entrySet();
      }
@@ -3114,6 +3134,14 @@ index 4cbb6deb..c4fee965 100644
      public int getCommanderDamage(Card commander) {
          Integer damage = commanderDamage.get(commander);
          return damage == null ? 0 : damage;
+@@ -2958,6 +3221,7 @@ public class Player extends GameEntity implements Comparable<Player> {
+             sd.add(Card.fromPaperCard(cp, this));
+         }
+         if (!sd.isEmpty()) {
++            archenemy = true;
+             for (Card c : sd) {
+                 c.setCollectible(true);
+                 getZone(ZoneType.SchemeDeck).add(c);
 diff --git a/forge-game/src/main/java/forge/game/player/PlayerProperty.java b/forge-game/src/main/java/forge/game/player/PlayerProperty.java
 index e69e396e..13d81fdd 100644
 --- a/forge-game/src/main/java/forge/game/player/PlayerProperty.java
@@ -3164,7 +3192,7 @@ index 70f867b9..91ecc5ec 100644
          this.turnsPlayed++;
      }
 diff --git a/forge-game/src/main/java/forge/game/player/RegisteredPlayer.java b/forge-game/src/main/java/forge/game/player/RegisteredPlayer.java
-index 927afb99..053ecc8a 100644
+index 927afb99..a73b6ede 100644
 --- a/forge-game/src/main/java/forge/game/player/RegisteredPlayer.java
 +++ b/forge-game/src/main/java/forge/game/player/RegisteredPlayer.java
 @@ -36,6 +36,7 @@ public class RegisteredPlayer {
@@ -3189,6 +3217,17 @@ index 927afb99..053ecc8a 100644
      public final int getManaShards() {
          return manaShards;
      }
+@@ -107,6 +115,10 @@ public class RegisteredPlayer {
+     public Iterable<? extends IPaperCard> getSchemes() {
+         return schemes == null ? EmptyList : schemes;
+     }
++    // a scheme deck without the archenemy's 40 life (forVariants sets both)
++    public void setSchemes(Iterable<? extends IPaperCard> schemes0) {
++        schemes = schemes0;
++    }
+ 
+     public Iterable<PaperCard> getPlanes() {
+         return planes == null ? EmptyList : planes;
 diff --git a/forge-game/src/main/java/forge/game/replacement/ReplaceBeginTurn.java b/forge-game/src/main/java/forge/game/replacement/ReplaceBeginTurn.java
 index 21c84a69..d3c6cb42 100644
 --- a/forge-game/src/main/java/forge/game/replacement/ReplaceBeginTurn.java
