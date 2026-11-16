@@ -325,6 +325,19 @@ index 4edefb1..eb1e7a1 100644
      private boolean canPayWithReservedSacrifices(final SpellAbility manaAbility) {
          final Cost payCosts = manaAbility.getPayCosts();
          if (payCosts == null) {
+diff --git a/forge-harness/src/main/java/forge/harness/common/EngineHandler.java b/forge-harness/src/main/java/forge/harness/common/EngineHandler.java
+index 62dc6db..357526b 100644
+--- a/forge-harness/src/main/java/forge/harness/common/EngineHandler.java
++++ b/forge-harness/src/main/java/forge/harness/common/EngineHandler.java
+@@ -138,7 +138,7 @@ public final class EngineHandler {
+             combat.addBlocker(attacker, blocker);
+             applied.add(blocker);
+         }
+-        final String error = CombatUtil.validateBlocks(combat, defender);
++        final String error = combat.isSharedTeamAttack() ? null : CombatUtil.validateBlocks(combat, defender);
+         if (error != null) {
+             for (final Card blocker : applied) {
+                 combat.undoBlockingAssignment(blocker);
 diff --git a/forge-harness/src/main/java/forge/harness/common/HarnessCostPlumbing.java b/forge-harness/src/main/java/forge/harness/common/HarnessCostPlumbing.java
 index 1098de8..673d62f 100644
 --- a/forge-harness/src/main/java/forge/harness/common/HarnessCostPlumbing.java
@@ -1465,7 +1478,7 @@ index 0000000..9d713d1
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..0d09df5 100644
+index 713e1ef..e272c0d 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 @@ -26,27 +26,40 @@ import forge.card.MagicColor;
@@ -1772,7 +1785,7 @@ index 713e1ef..0d09df5 100644
 +            return null;
 +        }
 +        final Map<String, Object> out = new LinkedHashMap<>();
-+        out.put("rule", rules.hasSharedTeamLife() ? "sharedLife" : "teams");
++        out.put("rule", rules.hasSharedTeamTurns() ? "sharedTurns" : rules.hasSharedTeamLife() ? "sharedLife" : "teams");
 +        out.put("poisonToLose", rules.getPoisonCountersToLose());
 +        if (rules.hasAppliedVariant(GameType.Commander)) {
 +            out.put("commanderDamageToLose", rules.getCommanderDamageToLose());
@@ -2022,21 +2035,34 @@ index 713e1ef..0d09df5 100644
          if (source == null) {
              return 0;
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
-index c69b549..35c9272 100644
+index c69b549..699b41f 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
-@@ -47,6 +47,10 @@ import java.util.concurrent.ConcurrentHashMap;
+@@ -47,6 +47,11 @@ import java.util.concurrent.ConcurrentHashMap;
   */
  public final class ManaBrewEngineAdapter {
      private static final Gson GSON = new Gson();
 +    static final String TEAM_RULES_NONE = "none";
 +    static final String TEAM_RULES_TEAMS = "teams";
 +    static final String TEAM_RULES_SHARED_LIFE = "sharedLife";
-+    private static final Set<String> TEAM_RULES = Set.of(TEAM_RULES_NONE, TEAM_RULES_TEAMS, TEAM_RULES_SHARED_LIFE);
++    static final String TEAM_RULES_SHARED_TURNS = "sharedTurns";
++    private static final Set<String> TEAM_RULES = Set.of(TEAM_RULES_NONE, TEAM_RULES_TEAMS, TEAM_RULES_SHARED_LIFE, TEAM_RULES_SHARED_TURNS);
      private final Map<String, ManaBrewInteractiveSession> sessions = new ConcurrentHashMap<>();
      private volatile boolean initialized;
  
-@@ -85,7 +89,14 @@ public final class ManaBrewEngineAdapter {
+@@ -69,11 +74,6 @@ public final class ManaBrewEngineAdapter {
+             prefs.setPref(ForgePreferences.FPref.PERFORMANCE_MODE, true);
+             return null;
+         });
+-        // The patch 24 runaway caps default to 25k per turn, sized for the heap. A
+-        // turn that creates 800 tokens and fires 8k triggers already takes longer
+-        // than a session; these end it as a Draw while the tab is still alive.
+-        forge.game.Game.setRunawayCardsPerTurnCap(1000);
+-        forge.game.Game.setRunawayTriggersPerTurnCap(5000);
+         initialized = true;
+     }
+ 
+@@ -85,7 +85,14 @@ public final class ManaBrewEngineAdapter {
  
          final int playerCount = request.getPlayers().size();
          final GameType gameType = resolveGameType(request);
@@ -2052,7 +2078,7 @@ index c69b549..35c9272 100644
          final GameRules rules = new GameRules(gameType);
          rules.setAppliedVariants(variants);
          rules.setSimTimeout(120);
-@@ -95,6 +106,8 @@ public final class ManaBrewEngineAdapter {
+@@ -95,6 +102,8 @@ public final class ManaBrewEngineAdapter {
          // those filters the whole battlefield, which on a four-player board is
          // a quarter of the engine's time.
          rules.setRenderAbilityText(false);
@@ -2061,7 +2087,7 @@ index c69b549..35c9272 100644
  
          // Resetting global counters under a live session would collide its ids;
          // multiplexed processes only reset between idle periods.
-@@ -113,9 +126,13 @@ public final class ManaBrewEngineAdapter {
+@@ -113,9 +122,13 @@ public final class ManaBrewEngineAdapter {
              }
              Deck deck = buildDeck(playerConfig);
              RegisteredPlayer registeredPlayer = RegisteredPlayer.forVariants(
@@ -2077,7 +2103,7 @@ index c69b549..35c9272 100644
              } else {
                  registeredPlayer.setPlayer(new ManaBrewInteractiveLobbyPlayer(
                          playerConfig.getName(), session));
-@@ -125,6 +142,7 @@ public final class ManaBrewEngineAdapter {
+@@ -125,6 +138,7 @@ public final class ManaBrewEngineAdapter {
  
          final Match match = new Match(rules, registeredPlayers, "ManaBrew");
          final Game game = match.createGame();
@@ -2085,7 +2111,7 @@ index c69b549..35c9272 100644
          session.attach(match, game, botSeats, request.isSnapshotRecording());
          if (request.checkpointMetrics) {
              session.enableCheckpointMetrics();
-@@ -357,6 +375,104 @@ public final class ManaBrewEngineAdapter {
+@@ -357,6 +371,109 @@ public final class ManaBrewEngineAdapter {
          }
      }
  
@@ -2101,7 +2127,7 @@ index c69b549..35c9272 100644
 +        if (sizes.keySet().stream().anyMatch(team -> team < 0) || sizes.size() < 2) {
 +            throw new IllegalArgumentException(teamRules + " needs every player on one of two or more teams");
 +        }
-+        if (!TEAM_RULES_SHARED_LIFE.equals(teamRules)) {
++        if (!isSharedLife(teamRules)) {
 +            return;
 +        }
 +        if (new HashSet<>(sizes.values()).size() != 1) {
@@ -2130,6 +2156,7 @@ index c69b549..35c9272 100644
 +        }
 +        final int heads = sizes.values().iterator().next();
 +        rules.setSharedTeamLife(true);
++        rules.setSharedTeamTurns(TEAM_RULES_SHARED_TURNS.equals(teamRules));
 +        rules.setTeamLifeEvents(true);
 +        rules.setPoisonCountersToLose(request.getPoisonToLose() != null
 +                ? request.getPoisonToLose() : 15 + 5 * (heads - 2));
@@ -2167,7 +2194,7 @@ index c69b549..35c9272 100644
 +        }
 +        if (playerConfig.getStartingLife() != null) {
 +            registeredPlayer.setStartingLife(playerConfig.getStartingLife());
-+        } else if (TEAM_RULES_SHARED_LIFE.equals(request.getTeamRules())) {
++        } else if (isSharedLife(request.getTeamRules())) {
 +            final int heads = teamSizes(request).get(playerConfig.getTeam());
 +            registeredPlayer.setStartingLife(gameType == GameType.Commander ? 40 * heads : 30 + 15 * (heads - 2));
 +        }
@@ -2177,6 +2204,10 @@ index c69b549..35c9272 100644
 +        if (playerConfig.getCommanderDamageToLose() != null) {
 +            registeredPlayer.setCommanderDamageToLose(playerConfig.getCommanderDamageToLose());
 +        }
++    }
++
++    static boolean isSharedLife(final String teamRules) {
++        return TEAM_RULES_SHARED_LIFE.equals(teamRules) || TEAM_RULES_SHARED_TURNS.equals(teamRules);
 +    }
 +
 +    private static Map<Integer, Integer> teamSizes(final StartGameRequest request) {
@@ -2190,7 +2221,7 @@ index c69b549..35c9272 100644
      private static GameType resolveGameType(final StartGameRequest request) {
          final String variant = request.getVariant();
          if (variant != null && !variant.isBlank()) {
-@@ -380,7 +496,7 @@ public final class ManaBrewEngineAdapter {
+@@ -380,7 +497,7 @@ public final class ManaBrewEngineAdapter {
          return commanderGame ? GameType.Commander : GameType.Constructed;
      }
  
@@ -2199,7 +2230,7 @@ index c69b549..35c9272 100644
          JsonObject root = JsonParser.parseString(requestJson).getAsJsonObject();
          String gameId = requiredString(root, "gameId");
          String variant = optionalString(root, "variant");
-@@ -426,11 +542,28 @@ public final class ManaBrewEngineAdapter {
+@@ -426,11 +543,28 @@ public final class ManaBrewEngineAdapter {
              boolean bot = playerObject.has("bot")
                      && !playerObject.get("bot").isJsonNull()
                      && playerObject.get("bot").getAsBoolean();
@@ -2229,7 +2260,7 @@ index c69b549..35c9272 100644
          return request;
      }
  
-@@ -455,6 +588,25 @@ public final class ManaBrewEngineAdapter {
+@@ -455,6 +589,25 @@ public final class ManaBrewEngineAdapter {
          return value;
      }
  
@@ -2255,7 +2286,7 @@ index c69b549..35c9272 100644
      private static String optionalString(final JsonObject object, final String key) {
          if (!object.has(key) || object.get(key).isJsonNull()) {
              return null;
-@@ -470,6 +622,9 @@ public final class ManaBrewEngineAdapter {
+@@ -470,6 +623,9 @@ public final class ManaBrewEngineAdapter {
          private final boolean snapshotRecording;
          private boolean checkpointMetrics;
          private final List<PlayerConfig> players;
@@ -2265,7 +2296,7 @@ index c69b549..35c9272 100644
  
          public StartGameRequest(
                  final String gameId,
-@@ -516,6 +671,29 @@ public final class ManaBrewEngineAdapter {
+@@ -516,6 +672,29 @@ public final class ManaBrewEngineAdapter {
          public List<PlayerConfig> getPlayers() {
              return players;
          }
@@ -2295,7 +2326,7 @@ index c69b549..35c9272 100644
      }
  
      public static final class PlayerConfig {
-@@ -526,6 +704,13 @@ public final class ManaBrewEngineAdapter {
+@@ -526,6 +705,13 @@ public final class ManaBrewEngineAdapter {
          private final List<String> commanderNames;
          private final boolean ai;
          private final boolean bot;
@@ -2309,7 +2340,7 @@ index c69b549..35c9272 100644
  
          public PlayerConfig(
                  final String name,
-@@ -535,6 +720,19 @@ public final class ManaBrewEngineAdapter {
+@@ -535,6 +721,19 @@ public final class ManaBrewEngineAdapter {
                  final List<String> commanderNames,
                  final boolean ai,
                  final boolean bot
@@ -2329,7 +2360,7 @@ index c69b549..35c9272 100644
          ) {
              if (name == null || name.isBlank()) {
                  throw new IllegalArgumentException("player name is required");
-@@ -549,6 +747,11 @@ public final class ManaBrewEngineAdapter {
+@@ -549,6 +748,11 @@ public final class ManaBrewEngineAdapter {
              this.commanderNames = commanderNames == null ? List.of() : List.copyOf(commanderNames);
              this.ai = ai;
              this.bot = bot;
@@ -2341,7 +2372,7 @@ index c69b549..35c9272 100644
          }
  
          public String getName() {
-@@ -578,6 +781,45 @@ public final class ManaBrewEngineAdapter {
+@@ -578,6 +782,45 @@ public final class ManaBrewEngineAdapter {
          public boolean isBot() {
              return bot;
          }
@@ -2388,7 +2419,7 @@ index c69b549..35c9272 100644
  
      public static final class CardIdentity {
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
-index fb82e6d..1710ff6 100644
+index fb82e6d..550846b 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 @@ -11,6 +11,8 @@ import forge.harness.common.HarnessPlayPlumbing;
@@ -2491,7 +2522,105 @@ index fb82e6d..1710ff6 100644
              }
              return played;
          } finally {
-@@ -760,8 +806,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -290,6 +336,9 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+ 
+     @Override
+     public List<SpellAbility> orderSimultaneousSa(final List<SpellAbility> activePlayerSAs) {
++        if (needPromptForOrder(activePlayerSAs)) {
++            return session.awaitTriggerOrder(me(), activePlayerSAs, null);
++        }
+         return playPlumbing.orderSimultaneousSa(activePlayerSAs);
+     }
+ 
+@@ -382,6 +431,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+         combat.clearAttackers();
+         if (passUntilPhase != null
+                 && !PriorityFastForward.reachedTarget(game, passUntilPlayer, passUntilPhase)
++                && combat.getRefusedTeamAttacks() == 0
+                 && CombatUtil.validateAttackers(combat)) {
+             return;
+         }
+@@ -403,9 +453,28 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+ 
+     @Override
+     public void declareBlockers(final Player defender, final Combat combat) {
++        final boolean teamBlock = combat.isSharedTeamAttack();
++        final int round = combat.getTeamBlockRound();
++        final List<Pair<Card, Card>> current = new ArrayList<>();
++        if (round > 0 && combat.getTeamBlockAnswer(defender) != null) {
++            current.addAll(combat.getTeamBlockAnswer(defender));
++        } else {
++            for (final Card own : CardLists.filterControlledBy(combat.getAllBlockers(), defender)) {
++                for (final Card attacker : combat.getAttackersBlockedBy(own)) {
++                    current.add(ImmutablePair.of(own, attacker));
++                }
++            }
++        }
++        if (teamBlock || round >= 0) {
++            for (final Card own : CardLists.filterControlledBy(combat.getAllBlockers(), defender)) {
++                combat.undoBlockingAssignment(own);
++            }
++        }
++        final boolean teamAttackers = teamBlock || game.getRules().hasSharedTeamLife();
+         final List<Card> attackers = new ArrayList<>();
+         for (final Card attacker : combat.getAttackers()) {
+-            if (combat.getDefendingPlayerRelatedTo(attacker) == defender) {
++            final Player attacked = combat.getDefendingPlayerRelatedTo(attacker);
++            if (attacked == defender || teamAttackers && attacked != null && !attacked.isOpponentOf(defender)) {
+                 attackers.add(attacker);
+             }
+         }
+@@ -415,10 +484,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+         final Map<Card, List<Card>> validByAttacker =
+                 EngineHandler.validBlockersByAttacker(combat, attackers, blockers);
+         final int defenderIndex = SnapshotExtractor.playerIndex(game, defender);
++        final ManaBrewInteractiveSession.TeamBlockPrompt teamPrompt =
++                round >= 0 ? teamBlockPrompt(defender, combat, round, attackers, current) : null;
+         String error = null;
+         while (true) {
+             final List<Pair<Card, Card>> assignments =
+-                    session.awaitBlockers(defenderIndex, attackers, blockers, validByAttacker, error);
++                    session.awaitBlockers(defenderIndex, attackers, blockers, validByAttacker, error, teamPrompt);
+             error = EngineHandler.applyBlockerAssignments(combat, defender, assignments);
+             if (error == null || session.isClosed() || game.isGameOver()) {
+                 return;
+@@ -426,6 +497,35 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+         }
+     }
+ 
++    private ManaBrewInteractiveSession.TeamBlockPrompt teamBlockPrompt(final Player defender, final Combat combat, final int round,
++            final List<Card> attackers, final List<Pair<Card, Card>> current) {
++        final List<String> partners = new ArrayList<>();
++        for (final Player mate : defender.getTeamMates(false)) {
++            if (mate.isInGame()) {
++                partners.add(mate.getName());
++            }
++        }
++        final String partnerNames = String.join(" and ", partners);
++        final String title = round == 0 ? "Block with " + partnerNames
++                : partnerNames + " changed the blocks. Agree or change?";
++        final List<String> lines = new ArrayList<>();
++        for (final Card attacker : attackers) {
++            final List<String> names = new ArrayList<>();
++            for (final Pair<Card, Card> own : current) {
++                if (own.getRight().equals(attacker)) {
++                    names.add("your " + own.getLeft().getName());
++                }
++            }
++            for (final Card blocker : combat.getBlockers(attacker)) {
++                if (!blocker.getController().equals(defender)) {
++                    names.add(blocker.getController().getName() + "'s " + blocker.getName());
++                }
++            }
++            lines.add(attacker.getName() + " -> " + (names.isEmpty() ? "not blocked" : String.join(" + ", names)));
++        }
++        return new ManaBrewInteractiveSession.TeamBlockPrompt(title, round > 0 ? round : null, current, lines);
++    }
++
+     @Override
+     public CardCollection orderBlockers(final Card attacker, final CardCollection blockers) {
+         return session.awaitDamageAssignmentOrder(me(), attacker, blockers);
+@@ -760,8 +860,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      @Override
      public CardCollectionView chooseCardsForCost(final CardCollectionView optionList, final SpellAbility sa,
              final CostPartWithList cpl, final int amount, final boolean isOptional, final String prompt) {
@@ -2502,7 +2631,7 @@ index fb82e6d..1710ff6 100644
          if (isOptional && selected.size() != amount) {
              return null;
          }
-@@ -790,8 +836,16 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -790,8 +890,16 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          if (sourceList.isEmpty()) {
              return CardCollection.EMPTY;
          }
@@ -2521,7 +2650,7 @@ index fb82e6d..1710ff6 100644
      }
  
      @Override
-@@ -832,7 +886,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -832,7 +940,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          final CardCollection cards = cardOptions(optionList);
          if (cards == null) {
              return rememberSecretPlayerViewer(
@@ -2530,7 +2659,7 @@ index fb82e6d..1710ff6 100644
          }
          final CardCollection selected = session.awaitCardChoice(
                  "choose_cards_for_effect", me(), cards, 1, 1, sourceName(sa), sourceCardId(sa), title, isOptional);
-@@ -895,7 +949,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -895,7 +1003,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
              CardLists.sortByCmcDesc(sorted);
              return new CardCollection(sorted.subList(0, Math.max(min, Math.min(cappedMax, 1))));
          }
@@ -2540,7 +2669,7 @@ index fb82e6d..1710ff6 100644
      }
  
      @Override
-@@ -2514,6 +2569,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2514,6 +2623,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public void notifyOfValue(final SpellAbility saSource, final GameObject realtedTarget, final String value) {
@@ -2551,7 +2680,7 @@ index fb82e6d..1710ff6 100644
          final String message = MessageUtil.formatNotificationMessage(saSource, player, realtedTarget, value);
          if (saSource != null && saSource.isManaAbility()) {
              game.getGameLog().add(GameLogEntryType.LAND, message);
-@@ -2620,7 +2679,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2620,7 +2733,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      }
  
      private <T extends GameEntity> T chooseSingleEntityGeneric(
@@ -2561,7 +2690,7 @@ index fb82e6d..1710ff6 100644
          final List<T> opts = new ArrayList<>();
          for (final T option : optionList) {
              opts.add(option);
-@@ -2632,7 +2692,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2632,7 +2746,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          for (final T option : opts) {
              labels.add(option == null ? "?" : option.toString());
          }
@@ -2576,7 +2705,7 @@ index fb82e6d..1710ff6 100644
              return null;
          }
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..a6c547e 100644
+index 643e5de..819dec1 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,12 +6,15 @@ import forge.harness.common.ParityCardMap;
@@ -2880,7 +3009,49 @@ index 643e5de..a6c547e 100644
                  return action.has("keep") && action.get("keep").getAsBoolean();
              }
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
-@@ -1104,14 +1196,31 @@ public final class ManaBrewInteractiveSession {
+@@ -1004,15 +1096,40 @@ public final class ManaBrewInteractiveSession {
+         return new ArrayList<>();
+     }
+ 
++    static final class TeamBlockPrompt {
++        final String title;
++        final Integer reviseRound;
++        final List<Pair<Card, Card>> current;
++        final List<String> lines;
++
++        TeamBlockPrompt(final String title, final Integer reviseRound, final List<Pair<Card, Card>> current, final List<String> lines) {
++            this.title = title;
++            this.reviseRound = reviseRound;
++            this.current = current;
++            this.lines = lines;
++        }
++    }
++
+     List<Pair<Card, Card>> awaitBlockers(
+             final int playerId,
+             final List<Card> attackers,
+             final List<Card> availableBlockers,
+             final Map<Card, List<Card>> validBlockersByAttacker,
+             final String error
++    ) {
++        return awaitBlockers(playerId, attackers, availableBlockers, validBlockersByAttacker, error, null);
++    }
++
++    List<Pair<Card, Card>> awaitBlockers(
++            final int playerId,
++            final List<Card> attackers,
++            final List<Card> availableBlockers,
++            final Map<Card, List<Card>> validBlockersByAttacker,
++            final String error,
++            final TeamBlockPrompt team
+     ) {
+         requireAttached();
+-        publishBlockersPrompt(playerId, attackers, availableBlockers, validBlockersByAttacker, error);
++        publishBlockersPrompt(playerId, attackers, availableBlockers, validBlockersByAttacker, error, team);
+         while (!closed && !game.isGameOver()) {
+             final JsonObject action = takeActionOrNull();
+             if (action == null) {
+@@ -1104,14 +1221,31 @@ public final class ManaBrewInteractiveSession {
              final String description,
              final boolean optionalDecline,
              final String error
@@ -2915,7 +3086,7 @@ index 643e5de..a6c547e 100644
      }
  
      void awaitRevealCards(
-@@ -1188,6 +1297,18 @@ public final class ManaBrewInteractiveSession {
+@@ -1188,6 +1322,18 @@ public final class ManaBrewInteractiveSession {
          return awaitModeChoice(playerId, unweightedOptions(options, allowRepeat), min, max, sourceName, null, null);
      }
  
@@ -2934,7 +3105,7 @@ index 643e5de..a6c547e 100644
      List<Integer> awaitModeChoice(
              final int playerId,
              final List<SelectionOption> options,
-@@ -1196,6 +1317,19 @@ public final class ManaBrewInteractiveSession {
+@@ -1196,6 +1342,19 @@ public final class ManaBrewInteractiveSession {
              final String sourceName,
              final String description,
              final String sourceCardId
@@ -2954,7 +3125,7 @@ index 643e5de..a6c547e 100644
      ) {
          requireAttached();
          if (options.isEmpty() && min > 0) {
-@@ -1207,7 +1341,7 @@ public final class ManaBrewInteractiveSession {
+@@ -1207,7 +1366,7 @@ public final class ManaBrewInteractiveSession {
          final int clampedMax = anyRepeatable ? max : Math.min(max, totalWeight);
          final String title = sourceName != null ? sourceName : "Choose";
          final PromptPresentation presentation =
@@ -2963,7 +3134,7 @@ index 643e5de..a6c547e 100644
          publishAgentPrompt("player-" + playerId, sourceCardId,
                  new ChooseFromSelectionInput(presentation, options, clampedMin, clampedMax));
          while (!closed && !game.isGameOver()) {
-@@ -1762,24 +1896,29 @@ public final class ManaBrewInteractiveSession {
+@@ -1762,24 +1921,29 @@ public final class ManaBrewInteractiveSession {
              final CardCollectionView valid,
              final int min,
              final int max,
@@ -2995,7 +3166,7 @@ index 643e5de..a6c547e 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (chosen.size() >= cappedMin) {
                      break;
-@@ -1821,7 +1960,8 @@ public final class ManaBrewInteractiveSession {
+@@ -1821,7 +1985,8 @@ public final class ManaBrewInteractiveSession {
              final List<Pair<GameEntity, forge.game.GameObject>> candidates,
              final int min,
              final int max,
@@ -3005,7 +3176,7 @@ index 643e5de..a6c547e 100644
      ) {
          final Card source = sa == null ? null : sa.getHostCard();
          final List<TargetRef> candidateRefs = new java.util.ArrayList<>();
-@@ -1834,7 +1974,11 @@ public final class ManaBrewInteractiveSession {
+@@ -1834,7 +1999,11 @@ public final class ManaBrewInteractiveSession {
                  new ChooseBoardTargetsInput(
                          presentation("Sacrifice", null),
                          candidateRefs, true, enumFromWire("sacrifice", TargetingIntent.class),
@@ -3018,7 +3189,7 @@ index 643e5de..a6c547e 100644
      }
  
      Map<GameEntity, Integer> awaitDividedAllocation(
-@@ -1882,6 +2026,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1882,6 +2051,16 @@ public final class ManaBrewInteractiveSession {
              final int min,
              final int max,
              final boolean allowEmpty
@@ -3035,7 +3206,7 @@ index 643e5de..a6c547e 100644
      ) {
          while (!closed && !game.isGameOver()) {
              final JsonObject action;
-@@ -1892,6 +2046,12 @@ public final class ManaBrewInteractiveSession {
+@@ -1892,6 +2071,12 @@ public final class ManaBrewInteractiveSession {
                  return new CardCollection();
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
@@ -3048,7 +3219,7 @@ index 643e5de..a6c547e 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (allowEmpty) {
                      return new CardCollection();
-@@ -1911,10 +2071,10 @@ public final class ManaBrewInteractiveSession {
+@@ -1911,10 +2096,10 @@ public final class ManaBrewInteractiveSession {
                      }
                  }
              }
@@ -3062,7 +3233,7 @@ index 643e5de..a6c547e 100644
                  throw new IllegalArgumentException("selected card count out of range: " + selected.size());
              }
              return selected;
-@@ -1940,10 +2100,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1940,10 +2125,16 @@ public final class ManaBrewInteractiveSession {
  
      private JsonObject takeAction() throws InterruptedException {
          while (true) {
@@ -3080,7 +3251,7 @@ index 643e5de..a6c547e 100644
              if (action == null) {
                  if (closed || game.isGameOver()) {
                      return syntheticPass();
-@@ -1966,6 +2132,14 @@ public final class ManaBrewInteractiveSession {
+@@ -1966,6 +2157,14 @@ public final class ManaBrewInteractiveSession {
                  announceState();
                  continue;
              }
@@ -3095,7 +3266,7 @@ index 643e5de..a6c547e 100644
              if ("set_snapshot_recording".equals(kind)) {
                  if (action.get("player").getAsInt() == InteractiveBridge.HOST_SEAT) {
                      setSnapshotRecording(action.get("enabled").getAsBoolean());
-@@ -1987,6 +2161,17 @@ public final class ManaBrewInteractiveSession {
+@@ -1987,6 +2186,17 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3113,7 +3284,7 @@ index 643e5de..a6c547e 100644
      private static JsonObject syntheticPass() {
          final JsonObject pass = new JsonObject();
          pass.addProperty("kind", "pass");
-@@ -2010,6 +2195,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2010,6 +2220,8 @@ public final class ManaBrewInteractiveSession {
          if (!restoreApproved()) {
              return false;
          }
@@ -3122,7 +3293,7 @@ index 643e5de..a6c547e 100644
          final RestoreVote vote = restoreVote;
          if (!checkpoints.contains(vote.checkpoint)) {
              vote.status = RestoreVoteStatus.UNAVAILABLE;
-@@ -2067,22 +2254,16 @@ public final class ManaBrewInteractiveSession {
+@@ -2067,22 +2279,16 @@ public final class ManaBrewInteractiveSession {
          if (handler.getTurn() == checkpointTurn && handler.getPhase() == checkpointPhase) {
              return;
          }
@@ -3149,7 +3320,7 @@ index 643e5de..a6c547e 100644
          if (checkpointMetricsEnabled) {
              final long finished = System.nanoTime();
              synchronized (checkpointTimings) {
-@@ -2091,6 +2272,168 @@ public final class ManaBrewInteractiveSession {
+@@ -2091,6 +2297,168 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3318,7 +3489,7 @@ index 643e5de..a6c547e 100644
      private void publishCheckpointViews() {
          final List<Map<String, Object>> views = new ArrayList<>();
          for (final Checkpoint checkpoint : checkpoints) {
-@@ -2124,6 +2467,10 @@ public final class ManaBrewInteractiveSession {
+@@ -2124,6 +2492,10 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
@@ -3329,7 +3500,7 @@ index 643e5de..a6c547e 100644
          if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
                  || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
              return;
-@@ -2157,11 +2504,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2157,11 +2529,7 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void restore(final Checkpoint target) {
@@ -3342,7 +3513,7 @@ index 643e5de..a6c547e 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2518,431 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2543,431 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3774,7 +3945,7 @@ index 643e5de..a6c547e 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +2975,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +3000,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -3791,7 +3962,7 @@ index 643e5de..a6c547e 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +3019,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +3044,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -3800,7 +3971,7 @@ index 643e5de..a6c547e 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +3062,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +3087,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -3823,7 +3994,7 @@ index 643e5de..a6c547e 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +3106,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +3131,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -3854,7 +4025,7 @@ index 643e5de..a6c547e 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,16 +3370,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,16 +3395,21 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -3878,7 +4049,7 @@ index 643e5de..a6c547e 100644
          }
          final List<AttackTargetDto> attackTargets = new java.util.ArrayList<>();
          for (final GameEntity defender : combat.getDefenders()) {
-@@ -2596,7 +3392,114 @@ public final class ManaBrewInteractiveSession {
+@@ -2596,7 +3417,114 @@ public final class ManaBrewInteractiveSession {
                      defenderId(defender), defender.getName(),
                      enumFromWire(defenderKind(defender), AttackTargetKind.class)));
          }
@@ -3916,7 +4087,7 @@ index 643e5de..a6c547e 100644
 +        if (defenders.isEmpty()) {
 +            return out;
 +        }
-+        for (final Card creature : combat.getAttackingPlayer().getCreaturesInPlay()) {
++        for (final Card creature : combat.getDeclaringPlayers().get(0).getCreaturesInPlay()) {
 +            if (!availableAttackers.contains(creature)) {
 +                out.add(attackRefusal(creature, defenders.get(0), null));
 +                continue;
@@ -3994,7 +4165,36 @@ index 643e5de..a6c547e 100644
      }
  
      private void publishBlockersPrompt(
-@@ -2918,7 +3821,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2604,7 +3532,8 @@ public final class ManaBrewInteractiveSession {
+             final List<Card> attackers,
+             final List<Card> availableBlockers,
+             final Map<Card, List<Card>> validBlockersByAttacker,
+-            final String error
++            final String error,
++            final TeamBlockPrompt team
+     ) {
+         final Player defendingPlayer = game.getRegisteredPlayers().get(playerId);
+         final List<BlockableAttackerDto> attackerOptions = new java.util.ArrayList<>();
+@@ -2627,7 +3556,17 @@ public final class ManaBrewInteractiveSession {
+             availableBlockerIds.add(SnapshotExtractor.javaCardId(blocker));
+         }
+         publishAgentPrompt("player-" + playerId, null,
+-                new ChooseBlockersInput(attackerOptions, availableBlockerIds, error));
++                new ChooseBlockersInput(attackerOptions, availableBlockerIds, error,
++                        team != null ? team.title : null, team != null ? team.reviseRound : null,
++                        team != null ? currentBlocks(team.current) : null, team != null ? team.lines : null));
++    }
++
++    private static List<BlockAssignment> currentBlocks(final List<Pair<Card, Card>> current) {
++        final List<BlockAssignment> out = new java.util.ArrayList<>();
++        for (final Pair<Card, Card> block : current) {
++            out.add(new BlockAssignment(SnapshotExtractor.javaCardId(block.getLeft()), SnapshotExtractor.javaCardId(block.getRight())));
++        }
++        return out;
+     }
+ 
+     private void publishDamageAssignmentOrderPrompt(
+@@ -2918,7 +3857,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4004,7 +4204,7 @@ index 643e5de..a6c547e 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +3832,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +3868,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -4030,7 +4230,7 @@ index 643e5de..a6c547e 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +3864,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +3900,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -4041,7 +4241,7 @@ index 643e5de..a6c547e 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +3892,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +3928,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -4475,6 +4675,46 @@ index 0000000..89c4600
 +        return null;
 +    }
 +}
+diff --git a/forge-harness/src/main/java/forge/harness/host/PriorityFastForward.java b/forge-harness/src/main/java/forge/harness/host/PriorityFastForward.java
+index feba680..5a9c6bf 100644
+--- a/forge-harness/src/main/java/forge/harness/host/PriorityFastForward.java
++++ b/forge-harness/src/main/java/forge/harness/host/PriorityFastForward.java
+@@ -25,8 +25,12 @@ final class PriorityFastForward {
+         if (targetPlayerHasLost(game, untilPlayer)) {
+             return true;
+         }
+-        final String activeSlot = "player-" + SnapshotExtractor.playerIndex(game, active);
+-        return activeSlot.equals(untilPlayer) && !current.isBefore(target);
++        for (final Player member : game.getPhaseHandler().getActiveTeam()) {
++            if (("player-" + SnapshotExtractor.playerIndex(game, member)).equals(untilPlayer)) {
++                return !current.isBefore(target);
++            }
++        }
++        return false;
+     }
+ 
+     /**
+@@ -36,13 +40,18 @@ final class PriorityFastForward {
+     static boolean invalidatedByExtraTurn(
+             final Game game, final Player holder, final String untilPlayer, final int declaredTurn) {
+         final Player active = game.getPhaseHandler().getPlayerTurn();
+-        if (active != holder || !active.isExtraTurn()) {
++        if (!game.getPhaseHandler().isPlayerTurn(holder) || !active.isExtraTurn()) {
+             return false;
+         }
+         if (game.getPhaseHandler().getTurn() == declaredTurn) {
+             return false;
+         }
+-        return !("player-" + SnapshotExtractor.playerIndex(game, holder)).equals(untilPlayer);
++        for (final Player member : game.getPhaseHandler().getActiveTeam()) {
++            if (("player-" + SnapshotExtractor.playerIndex(game, member)).equals(untilPlayer)) {
++                return false;
++            }
++        }
++        return true;
+     }
+ 
+     /**
 diff --git a/forge-harness/src/test/java/forge/harness/host/ApplyStateCreateCardTest.java b/forge-harness/src/test/java/forge/harness/host/ApplyStateCreateCardTest.java
 new file mode 100644
 index 0000000..75125c3
@@ -9316,6 +9556,2301 @@ index 0000000..849bb01
 +        return card;
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/SharedCombatTest.java b/forge-harness/src/test/java/forge/harness/host/SharedCombatTest.java
+new file mode 100644
+index 0000000..cb2c91a
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/SharedCombatTest.java
+@@ -0,0 +1,783 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.ai.PlayerControllerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameEntity;
++import forge.game.GameObject;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityKey;
++import forge.game.card.Card;
++import forge.game.card.CardCollectionView;
++import forge.game.combat.Combat;
++import forge.game.combat.CombatUtil;
++import forge.game.phase.PhaseHandler;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.MagicStack;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.EnumSet;
++import java.util.HashMap;
++import java.util.HashSet;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++import java.util.concurrent.locks.ReentrantLock;
++
++public final class SharedCombatTest {
++    private SharedCombatTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        final Set<String> only = new HashSet<>(List.of(args));
++        CHECKS.put("cr805.10d theDefendingTeamIsAskedOnceInTurnOrder", SharedCombatTest::theDefendingTeamIsAskedOnceInTurnOrder);
++        CHECKS.put("cr805.10d aCreatureThatCantBlockAloneBlocksBesideItsPartnersBlocker", SharedCombatTest::aCreatureThatCantBlockAloneBlocksBesideItsPartnersBlocker);
++        CHECKS.put("cr805.10d aRefusedTeamBlockIsAskedAgainThenStands", SharedCombatTest::aRefusedTeamBlockIsAskedAgainThenStands);
++        CHECKS.put("cr805.10d theTeamsBlockIsCheckedForTheSecondDefenderToo", SharedCombatTest::theTeamsBlockIsCheckedForTheSecondDefenderToo);
++        CHECKS.put("cr805.10d anAiSecondDeclarerLeavesItsPartnersBlockAlone", SharedCombatTest::anAiSecondDeclarerLeavesItsPartnersBlockAlone);
++        CHECKS.put("cr805.10b anAiSecondAttackerKeepsItsPartnersTaxedAttacker", SharedCombatTest::anAiSecondAttackerKeepsItsPartnersTaxedAttacker);
++        CHECKS.put("cr805.10b aRefusedTeamAttackIsAskedAgainThenTakesTheLegalAttack", SharedCombatTest::aRefusedTeamAttackIsAskedAgainThenTakesTheLegalAttack);
++        CHECKS.put("cr805.10c anUnblockedPartnerGetsCovetedJewel", SharedCombatTest::anUnblockedPartnerGetsCovetedJewel);
++        CHECKS.put("cr702.22j aBlockedBandsControllerAssignsTheBlockersDamage", SharedCombatTest::aBlockedBandsControllerAssignsTheBlockersDamage);
++        CHECKS.put("cr805.10a eachAttackingPlayerKeepsTheirOwnCombatModes", SharedCombatTest::eachAttackingPlayerKeepsTheirOwnCombatModes);
++        CHECKS.put("cr805.10d theBlockPromptListsThePartnersAttackers", SharedCombatTest::theBlockPromptListsThePartnersAttackers);
++        CHECKS.put("cr805.10d aLevelOneDefenderBlocksForItsPartnerInThePrompt", SharedCombatTest::aLevelOneDefenderBlocksForItsPartnerInThePrompt);
++        CHECKS.put("cr805.10d aPlayerMayBlockAloneBeforeThePartnerDeclares", SharedCombatTest::aPlayerMayBlockAloneBeforeThePartnerDeclares);
++        CHECKS.put("cr805.10b aHeldPassStillAnswersARefusedTeamAttack", SharedCombatTest::aHeldPassStillAnswersARefusedTeamAttack);
++        CHECKS.put("cr805.10d aChangeOfMindSticks", SharedCombatTest::aChangeOfMindSticks);
++        CHECKS.put("cr805.10d anUnchangedAnswerIsAgreement", SharedCombatTest::anUnchangedAnswerIsAgreement);
++        CHECKS.put("cr805.10d noChangeNoExtraAsk", SharedCombatTest::noChangeNoExtraAsk);
++        CHECKS.put("cr805.2 thePrimarySettlesTheBlocksAtTheCap", SharedCombatTest::thePrimarySettlesTheBlocksAtTheCap);
++        CHECKS.put("cr805.10d aRefusedJointBlockStartsAgainFromRoundOne", SharedCombatTest::aRefusedJointBlockStartsAgainFromRoundOne);
++        CHECKS.put("cr805.10d twoAiPartnersAgreeWithinTheCap", SharedCombatTest::twoAiPartnersAgreeWithinTheCap);
++        CHECKS.put("cr805.10d aLevelOneTeamBlocksAsOneDecision", SharedCombatTest::aLevelOneTeamBlocksAsOneDecision);
++        CHECKS.put("cr805.10d theRevisePromptCarriesTheTeamsBlock", SharedCombatTest::theRevisePromptCarriesTheTeamsBlock);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            if (only.isEmpty() || only.contains(e.getKey()) || only.contains(e.getKey().split(" ")[1])) {
++                check(e.getKey(), e.getValue());
++            }
++        }
++        System.out.println(failed == 0 ? "PASS SharedCombatTest" : "FAIL SharedCombatTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void theDefendingTeamIsAskedOnceInTurnOrder() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card redBears = creature("Grizzly Bears", f.red);
++        creature("Grizzly Bears", f.yellow);
++        creature("Grizzly Bears", f.blue);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.blue);
++        combat.addAttacker(redBears, f.yellow);
++        final Blocks blocks = recordBlocks(f, Map.of());
++        declareBlockers(f);
++        expect(blocks.asked.equals(List.of(f.yellow, f.blue)), "the defending team was asked " + blocks.asked + ", not Yellow then Blue once each");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Bears = creature("Grizzly Bears", l1.white);
++        creature("Grizzly Bears", l1.yellow);
++        creature("Grizzly Bears", l1.blue);
++        combatOf(l1, l1.white).addAttacker(l1Bears, l1.blue);
++        final Blocks l1Blocks = recordBlocks(l1, Map.of());
++        declareBlockers(l1);
++        expect(l1Blocks.asked.equals(List.of(l1.yellow, l1.blue)), "level 1: asked " + l1Blocks.asked);
++    }
++
++    private static void aCreatureThatCantBlockAloneBlocksBesideItsPartnersBlocker() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card redBears = creature("Grizzly Bears", f.red);
++        final Card jackal = creature("Jackal Familiar", f.yellow);
++        final Card blueBears = creature("Grizzly Bears", f.blue);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.yellow);
++        combat.addAttacker(redBears, f.blue);
++        recordBlocks(f, Map.of(jackal, bears, blueBears, redBears));
++        declareBlockers(f);
++        expect(combat.getBlockers(bears).contains(jackal),
++                "Yellow's Jackal Familiar, which can't block alone, was taken out of a block beside Blue's Bears");
++        expect(CombatUtil.validateBlocks(combat, f.yellow) == null && CombatUtil.validateBlocks(combat, f.blue) == null,
++                "the team's block with the Jackal and Blue's Bears is refused: " + CombatUtil.validateBlocks(combat, f.yellow));
++        final Fixture l1 = new Fixture(false);
++        final Card l1Bears = creature("Grizzly Bears", l1.white);
++        final Card l1Jackal = creature("Jackal Familiar", l1.yellow);
++        final Card l1Blue = creature("Grizzly Bears", l1.blue);
++        final Combat l1Combat = combatOf(l1, l1.white);
++        l1Combat.addAttacker(l1Bears, l1.yellow);
++        l1Combat.addBlocker(l1Bears, l1Jackal);
++        l1Combat.addBlocker(l1Bears, l1Blue);
++        expect(CombatUtil.validateBlocks(l1Combat, l1.yellow) != null, "level 1: Yellow's Jackal may block beside Blue's Bears");
++    }
++
++    private static void theTeamsBlockIsCheckedForTheSecondDefenderToo() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        creature("Grizzly Bears", f.yellow);
++        creature("Watchdog", f.blue);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.yellow);
++        final Blocks blocks = recordBlocks(f, Map.of());
++        declareBlockers(f);
++        expect(blocks.asked.equals(List.of(f.yellow, f.blue, f.yellow, f.blue, f.yellow, f.blue)),
++                "the team's block left out Blue's Watchdog, which blocks each combat if able, but was asked " + blocks.asked + ", not refused for three rounds (rule 805.10d)");
++        expect(blocks.told.stream().anyMatch(t -> t.contains("Watchdog")), "no defender was told the Watchdog must block: " + blocks.told);
++    }
++
++    private static void aRefusedTeamBlockIsAskedAgainThenStands() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card jackal = creature("Jackal Familiar", f.yellow);
++        creature("Grizzly Bears", f.blue);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.yellow);
++        final Blocks blocks = recordBlocks(f, Map.of(jackal, bears));
++        declareBlockers(f);
++        expect(blocks.asked.equals(List.of(f.yellow, f.blue, f.yellow, f.blue, f.yellow, f.blue)),
++                "a refused team block was asked " + blocks.asked + ", not three rounds of Yellow then Blue");
++        expect(blocks.told.size() == 4 && blocks.told.get(0).startsWith("Yellow:") && blocks.told.get(0).contains("Block declaration invalid"),
++                "each defender is not told twice why the block was refused: " + blocks.told);
++        expect(combat.getBlockers(bears).isEmpty(), "the Jackal still blocks alone after the third refused round");
++    }
++
++    private static void anAiSecondDeclarerLeavesItsPartnersBlockAlone() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card yellowBears = creature("Grizzly Bears", f.yellow);
++        final Card giant = creature("Hill Giant", f.blue);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.blue);
++        recordBlocks(f, Map.of(yellowBears, bears));
++        f.blue.dangerouslySetController(new PlayerControllerAi(f.game, f.blue, f.blue.getLobbyPlayer()));
++        declareBlockers(f);
++        expect(combat.getBlockers(bears).contains(yellowBears), "Blue's AI took away Yellow's block: " + combat.getBlockers(bears));
++        expect(!combat.getBlockers(bears).contains(giant), "Blue's AI also blocked the Bears Yellow already blocks: " + combat.getBlockers(bears));
++    }
++
++    private static void anAiSecondAttackerKeepsItsPartnersTaxedAttacker() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        creature("Grizzly Bears", f.red);
++        add("Ghostly Prison", f.yellow, ZoneType.Battlefield);
++        f.game.getAction().checkStaticAbilities();
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.yellow);
++        combat.setDeclaringPlayer(f.red);
++        withoutPrompts(f, "Red's AI declaring attackers", () -> f.red.getController().declareAttackers(f.red, combat));
++        combat.setDeclaringPlayer(null);
++        expect(combat.isAttacking(bears), "Red's AI, with no mana for Ghostly Prison, removed White's attacker");
++    }
++
++    private static void aRefusedTeamAttackIsAskedAgainThenTakesTheLegalAttack() throws Exception {
++        final Fixture f = new Fixture(true);
++        creature("Grizzly Bears", f.white);
++        final Card juggernaut = creature("Juggernaut", f.red);
++        final List<Player> asked = new ArrayList<>();
++        final List<String> told = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public void declareAttackers(final Player attacker, final Combat c) {
++                    asked.add(p);
++                }
++
++                @Override
++                public void notifyOfValue(final SpellAbility sa, final GameObject target, final String value) {
++                    told.add(p.getName() + ": " + value);
++                }
++            });
++        }
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, f.white);
++        final Combat combat = new Combat(f.white);
++        f.game.getPhaseHandler().setCombat(combat);
++        final Method declare = PhaseHandler.class.getDeclaredMethod("declareAttackersTurnBasedAction");
++        declare.setAccessible(true);
++        withoutPrompts(f, "declaring attackers", () -> invoke(declare, f.game.getPhaseHandler()));
++        expect(asked.equals(List.of(f.white, f.red, f.white, f.red, f.white, f.red)),
++                "a team attack without Red's Juggernaut was asked " + asked + ", not three rounds of White then Red");
++        expect(told.size() == 4, "the attacking players were not each told twice: " + told);
++        expect(combat.getRefusedTeamAttacks() == 2, "refused team attacks " + combat.getRefusedTeamAttacks());
++        expect(combat.isAttacking(juggernaut), "the legal attack Forge took has no Juggernaut: " + combat.getAttackers());
++    }
++
++    private static void anUnblockedPartnerGetsCovetedJewel() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card whiteBears = creature("Grizzly Bears", f.white);
++        final Card redBears = creature("Grizzly Bears", f.red);
++        final Card jewel = add("Coveted Jewel", f.yellow, ZoneType.Battlefield);
++        f.game.getTriggerHandler().resetActiveTriggers();
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(whiteBears, f.blue);
++        combat.addAttacker(redBears, f.yellow);
++        combat.fireTriggersForUnblockedAttackers(f.game);
++        final List<SpellAbility> jewels = triggered(f, jewel);
++        expect(jewels.size() == 1, "Coveted Jewel triggered " + jewels.size() + " times");
++        expect(jewels.get(0).getTriggeringObject(AbilityKey.AttackingPlayer) == f.red,
++                "Coveted Jewel goes to " + jewels.get(0).getTriggeringObject(AbilityKey.AttackingPlayer) + ", not Red, whose Bears attacked Yellow");
++        final Fixture both = new Fixture(true);
++        final Card bothWhite = creature("Grizzly Bears", both.white);
++        final Card bothRed = creature("Grizzly Bears", both.red);
++        final Card bothJewel = add("Coveted Jewel", both.yellow, ZoneType.Battlefield);
++        both.game.getTriggerHandler().resetActiveTriggers();
++        final Combat bothCombat = combatOf(both, both.white);
++        bothCombat.addAttacker(bothWhite, both.yellow);
++        bothCombat.addAttacker(bothRed, both.yellow);
++        bothCombat.fireTriggersForUnblockedAttackers(both.game);
++        expect(triggered(both, bothJewel).size() == 1, "Coveted Jewel attacked by both partners triggered " + triggered(both, bothJewel).size() + " times");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Bears = creature("Grizzly Bears", l1.white);
++        final Card l1Jewel = add("Coveted Jewel", l1.yellow, ZoneType.Battlefield);
++        l1.game.getTriggerHandler().resetActiveTriggers();
++        final Combat l1Combat = combatOf(l1, l1.white);
++        l1Combat.addAttacker(l1Bears, l1.yellow);
++        l1Combat.fireTriggersForUnblockedAttackers(l1.game);
++        final List<SpellAbility> l1Jewels = triggered(l1, l1Jewel);
++        expect(l1Jewels.size() == 1 && l1Jewels.get(0).getTriggeringObject(AbilityKey.AttackingPlayer) == l1.white,
++                "level 1: Coveted Jewel triggered " + l1Jewels.size() + " times");
++    }
++
++    private static void aBlockedBandsControllerAssignsTheBlockersDamage() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card first = creature("Mesa Pegasus", f.red);
++        final Card second = creature("Mesa Pegasus", f.red);
++        final Card giant = creature("Hill Giant", f.yellow);
++        final List<String> assigned = recordDamage(f);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(first, f.yellow);
++        combat.addAttacker(second, f.yellow, combat.getBandOfAttacker(first));
++        combat.addBlocker(first, giant);
++        combat.orderBlockersForDamageAssignment();
++        combat.orderAttackersForDamageAssignment();
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DAMAGE, f.white, false);
++        withoutPrompts(f, "assigning combat damage", () -> combat.assignCombatDamage(false));
++        expect(!assigned.isEmpty() && "Hill Giant".equals(assigned.get(assigned.size() - 1).split(":")[1]),
++                "the Hill Giant's damage was not assigned last: " + assigned);
++        expect(assigned.get(assigned.size() - 1).startsWith("Red:"),
++                "the Hill Giant's damage to Red's band was assigned by " + assigned.get(assigned.size() - 1) + ", not Red");
++    }
++
++    private static void eachAttackingPlayerKeepsTheirOwnCombatModes() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card redBears = creature("Grizzly Bears", f.red);
++        final SpellAbility sa = redBears.getFirstSpellAbility();
++        final Field yourCombat = Card.class.getDeclaredField("chosenModesYourCombat");
++        final Field lastCombat = Card.class.getDeclaredField("chosenModesYourLastCombat");
++        yourCombat.setAccessible(true);
++        lastCombat.setAccessible(true);
++        @SuppressWarnings("unchecked")
++        final Map<SpellAbility, List<String>> modes = (Map<SpellAbility, List<String>>) yourCombat.get(redBears);
++        modes.put(sa, new ArrayList<>(List.of("mode")));
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_END, f.white);
++        f.game.getPhaseHandler().setCombat(new Combat(f.white));
++        final Method begin = PhaseHandler.class.getDeclaredMethod("onPhaseBegin");
++        begin.setAccessible(true);
++        withoutPrompts(f, "ending combat", () -> invoke(begin, f.game.getPhaseHandler()));
++        @SuppressWarnings("unchecked")
++        final Map<SpellAbility, List<String>> last = (Map<SpellAbility, List<String>>) lastCombat.get(redBears);
++        expect(last.containsKey(sa), "Red's mode chosen in her team's combat is not her last combat's");
++    }
++
++    private static void theBlockPromptListsThePartnersAttackers() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card blueBears = creature("Grizzly Bears", f.blue);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.yellow);
++        final ManaBrewInteractiveController blue = interactive(f, f.blue);
++        f.session.submitAction(blocks(blueBears, bears));
++        withoutPrompts(f, "Blue declaring blockers", () -> asSeat(f, () -> blue.declareBlockers(f.blue, combat)));
++        expect(f.session.getLatestPromptJson().contains(SnapshotExtractor.javaCardId(bears)),
++                "Blue's blockers prompt does not list the Bears attacking her partner Yellow: " + f.session.getLatestPromptJson());
++        expect(combat.getBlockers(bears).contains(blueBears), "Blue's block of the Bears attacking Yellow was not kept");
++    }
++
++    private static void aLevelOneDefenderBlocksForItsPartnerInThePrompt() throws Exception {
++        final Fixture f = new Fixture(false);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card blueBears = creature("Grizzly Bears", f.blue);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.yellow);
++        final ManaBrewInteractiveController blue = interactive(f, f.blue);
++        f.session.submitAction(blocks(blueBears, bears));
++        withoutPrompts(f, "Blue declaring blockers at level 1", () -> asSeat(f, () -> blue.declareBlockers(f.blue, combat)));
++        expect(f.session.getLatestPromptJson().contains(SnapshotExtractor.javaCardId(bears)),
++                "Blue's level 1 blockers prompt does not list the Bears attacking her partner Yellow: " + f.session.getLatestPromptJson());
++        expect(combat.getBlockers(bears).contains(blueBears), "Blue's level 1 block of the Bears attacking Yellow was not kept");
++    }
++
++    private static void aPlayerMayBlockAloneBeforeThePartnerDeclares() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card jackal = creature("Jackal Familiar", f.yellow);
++        creature("Grizzly Bears", f.blue);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.yellow);
++        final ManaBrewInteractiveController yellow = interactive(f, f.yellow);
++        f.session.submitAction(blocks(jackal, bears));
++        withoutPrompts(f, "Yellow blocking with the Jackal", () -> asSeat(f, () -> yellow.declareBlockers(f.yellow, combat)));
++        expect(combat.getBlockers(bears).contains(jackal), "Yellow's Jackal block, which Blue may still complete, was refused");
++        f.session.submitAction("{\"type\":\"chooseBlockers\",\"output\":{\"assignments\":[]}}");
++        withoutPrompts(f, "Yellow declaring again", () -> asSeat(f, () -> yellow.declareBlockers(f.yellow, combat)));
++        expect(combat.getBlockers(bears).isEmpty(), "Yellow's earlier block was kept when she declared again with no blocks");
++    }
++
++    private static void aHeldPassStillAnswersARefusedTeamAttack() throws Exception {
++        final Fixture f = new Fixture(true);
++        creature("Grizzly Bears", f.red);
++        final Combat combat = combatOf(f, f.white);
++        final ManaBrewInteractiveController red = interactive(f, f.red);
++        final Field phase = ManaBrewInteractiveController.class.getDeclaredField("passUntilPhase");
++        final Field until = ManaBrewInteractiveController.class.getDeclaredField("passUntilPlayer");
++        phase.setAccessible(true);
++        until.setAccessible(true);
++        phase.set(red, "endOfTurn");
++        until.set(red, "player-2");
++        combat.setDeclaringPlayer(f.red);
++        final String before = f.session.getLatestPromptJson();
++        withoutPrompts(f, "Red's held pass", () -> asSeat(f, () -> red.declareAttackers(f.red, combat)));
++        expect(java.util.Objects.equals(before, f.session.getLatestPromptJson()), "Red's held pass did not skip her first attack declaration");
++        combat.noteRefusedTeamAttack();
++        f.session.submitAction("{\"type\":\"chooseAttackers\",\"output\":{\"assignments\":[]}}");
++        withoutPrompts(f, "Red after a refused team attack", () -> asSeat(f, () -> red.declareAttackers(f.red, combat)));
++        expect(f.session.getLatestPromptJson() != null && f.session.getLatestPromptJson().contains("chooseAttackers"),
++                "Red's held pass skipped the declaration her team's refused attack asked again: " + f.session.getLatestPromptJson());
++    }
++
++    private static final class Joint {
++        final Fixture f;
++        final Card a;
++        final Card b;
++        final Card x;
++        final Card y;
++
++        Joint(final boolean sharedTurns) {
++            f = new Fixture(sharedTurns);
++            a = creature("Grizzly Bears", f.white);
++            b = creature("Hill Giant", sharedTurns ? f.red : f.white);
++            x = creature("Wall of Wood", f.yellow);
++            y = creature("Centaur Courser", f.blue);
++            final Combat combat = combatOf(f, f.white);
++            combat.addAttacker(a, f.yellow);
++            combat.addAttacker(b, f.yellow);
++        }
++
++        Map<Card, Card> block(final Card blocker, final Card attacker) {
++            return Map.of(blocker, attacker);
++        }
++    }
++
++    private static Blocks script(final Fixture f, final Map<Player, List<Map<Card, Card>>> answers) {
++        final Blocks out = new Blocks();
++        for (final Player p : f.game.getPlayers()) {
++            final List<Map<Card, Card>> mine = answers.getOrDefault(p, List.of(Map.of()));
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                private int asks;
++
++                @Override
++                public void declareBlockers(final Player defender, final Combat combat) {
++                    out.asked.add(defender);
++                    for (final Card own : new ArrayList<>(combat.getAllBlockers())) {
++                        if (own.getController() == defender) {
++                            combat.undoBlockingAssignment(own);
++                        }
++                    }
++                    for (final Map.Entry<Card, Card> e : mine.get(asks++ % mine.size()).entrySet()) {
++                        combat.addBlocker(e.getValue(), e.getKey());
++                    }
++                }
++
++                @Override
++                public void notifyOfValue(final SpellAbility sa, final GameObject target, final String value) {
++                    out.told.add(p.getName() + ": " + value);
++                }
++            });
++        }
++        return out;
++    }
++
++    private static void aChangeOfMindSticks() throws Exception {
++        final Joint j = new Joint(true);
++        final Blocks blocks = script(j.f, Map.of(j.f.yellow, List.of(j.block(j.x, j.a), j.block(j.x, j.b)),
++                j.f.blue, List.of(j.block(j.y, j.a))));
++        declareBlockers(j.f);
++        final Combat combat = j.f.game.getCombat();
++        expect(blocks.asked.equals(List.of(j.f.yellow, j.f.blue, j.f.yellow, j.f.blue)),
++                "the team was asked " + blocks.asked + ", not Yellow, Blue, Yellow again after Blue's change, Blue again after Yellow's");
++        expect(new ArrayList<>(combat.getBlockers(j.b)).equals(List.of(j.x)) && new ArrayList<>(combat.getBlockers(j.a)).equals(List.of(j.y)),
++                "Yellow's change of mind did not stick: Grizzly Bears blocked by " + combat.getBlockers(j.a) + ", Hill Giant by " + combat.getBlockers(j.b));
++        expect(blocks.told.contains("Yellow: Blue: Centaur Courser now blocks Grizzly Bears.") && blocks.told.contains("Blue: Blue: Centaur Courser now blocks Grizzly Bears.")
++                        && blocks.told.contains("Blue: Yellow: Wall of Wood now blocks Hill Giant."),
++                "the team was not told each change: " + blocks.told);
++    }
++
++    private static void anUnchangedAnswerIsAgreement() throws Exception {
++        final Joint j = new Joint(true);
++        final Blocks blocks = script(j.f, Map.of(j.f.yellow, List.of(j.block(j.x, j.a)), j.f.blue, List.of(j.block(j.y, j.b))));
++        declareBlockers(j.f);
++        expect(blocks.asked.equals(List.of(j.f.yellow, j.f.blue, j.f.yellow)),
++                "the team was asked " + blocks.asked + ", not Yellow, Blue, then Yellow once more to agree");
++        expect(new ArrayList<>(j.f.game.getCombat().getBlockers(j.a)).equals(List.of(j.x)) && new ArrayList<>(j.f.game.getCombat().getBlockers(j.b)).equals(List.of(j.y)),
++                "the agreed block is " + j.f.game.getCombat().getBlockers(j.a) + " / " + j.f.game.getCombat().getBlockers(j.b));
++    }
++
++    private static void noChangeNoExtraAsk() throws Exception {
++        final Joint j = new Joint(true);
++        final Blocks blocks = script(j.f, Map.of(j.f.yellow, List.of(j.block(j.x, j.a)), j.f.blue, List.of(Map.of())));
++        declareBlockers(j.f);
++        expect(blocks.asked.equals(List.of(j.f.yellow, j.f.blue)), "Blue blocked nothing, but the team was asked " + blocks.asked);
++        expect(blocks.told.isEmpty(), "the team was told " + blocks.told + " when nothing changed");
++    }
++
++    private static void thePrimarySettlesTheBlocksAtTheCap() throws Exception {
++        final Joint j = new Joint(true);
++        final Blocks blocks = script(j.f, Map.of(j.f.yellow, List.of(j.block(j.x, j.a), j.block(j.x, j.b), Map.of()),
++                j.f.blue, List.of(j.block(j.y, j.b), j.block(j.y, j.a))));
++        declareBlockers(j.f);
++        final Combat combat = j.f.game.getCombat();
++        expect(blocks.asked.equals(List.of(j.f.yellow, j.f.blue, j.f.yellow, j.f.blue, j.f.yellow, j.f.blue)),
++                "the team was asked " + blocks.asked + ", not round 1 then 4 revise rounds");
++        expect(!combat.isBlocking(j.x) && new ArrayList<>(combat.getBlockers(j.b)).equals(List.of(j.y)),
++                "at the cap the block is Wall of Wood on " + combat.getAttackersBlockedBy(j.x) + " and Centaur Courser on " + combat.getAttackersBlockedBy(j.y)
++                        + ", not the primary Yellow's latest (no block) with Blue's latest (Hill Giant)");
++        expect(blocks.told.contains("Yellow: Yellow settles the team's blocks (rule 805.2)") && blocks.told.contains("Blue: Yellow settles the team's blocks (rule 805.2)"),
++                "both defenders were not told the primary settles it: " + blocks.told);
++    }
++
++    private static void aRefusedJointBlockStartsAgainFromRoundOne() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card wall = creature("Wall of Wood", f.yellow);
++        final Card courser = creature("Centaur Courser", f.blue);
++        creature("Watchdog", f.blue);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.yellow);
++        final Blocks blocks = script(f, Map.of(f.yellow, List.of(Map.of(wall, bears)), f.blue, List.of(Map.of(courser, bears))));
++        declareBlockers(f);
++        expect(blocks.asked.equals(List.of(f.yellow, f.blue, f.yellow, f.yellow, f.blue, f.yellow, f.blue)),
++                "the team's block without Blue's Watchdog was asked " + blocks.asked + ", not one joint round with Yellow's agreement, then refused rounds from Yellow again");
++        expect(blocks.told.stream().filter(t -> t.contains("Block declaration invalid")).count() == 4, "each defender was not told twice of the refusal: " + blocks.told);
++    }
++
++    private static void twoAiPartnersAgreeWithinTheCap() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card giant = creature("Hill Giant", f.red);
++        final Card ogre = creature("Gray Ogre", f.red);
++        creature("Wall of Wood", f.yellow);
++        creature("Centaur Courser", f.yellow);
++        creature("Trained Armodon", f.blue);
++        creature("Grizzly Bears", f.blue);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.yellow);
++        combat.addAttacker(giant, f.blue);
++        combat.addAttacker(ogre, f.yellow);
++        final Blocks blocks = new Blocks();
++        for (final Player p : List.of(f.yellow, f.blue)) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public void declareBlockers(final Player defender, final Combat c) {
++                    blocks.asked.add(defender);
++                    super.declareBlockers(defender, c);
++                }
++
++                @Override
++                public void notifyOfValue(final SpellAbility sa, final GameObject target, final String value) {
++                    blocks.told.add(p.getName() + ": " + value);
++                }
++            });
++        }
++        declareBlockers(f);
++        expect(blocks.asked.size() >= 2 && blocks.asked.size() < 2 + PhaseHandler.MAX_TEAM_BLOCK_REVISIONS,
++                "two AI partners were asked " + blocks.asked + ": they did not agree within the cap");
++        expect(blocks.told.stream().noneMatch(t -> t.contains("settles")), "the primary had to settle two AI partners' block: " + blocks.told);
++    }
++
++    private static void aLevelOneTeamBlocksAsOneDecision() throws Exception {
++        final Joint j = new Joint(false);
++        final Blocks blocks = script(j.f, Map.of(j.f.yellow, List.of(j.block(j.x, j.a), j.block(j.x, j.b)),
++                j.f.blue, List.of(j.block(j.y, j.a))));
++        declareBlockers(j.f);
++        expect(blocks.asked.equals(List.of(j.f.yellow, j.f.blue, j.f.yellow, j.f.blue)), "level 1: the team was asked " + blocks.asked);
++        expect(new ArrayList<>(j.f.game.getCombat().getBlockers(j.b)).equals(List.of(j.x)) && new ArrayList<>(j.f.game.getCombat().getBlockers(j.a)).equals(List.of(j.y)),
++                "level 1: the block is " + j.f.game.getCombat().getBlockers(j.a) + " / " + j.f.game.getCombat().getBlockers(j.b));
++        final Fixture ffa = new Fixture(false, false);
++        final Card a = creature("Grizzly Bears", ffa.white);
++        final Card b = creature("Hill Giant", ffa.white);
++        final Card x = creature("Wall of Wood", ffa.yellow);
++        final Card y = creature("Centaur Courser", ffa.blue);
++        final Combat combat = combatOf(ffa, ffa.white);
++        combat.addAttacker(a, ffa.yellow);
++        combat.addAttacker(b, ffa.blue);
++        final Blocks ffaBlocks = script(ffa, Map.of(ffa.yellow, List.of(Map.of(x, a), Map.of()), ffa.blue, List.of(Map.of(y, b), Map.of())));
++        declareBlockers(ffa);
++        expect(ffaBlocks.asked.equals(List.of(ffa.yellow, ffa.blue)), "free-for-all: the defenders were asked " + ffaBlocks.asked + ", not once each");
++        expect(new ArrayList<>(combat.getBlockers(a)).equals(List.of(x)) && new ArrayList<>(combat.getBlockers(b)).equals(List.of(y)), "free-for-all: the blocks are " + combat.getBlockers(a) + " / " + combat.getBlockers(b));
++    }
++
++    private static void theRevisePromptCarriesTheTeamsBlock() throws Exception {
++        final Joint j = new Joint(true);
++        final Combat combat = j.f.game.getCombat();
++        combat.addBlocker(j.a, j.x);
++        combat.setTeamBlockRound(2);
++        combat.setTeamBlockAnswer(j.f.blue, List.of(org.apache.commons.lang3.tuple.Pair.of(j.y, j.b)));
++        final ManaBrewInteractiveController blue = interactive(j.f, j.f.blue);
++        j.f.session.submitAction(blocks(j.y, j.b));
++        withoutPrompts(j.f, "Blue in a revise round", () -> asSeat(j.f, () -> blue.declareBlockers(j.f.blue, combat)));
++        final String prompt = j.f.session.getLatestPromptJson();
++        expect(prompt.contains("\"reviseRound\":2"), "the revise prompt does not say it is revise round 2: " + prompt);
++        expect(prompt.contains("\"title\":\"Yellow changed the blocks. Agree or change?\""), "the revise prompt's title: " + prompt);
++        expect(prompt.contains("\"currentAssignments\":[{\"blockerId\":\"" + SnapshotExtractor.javaCardId(j.y) + "\",\"attackerId\":\"" + SnapshotExtractor.javaCardId(j.b) + "\"}]"),
++                "the revise prompt does not carry Blue's current block: " + prompt);
++        expect(prompt.contains("Grizzly Bears -> Yellow's Wall of Wood") && prompt.contains("Hill Giant -> your Centaur Courser"), "the revise prompt's team block lines: " + prompt);
++        expect(new ArrayList<>(combat.getBlockers(j.b)).equals(List.of(j.y)) && new ArrayList<>(combat.getBlockers(j.a)).equals(List.of(j.x)), "Blue's agreeing answer changed the block: " + combat.getBlockers(j.b));
++        combat.setTeamBlockRound(0);
++        j.f.session.submitAction("{\"type\":\"chooseBlockers\",\"output\":{\"assignments\":[]}}");
++        withoutPrompts(j.f, "Blue in round 1", () -> asSeat(j.f, () -> blue.declareBlockers(j.f.blue, combat)));
++        final String first = j.f.session.getLatestPromptJson();
++        expect(first.contains("\"title\":\"Block with Yellow\"") && !first.contains("reviseRound"), "the round 1 prompt: " + first);
++        combat.setTeamBlockRound(-1);
++        final Fixture ffa = new Fixture(false, false);
++        final Card bears = creature("Grizzly Bears", ffa.white);
++        final Card courser = creature("Centaur Courser", ffa.blue);
++        final Combat ffaCombat = combatOf(ffa, ffa.white);
++        ffaCombat.addAttacker(bears, ffa.blue);
++        final ManaBrewInteractiveController ffaBlue = interactive(ffa, ffa.blue);
++        ffa.session.submitAction(blocks(courser, bears));
++        withoutPrompts(ffa, "Blue in a free-for-all", () -> asSeat(ffa, () -> ffaBlue.declareBlockers(ffa.blue, ffaCombat)));
++        final String plain = ffa.session.getLatestPromptJson();
++        expect(!plain.contains("\"title\"") && !plain.contains("teamBlockLines") && !plain.contains("currentAssignments"), "a free-for-all block prompt has team fields: " + plain);
++    }
++
++    private static String blocks(final Card blocker, final Card attacker) {
++        return "{\"type\":\"chooseBlockers\",\"output\":{\"assignments\":[{\"blockerId\":\"" + SnapshotExtractor.javaCardId(blocker)
++                + "\",\"attackerId\":\"" + SnapshotExtractor.javaCardId(attacker) + "\"}]}}";
++    }
++
++    private static ManaBrewInteractiveController interactive(final Fixture f, final Player p) {
++        final ManaBrewInteractiveController controller = new ManaBrewInteractiveController(f.game, p, p.getLobbyPlayer(), f.session);
++        p.dangerouslySetController(controller);
++        return controller;
++    }
++
++    private static void asSeat(final Fixture f, final Runnable step) {
++        try {
++            final Field lock = ManaBrewInteractiveSession.class.getDeclaredField("gameLock");
++            lock.setAccessible(true);
++            final ReentrantLock gameLock = (ReentrantLock) lock.get(f.session);
++            gameLock.lock();
++            try {
++                step.run();
++            } finally {
++                gameLock.unlock();
++            }
++        } catch (final ReflectiveOperationException e) {
++            throw new RuntimeException(e);
++        }
++    }
++
++    private static final class Blocks {
++        final List<Player> asked = new ArrayList<>();
++        final List<String> told = new ArrayList<>();
++    }
++
++    private static Blocks recordBlocks(final Fixture f, final Map<Card, Card> blocks) {
++        final Blocks out = new Blocks();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public void declareBlockers(final Player defender, final Combat combat) {
++                    out.asked.add(defender);
++                    for (final Map.Entry<Card, Card> e : blocks.entrySet()) {
++                        if (e.getKey().getController() == defender && !combat.isBlocking(e.getKey())) {
++                            combat.addBlocker(e.getValue(), e.getKey());
++                        }
++                    }
++                }
++
++                @Override
++                public void notifyOfValue(final SpellAbility sa, final GameObject target, final String value) {
++                    out.told.add(p.getName() + ": " + value);
++                }
++            });
++        }
++        return out;
++    }
++
++    private static List<String> recordDamage(final Fixture f) {
++        final List<String> assigned = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public Map<Card, Integer> assignCombatDamage(final Card attacker, final CardCollectionView blockers,
++                        final CardCollectionView remaining, final int damageDealt, final GameEntity defender, final boolean overrideOrder) {
++                    assigned.add(p.getName() + ":" + attacker.getName());
++                    final Map<Card, Integer> map = new HashMap<>();
++                    map.put(blockers.isEmpty() ? null : blockers.get(0), damageDealt);
++                    return map;
++                }
++            });
++        }
++        return assigned;
++    }
++
++    @SuppressWarnings("unchecked")
++    private static List<SpellAbility> triggered(final Fixture f, final Card host) throws Exception {
++        final List<SpellAbility> out = new ArrayList<>();
++        final Field waiting = MagicStack.class.getDeclaredField("simultaneousStackEntryList");
++        waiting.setAccessible(true);
++        for (final SpellAbility sa : (List<SpellAbility>) waiting.get(f.game.getStack())) {
++            if (sa.getHostCard().equals(host)) {
++                out.add(sa);
++            }
++        }
++        return out;
++    }
++
++    private static void declareBlockers(final Fixture f) throws Exception {
++        final Method declare = PhaseHandler.class.getDeclaredMethod("declareBlockersTurnBasedAction");
++        declare.setAccessible(true);
++        withoutPrompts(f, "declaring blockers", () -> invoke(declare, f.game.getPhaseHandler()));
++    }
++
++    private static Card creature(final String name, final Player p) {
++        final Card c = add(name, p, ZoneType.Battlefield);
++        c.setSickness(false);
++        return c;
++    }
++
++    private static Combat combatOf(final Fixture f, final Player active) {
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, active);
++        final Combat combat = new Combat(active);
++        f.game.getPhaseHandler().setCombat(combat);
++        return combat;
++    }
++
++    private static void invoke(final Method m, final Object target) {
++        try {
++            m.invoke(target);
++        } catch (final ReflectiveOperationException e) {
++            throw new RuntimeException(e.getCause() != null ? e.getCause() : e);
++        }
++    }
++
++    private static void withoutPrompts(final Fixture f, final String what, final Runnable step) throws Exception {
++        final Throwable[] failure = new Throwable[1];
++        final Thread runner = new Thread(() -> {
++            try {
++                step.run();
++            } catch (final Throwable thrown) {
++                failure[0] = thrown;
++            }
++        }, what);
++        runner.setDaemon(true);
++        runner.start();
++        runner.join(20_000);
++        if (runner.isAlive()) {
++            throw new AssertionError(what + " asked " + f.session.getLatestPromptJson());
++        }
++        if (failure[0] != null) {
++            throw new AssertionError(what + " failed: " + failure[0], failure[0]);
++        }
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("shared-combat-test");
++        final Game game;
++        final Player white;
++        final Player red;
++        final Player yellow;
++        final Player blue;
++
++        Fixture(final boolean sharedTurns) {
++            this(sharedTurns, true);
++        }
++
++        Fixture(final boolean sharedTurns, final boolean teams) {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final String[] names = {"White", "Red", "Yellow", "Blue"};
++            for (int i = 0; i < 4; i++) {
++                final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(names[i], null));
++                rp.setStartingLife(teams ? 30 : 20);
++                if (teams) {
++                    rp.setTeamNumber(i < 2 ? 1 : 2);
++                }
++                players.add(rp);
++            }
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setAppliedVariants(EnumSet.of(GameType.Constructed));
++            rules.setSharedTeamLife(teams);
++            rules.setSharedTeamTurns(sharedTurns);
++            game = new Game(players, rules, new Match(rules, players, "SharedCombatTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++            game.getPhaseHandler().onStackResolved();
++            white = game.getPlayers().get(0);
++            red = game.getPlayers().get(1);
++            yellow = game.getPlayers().get(2);
++            blue = game.getPlayers().get(3);
++            for (final Player p : game.getPlayers()) {
++                for (int i = 0; i < 12; i++) {
++                    add("Plains", p, ZoneType.Library);
++                }
++            }
++            session.attach(game.getMatch(), game, Set.of(), false);
++        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/SharedTurnsDevTest.java b/forge-harness/src/test/java/forge/harness/host/SharedTurnsDevTest.java
+new file mode 100644
+index 0000000..1038adb
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/SharedTurnsDevTest.java
+@@ -0,0 +1,363 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.ability.AbilityUtils;
++import forge.ai.PlayerControllerAi;
++import forge.game.card.Card;
++import forge.game.card.CounterEnumType;
++import forge.game.phase.PhaseHandler;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.spellability.SpellAbilityStackInstance;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.util.ArrayList;
++import java.util.Comparator;
++import java.util.EnumSet;
++import java.util.List;
++import java.util.function.BooleanSupplier;
++
++public final class SharedTurnsDevTest {
++    private SharedTurnsDevTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        check("theTurnPassesToTheOtherTeamWhichUntapsAndDraws", SharedTurnsDevTest::theTurnPassesToTheOtherTeamWhichUntapsAndDraws);
++        check("priorityGoesRoundBothTeams", SharedTurnsDevTest::priorityGoesRoundBothTeams);
++        check("bothActivePlayersCanPlayALand", SharedTurnsDevTest::bothActivePlayersCanPlayALand);
++        check("howlingMineDrawsForEachActivePlayer", SharedTurnsDevTest::howlingMineDrawsForEachActivePlayer);
++        check("aPartnersYourUpkeepTriggerFiresOnce", SharedTurnsDevTest::aPartnersYourUpkeepTriggerFiresOnce);
++        check("anEachUpkeepTriggerFiresOnce", SharedTurnsDevTest::anEachUpkeepTriggerFiresOnce);
++        check("anEachOpponentsUpkeepTriggerFiresForEachOpponent", SharedTurnsDevTest::anEachOpponentsUpkeepTriggerFiresForEachOpponent);
++        check("thatPlayersHandIsTheTriggeredPlayers", SharedTurnsDevTest::thatPlayersHandIsTheTriggeredPlayers);
++        check("bothActivePlayersDiscardToHandSize", SharedTurnsDevTest::bothActivePlayersDiscardToHandSize);
++        check("oneEffectSkippingBothOpponentsTurnsSkipsOneTeamTurn", SharedTurnsDevTest::oneEffectSkippingBothOpponentsTurnsSkipsOneTeamTurn);
++        check("aPartnersExtraTurnIsTheTeams", SharedTurnsDevTest::aPartnersExtraTurnIsTheTeams);
++        check("oneEffectGivingBothPartnersATurnGivesOneTeamTurn", SharedTurnsDevTest::oneEffectGivingBothPartnersATurnGivesOneTeamTurn);
++        check("oneEffectSkippingBothUntapsSkipsOneUntapStep", SharedTurnsDevTest::oneEffectSkippingBothUntapsSkipsOneUntapStep);
++        check("theActiveTeamsTriggersGoOnTheStackFirst", SharedTurnsDevTest::theActiveTeamsTriggersGoOnTheStackFirst);
++        check("thePrimaryPlayerOrdersTheTeamsTriggers", SharedTurnsDevTest::thePrimaryPlayerOrdersTheTeamsTriggers);
++        check("eachPlayersEndStepCountsThatPlayersLands", SharedTurnsDevTest::eachPlayersEndStepCountsThatPlayersLands);
++        System.out.println(failed == 0 ? "PASS SharedTurnsDevTest" : "FAIL SharedTurnsDevTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void theTurnPassesToTheOtherTeamWhichUntapsAndDraws() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN1, 0, 2);
++        final Card land = add("Island", f.blue, ZoneType.Battlefield);
++        land.setTapped(true);
++        f.runUntil(() -> f.ph.is(PhaseType.MAIN1) && f.ph.getPlayerTurn() == f.yellow);
++        expect(f.ph.getTurn() == 3, "turn " + f.ph.getTurn());
++        expect(f.ph.isPlayerTurn(f.blue) && !f.ph.isPlayerTurn(f.white), "the active team is not Yellow + Blue");
++        expect(!land.isTapped(), "Blue's land did not untap");
++        expect(f.hands().equals("0 0 1 1"), "hands " + f.hands());
++    }
++
++    private static void priorityGoesRoundBothTeams() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN1, 0, 2);
++        final StringBuilder seen = new StringBuilder();
++        for (int i = 0; i < 8 && f.ph.is(PhaseType.MAIN1); i++) {
++            seen.append(f.ph.getPriorityPlayer().getName().charAt(0));
++            f.step();
++        }
++        expect(seen.toString().equals("WRYB"), "priority went " + seen);
++    }
++
++    private static void bothActivePlayersCanPlayALand() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN1, 0, 2);
++        final Card w = add("Island", f.white, ZoneType.Hand);
++        final Card r = add("Island", f.red, ZoneType.Hand);
++        final Card y = add("Island", f.yellow, ZoneType.Hand);
++        expect(f.white.canPlayLand(w, false, null) && f.red.canPlayLand(r, false, null), "an active player can't play a land");
++        expect(!f.yellow.canPlayLand(y, false, null), "a nonactive player can play a land");
++    }
++
++    private static void howlingMineDrawsForEachActivePlayer() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN1, 2, 2);
++        add("Howling Mine", f.yellow, ZoneType.Battlefield);
++        f.runUntil(() -> f.ph.is(PhaseType.MAIN1) && f.ph.getPlayerTurn() == f.white);
++        expect(f.hands().equals("2 2 0 0"), "hands " + f.hands());
++    }
++
++    private static void aPartnersYourUpkeepTriggerFiresOnce() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN1, 2, 2);
++        add("Phyrexian Arena", f.red, ZoneType.Battlefield);
++        f.runUntil(() -> f.ph.is(PhaseType.MAIN1) && f.ph.getPlayerTurn() == f.white);
++        expect(f.hands().equals("1 2 0 0"), "hands " + f.hands());
++        expect(f.white.getLife() == 29, "team life " + f.white.getLife());
++    }
++
++    private static void anEachUpkeepTriggerFiresOnce() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN1, 2, 2);
++        add("Celestial Force", f.yellow, ZoneType.Battlefield);
++        f.runUntil(() -> f.ph.is(PhaseType.MAIN1) && f.ph.getPlayerTurn() == f.white);
++        expect(f.yellow.getLife() == 33, "Yellow + Blue life " + f.yellow.getLife());
++    }
++
++    private static void anEachOpponentsUpkeepTriggerFiresForEachOpponent() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN1, 2, 2);
++        add("Iron Maiden", f.yellow, ZoneType.Battlefield);
++        fillHand(f.white, 6);
++        fillHand(f.red, 7);
++        f.runUntil(() -> f.ph.is(PhaseType.MAIN1) && f.ph.getPlayerTurn() == f.white);
++        expect(f.white.getLife() == 25, "White + Red life " + f.white.getLife());
++    }
++
++    private static void thatPlayersHandIsTheTriggeredPlayers() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN1, 2, 2);
++        add("Ebony Owl Netsuke", f.yellow, ZoneType.Battlefield);
++        fillHand(f.white, 2);
++        fillHand(f.red, 7);
++        f.runUntil(() -> f.ph.is(PhaseType.MAIN1) && f.ph.getPlayerTurn() == f.white);
++        expect(f.white.getLife() == 26, "White + Red life " + f.white.getLife());
++    }
++
++    private static void bothActivePlayersDiscardToHandSize() throws Exception {
++        final Fixture f = new Fixture(PhaseType.END_OF_TURN, 0, 2);
++        fillHand(f.white, 9);
++        fillHand(f.red, 8);
++        fillHand(f.yellow, 9);
++        f.runUntil(() -> f.ph.getPlayerTurn() == f.yellow);
++        expect(f.hands().equals("7 7 9 0"), "hands " + f.hands());
++    }
++
++    private static void oneEffectSkippingBothOpponentsTurnsSkipsOneTeamTurn() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN1, 2, 2);
++        resolve(f, "DB$ SkipTurn | Defined$ Player.Opponent | NumTurns$ 1", f.yellow);
++        final StringBuilder turns = new StringBuilder();
++        for (int i = 0; i < 3; i++) {
++            final int turn = f.ph.getTurn();
++            f.runUntil(() -> f.ph.getTurn() != turn);
++            turns.append(f.ph.getPlayerTurn().getName().charAt(0));
++        }
++        expect(turns.toString().equals("YWY"), "turns went " + turns);
++    }
++
++    private static void aPartnersExtraTurnIsTheTeams() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN1, 0, 2);
++        resolve(f, "DB$ AddTurn | Defined$ You | NumTurns$ 1", f.red);
++        final StringBuilder turns = new StringBuilder();
++        for (int i = 0; i < 2; i++) {
++            final int turn = f.ph.getTurn();
++            f.runUntil(() -> f.ph.getTurn() != turn);
++            turns.append(f.ph.getPlayerTurn().getName().charAt(0));
++            if (i == 0) {
++                expect(f.white.isExtraTurn() && f.red.isExtraTurn(), "the extra turn is not the team's");
++            }
++        }
++        expect(turns.toString().equals("WY"), "turns went " + turns);
++    }
++
++    private static void oneEffectGivingBothPartnersATurnGivesOneTeamTurn() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN1, 0, 2);
++        resolve(f, "DB$ AddTurn | Defined$ Player.YourTeam | NumTurns$ 1", f.red);
++        final StringBuilder turns = new StringBuilder();
++        for (int i = 0; i < 3; i++) {
++            final int turn = f.ph.getTurn();
++            f.runUntil(() -> f.ph.getTurn() != turn);
++            turns.append(f.ph.getPlayerTurn().getName().charAt(0));
++        }
++        expect(turns.toString().equals("WYW"), "one effect gave White and Red an extra turn, but the turns went " + turns + ", not one team turn then Yellow's (rule 805.8)");
++    }
++
++    private static void oneEffectSkippingBothUntapsSkipsOneUntapStep() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN1, 2, 2);
++        resolve(f, "DB$ SkipPhase | Defined$ Player.Opponent | Step$ Untap", f.yellow);
++        final Card land = add("Island", f.red, ZoneType.Battlefield);
++        land.setTapped(true);
++        f.runUntil(() -> f.ph.is(PhaseType.MAIN1) && f.ph.getPlayerTurn() == f.white);
++        expect(land.isTapped(), "Red's land untapped in the skipped untap step");
++        f.runUntil(() -> f.ph.is(PhaseType.MAIN1) && f.ph.getPlayerTurn() == f.yellow);
++        f.runUntil(() -> f.ph.is(PhaseType.MAIN1) && f.ph.getPlayerTurn() == f.white);
++        expect(!land.isTapped(), "the team skipped a second untap step");
++    }
++
++    private static void theActiveTeamsTriggersGoOnTheStackFirst() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN1, 2, 2);
++        final Card w = add("Celestial Force", f.white, ZoneType.Battlefield);
++        final Card r = add("Celestial Force", f.red, ZoneType.Battlefield);
++        final Card y = add("Celestial Force", f.yellow, ZoneType.Battlefield);
++        f.runUntil(() -> f.ph.is(PhaseType.UPKEEP) && f.ph.getPlayerTurn() == f.white && f.game.getStack().size() == 3);
++        final List<Card> top = new ArrayList<>();
++        for (final SpellAbilityStackInstance si : f.game.getStack()) {
++            top.add(si.getSourceCard());
++        }
++        expect(top.get(0).equals(y), "the top of the stack is " + top);
++        expect(top.subList(1, 3).contains(w) && top.subList(1, 3).contains(r), "stack " + top);
++    }
++
++    private static void thePrimaryPlayerOrdersTheTeamsTriggers() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN1, 2, 2);
++        final Card w = add("Celestial Force", f.white, ZoneType.Battlefield);
++        final Card r = add("Celestial Force", f.red, ZoneType.Battlefield);
++        f.white.dangerouslySetController(new PlayerControllerAi(f.game, f.white, f.white.getLobbyPlayer()) {
++            @Override
++            public List<SpellAbility> orderSimultaneousSa(final List<SpellAbility> sas) {
++                final List<SpellAbility> ordered = new ArrayList<>(sas);
++                ordered.sort(Comparator.comparing(sa -> sa.getHostCard() == r ? 0 : 1));
++                return ordered;
++            }
++        });
++        f.runUntil(() -> f.ph.is(PhaseType.UPKEEP) && f.ph.getPlayerTurn() == f.white && f.game.getStack().size() == 2);
++        expect(f.game.getStack().peekAbility().getHostCard() == w, "White put Red's trigger first, but the top is " + f.game.getStack().peekAbility().getHostCard());
++    }
++
++    private static void eachPlayersEndStepCountsThatPlayersLands() throws Exception {
++        final Fixture f = new Fixture(PhaseType.MAIN2, 0, 2);
++        final Card cache = add("Mana Cache", f.yellow, ZoneType.Battlefield);
++        for (int i = 0; i < 5; i++) {
++            add("Island", i < 2 ? f.white : f.red, ZoneType.Battlefield);
++        }
++        f.runUntil(() -> f.ph.is(PhaseType.CLEANUP));
++        expect(cache.getCounters(CounterEnumType.CHARGE) == 5, "Mana Cache has " + cache.getCounters(CounterEnumType.CHARGE) + " charge counters, not 2 + 3");
++    }
++
++    private static void resolve(final Fixture f, final String script, final Player activator) {
++        final Card host = add("Island", activator, ZoneType.Battlefield);
++        final SpellAbility sa = AbilityFactory.getAbility(script, host);
++        sa.setActivatingPlayer(activator);
++        AbilityUtils.resolve(sa);
++    }
++
++    private static void fillHand(final Player p, final int n) {
++        for (int i = 0; i < n; i++) {
++            add("Island", p, ZoneType.Hand);
++        }
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++
++    private static final class Fixture {
++        final Game game;
++        final PhaseHandler ph;
++        final Player white;
++        final Player red;
++        final Player yellow;
++        final Player blue;
++        final int[] start = new int[4];
++
++        Fixture(final PhaseType phase, final int seat, final int turn) {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final String[] names = {"White", "Red", "Yellow", "Blue"};
++            for (int i = 0; i < 4; i++) {
++                final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(names[i], null));
++                rp.setStartingLife(30);
++                rp.setTeamNumber(i < 2 ? 1 : 2);
++                players.add(rp);
++            }
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setAppliedVariants(EnumSet.of(GameType.Constructed));
++            rules.setSharedTeamLife(true);
++            rules.setSharedTeamTurns(true);
++            game = new Game(players, rules, new Match(rules, players, "SharedTurnsDevTest"));
++            game.setAge(GameStage.Play);
++            white = game.getPlayers().get(0);
++            red = game.getPlayers().get(1);
++            yellow = game.getPlayers().get(2);
++            blue = game.getPlayers().get(3);
++            game.setStartingPlayer(white);
++            for (final Player p : game.getPlayers()) {
++                for (int i = 0; i < 20; i++) {
++                    add("Plains", p, ZoneType.Library);
++                }
++            }
++            ph = game.getPhaseHandler();
++            ph.devModeSet(phase, game.getPlayers().get(seat), turn);
++            ph.onStackResolved();
++            for (int i = 0; i < 4; i++) {
++                start[i] = game.getPlayers().get(i).getZone(ZoneType.Hand).size();
++            }
++        }
++
++        String hands() {
++            final StringBuilder sb = new StringBuilder();
++            for (int i = 0; i < 4; i++) {
++                final Player p = game.getPlayers().get(i);
++                sb.append(i == 0 ? "" : " ").append(p.getZone(ZoneType.Hand).size() - start[i]);
++            }
++            return sb.toString();
++        }
++
++        void step() throws Exception {
++            final Throwable[] failure = new Throwable[1];
++            final Thread runner = new Thread(() -> {
++                try {
++                    ph.mainLoopStep();
++                } catch (final Throwable thrown) {
++                    failure[0] = thrown;
++                }
++            });
++            runner.setDaemon(true);
++            runner.start();
++            runner.join(30_000);
++            if (runner.isAlive()) {
++                throw new AssertionError("a step hung at " + ph.debugPrintState(true));
++            }
++            if (failure[0] != null) {
++                throw new AssertionError("a step failed", failure[0]);
++            }
++        }
++
++        void runUntil(final BooleanSupplier done) throws Exception {
++            for (int i = 0; i < 400; i++) {
++                if (done.getAsBoolean()) {
++                    return;
++                }
++                step();
++            }
++            throw new AssertionError("never got there, at " + ph.debugPrintState(true));
++        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java b/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java
+new file mode 100644
+index 0000000..89f73da
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java
+@@ -0,0 +1,1131 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.ai.PlayerControllerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameEntity;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.ability.AbilityUtils;
++import forge.game.card.Card;
++import forge.game.card.CardCollectionView;
++import forge.game.combat.Combat;
++import forge.game.combat.CombatUtil;
++import forge.game.phase.PhaseHandler;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.spellability.SpellAbilityStackInstance;
++import forge.game.zone.MagicStack;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.EnumSet;
++import java.util.HashMap;
++import java.util.HashSet;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++
++public final class SharedTurnsTest {
++    private SharedTurnsTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        final Set<String> only = new HashSet<>(List.of(args));
++        CHECKS.put("cr810.2 sharedTurnsSetsBothFlags", SharedTurnsTest::sharedTurnsSetsBothFlags);
++        CHECKS.put("cr805.4a isPlayerTurnCoversThePartner", SharedTurnsTest::isPlayerTurnCoversThePartner);
++        CHECKS.put("cr805.4c eachPartnerMayPlayALand", SharedTurnsTest::eachPartnerMayPlayALand);
++        CHECKS.put("cr805.4 theTeamUntapsTogether", SharedTurnsTest::theTeamUntapsTogether);
++        CHECKS.put("cr805.4b theTeamDrawsTogether", SharedTurnsTest::theTeamDrawsTogether);
++        CHECKS.put("cr805.6a eachPlayerDrawsActiveTeamFirst", SharedTurnsTest::eachPlayerDrawsActiveTeamFirst);
++        CHECKS.put("cr514.1 theTeamDiscardsToHandSize", SharedTurnsTest::theTeamDiscardsToHandSize);
++        CHECKS.put("cr810.6 startingTeamSkipsOnlyTurnOnesDraw", SharedTurnsTest::startingTeamSkipsOnlyTurnOnesDraw);
++        CHECKS.put("cr805.4 nextTurnGoesToTheOtherTeam", SharedTurnsTest::nextTurnGoesToTheOtherTeam);
++        CHECKS.put("cr805.8 aPartnersExtraTurnIsTheTeams", SharedTurnsTest::aPartnersExtraTurnIsTheTeams);
++        CHECKS.put("cr805.8 aPartnerSkippingATurnSkipsTheTeams", SharedTurnsTest::aPartnerSkippingATurnSkipsTheTeams);
++        CHECKS.put("cr805.8 aPartnerSkippingAStepSkipsTheTeams", SharedTurnsTest::aPartnerSkippingAStepSkipsTheTeams);
++        CHECKS.put("cr805.4d eachPlayersUpkeepTriggersForEachMember", SharedTurnsTest::eachPlayersUpkeepTriggersForEachMember);
++        CHECKS.put("cr805.4d eachPlayersDrawStepTriggersForEachMember", SharedTurnsTest::eachPlayersDrawStepTriggersForEachMember);
++        CHECKS.put("cr805.4d eachUpkeepTriggersOnce", SharedTurnsTest::eachUpkeepTriggersOnce);
++        CHECKS.put("cr805.4 yourUpkeepTriggersForThePartner", SharedTurnsTest::yourUpkeepTriggersForThePartner);
++        CHECKS.put("cr805.10a bothPartnersCreaturesAttackTogether", SharedTurnsTest::bothPartnersCreaturesAttackTogether);
++        CHECKS.put("cr805.10b aPartnersMustAttackBindsTheCombinedAttack", SharedTurnsTest::aPartnersMustAttackBindsTheCombinedAttack);
++        CHECKS.put("cr805.10c attackingPlayerOfACreatureIsItsController", SharedTurnsTest::attackingPlayerOfACreatureIsItsController);
++        CHECKS.put("cr805.10c whenYouAttackTriggersForThePartner", SharedTurnsTest::whenYouAttackTriggersForThePartner);
++        CHECKS.put("cr805.10d theDefendingTeamBlocksTogether", SharedTurnsTest::theDefendingTeamBlocksTogether);
++        CHECKS.put("cr805.10d theCombinedBlockIsLegalAsAWhole", SharedTurnsTest::theCombinedBlockIsLegalAsAWhole);
++        CHECKS.put("cr805.10f attackingTeamAssignsDamageFirst", SharedTurnsTest::attackingTeamAssignsDamageFirst);
++        CHECKS.put("cr805.5b theTeamPassesOnceBothMembersPass", SharedTurnsTest::theTeamPassesOnceBothMembersPass);
++        CHECKS.put("cr805.5b theActiveTeamGetsPriorityAfterResolving", SharedTurnsTest::theActiveTeamGetsPriorityAfterResolving);
++        CHECKS.put("cr805.4a fastForwardStopsOnThePartnersSlot", SharedTurnsTest::fastForwardStopsOnThePartnersSlot);
++        CHECKS.put("cr805.2 thePrimaryPlayerOrdersTheTeamsTriggers", SharedTurnsTest::thePrimaryPlayerOrdersTheTeamsTriggers);
++        CHECKS.put("cr805.3a theStartingTeamDeclaresMulligansFirst", SharedTurnsTest::theStartingTeamDeclaresMulligansFirst);
++        CHECKS.put("cr805.3b theStartingTeamTakesPregameActionsFirst", SharedTurnsTest::theStartingTeamTakesPregameActionsFirst);
++        CHECKS.put("cr805.7 theActiveTeamOrdersAllItsTriggersFirst", SharedTurnsTest::theActiveTeamOrdersAllItsTriggersFirst);
++        CHECKS.put("cr805.9 theActivePlayerIsOnePlayerOfTheActiveTeam", SharedTurnsTest::theActivePlayerIsOnePlayerOfTheActiveTeam);
++        CHECKS.put("cr805.10e defendingPlayerIsThePlayerItAttacks", SharedTurnsTest::defendingPlayerIsThePlayerItAttacks);
++        CHECKS.put("cr805.8 aPartnersExtraStepIsTheTeams", SharedTurnsTest::aPartnersExtraStepIsTheTeams);
++        CHECKS.put("cr805.4 aGainInTheTeamTurnTriggersThePartnersLifeCardOnce", SharedTurnsTest::aGainInTheTeamTurnTriggersThePartnersLifeCardOnce);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            if (only.isEmpty() || only.contains(e.getKey()) || only.contains(e.getKey().split(" ")[1])) {
++                check(e.getKey(), e.getValue());
++            }
++        }
++        System.out.println(failed == 0 ? "PASS SharedTurnsTest" : "FAIL SharedTurnsTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static final Map<String, Check> CHECKS = new java.util.LinkedHashMap<>();
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void sharedTurnsSetsBothFlags() {
++        final GameRules turns = rulesFor("sharedTurns");
++        expect(turns.hasSharedTeamTurns(), "sharedTurns did not set shared team turns");
++        expect(turns.hasSharedTeamLife(), "sharedTurns did not set shared team life (rule 810.4)");
++        expect(turns.getPoisonCountersToLose() == 15, "sharedTurns poison to lose " + turns.getPoisonCountersToLose());
++        final GameRules life = rulesFor("sharedLife");
++        expect(!life.hasSharedTeamTurns(), "level 1 sharedLife set shared team turns");
++        expect(life.hasSharedTeamLife(), "level 1 sharedLife lost shared life");
++    }
++
++    private static GameRules rulesFor(final String teamRules) {
++        final StringBuilder players = new StringBuilder();
++        for (int i = 0; i < 4; i++) {
++            players.append(i == 0 ? "" : ",").append("{\"name\":\"P").append(i)
++                    .append("\",\"deck\":[{\"name\":\"Forest\"}],\"team\":").append(i < 2 ? 1 : 2).append("}");
++        }
++        final ManaBrewEngineAdapter.StartGameRequest request = ManaBrewEngineAdapter.parseStartGameRequest(
++                "{\"gameId\":\"shared-turns-test\",\"variant\":\"Constructed\",\"teamRules\":\"" + teamRules
++                        + "\",\"players\":[" + players + "]}");
++        final GameRules rules = new GameRules(GameType.Constructed);
++        rules.setAppliedVariants(EnumSet.of(GameType.Constructed));
++        ManaBrewEngineAdapter.configureTeamRules(rules, request, GameType.Constructed);
++        return rules;
++    }
++
++    private static void isPlayerTurnCoversThePartner() {
++        final Fixture f = new Fixture(true);
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        expect(ph.isPlayerTurn(f.white) && ph.isPlayerTurn(f.red), "White's team turn does not cover both White and Red");
++        expect(!ph.isPlayerTurn(f.yellow) && !ph.isPlayerTurn(f.blue), "White's team turn covers Yellow or Blue");
++        expect(ph.getActiveTeam().equals(List.of(f.white, f.red)), "active team " + ph.getActiveTeam());
++        expect(f.red.canCastSorcery(), "Red can't cast a sorcery in her team's main phase");
++        expect(!f.yellow.canCastSorcery(), "Yellow can cast a sorcery in the other team's turn");
++        final Fixture l1 = new Fixture(false);
++        expect(!l1.game.getPhaseHandler().isPlayerTurn(l1.red), "level 1: White's turn is Red's turn");
++        expect(!l1.red.canCastSorcery(), "level 1: Red casts a sorcery in White's turn");
++    }
++
++    private static void eachPartnerMayPlayALand() {
++        final Fixture f = new Fixture(true);
++        final Card whiteLand = add("Forest", f.white, ZoneType.Hand);
++        final Card redLand = add("Forest", f.red, ZoneType.Hand);
++        expect(f.white.canPlayLand(whiteLand, false, whiteLand.getFirstSpellAbility()), "White can't play a land in her team's turn");
++        f.white.addLandPlayedThisTurn();
++        expect(f.red.canPlayLand(redLand, false, redLand.getFirstSpellAbility()), "Red can't play a land after White played one (rule 805.4c)");
++        f.red.addLandPlayedThisTurn();
++        final Card second = add("Forest", f.red, ZoneType.Hand);
++        expect(!f.red.canPlayLand(second, false, second.getFirstSpellAbility()), "Red may play a second land");
++        final Card yellowLand = add("Forest", f.yellow, ZoneType.Hand);
++        expect(!f.yellow.canPlayLand(yellowLand, false, yellowLand.getFirstSpellAbility()), "Yellow plays a land in the other team's turn");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Land = add("Forest", l1.red, ZoneType.Hand);
++        expect(!l1.red.canPlayLand(l1Land, false, l1Land.getFirstSpellAbility()), "level 1: Red plays a land in White's turn");
++    }
++
++    private static void theTeamUntapsTogether() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Map<Player, Card> lands = tappedLands(f);
++        f.game.getPhaseHandler().devModeSet(PhaseType.CLEANUP, f.blue, 2);
++        stepTo(f, PhaseType.UPKEEP);
++        expect(f.game.getPhaseHandler().getPlayerTurn() == f.white, "turn 3 went to " + f.game.getPhaseHandler().getPlayerTurn());
++        expect(lands.get(f.white).isUntapped() && lands.get(f.red).isUntapped(), "the active team's lands did not all untap: White "
++                + lands.get(f.white).isUntapped() + ", Red " + lands.get(f.red).isUntapped());
++        expect(lands.get(f.yellow).isTapped() && lands.get(f.blue).isTapped(), "the other team untapped");
++        final Fixture l1 = new Fixture(false);
++        final Map<Player, Card> l1Lands = tappedLands(l1);
++        l1.game.getPhaseHandler().devModeSet(PhaseType.CLEANUP, l1.blue, 4);
++        stepTo(l1, PhaseType.UPKEEP);
++        expect(l1Lands.get(l1.white).isUntapped() && l1Lands.get(l1.red).isTapped(), "level 1: White's untap step untapped Red: "
++                + l1Lands.get(l1.red).isUntapped());
++    }
++
++    private static Map<Player, Card> tappedLands(final Fixture f) {
++        final Map<Player, Card> lands = new HashMap<>();
++        for (final Player p : f.game.getPlayers()) {
++            final Card land = add("Forest", p, ZoneType.Battlefield);
++            land.setTapped(true);
++            lands.put(p, land);
++        }
++        return lands;
++    }
++
++    private static void theTeamDrawsTogether() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.game.getPhaseHandler().devModeSet(PhaseType.UPKEEP, f.yellow, 2);
++        final Map<Player, Integer> before = handSizes(f);
++        stepTo(f, PhaseType.DRAW);
++        final Map<Player, Integer> drawn = handGrowth(f, before);
++        expect(drawn.get(f.yellow) == 1 && drawn.get(f.blue) == 1, "the active team did not each draw one: " + names(drawn));
++        expect(drawn.get(f.white) == 0 && drawn.get(f.red) == 0, "the other team drew: " + names(drawn));
++        final Fixture l1 = new Fixture(false);
++        l1.game.getPhaseHandler().devModeSet(PhaseType.UPKEEP, l1.yellow, 3);
++        final Map<Player, Integer> l1Before = handSizes(l1);
++        stepTo(l1, PhaseType.DRAW);
++        final Map<Player, Integer> l1Drawn = handGrowth(l1, l1Before);
++        expect(l1Drawn.get(l1.yellow) == 1 && l1Drawn.get(l1.blue) == 0, "level 1: Blue drew in Yellow's draw step: " + names(l1Drawn));
++    }
++
++    private static void eachPlayerDrawsActiveTeamFirst() throws Exception {
++        for (final boolean shared : new boolean[] {true, false}) {
++            final Fixture f = new Fixture(shared);
++            f.game.getPhaseHandler().devModeSet(PhaseType.MAIN1, f.yellow, 2);
++            final Card skeins = add("Vision Skeins", f.white, ZoneType.Hand);
++            resolve(f, skeins.getFirstSpellAbility(), f.white);
++            final List<Player> order = drawOrder(f);
++            expect(order.equals(List.of(f.yellow, f.blue, f.white, f.red)),
++                    (shared ? "" : "level 1: ") + "each player drew in the order " + order + ", not the active team Yellow + Blue first");
++        }
++    }
++
++    private static List<Player> drawOrder(final Fixture f) {
++        final List<Card> drawn = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            for (final Card c : p.getCardsIn(ZoneType.Hand)) {
++                if (!"Vision Skeins".equals(c.getName())) {
++                    drawn.add(c);
++                }
++            }
++        }
++        drawn.sort((a, b) -> Long.compare(a.getGameTimestamp(), b.getGameTimestamp()));
++        final List<Player> order = new ArrayList<>();
++        for (final Card c : drawn) {
++            if (!order.contains(c.getOwner())) {
++                order.add(c.getOwner());
++            }
++        }
++        return order;
++    }
++
++    private static void theTeamDiscardsToHandSize() throws Exception {
++        final Fixture f = new Fixture(true);
++        fillHands(f, 9);
++        f.game.getPhaseHandler().devModeSet(PhaseType.END_OF_TURN, f.white, 3);
++        stepTo(f, PhaseType.CLEANUP);
++        expect(f.white.getCardsIn(ZoneType.Hand).size() == 7 && f.red.getCardsIn(ZoneType.Hand).size() == 7,
++                "the active team kept " + f.white.getCardsIn(ZoneType.Hand).size() + " + " + f.red.getCardsIn(ZoneType.Hand).size() + " cards, not 7 + 7");
++        expect(f.yellow.getCardsIn(ZoneType.Hand).size() == 9, "the other team discarded");
++        final Fixture l1 = new Fixture(false);
++        fillHands(l1, 9);
++        l1.game.getPhaseHandler().devModeSet(PhaseType.END_OF_TURN, l1.white, 5);
++        stepTo(l1, PhaseType.CLEANUP);
++        expect(l1.white.getCardsIn(ZoneType.Hand).size() == 7 && l1.red.getCardsIn(ZoneType.Hand).size() == 9,
++                "level 1: Red discarded in White's cleanup: " + l1.red.getCardsIn(ZoneType.Hand).size());
++    }
++
++    private static void fillHands(final Fixture f, final int n) {
++        for (final Player p : f.game.getPlayers()) {
++            for (int i = 0; i < n; i++) {
++                add("Forest", p, ZoneType.Hand);
++            }
++        }
++    }
++
++    private static void startingTeamSkipsOnlyTurnOnesDraw() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.game.setStartingPlayer(f.white);
++        expect(skipsDraw(f, f.white, 1), "the starting team draws on turn 1");
++        expect(!skipsDraw(f, f.yellow, 2), "the second team skips its draw on turn 2");
++        expect(!skipsDraw(f, f.white, 3), "the starting team skips its draw on turn 3");
++        f.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, f.white, 0);
++        f.game.getPhaseHandler().devModeSet(PhaseType.UPKEEP, f.white, 1);
++        final Map<Player, Integer> before = handSizes(f);
++        stepTo(f, PhaseType.MAIN1);
++        final Map<Player, Integer> drawn = handGrowth(f, before);
++        expect(drawn.get(f.white) == 0 && drawn.get(f.red) == 0, "the starting team drew on turn 1: " + names(drawn));
++        final Fixture l1 = new Fixture(false);
++        l1.game.setStartingPlayer(l1.white);
++        expect(skipsDraw(l1, l1.red, 2), "level 1: Red's first turn, turn 2, draws");
++    }
++
++    private static boolean skipsDraw(final Fixture f, final Player p, final int turn) throws Exception {
++        f.game.getPhaseHandler().devModeSet(PhaseType.UPKEEP, p, turn);
++        final Method skip = PhaseHandler.class.getDeclaredMethod("isSkippingPhase", PhaseType.class);
++        skip.setAccessible(true);
++        return (Boolean) skip.invoke(f.game.getPhaseHandler(), PhaseType.DRAW);
++    }
++
++    private static void nextTurnGoesToTheOtherTeam() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.game.getPhaseHandler().devModeSet(PhaseType.CLEANUP, f.white, 1);
++        stepTo(f, PhaseType.UNTAP);
++        expect(f.game.getPhaseHandler().getPlayerTurn() == f.yellow && f.game.getPhaseHandler().getTurn() == 2,
++                "after White's team turn 1 came " + f.game.getPhaseHandler().getPlayerTurn() + "'s turn " + f.game.getPhaseHandler().getTurn());
++        expect(f.game.getPhaseHandler().isPlayerTurn(f.blue), "Blue is not active on her team's turn");
++        f.game.getPhaseHandler().devModeSet(PhaseType.CLEANUP, f.yellow, 2);
++        stepTo(f, PhaseType.UNTAP);
++        expect(f.game.getPhaseHandler().getPlayerTurn() == f.white && f.game.getPhaseHandler().getTurn() == 3,
++                "after Yellow's team turn 2 came " + f.game.getPhaseHandler().getPlayerTurn() + "'s turn " + f.game.getPhaseHandler().getTurn());
++        final Fixture l1 = new Fixture(false);
++        l1.game.getPhaseHandler().devModeSet(PhaseType.CLEANUP, l1.white, 1);
++        stepTo(l1, PhaseType.UNTAP);
++        expect(l1.game.getPhaseHandler().getPlayerTurn() == l1.red, "level 1: after White came " + l1.game.getPhaseHandler().getPlayerTurn());
++    }
++
++    private static void aPartnersExtraTurnIsTheTeams() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.game.getPhaseHandler().devModeSet(PhaseType.CLEANUP, f.white, 1);
++        f.game.getPhaseHandler().addExtraTurn(f.red);
++        stepTo(f, PhaseType.UNTAP);
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        expect(ph.isPlayerTurn(f.white) && ph.isPlayerTurn(f.red) && ph.getTurn() == 2,
++                "Red's extra turn is not her team's: turn " + ph.getTurn() + " belongs to " + ph.getActiveTeam());
++        expect(f.white.isExtraTurn() && f.red.isExtraTurn(), "turn 2 is not an extra turn for both partners: White " + f.white.isExtraTurn() + ", Red " + f.red.isExtraTurn());
++        ph.devModeSet(PhaseType.CLEANUP, ph.getPlayerTurn(), 2);
++        stepTo(f, PhaseType.UNTAP);
++        expect(ph.getPlayerTurn() == f.yellow, "after the team's extra turn came " + ph.getPlayerTurn());
++        final Fixture l1 = new Fixture(false);
++        l1.game.getPhaseHandler().devModeSet(PhaseType.CLEANUP, l1.white, 1);
++        l1.game.getPhaseHandler().addExtraTurn(l1.yellow);
++        stepTo(l1, PhaseType.UNTAP);
++        expect(l1.game.getPhaseHandler().getPlayerTurn() == l1.yellow && !l1.game.getPhaseHandler().isPlayerTurn(l1.blue),
++                "level 1: Yellow's extra turn went to " + l1.game.getPhaseHandler().getActiveTeam());
++    }
++
++    private static void aPartnerSkippingATurnSkipsTheTeams() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.game.getPhaseHandler().devModeSet(PhaseType.MAIN1, f.yellow, 2);
++        resolve(f, AbilityFactory.getAbility("DB$ SkipTurn | Defined$ You | NumTurns$ 1", add("Grizzly Bears", f.red, ZoneType.Battlefield)), f.red);
++        f.game.getPhaseHandler().devModeSet(PhaseType.CLEANUP, f.yellow, 2);
++        stepTo(f, PhaseType.UNTAP);
++        expect(f.game.getPhaseHandler().getPlayerTurn() == f.yellow && f.game.getPhaseHandler().getTurn() == 3,
++                "Red skipped her next turn, but turn " + f.game.getPhaseHandler().getTurn() + " went to " + f.game.getPhaseHandler().getActiveTeam() + ", not Yellow's team again");
++        final Fixture l1 = new Fixture(false);
++        resolve(l1, AbilityFactory.getAbility("DB$ SkipTurn | Defined$ You | NumTurns$ 1", add("Grizzly Bears", l1.red, ZoneType.Battlefield)), l1.red);
++        l1.game.getPhaseHandler().devModeSet(PhaseType.CLEANUP, l1.white, 1);
++        stepTo(l1, PhaseType.UNTAP);
++        expect(l1.game.getPhaseHandler().getPlayerTurn() == l1.yellow, "level 1: after White and Red's skipped turn came " + l1.game.getPhaseHandler().getPlayerTurn());
++    }
++
++    private static void aPartnerSkippingAStepSkipsTheTeams() throws Exception {
++        final Fixture f = new Fixture(true);
++        add("Necropotence", f.red, ZoneType.Battlefield);
++        f.game.getPhaseHandler().devModeSet(PhaseType.UPKEEP, f.white, 3);
++        final Map<Player, Integer> before = handSizes(f);
++        stepTo(f, PhaseType.MAIN1);
++        final Map<Player, Integer> drawn = handGrowth(f, before);
++        expect(drawn.get(f.white) == 0 && drawn.get(f.red) == 0, "Red's Necropotence did not skip her team's draw step: " + names(drawn));
++        final Fixture l1 = new Fixture(false);
++        add("Necropotence", l1.red, ZoneType.Battlefield);
++        l1.game.getPhaseHandler().devModeSet(PhaseType.UPKEEP, l1.white, 5);
++        final Map<Player, Integer> l1Before = handSizes(l1);
++        stepTo(l1, PhaseType.MAIN1);
++        expect(handGrowth(l1, l1Before).get(l1.white) == 1, "level 1: Red's Necropotence skipped White's draw step");
++    }
++
++    private static void eachPlayersUpkeepTriggersForEachMember() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card clock = add("Blood Clock", f.yellow, ZoneType.Battlefield);
++        f.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, f.white, 3);
++        stepTo(f, PhaseType.UPKEEP);
++        expect(count(triggeredHosts(f), clock) == 2, "Blood Clock triggered " + count(triggeredHosts(f), clock) + " times in the team upkeep, not 2");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Clock = add("Blood Clock", l1.yellow, ZoneType.Battlefield);
++        l1.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, l1.white, 5);
++        stepTo(l1, PhaseType.UPKEEP);
++        expect(count(triggeredHosts(l1), l1Clock) == 1, "level 1: Blood Clock triggered " + count(triggeredHosts(l1), l1Clock) + " times");
++    }
++
++    private static void eachPlayersDrawStepTriggersForEachMember() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card mine = add("Howling Mine", f.yellow, ZoneType.Battlefield);
++        f.game.getPhaseHandler().devModeSet(PhaseType.UPKEEP, f.white, 3);
++        stepTo(f, PhaseType.DRAW);
++        expect(count(triggeredHosts(f), mine) == 2, "Howling Mine triggered " + count(triggeredHosts(f), mine) + " times in the team draw step, not 2");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Mine = add("Howling Mine", l1.yellow, ZoneType.Battlefield);
++        l1.game.getPhaseHandler().devModeSet(PhaseType.UPKEEP, l1.white, 5);
++        stepTo(l1, PhaseType.DRAW);
++        expect(count(triggeredHosts(l1), l1Mine) == 1, "level 1: Howling Mine triggered " + count(triggeredHosts(l1), l1Mine) + " times");
++    }
++
++    private static void eachUpkeepTriggersOnce() throws Exception {
++        for (final boolean shared : new boolean[] {true, false}) {
++            final Fixture f = new Fixture(shared);
++            final Card awakening = add("Awakening", f.yellow, ZoneType.Battlefield);
++            f.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, f.white, 3);
++            stepTo(f, PhaseType.UPKEEP);
++            expect(count(triggeredHosts(f), awakening) == 1,
++                    (shared ? "" : "level 1: ") + "Awakening triggered " + count(triggeredHosts(f), awakening) + " times, not once");
++        }
++    }
++
++    private static void yourUpkeepTriggersForThePartner() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card arena = add("Phyrexian Arena", f.red, ZoneType.Battlefield);
++        f.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, f.white, 3);
++        stepTo(f, PhaseType.UPKEEP);
++        expect(count(triggeredHosts(f), arena) == 1, "Red's Phyrexian Arena triggered " + count(triggeredHosts(f), arena) + " times in her team's upkeep, not once");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Arena = add("Phyrexian Arena", l1.red, ZoneType.Battlefield);
++        l1.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, l1.white, 5);
++        stepTo(l1, PhaseType.UPKEEP);
++        expect(count(triggeredHosts(l1), l1Arena) == 0, "level 1: Red's Phyrexian Arena triggered in White's upkeep");
++    }
++
++    private static void bothPartnersCreaturesAttackTogether() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card whiteBears = creature("Grizzly Bears", f.white);
++        final Card redBears = creature("Grizzly Bears", f.red);
++        final List<Player> asked = recordAttacks(f, Map.of(whiteBears, f.yellow, redBears, f.blue));
++        declareAttackers(f, f.white);
++        final Combat combat = f.game.getPhaseHandler().getCombat();
++        expect(asked.contains(f.white) && asked.contains(f.red), "not both partners were asked to declare attackers: " + asked);
++        expect(combat.isAttacking(whiteBears) && combat.isAttacking(redBears), "the combined attack is " + combat.getAttackers());
++        expect(combat.getDefenderByAttacker(redBears) == f.blue, "Red's Bears attack " + combat.getDefenderByAttacker(redBears) + ", not Blue");
++        final Fixture l1 = new Fixture(false);
++        final Card l1White = creature("Grizzly Bears", l1.white);
++        final Card l1Red = creature("Grizzly Bears", l1.red);
++        final List<Player> l1Asked = recordAttacks(l1, Map.of(l1White, l1.yellow, l1Red, l1.blue));
++        declareAttackers(l1, l1.white);
++        expect(l1Asked.equals(List.of(l1.white)) && !l1.game.getPhaseHandler().getCombat().isAttacking(l1Red),
++                "level 1: Red attacked in White's turn, asked " + l1Asked);
++    }
++
++    private static void aPartnersMustAttackBindsTheCombinedAttack() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card juggernaut = creature("Juggernaut", f.red);
++        Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.yellow);
++        expect(!CombatUtil.validateAttackers(combat), "the team's attack is legal without Red's Juggernaut, which attacks each combat if able");
++        combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.yellow);
++        combat.addAttacker(juggernaut, f.yellow);
++        expect(CombatUtil.validateAttackers(combat), "the team's attack with Juggernaut is refused");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Bears = creature("Grizzly Bears", l1.white);
++        creature("Juggernaut", l1.red);
++        final Combat l1Combat = combatOf(l1, l1.white);
++        l1Combat.addAttacker(l1Bears, l1.yellow);
++        expect(CombatUtil.validateAttackers(l1Combat), "level 1: Red's Juggernaut binds White's attack");
++    }
++
++    private static void attackingPlayerOfACreatureIsItsController() {
++        final Fixture f = new Fixture(true);
++        final Card whiteBears = creature("Grizzly Bears", f.white);
++        final Card redBears = creature("Grizzly Bears", f.red);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(whiteBears, f.yellow);
++        combat.addAttacker(redBears, f.yellow);
++        expect(combat.getAttackingPlayerOf(redBears) == f.red, "Red's attacker's attacking player is " + combat.getAttackingPlayerOf(redBears));
++        expect(combat.getAttackingPlayerOf(whiteBears) == f.white, "White's attacker's attacking player is " + combat.getAttackingPlayerOf(whiteBears));
++        expect(combat.isAttackingPlayer(f.red) && !combat.isAttackingPlayer(f.yellow), "attacking players " + combat.getAttackingPlayers());
++        final Fixture l1 = new Fixture(false);
++        final Card l1Bears = creature("Grizzly Bears", l1.white);
++        final Combat l1Combat = combatOf(l1, l1.white);
++        l1Combat.addAttacker(l1Bears, l1.yellow);
++        expect(!l1Combat.isAttackingPlayer(l1.red), "level 1: Red is an attacking player in White's turn");
++    }
++
++    private static void whenYouAttackTriggersForThePartner() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card ainok = creature("Ainok Strike Leader", f.red);
++        recordAttacks(f, Map.of(bears, f.yellow, ainok, f.yellow));
++        declareAttackers(f, f.white);
++        expect(f.game.getPhaseHandler().getCombat().isAttacking(ainok), "Red's Ainok Strike Leader did not attack");
++        expect(count(triggeredHosts(f), ainok) == 1, "Red's Ainok Strike Leader triggered " + count(triggeredHosts(f), ainok) + " times, not once");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Ainok = creature("Ainok Strike Leader", l1.red);
++        recordAttacks(l1, Map.of(l1Ainok, l1.yellow));
++        declareAttackers(l1, l1.red);
++        expect(count(triggeredHosts(l1), l1Ainok) == 1, "level 1: Ainok Strike Leader on Red's own turn triggered " + count(triggeredHosts(l1), l1Ainok) + " times");
++    }
++
++    private static void theDefendingTeamBlocksTogether() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        creature("Grizzly Bears", f.yellow);
++        final Card blueBlocker = creature("Grizzly Bears", f.blue);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(bears, f.yellow);
++        expect(CombatUtil.canBlock(bears, blueBlocker, combat), "Blue can't block a creature attacking her partner Yellow");
++        final List<Player> declared = recordBlocks(f);
++        declareBlockers(f);
++        expect(declared.contains(f.yellow) && declared.contains(f.blue), "not both defending partners declared blockers: " + declared);
++        expect(!declared.contains(f.red), "Red declared blockers against her own team");
++        final Fixture ffa = new Fixture(false, false);
++        final Card ffaBears = creature("Grizzly Bears", ffa.white);
++        final Card ffaBlocker = creature("Grizzly Bears", ffa.blue);
++        final Combat ffaCombat = combatOf(ffa, ffa.white);
++        ffaCombat.addAttacker(ffaBears, ffa.yellow);
++        expect(!CombatUtil.canBlock(ffaBears, ffaBlocker, ffaCombat), "free-for-all: Blue blocks for Yellow");
++    }
++
++    private static void theCombinedBlockIsLegalAsAWhole() {
++        final Fixture f = new Fixture(true);
++        final Card brute = creature("Boggart Brute", f.white);
++        final Card yellowBears = creature("Grizzly Bears", f.yellow);
++        final Card blueBears = creature("Grizzly Bears", f.blue);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(brute, f.yellow);
++        combat.addBlocker(brute, yellowBears);
++        combat.addBlocker(brute, blueBears);
++        expect(CombatUtil.validateBlocks(combat, f.yellow) == null && CombatUtil.validateBlocks(combat, f.blue) == null,
++                "Yellow and Blue blocking the menace Brute together is refused: " + CombatUtil.validateBlocks(combat, f.yellow)
++                        + " / " + CombatUtil.validateBlocks(combat, f.blue));
++        final Fixture alone = new Fixture(true);
++        final Card aloneBrute = creature("Boggart Brute", alone.white);
++        final Card aloneBears = creature("Grizzly Bears", alone.blue);
++        final Combat aloneCombat = combatOf(alone, alone.white);
++        aloneCombat.addAttacker(aloneBrute, alone.yellow);
++        aloneCombat.addBlocker(aloneBrute, aloneBears);
++        expect(CombatUtil.validateBlocks(aloneCombat, alone.blue) != null || CombatUtil.validateBlocks(aloneCombat, alone.yellow) != null,
++                "one Bears alone may block the menace Brute");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Brute = creature("Boggart Brute", l1.white);
++        final Card l1Yellow = creature("Grizzly Bears", l1.yellow);
++        final Card l1Blue = creature("Grizzly Bears", l1.blue);
++        final Combat l1Combat = combatOf(l1, l1.white);
++        l1Combat.addAttacker(l1Brute, l1.yellow);
++        l1Combat.addBlocker(l1Brute, l1Yellow);
++        l1Combat.addBlocker(l1Brute, l1Blue);
++        expect(CombatUtil.validateBlocks(l1Combat, l1.yellow) == null, "level 1: Yellow's and Blue's block of the Brute is refused: "
++                + CombatUtil.validateBlocks(l1Combat, l1.yellow));
++    }
++
++    private static void attackingTeamAssignsDamageFirst() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card whiteBears = creature("Grizzly Bears", f.white);
++        final Card redBears = creature("Grizzly Bears", f.red);
++        final Card yellowBears = creature("Grizzly Bears", f.yellow);
++        final Card blueBears = creature("Grizzly Bears", f.blue);
++        final List<String> assigned = recordDamage(f);
++        final Combat combat = combatOf(f, f.white);
++        combat.addAttacker(whiteBears, f.yellow);
++        combat.addAttacker(redBears, f.blue);
++        combat.addBlocker(whiteBears, blueBears);
++        combat.addBlocker(redBears, yellowBears);
++        combat.orderBlockersForDamageAssignment();
++        combat.orderAttackersForDamageAssignment();
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DAMAGE, f.white, false);
++        withoutPrompts(f, "assigning combat damage", () -> combat.assignCombatDamage(false));
++        expect(assigned.size() == 4, "damage assignments " + assigned);
++        expect(Set.copyOf(assigned.subList(0, 2)).equals(Set.of("White", "Red")) && Set.copyOf(assigned.subList(2, 4)).equals(Set.of("Yellow", "Blue")),
++                "damage was assigned in the order " + assigned + ", not the attacking team (White, Red) then the defending team");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Attacker = creature("Grizzly Bears", l1.white);
++        final Card l1Blocker = creature("Grizzly Bears", l1.yellow);
++        final List<String> l1Assigned = recordDamage(l1);
++        final Combat l1Combat = combatOf(l1, l1.white);
++        l1Combat.addAttacker(l1Attacker, l1.yellow);
++        l1Combat.addBlocker(l1Attacker, l1Blocker);
++        l1Combat.orderBlockersForDamageAssignment();
++        l1Combat.orderAttackersForDamageAssignment();
++        l1.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DAMAGE, l1.white, false);
++        withoutPrompts(l1, "assigning combat damage", () -> l1Combat.assignCombatDamage(false));
++        expect(l1Assigned.equals(List.of("White", "Yellow")), "level 1: damage assigned in the order " + l1Assigned);
++    }
++
++    private static void theTeamPassesOnceBothMembersPass() throws Exception {
++        final Fixture f = new Fixture(true);
++        final List<Player> passes = passesUntilResolved(f, f.red);
++        expect(passes.size() == 4, "passes before the ability resolved: " + passes);
++        expect(Set.copyOf(passes.subList(0, 2)).equals(Set.of(f.white, f.red)),
++                "after Red's ability the passes went " + passes + ": White and Red pass for their team before Yellow's team (rule 805.5b)");
++        final Fixture l1 = new Fixture(false);
++        final List<Player> l1Passes = passesUntilResolved(l1, l1.red);
++        expect(l1Passes.equals(List.of(l1.red, l1.yellow, l1.blue, l1.white)), "level 1: passes after Red's ability " + l1Passes);
++    }
++
++    private static void theActiveTeamGetsPriorityAfterResolving() throws Exception {
++        final Fixture f = new Fixture(true);
++        passesUntilResolved(f, f.yellow);
++        final Player next = f.game.getPhaseHandler().getPriorityPlayer();
++        expect(f.game.getPhaseHandler().isPlayerTurn(next), "after Yellow's ability resolved priority went to " + next + ", not the active team");
++        final Fixture l1 = new Fixture(false);
++        passesUntilResolved(l1, l1.yellow);
++        expect(l1.game.getPhaseHandler().getPriorityPlayer() == l1.white, "level 1: priority after resolving went to " + l1.game.getPhaseHandler().getPriorityPlayer());
++    }
++
++    private static List<Player> passesUntilResolved(final Fixture f, final Player activator) throws Exception {
++        final List<Player> passes = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public List<SpellAbility> chooseSpellAbilityToPlay() {
++                    passes.add(p);
++                    return null;
++                }
++            });
++        }
++        final Card host = add("Grizzly Bears", activator, ZoneType.Battlefield);
++        final SpellAbility gain = AbilityFactory.getAbility("AB$ GainLife | Cost$ 0 | LifeAmount$ 1 | Defined$ You", host);
++        gain.setActivatingPlayer(activator);
++        withoutPrompts(f, "adding the ability to the stack", () -> f.game.getStack().add(gain));
++        f.game.getPhaseHandler().setPriority(activator);
++        final Field give = PhaseHandler.class.getDeclaredField("givePriorityToPlayer");
++        give.setAccessible(true);
++        give.set(f.game.getPhaseHandler(), true);
++        for (int i = 0; i < 12 && !f.game.getStack().isEmpty(); i++) {
++            withoutPrompts(f, "a priority step", () -> f.game.getPhaseHandler().mainLoopStep());
++        }
++        expect(f.game.getStack().isEmpty(), "the ability never resolved; passes " + passes);
++        return passes;
++    }
++
++    private static void fastForwardStopsOnThePartnersSlot() {
++        final Fixture f = new Fixture(true);
++        f.game.getPhaseHandler().devModeSet(PhaseType.MAIN2, f.white, 3);
++        expect(PriorityFastForward.reachedTarget(f.game, "player-1", "main2"), "a pass-until Red's main 2 runs past her team's main 2");
++        expect(!PriorityFastForward.reachedTarget(f.game, "player-2", "main2"), "a pass-until Yellow's main 2 stops in White's team turn");
++        final Fixture l1 = new Fixture(false);
++        l1.game.getPhaseHandler().devModeSet(PhaseType.MAIN2, l1.white, 3);
++        expect(!PriorityFastForward.reachedTarget(l1.game, "player-1", "main2"), "level 1: a pass-until Red's main 2 stops in White's main 2");
++    }
++
++    private static void thePrimaryPlayerOrdersTheTeamsTriggers() throws Exception {
++        final Fixture f = new Fixture(true);
++        final List<List<Player>> calls = recordTriggerOrders(f);
++        for (final Player p : f.game.getPlayers()) {
++            add("Awakening", p, ZoneType.Battlefield);
++        }
++        f.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, f.white, 3);
++        stepTo(f, PhaseType.UPKEEP);
++        resolveTriggers(f);
++        expect(asker(calls, f.red) == f.white && asker(calls, f.blue) == f.yellow,
++                "the teams' trigger orders were asked of " + calls + " ([asked, controllers...]), not each team's primary player White and Yellow (rule 805.2)");
++        final Fixture l1 = new Fixture(false);
++        final List<List<Player>> l1Calls = recordTriggerOrders(l1);
++        for (final Player p : l1.game.getPlayers()) {
++            add("Awakening", p, ZoneType.Battlefield);
++        }
++        l1.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, l1.white, 5);
++        stepTo(l1, PhaseType.UPKEEP);
++        resolveTriggers(l1);
++        expect(asker(l1Calls, l1.red) == l1.red && asker(l1Calls, l1.blue) == l1.blue, "level 1: trigger orders asked " + l1Calls);
++    }
++
++    private static void theActiveTeamOrdersAllItsTriggersFirst() throws Exception {
++        final Fixture f = new Fixture(true);
++        final List<List<Player>> calls = recordTriggerOrders(f);
++        for (final Player p : f.game.getPlayers()) {
++            add("Awakening", p, ZoneType.Battlefield);
++        }
++        f.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, f.yellow, 4);
++        stepTo(f, PhaseType.UPKEEP);
++        resolveTriggers(f);
++        expect(calls.size() == 2 && Set.copyOf(calls.get(0).subList(1, calls.get(0).size())).equals(Set.of(f.yellow, f.blue))
++                && Set.copyOf(calls.get(1).subList(1, calls.get(1).size())).equals(Set.of(f.white, f.red)),
++                "the triggers were ordered in the batches " + calls + " ([asked, controllers...]), not Yellow's team's together, then White's team's (rule 805.7)");
++        final Fixture l1 = new Fixture(false);
++        final List<List<Player>> l1Calls = recordTriggerOrders(l1);
++        for (final Player p : l1.game.getPlayers()) {
++            add("Awakening", p, ZoneType.Battlefield);
++        }
++        l1.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, l1.yellow, 6);
++        stepTo(l1, PhaseType.UPKEEP);
++        resolveTriggers(l1);
++        expect(l1Calls.equals(List.of(List.of(l1.yellow, l1.yellow), List.of(l1.blue, l1.blue), List.of(l1.white, l1.white), List.of(l1.red, l1.red))),
++                "level 1: triggers ordered in the batches " + l1Calls + ", not each player's own in turn order from Yellow");
++    }
++
++    private static List<List<Player>> recordTriggerOrders(final Fixture f) {
++        final List<List<Player>> calls = new ArrayList<>();
++        final Set<SpellAbility> ordered = new HashSet<>();
++        final boolean[] placing = {false};
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public List<SpellAbility> orderSimultaneousSa(final List<SpellAbility> sas) {
++                    if (!placing[0]) {
++                        calls.add(triggerOrderCall(p, sas));
++                        ordered.addAll(sas);
++                    }
++                    return super.orderSimultaneousSa(sas);
++                }
++
++                @Override
++                public void orderAndPlaySimultaneousSa(final List<SpellAbility> activePlayerSAs) {
++                    if (!ordered.containsAll(activePlayerSAs)) {
++                        calls.add(triggerOrderCall(p, activePlayerSAs));
++                    }
++                    placing[0] = true;
++                    try {
++                        super.orderAndPlaySimultaneousSa(activePlayerSAs);
++                    } finally {
++                        placing[0] = false;
++                    }
++                }
++            });
++        }
++        return calls;
++    }
++
++    private static List<Player> triggerOrderCall(final Player asked, final List<SpellAbility> sas) {
++        final List<Player> call = new ArrayList<>();
++        call.add(asked);
++        for (final SpellAbility sa : sas) {
++            call.add(sa.getHostCard().getController());
++        }
++        return call;
++    }
++
++    private static Player asker(final List<List<Player>> calls, final Player controller) {
++        for (final List<Player> call : calls) {
++            if (call.subList(1, call.size()).contains(controller)) {
++                return call.get(0);
++            }
++        }
++        return null;
++    }
++
++    private static void resolveTriggers(final Fixture f) throws Exception {
++        withoutPrompts(f, "resolving the triggers", () -> {
++            f.game.getStack().addAllTriggeredAbilitiesToStack();
++            for (int i = 0; i < 20 && !f.game.getStack().isEmpty(); i++) {
++                f.game.getStack().resolveStack();
++            }
++        });
++        expect(f.game.getStack().isEmpty(), "the triggers never resolved");
++    }
++
++    private static void theStartingTeamDeclaresMulligansFirst() throws Exception {
++        final Fixture f = new Fixture(true);
++        final List<Player> asked = mulligans(f, f.white, f.white);
++        expect(asked.equals(List.of(f.white, f.red, f.yellow, f.blue, f.white)),
++                "mulligans were declared in the order " + asked + ", not the starting team White + Red first, then Yellow + Blue (rule 805.3a)");
++        expect(f.white.getCardsIn(ZoneType.Hand).size() == 7, "White's first mulligan was not free: she kept " + f.white.getCardsIn(ZoneType.Hand).size());
++        final Fixture second = new Fixture(true);
++        final List<Player> secondAsked = mulligans(second, second.yellow, null);
++        expect(secondAsked.equals(List.of(second.yellow, second.blue, second.white, second.red)),
++                "with Yellow's team starting, mulligans were declared in the order " + secondAsked + " (rule 805.3a)");
++        final Fixture l1 = new Fixture(false);
++        final List<Player> l1Asked = mulligans(l1, l1.yellow, null);
++        expect(l1Asked.equals(List.of(l1.yellow, l1.blue, l1.white, l1.red)), "level 1: mulligans declared in the order " + l1Asked);
++    }
++
++    private static List<Player> mulligans(final Fixture f, final Player first, final Player mulligansOnce) throws Exception {
++        final List<Player> asked = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public boolean mulliganKeepHand(final Player firstPlayer, final int cardsToReturn) {
++                    asked.add(p);
++                    return p != mulligansOnce || asked.indexOf(p) != asked.lastIndexOf(p);
++                }
++            });
++            p.drawCards(7);
++        }
++        f.game.setAge(GameStage.Mulligan);
++        withoutPrompts(f, "mulligans", () -> new forge.game.mulligan.MulliganService(first).perform());
++        f.game.setAge(GameStage.Play);
++        return asked;
++    }
++
++    private static void theStartingTeamTakesPregameActionsFirst() throws Exception {
++        final Fixture f = new Fixture(true);
++        final List<Player> order = openingHandActions(f, f.yellow);
++        expect(order.equals(List.of(f.yellow, f.blue, f.white, f.red)),
++                "opening hand actions were taken in the order " + order + ", not the starting team Yellow + Blue first, then White + Red (rule 805.3b)");
++        for (final Player p : f.game.getPlayers()) {
++            expect(p.getCardsIn(ZoneType.Battlefield).anyMatch(c -> "Leyline of Sanctity".equals(c.getName())), p + "'s Leyline did not start on the battlefield");
++        }
++        final Fixture l1 = new Fixture(false);
++        final List<Player> l1Order = openingHandActions(l1, l1.white);
++        expect(l1Order.equals(List.of(l1.white, l1.red, l1.yellow, l1.blue)), "level 1: opening hand actions in the order " + l1Order);
++    }
++
++    private static List<Player> openingHandActions(final Fixture f, final Player first) throws Exception {
++        final List<Player> order = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public List<SpellAbility> chooseSaToActivateFromOpeningHand(final List<SpellAbility> usable) {
++                    order.add(p);
++                    return usable;
++                }
++            });
++            add("Leyline of Sanctity", p, ZoneType.Hand);
++        }
++        final Method run = forge.game.GameAction.class.getDeclaredMethod("runOpeningHandActions", Player.class);
++        run.setAccessible(true);
++        withoutPrompts(f, "opening hand actions", () -> {
++            try {
++                run.invoke(f.game.getAction(), first);
++            } catch (final ReflectiveOperationException e) {
++                throw new RuntimeException(e.getCause() != null ? e.getCause() : e);
++            }
++        });
++        return order;
++    }
++
++    private static void theActivePlayerIsOnePlayerOfTheActiveTeam() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card obeka = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        final List<Player> active = AbilityUtils.getDefinedPlayers(obeka, "ActivePlayer", obeka.getFirstSpellAbility());
++        expect(active.size() == 1 && f.game.getPhaseHandler().isPlayerTurn(active.get(0)),
++                "\"the player whose turn it is\" in White's team turn is " + active + ", not one player of the active team (rule 805.9)");
++        final Map<Player, Integer> before = handSizes(f);
++        resolve(f, AbilityFactory.getAbility("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1", obeka), f.yellow);
++        final Map<Player, Integer> drawn = handGrowth(f, before);
++        expect(drawn.get(f.white) + drawn.get(f.red) == 1 && drawn.get(f.yellow) == 0 && drawn.get(f.blue) == 0,
++                "\"the active player draws a card\" drew " + names(drawn) + ", not one card for one player of the active team (rule 805.9)");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Obeka = add("Obeka, Brute Chronologist", l1.yellow, ZoneType.Battlefield);
++        expect(new ArrayList<>(AbilityUtils.getDefinedPlayers(l1Obeka, "ActivePlayer", l1Obeka.getFirstSpellAbility())).equals(List.of(l1.white)),
++                "level 1: the active player in White's turn is " + AbilityUtils.getDefinedPlayers(l1Obeka, "ActivePlayer", l1Obeka.getFirstSpellAbility()));
++    }
++
++    private static void defendingPlayerIsThePlayerItAttacks() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card automaton = creature("Jangling Automaton", f.red);
++        final Card yellowBears = creature("Grizzly Bears", f.yellow);
++        final Card blueBears = creature("Grizzly Bears", f.blue);
++        recordAttacks(f, Map.of(bears, f.yellow, automaton, f.blue));
++        declareAttackers(f, f.white);
++        expect(new ArrayList<>(AbilityUtils.getDefinedPlayers(bears, "DefendingPlayer", bears.getFirstSpellAbility())).equals(List.of(f.yellow)),
++                "the defending player of White's Bears is " + AbilityUtils.getDefinedPlayers(bears, "DefendingPlayer", bears.getFirstSpellAbility()) + ", not Yellow, the player it attacks (rule 805.10e)");
++        yellowBears.setTapped(true);
++        blueBears.setTapped(true);
++        expect(count(triggeredHosts(f), automaton) == 1, "Red's Jangling Automaton triggered " + count(triggeredHosts(f), automaton) + " times");
++        resolveTriggers(f);
++        expect(blueBears.isUntapped() && yellowBears.isTapped(), "Red's Jangling Automaton attacking Blue untapped the creatures of "
++                + (yellowBears.isUntapped() ? "Yellow" : "nobody") + (blueBears.isUntapped() ? " and Blue" : "") + ", not Blue's alone (rule 805.10e)");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Automaton = creature("Jangling Automaton", l1.white);
++        final Card l1Yellow = creature("Grizzly Bears", l1.yellow);
++        final Card l1Blue = creature("Grizzly Bears", l1.blue);
++        recordAttacks(l1, Map.of(l1Automaton, l1.blue));
++        declareAttackers(l1, l1.white);
++        l1Yellow.setTapped(true);
++        l1Blue.setTapped(true);
++        resolveTriggers(l1);
++        expect(l1Blue.isUntapped() && l1Yellow.isTapped(), "level 1: White's Automaton attacking Blue untapped Yellow " + l1Yellow.isUntapped() + ", Blue " + l1Blue.isUntapped());
++    }
++
++    private static void aPartnersExtraStepIsTheTeams() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card haze = add("Paradox Haze", f.yellow, ZoneType.Battlefield);
++        haze.attachToEntity(f.red, null);
++        final Card whiteArena = add("Phyrexian Arena", f.white, ZoneType.Battlefield);
++        final Card redArena = add("Phyrexian Arena", f.red, ZoneType.Battlefield);
++        f.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, f.white, 3);
++        stepTo(f, PhaseType.UPKEEP);
++        expect(count(triggeredHosts(f), haze) == 1, "Paradox Haze on Red triggered " + count(triggeredHosts(f), haze) + " times in her team's first upkeep, not once");
++        resolveTriggers(f);
++        stepTo(f, PhaseType.UPKEEP);
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        expect(ph.getTurn() == 3 && ph.isPlayerTurn(f.white) && ph.isPlayerTurn(f.red),
++                "Red's additional upkeep step was not her team's: the next upkeep is turn " + ph.getTurn() + " of " + ph.getActiveTeam() + " (rule 805.8)");
++        expect(count(triggeredHosts(f), whiteArena) == 1 && count(triggeredHosts(f), redArena) == 1 && count(triggeredHosts(f), haze) == 0,
++                "in the team's additional upkeep White's Arena triggered " + count(triggeredHosts(f), whiteArena) + ", Red's "
++                        + count(triggeredHosts(f), redArena) + " and Paradox Haze " + count(triggeredHosts(f), haze) + " times, not 1, 1 and 0");
++        final Fixture l1 = new Fixture(false);
++        final Card l1Haze = add("Paradox Haze", l1.yellow, ZoneType.Battlefield);
++        l1Haze.attachToEntity(l1.red, null);
++        l1.game.getPhaseHandler().devModeSet(PhaseType.UNTAP, l1.white, 5);
++        stepTo(l1, PhaseType.UPKEEP);
++        expect(count(triggeredHosts(l1), l1Haze) == 0, "level 1: Paradox Haze on Red triggered in White's upkeep");
++    }
++
++    private static void aGainInTheTeamTurnTriggersThePartnersLifeCardOnce() throws Exception {
++        for (final boolean shared : new boolean[] {true, false}) {
++            final Fixture f = new Fixture(shared);
++            f.game.getRules().setTeamLifeEvents(true);
++            f.game.getPhaseHandler().devModeSet(PhaseType.MAIN1, f.white, 3);
++            final Card whiteCat = add("Ajani's Pridemate", f.white, ZoneType.Battlefield);
++            final Card redCat = add("Ajani's Pridemate", f.red, ZoneType.Battlefield);
++            final Card yellowCat = add("Ajani's Pridemate", f.yellow, ZoneType.Battlefield);
++            f.game.getTriggerHandler().resetActiveTriggers();
++            resolve(f, AbilityFactory.getAbility("DB$ GainLife | Defined$ You | LifeAmount$ 3", whiteCat), f.white);
++            final List<Card> hosts = triggeredHosts(f);
++            expect(count(hosts, redCat) == 1 && count(hosts, whiteCat) == 1 && count(hosts, yellowCat) == 0,
++                    (shared ? "" : "level 1: ") + "White's gain of 3 in her team's turn triggered Red's Pridemate " + count(hosts, redCat)
++                            + ", White's " + count(hosts, whiteCat) + " and Yellow's " + count(hosts, yellowCat) + " times, not 1, 1 and 0");
++            expect(f.white.getLife() == 33 && f.red.getLife() == 33, (shared ? "" : "level 1: ") + "the team's life is " + f.white.getLife() + " / " + f.red.getLife());
++        }
++    }
++
++    private static Card creature(final String name, final Player p) {
++        final Card c = add(name, p, ZoneType.Battlefield);
++        c.setSickness(false);
++        return c;
++    }
++
++    private static Combat combatOf(final Fixture f, final Player active) {
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, active);
++        final Combat combat = new Combat(active);
++        f.game.getPhaseHandler().setCombat(combat);
++        return combat;
++    }
++
++    private static List<Player> recordAttacks(final Fixture f, final Map<Card, Player> attacks) {
++        final List<Player> asked = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public void declareAttackers(final Player attacker, final Combat combat) {
++                    asked.add(p);
++                    for (final Map.Entry<Card, Player> e : attacks.entrySet()) {
++                        if (e.getKey().getController() == p && !combat.isAttacking(e.getKey())) {
++                            combat.addAttacker(e.getKey(), e.getValue());
++                        }
++                    }
++                }
++            });
++        }
++        return asked;
++    }
++
++    private static List<Player> recordBlocks(final Fixture f) {
++        final List<Player> declared = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public void declareBlockers(final Player defender, final Combat combat) {
++                    declared.add(defender);
++                }
++            });
++        }
++        return declared;
++    }
++
++    private static List<String> recordDamage(final Fixture f) {
++        final List<String> assigned = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public Map<Card, Integer> assignCombatDamage(final Card attacker, final CardCollectionView blockers,
++                        final CardCollectionView remaining, final int damageDealt, final GameEntity defender, final boolean overrideOrder) {
++                    assigned.add(p.getName());
++                    final Map<Card, Integer> map = new HashMap<>();
++                    map.put(blockers.get(0), damageDealt);
++                    return map;
++                }
++            });
++        }
++        return assigned;
++    }
++
++    private static void declareAttackers(final Fixture f, final Player active) throws Exception {
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, active);
++        f.game.getPhaseHandler().setCombat(new Combat(active));
++        final Method declare = PhaseHandler.class.getDeclaredMethod("declareAttackersTurnBasedAction");
++        declare.setAccessible(true);
++        withoutPrompts(f, "declaring attackers", () -> invoke(declare, f.game.getPhaseHandler()));
++    }
++
++    private static void declareBlockers(final Fixture f) throws Exception {
++        final Method declare = PhaseHandler.class.getDeclaredMethod("declareBlockersTurnBasedAction");
++        declare.setAccessible(true);
++        withoutPrompts(f, "declaring blockers", () -> invoke(declare, f.game.getPhaseHandler()));
++    }
++
++    private static void stepTo(final Fixture f, final PhaseType target) throws Exception {
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        final Method end = PhaseHandler.class.getDeclaredMethod("onPhaseEnd");
++        final Method advance = PhaseHandler.class.getDeclaredMethod("advanceToNextPhase");
++        final Method begin = PhaseHandler.class.getDeclaredMethod("onPhaseBegin");
++        end.setAccessible(true);
++        advance.setAccessible(true);
++        begin.setAccessible(true);
++        for (int i = 0; i < 16; i++) {
++            withoutPrompts(f, "stepping from " + ph.getPhase(), () -> {
++                invoke(end, ph);
++                invoke(advance, ph);
++                invoke(begin, ph);
++            });
++            if (ph.getPhase() == target) {
++                return;
++            }
++            clearStack(f);
++        }
++        throw new AssertionError("never reached " + target + ", at " + ph.getPhase());
++    }
++
++    private static void clearStack(final Fixture f) throws Exception {
++        final Field waiting = MagicStack.class.getDeclaredField("simultaneousStackEntryList");
++        waiting.setAccessible(true);
++        ((List<?>) waiting.get(f.game.getStack())).clear();
++        f.game.getStack().clear();
++    }
++
++    private static void invoke(final Method m, final Object target) {
++        try {
++            m.invoke(target);
++        } catch (final ReflectiveOperationException e) {
++            throw new RuntimeException(e.getCause() != null ? e.getCause() : e);
++        }
++    }
++
++    private static Map<Player, Integer> handSizes(final Fixture f) {
++        final Map<Player, Integer> sizes = new HashMap<>();
++        for (final Player p : f.game.getPlayers()) {
++            sizes.put(p, p.getCardsIn(ZoneType.Hand).size());
++        }
++        return sizes;
++    }
++
++    private static Map<Player, Integer> handGrowth(final Fixture f, final Map<Player, Integer> before) {
++        final Map<Player, Integer> growth = new HashMap<>();
++        for (final Player p : f.game.getPlayers()) {
++            growth.put(p, p.getCardsIn(ZoneType.Hand).size() - before.get(p));
++        }
++        return growth;
++    }
++
++    private static String names(final Map<Player, Integer> byPlayer) {
++        final StringBuilder sb = new StringBuilder();
++        for (final Map.Entry<Player, Integer> e : byPlayer.entrySet()) {
++            sb.append(sb.length() == 0 ? "" : ", ").append(e.getKey().getName()).append(' ').append(e.getValue());
++        }
++        return sb.toString();
++    }
++
++    private static int count(final List<Card> hosts, final Card card) {
++        int n = 0;
++        for (final Card c : hosts) {
++            if (c.equals(card)) {
++                n++;
++            }
++        }
++        return n;
++    }
++
++    @SuppressWarnings("unchecked")
++    private static List<Card> triggeredHosts(final Fixture f) throws Exception {
++        final List<Card> hosts = new ArrayList<>();
++        final Field waiting = MagicStack.class.getDeclaredField("simultaneousStackEntryList");
++        waiting.setAccessible(true);
++        for (final SpellAbility sa : (List<SpellAbility>) waiting.get(f.game.getStack())) {
++            hosts.add(sa.getHostCard());
++        }
++        for (final SpellAbilityStackInstance si : f.game.getStack()) {
++            hosts.add(si.getSourceCard());
++        }
++        return hosts;
++    }
++
++    private static void resolve(final Fixture f, final SpellAbility sa, final Player activator) throws Exception {
++        sa.setActivatingPlayer(activator);
++        withoutPrompts(f, "resolving " + sa.getHostCard(), () -> AbilityUtils.resolve(sa));
++    }
++
++    private static void withoutPrompts(final Fixture f, final String what, final Runnable step) throws Exception {
++        final Throwable[] failure = new Throwable[1];
++        final Thread runner = new Thread(() -> {
++            try {
++                step.run();
++            } catch (final Throwable thrown) {
++                failure[0] = thrown;
++            }
++        }, what);
++        runner.setDaemon(true);
++        runner.start();
++        runner.join(60_000);
++        if (runner.isAlive()) {
++            throw new AssertionError(what + " asked " + f.session.getLatestPromptJson());
++        }
++        if (failure[0] != null) {
++            throw new AssertionError(what + " failed: " + failure[0], failure[0]);
++        }
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("shared-turns-test");
++        final Game game;
++        final Player white;
++        final Player red;
++        final Player yellow;
++        final Player blue;
++
++        Fixture(final boolean sharedTurns) {
++            this(sharedTurns, true);
++        }
++
++        Fixture(final boolean sharedTurns, final boolean teams) {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final String[] names = {"White", "Red", "Yellow", "Blue"};
++            for (int i = 0; i < 4; i++) {
++                final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(names[i], null));
++                rp.setStartingLife(teams ? 30 : 20);
++                if (teams) {
++                    rp.setTeamNumber(i < 2 ? 1 : 2);
++                }
++                players.add(rp);
++            }
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setAppliedVariants(EnumSet.of(GameType.Constructed));
++            rules.setSharedTeamLife(teams);
++            rules.setSharedTeamTurns(sharedTurns);
++            game = new Game(players, rules, new Match(rules, players, "SharedTurnsTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++            game.getPhaseHandler().onStackResolved();
++            white = game.getPlayers().get(0);
++            red = game.getPlayers().get(1);
++            yellow = game.getPlayers().get(2);
++            blue = game.getPlayers().get(3);
++            for (final Player p : game.getPlayers()) {
++                for (int i = 0; i < 12; i++) {
++                    add("Plains", p, ZoneType.Library);
++                }
++            }
++            session.attach(game.getMatch(), game, Set.of(), false);
++        }
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java b/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java
 new file mode 100644
 index 0000000..a5d3088
@@ -10378,7 +12913,7 @@ index c778de5..a8a9364 100644
          None,
      );
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs b/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs
-index 358c48f..e4d66e6 100644
+index 358c48f..ee1dcb7 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs
 @@ -44,6 +44,7 @@ pub(super) fn choose_attackers<T: Responder>(
@@ -10395,6 +12930,17 @@ index 358c48f..e4d66e6 100644
                  attack_targets,
 +                unavailable: Vec::new(),
 +                limits: Vec::new(),
+             },
+         ),
+         None,
+@@ -103,6 +106,10 @@ pub(super) fn choose_blockers<T: Responder>(
+                 attackers,
+                 available_blocker_ids,
+                 error: None,
++                title: None,
++                revise_round: None,
++                current_assignments: None,
++                team_block_lines: None,
              },
          ),
          None,
@@ -10435,10 +12981,10 @@ index bac285e..a8e0d58 100644
          };
          match action {
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/bin/emit_prompt_fixtures.rs b/manabrew-rs/crates/manabrew-agent-interface/src/bin/emit_prompt_fixtures.rs
-index 3385214..b68e2c9 100644
+index 3385214..d968b3c 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/bin/emit_prompt_fixtures.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/bin/emit_prompt_fixtures.rs
-@@ -87,6 +87,8 @@ fn main() {
+@@ -87,11 +87,17 @@ fn main() {
          ChooseAttackers(choose_attackers::ChooseAttackersInput {
              attackers: vec![],
              attack_targets: vec![],
@@ -10447,7 +12993,16 @@ index 3385214..b68e2c9 100644
          }),
          ChooseBlockers(choose_blockers::ChooseBlockersInput {
              attackers: vec![],
-@@ -250,6 +252,7 @@ fn main() {
+             available_blocker_ids: vec![],
+             error: None,
++            title: None,
++            revise_round: None,
++            current_assignments: None,
++            team_block_lines: None,
+         }),
+         ChooseBoardTargets(choose_board_targets::ChooseBoardTargetsInput {
+             presentation: common::PromptPresentation {
+@@ -250,6 +256,7 @@ fn main() {
              cards: vec![],
              min: 0,
              max: 0,
@@ -10920,6 +13475,34 @@ index 7df4820..561562b 100644
 +    pub unavailable: Vec<AttackRefusalDto>,
 +    #[serde(default)]
 +    pub limits: Vec<AttackLimitDto>,
+ }
+ 
+ #[derive(Debug, Clone, Serialize, Deserialize, TS)]
+diff --git a/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_blockers.rs b/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_blockers.rs
+index 8541527..00f8e21 100644
+--- a/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_blockers.rs
++++ b/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_blockers.rs
+@@ -26,6 +26,23 @@ pub struct ChooseBlockersInput {
+     #[serde(default, skip_serializing_if = "Option::is_none")]
+     #[ts(optional)]
+     pub error: Option<String>,
++    // Two-Headed Giant team block (CR 805.10d): the prompt's title, "Block with <partner>" in round 1 and
++    // "<partner> changed the blocks. Agree or change?" in a revise round.
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub title: Option<String>,
++    // Team block: the revise round, 1 to 4, when a partner's change asks this defender again; absent in round 1.
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional, type = "number")]
++    pub revise_round: Option<u32>,
++    // Team block: this defender's own current blocks; sending them back unchanged is "Agree".
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub current_assignments: Option<Vec<BlockAssignment>>,
++    // Team block: the team's current block, one line per attacker, e.g. "Goblin Guide -> your Grizzly Bears + Yellow's Wall".
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub team_block_lines: Option<Vec<String>>,
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -11471,3 +14054,19 @@ index 5bcb862..b9adca0 100644
  };
  
  export function isFacelessCard(card: Pick<CardDto, "isFaceDown" | "identity">): boolean {
+diff --git a/forge-harness/src/main/java/forge/harness/Main.java b/forge-harness/src/main/java/forge/harness/Main.java
+index da0433a..78ed941 100644
+--- a/forge-harness/src/main/java/forge/harness/Main.java
++++ b/forge-harness/src/main/java/forge/harness/Main.java
+@@ -156,11 +156,6 @@ public final class Main {
+                     prefs.setPref(ForgePreferences.FPref.PERFORMANCE_MODE, true);
+                     return null;
+                 });
+-                // The patch 24 runaway caps default to 25k per turn, sized for the heap. A
+-                // turn that creates 800 tokens and fires 8k triggers already takes longer
+-                // than a session; these end it as a Draw while the tab is still alive.
+-                forge.game.Game.setRunawayCardsPerTurnCap(1000);
+-                forge.game.Game.setRunawayTriggersPerTurnCap(5000);
+             } else {
+                 FModel.initialize(null, null);
+             }
