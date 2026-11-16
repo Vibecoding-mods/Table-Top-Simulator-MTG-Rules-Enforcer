@@ -756,7 +756,11 @@ ENGINE_TEAM_MODE = nil -- "2hg" | "2v2" | "juggernaut" while ENGINE_TEAMS is set
 ENGINE_TEAM_TURNS = nil
 -- the Juggernaut's settings (bridge/teams.js JUGG_DEFAULTS; life nil: twice the format's, 80 or 40)
 ENGINE_JUGG = { color = "White", hand = 10, draw = 1, land = 0, cmd = 21, order = "first" }
-ENGINE_TEAM_NAMES = { ["2hg"] = "Two-Headed Giant", ["2v2"] = "2v2", juggernaut = "Juggernaut" }
+ENGINE_TEAM_NAMES = { ["2hg"] = "Two-Headed Giant", ["2v2"] = "2v2", juggernaut = "Juggernaut", ["3hg"] = "Three-Headed Giant" }
+-- Three-Headed Giant (3v3, rule 810.11; bridge/teams.js THREE_TEAMS): the six-seat table only, either game mode (not in
+-- ENGINE_TEAM_GAME_MODE), the teams its sides in turn order; the bridge sends no life (the engine's 45, 120 in Commander)
+ENGINE_3HG_TEAMS = { White = 1, Red = 1, Yellow = 1, Green = 2, Blue = 2, Purple = 2 }
+function engineSixSeats() return ENGINE_TABLE_SEATS ~= nil and #ENGINE_TABLE_SEATS == 6 end
 -- the one game mode (ENGINE_GAME_MODE) each team mode is played in: 2v2 Standard, the other two Commander (the owner's
 -- call; bridge/teams.js TEAM_MODES checks it again at start)
 ENGINE_TEAM_GAME_MODE = { ["2hg"] = "commander", ["2v2"] = "standard", juggernaut = "commander" }
@@ -781,7 +785,7 @@ end
 -- the teams as said in chat: "White + Red vs Yellow + Blue" (Juggernaut: "White (Juggernaut) vs Red + Yellow + Blue")
 function engineTeamsText()
   local s = { {}, {} }
-  for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do
+  for _, c in ipairs(ENGINE_TEAM_MODE == "3hg" and { "White", "Red", "Yellow", "Green", "Blue", "Purple" } or { "White", "Red", "Yellow", "Blue" }) do
     local n = ENGINE_TEAMS[c] or 1
     s[n][#s[n] + 1] = c
   end
@@ -807,12 +811,13 @@ ENGINE_JUGG_LIMITS = { life = { 1, 999 }, hand = { 0, 30 }, draw = { 0, 5 }, lan
 ENGINE_TEAM_HELP = {
   ["2hg"] = ". Partners share life (80 a team), poison (15) and a commander's damage (42), block for each other and see each other's hands; each player takes their own turn. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host). One turn for each team, attacking and blocking together:  mtg 2hg turns shared  (back:  mtg 2hg turns own).",
   ["2v2"] = ". Standard decks; each player has their own life (20) and turn, no commander; teammates can't attack each other; a team wins when both its opponents have lost. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host).",
+  ["3hg"] = ". Each side of the table is a team of three: they share life (120 a team in Commander, 45 in Standard), poison (20) and losing, block together and see each other's hands; each player takes their own turn, the team's back to back. All six seats play (AI players fill the empty ones).",
 }
 -- "mtg mode 2hg|2v2|juggernaut|ffa", "mtg team <colour> <1|2>" and "mtg juggernaut ..." (host): true when handled
 -- (engineChat, make-engine-copy.js); any other "mtg mode" word is left to the other game modes
 -- ("mtg 2hg turns shared|own" too: the chat's command word is letters only, so "2hg" comes in rest with cmd "")
 function engineTeamChat(cmd, rest, pl, isHost)
-  local isMode = cmd == "mode" and (rest == "2hg" or rest == "2v2" or rest == "juggernaut" or rest == "ffa")
+  local isMode = cmd == "mode" and (rest == "2hg" or rest == "2v2" or rest == "juggernaut" or rest == "ffa") or cmd == "mode" and rest == "3hg"
   local isLevel = cmd == "" and rest:sub(1, 3) == "2hg"
   if not isMode and not isLevel and cmd ~= "team" and cmd ~= "juggernaut" then return false end
   if not isHost then pl.broadcast("[MTG] Only the host can set up team games.") return true end
@@ -842,6 +847,15 @@ function engineTeamChat(cmd, rest, pl, isHost)
   end
   local refusal = isMode and engineTeamModeRefusal(rest) or nil
   if refusal ~= nil then pl.broadcast("[MTG] " .. refusal, { 1, 0.85, 0.4 }) return true end
+  if isMode and rest == "3hg" then
+    if not engineSixSeats() then pl.broadcast("[MTG] Three-Headed Giant is played on the six-seat table (three a side); this table has " .. tostring(ENGINE_TABLE_SEATS ~= nil and #ENGINE_TABLE_SEATS or 4) .. " seats.", { 1, 0.85, 0.4 }) return true end
+    ENGINE_TEAM_MODE = "3hg"
+    ENGINE_TEAMS = {}
+    for c, n in pairs(ENGINE_3HG_TEAMS) do ENGINE_TEAMS[c] = n end
+    broadcastToAll("[MTG] " .. who .. " set the next games to Three-Headed Giant: " .. engineTeamsText() .. ENGINE_TEAM_HELP["3hg"], { 1, 0.85, 0.4 })
+    redraw()
+    return true
+  end
   if isMode and rest == "juggernaut" then
     ENGINE_TEAM_MODE = "juggernaut"
     ENGINE_TEAMS = engineJuggTeams()
@@ -851,7 +865,7 @@ function engineTeamChat(cmd, rest, pl, isHost)
     return true
   end
   if isMode then
-    if ENGINE_TEAMS == nil or ENGINE_TEAM_MODE == "juggernaut" then ENGINE_TEAMS = { White = 1, Red = 1, Yellow = 2, Blue = 2 } end
+    if ENGINE_TEAMS == nil or ENGINE_TEAM_MODE == "juggernaut" or ENGINE_TEAM_MODE == "3hg" then ENGINE_TEAMS = { White = 1, Red = 1, Yellow = 2, Blue = 2 } end
     ENGINE_TEAM_MODE = rest
     broadcastToAll("[MTG] " .. who .. " set the next games to " .. ENGINE_TEAM_NAMES[rest] .. ": " .. engineTeamsText() .. ENGINE_TEAM_HELP[rest], { 1, 0.85, 0.4 })
     redraw()
@@ -884,6 +898,7 @@ function engineTeamChat(cmd, rest, pl, isHost)
     redraw()
     return true
   end
+  if ENGINE_TEAM_MODE == "3hg" then pl.broadcast("[MTG] In Three-Headed Giant the teams are the table's sides: White + Red + Yellow vs Green + Blue + Purple.") return true end
   local col, n = rest:match("^(%a+)%s+([12])$")
   local seat = nil
   for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do if col ~= nil and c:lower() == col then seat = c end end
@@ -895,18 +910,24 @@ function engineTeamChat(cmd, rest, pl, isHost)
   return true
 end
 -- The Teams button on the setup tile (host only, as typed), the game mode's team modes only (ENGINE_TEAM_GAME_MODE):
--- Commander none -> Two-Headed Giant -> Juggernaut -> none; Standard none <-> 2v2
+-- Commander none -> Two-Headed Giant -> Juggernaut -> none; Standard none <-> 2v2; on the six-seat table Three-Headed
+-- Giant before none in both
 TEAMS_SPOT = Vector(TABLE_PROFILE.spots.teams[1], TABLE_PROFILE.spots.teams[2], TABLE_PROFILE.spots.teams[3]) -- (the table's profile: on the 4-player table -47, 1.1, 17.5, right of Free mulligans on the same strip, 10 apart as the other two: not yet seen on the real table)
 function engineTeamsLabel()
   local m = ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil
   if m == "juggernaut" then return "Juggernaut\n" .. ENGINE_JUGG.color end
-  return "Teams\n" .. (m == "2hg" and (ENGINE_TEAM_TURNS == "shared" and "2HG team turns" or "2HG") or m == "2v2" and "2v2" or "None")
+  return "Teams\n" .. (m == "2hg" and (ENGINE_TEAM_TURNS == "shared" and "2HG team turns" or "2HG") or m == "2v2" and "2v2" or m == "3hg" and "3HG" or "None")
 end
 function onMtgSetupTeams(obj, playerColor)
   local pl = Player[playerColor]
   if pl == nil then return end
   local m = ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil
   local nextOf = ENGINE_GAME_MODE == "standard" and { ["2v2"] = "ffa" } or { ["2hg"] = "juggernaut", juggernaut = "ffa" }
+  -- (the six-seat table: Three-Headed Giant after the game mode's last team mode, then none)
+  if engineSixSeats() then
+    nextOf[ENGINE_GAME_MODE == "standard" and "2v2" or "juggernaut"] = "3hg"
+    nextOf["3hg"] = "ffa"
+  end
   engineChat("mtg mode " .. (m == nil and (ENGINE_GAME_MODE == "standard" and "2v2" or "2hg") or nextOf[m] or "ffa"), pl)
 end
 function engineTeamId(color, id) return "team:" .. tostring(color) .. ":" .. tostring(id) end
@@ -9305,6 +9326,8 @@ function engineSetGameMode(mode, pl)
       or "Commander (100-card decks with a commander, 40 life)") .. ". Everyone presses READY again" .. (running and " after this game." or "."), { 1, 0.85, 0.4 })
   engineSend("mode", { color = pl and pl.color or nil, mode = mode })
   -- (a team mode the new game mode doesn't play goes back to none, said: 2v2 is Standard's, the others Commander's)
+  -- (Three-Headed Giant plays in either game mode: kept through the switch)
+  ENGINE_TEAM_GAME_MODE["3hg"] = ENGINE_TEAM_MODE == "3hg" and mode or nil
   if ENGINE_TEAMS ~= nil and ENGINE_TEAM_GAME_MODE[ENGINE_TEAM_MODE] ~= mode then
     local was = ENGINE_TEAM_NAMES[ENGINE_TEAM_MODE] or tostring(ENGINE_TEAM_MODE)
     ENGINE_TEAMS = nil
@@ -9312,6 +9335,7 @@ function engineSetGameMode(mode, pl)
     broadcastToAll("[MTG] Teams set back to None: " .. was .. " is played in " .. (mode == "standard" and "Commander" or "Standard")
       .. " only, not " .. (mode == "standard" and "Standard" or "Commander") .. ".", { 1, 0.85, 0.4 })
   end
+  ENGINE_TEAM_GAME_MODE["3hg"] = nil
   if not running then engineModeLife(mode == "standard" and 20 or 40) end
   engineSetupButtons()
 end
