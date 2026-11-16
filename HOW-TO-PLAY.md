@@ -174,8 +174,7 @@ into your server's games.
 - Every seated player has a square **GIF frame** on their own mat, in a game or not. Everyone sees it; only you can
   move yours (anywhere on your mat).
 - **GIF...** under your frame opens your search panel (only you see it): type words, press Enter, click a result. It
-  plays on your frame for everyone for 12 s, then holds a still picture. **Replay** under any frame plays it again.
-  **Clear** empties your frame.
+  loops on your frame for everyone, all the time. **Clear** empties your frame.
 - In chat: `mtg gif <words>` shows the first match, `mtg gif off` empties your frame, `mtg gifs hide` / `mtg gifs show`
   hides or shows every frame on your screen only. A GIF that is a **white square** for you (a Steam Deck, Mac or
   Linux TTS can't play the video): `mtg gifs still` shows every frame's still picture instead, on your screen only;
