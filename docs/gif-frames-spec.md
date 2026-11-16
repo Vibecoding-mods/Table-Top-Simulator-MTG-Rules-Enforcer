@@ -310,3 +310,25 @@ table, typing in the search box, the 12 s hold, the GUID fix for `onObjectDestro
   tile (`CS` = 2.5 times smaller, the table's card back, a "GIF" square) for everyone: it is the tile itself, so every
   client sees it. The GIF stays chosen (`state.collapsed`, in the frame's memo, so a reload keeps it); the owner's
   Show respawns it at full size, playing. A collapsed frame doesn't play on a click.
+
+## Stills only (2026-11-15)
+
+- **Seen live**: on a friend's PC (a Steam Deck, Linux) every GIF frame was a blank white tile and TTS chat said
+  "...giphy.mp4 Format: MP4". That client's TTS can't decode the .mp4 (no H.264 decoder: likely the same on Mac,
+  Linux, Proton and Windows N). The host's Lua can't see a client's load failure, so the player turns it on.
+- `mtg gifs still` (undo: `mtg gifs video`), any player, on their own screen only: `engineGif.stills[colour]`. Every
+  frame with a GIF gets a second Object UI Image `gifstill_<owner>` (asset "still", the same as `gifhold_`) over the
+  whole frame, always on, `visibility` = the stills-only colours (`engineGif.stillXml`). The video tile under it
+  doesn't matter for them; for everyone else nothing changes (the element is left out when nobody has it on: an empty
+  visibility would show it to everyone). They see no Replay effect. A collapsed frame is unchanged (no still), and an
+  empty frame has none. Hide wins: a hider is left out of the list (and the frame's root already leaves them out).
+  The setting goes with its player when they leave (`sync`). Grey and Black are refused ("Stills only is for seated
+  players: take a seat first.") and never in the list: every spectator shares the colour. A GIF with no still link
+  gets no still element (it would be a blank white card), and `show` keeps a still only when it is a string. The still
+  is the asset already set for `gifhold_`, so a new pick's re-set XML at 2 s and 6 s covers its white-while-loading.
+- **Hint**: the first time a frame's video arrives (its spawn's callback, not the still fallback, not collapsed) in a
+  script session, everyone is told once: "GIF shows as a white square (Steam Deck, Mac or Linux)? Type mtg gifs
+  still" (`engineGif.hinted`). The `mtg gifs` help line and `mtg help` name it too.
+- **Tests**: `test_table_gifs` "stills:" checks what White, Blue and Red each see of White's frame (the still over
+  the video, the timed still, or the video) through play, hold, Replay, a new pick, hide/show, collapse, video,
+  a leaver and a spectator, plus the chat lines and the one hint.

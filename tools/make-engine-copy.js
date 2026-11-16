@@ -521,7 +521,7 @@ function engineChat(message, pl)
       " mtg engine on/off",
       " mtg effects on/off - your own; mtg sounds on/off (host: shared), mtg sounds test <knockout|wipe|bighit|death|exile|countered|playerhit|damage|lifegain|treasure|treasurespend|sorcery|instant|counter> [N] (N at once); mtg animations on/off (host) - also under Settings",
       " mtg fx on/low/off (host) - the table's particle effects; mtg fx test <effect> [colour] (host) - play one now, at the card you point at",
-      " mtg gif <words> / mtg gif off - your GIF frame (once the host has a GIPHY key); mtg gifs hide/show - on your screen; mtg gif help - every GIF command",
+      " mtg gif <words> / mtg gif off - your GIF frame (once the host has a GIPHY key); mtg gifs hide/show - on your screen; mtg gifs still - a GIF is a white square for you; mtg gif help - every GIF command",
     ].join("\\n")}")
   end
   return false
