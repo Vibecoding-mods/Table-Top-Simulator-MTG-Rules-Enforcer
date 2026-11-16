@@ -238,6 +238,16 @@ the game is today's.
 | **Total** | **15.5** |
 
 ### 4.1 2v2 Team Commander (the old option A, kept)
+**Decided 2026-11-15 (the owner): "2v2 only in Standard".** Each team mode is played in one game mode: 2v2 in Standard
+only (Standard decks, 20 life each, no commander and so no commander damage), Two-Headed Giant and Juggernaut in
+Commander only. The table's Teams button cycles the game mode's own team modes (Commander: none -> 2HG -> Juggernaut ->
+none; Standard: none <-> 2v2); `mtg mode 2v2` in Commander, or `mtg mode 2hg|juggernaut` in Standard, is refused in
+chat with the game mode that plays it; switching the Game mode while the Teams mode isn't the new mode's sets Teams
+back to None and says so. The bridge refuses such a start from any path (`bridge/teams.js` `TEAM_MODES[...].gameMode`,
+`teamModeProblem`, checked in `startGame`). The Standard 2v2 needs nothing new from the engine: StartGame's format is
+Standard (Forge's Constructed game, 20 life, no commander), `gameConfig` sets only `teamRules: "teams"` and each
+player's team. The text below, from before the decision, describes a Commander 2v2; the plumbing is the same.
+
 Each player has their own life (40), turns go around the table as usual, teammates can't attack each other (verified:
 `CombatUtil.java:59-63` uses `getOpponents()`), spells can still target a teammate, a team loses when both its players
 have lost (verified: `GameAction.java:2025-2042`). Engine work: §4 only. Bridge and table: team choice, team tint, "TEAM
@@ -253,8 +263,8 @@ player's command zone, made after `match.createGame()`, kept by a rewind), `comm
 through (`java_backend.rs`); the relay is unchanged. 2v2 needs no engine work of its own: `teamRules: "teams"`, each
 player the format's life (40, 20 in Standard), own turns clockwise, a team wins when both opponents have lost (Forge's
 own team game-over, proven in `PlayerRulesTest.aTeamCommanderTeamWinsWhenBothOpponentsLose`).
-- **Table:** `mtg mode 2v2` (host; or the new Teams button on the setup tile, which cycles none -> 2HG -> 2v2 ->
-  Juggernaut -> none). Default sides are the long sides (White + Red vs Yellow + Blue); `mtg team <colour> 1|2` makes
+- **Table:** `mtg mode 2v2` (host, Standard only; or the Teams button on the setup tile, which in Standard cycles
+  none <-> 2v2 and in Commander none -> 2HG -> Juggernaut -> none). Default sides are the long sides (White + Red vs Yellow + Blue); `mtg team <colour> 1|2` makes
   any 2 + 2 split (2v2 has no seating rule, unlike 2HG). Start sends `teams` and `teamMode`.
 - **Bridge:** `bridge/teams.js` `TEAM_MODES` (2hg = sharedLife, 2v2 and juggernaut = teams), `setupOf` reads a start,
   `teamsProblem` checks it per mode, `gameConfig` builds the node message, `teamsField` sends the board
@@ -449,7 +459,8 @@ What exists (details and proofs: `docs/engine-changes.md`, "2026-11-13 2hg"):
   four seats in two teams of two side by side in turn order, sends `gameConfig` before `StartGame`, says the teams; the
   board gets `teams` (sides, poison limit, winners), poison as "POISON n/15", both partners' commander damage as the
   team's, a "Team life: White + Red" hover line; the end words name the team; a concede is said for the team. Works in
-  both formats (Standard 2HG: 30 a team).
+  both formats (Standard 2HG: 30 a team). Since 2026-11-15 Two-Headed Giant is Commander only (§4.1); the engine's
+  Standard 2HG is no longer reachable from the table or the bridge.
 - **§5.6 table:** `mtg mode 2hg|ffa` and `mtg team <colour> 1|2` (host; beside main's `mtg mode standard|commander`), the
   partner's hand stand-ins, the phase bar's "(YOUR TEAM)" / "(TEAM ...)" tag, VICTORY for both partners and "WHITE + RED
   WIN THE GAME", "Concede for your team?". The engine side was proved live on `engine1115-2hg`

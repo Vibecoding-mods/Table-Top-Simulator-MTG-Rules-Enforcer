@@ -1,6 +1,6 @@
-// The team modes for the bridge (docs/game-modes-spec.md §4, §4.1, §5.5, §6): Two-Headed Giant (Level 1), 2v2 Team
-// Commander and Juggernaut (3v1). The table's teams, checked at start, the engine's gameConfig, and what a team game
-// adds to the table's board. The table keeps the choice (ENGINE_TEAMS, ENGINE_TEAM_MODE and ENGINE_JUGG in
+// The team modes for the bridge (docs/game-modes-spec.md §4, §4.1, §5.5, §6): Two-Headed Giant (Level 1), 2v2 and
+// Juggernaut (3v1); 2v2 in Standard only, the other two in Commander only (TEAM_MODES). The table's teams, checked at
+// start, the engine's gameConfig, and what a team game adds to the table's board. The table keeps the choice (ENGINE_TEAMS, ENGINE_TEAM_MODE and ENGINE_JUGG in
 // engine-renderer.lua: "mtg mode 2hg|2v2|juggernaut|ffa", "mtg team <colour> <1|2>", "mtg juggernaut ...") and sends it
 // with every start, as it sends free mulligans, so a restarted bridge needs nothing kept here. Kept out of bridge.js so
 // the other game modes' work there (Standard's MODES) and this one meet only at their call sites.
@@ -9,8 +9,8 @@
 // first turn) go to the node as gameConfig before StartGame; the engine's teamRules ("sharedLife" or "teams") and each
 // player's teamNumber come back on every board.
 //
-// Two-Headed Giant, Level 1: partners share life (30 a team, 80 in Commander), poison (15) and a commander's damage (42
-// in Commander), lose together, block for each other and see each other's hands; each player still takes their own
+// Two-Headed Giant, Level 1 (Commander only, TEAM_MODES): partners share life (80 a team), poison (15) and a
+// commander's damage (42), lose together, block for each other and see each other's hands; each player still takes their own
 // turn, the team's back to back, and the starting team skips its first draws. The engine does all of that once the
 // node's gameConfig says teamRules "sharedLife" (engine/forge.patch, forge-harness ManaBrewEngineAdapter.configureTeamRules);
 // the bridge only says who is on which team.
@@ -20,7 +20,7 @@
 // player at a time; the bridge reads the whole team as the active players (turnPlayerIds, isTurnOf) and says the team's
 // attack and block on each partner's question (teamAttackLines, teamBlockLines). Spec §5.11.
 //
-// 2v2 Team Commander (§4.1): two teams of two, each player their own life (the format's: 40, or 20 in Standard) and
+// 2v2 (§4.1; Standard only, TEAM_MODES): two teams of two, each player their own life (Standard's 20, no commander) and
 // their own turn round the table; teammates can't attack each other; a team wins when both its opponents have lost
 // (Forge's own team game over, teamRules "teams"). Any two-and-two split; by default the sides, as in Two-Headed Giant.
 //
@@ -63,13 +63,21 @@ function setupOf(m) {
 }
 
 // The team modes: what a start's teamMode can be (teams sent with none: Two-Headed Giant, as the table sent before 2v2
-// and Juggernaut), the engine's rule for each, and its name in chat.
+// and Juggernaut), the engine's rule for each, its name in chat, and the one game mode (bridge.js MODES) it is played
+// in: 2v2 only in Standard, Two-Headed Giant and Juggernaut only in Commander (the owner's call, spec §4.1).
 const TEAM_MODES = {
-  "2hg": { rule: "sharedLife", name: "Two-Headed Giant" },
-  "2v2": { rule: "teams", name: "2v2 Team Commander" },
-  juggernaut: { rule: "teams", name: "Juggernaut" },
+  "2hg": { rule: "sharedLife", name: "Two-Headed Giant", gameMode: "commander" },
+  "2v2": { rule: "teams", name: "2v2", gameMode: "standard" },
+  juggernaut: { rule: "teams", name: "Juggernaut", gameMode: "commander" },
 };
 const teamModeOf = (raw) => (Object.prototype.hasOwnProperty.call(TEAM_MODES, raw) ? raw : "2hg");
+// Why a team mode can't be played in a game mode ("commander" | "standard"), in words for chat; null when it can.
+function teamModeProblem(teamMode, gameMode) {
+  const t = TEAM_MODES[teamModeOf(teamMode)];
+  if (t.gameMode === gameMode) return null;
+  const words = (k) => (k === "standard" ? "Standard" : "Commander");
+  return `${t.name} is played in ${words(t.gameMode)} only, and the game mode is ${words(gameMode)}. Switch with  mtg mode ${t.gameMode}  or pick another Teams mode.`;
+}
 
 // The Juggernaut's settings (spec §6), the host's: who, life (null: twice the format's), opening hand, extra cards per
 // draw step, extra land plays, the commander damage from one commander that knocks them out, and the turn order.
@@ -243,7 +251,7 @@ function setupWords(mode, teams, jugg, std, turns = null) {
   if (mode === "juggernaut") {
     return `Juggernaut: ${jugg.color} (${juggWords(jugg, std)}) vs ${teamWords(TEAM_COLORS.filter((c) => c !== jugg.color))} (${std ? 20 : 40} life each). The Juggernaut wins when all three have lost; the three win together when the Juggernaut loses.`;
   }
-  if (mode === "2v2") return `2v2 Team Commander: ${teamWords(s[1])} vs ${teamWords(s[2])} (each player their own life and turn; teammates can't attack each other; a team wins when both its opponents have lost).`;
+  if (mode === "2v2") return `2v2: ${teamWords(s[1])} vs ${teamWords(s[2])} (each player their own 20 life and turn; teammates can't attack each other; a team wins when both its opponents have lost).`;
   if (turns === "shared") return `Two-Headed Giant: ${teamWords(s[1])} vs ${teamWords(s[2])} (shared life, poison 15; each team takes one turn together, attacks together and blocks together).`;
   return `Two-Headed Giant: ${teamWords(s[1])} vs ${teamWords(s[2])} (shared life, poison 15; each player takes their own turn, the team's back to back).`;
 }
@@ -391,6 +399,6 @@ function teamBlockNotice(text) {
   if (/^[^:]+: .+ (?:now blocks .+|no longer blocks)\.$/.test(t)) return { kind: "change", line: t };
   return null;
 }
-module.exports = { jointBlock, jointBlockLines, teamBlockNotice, SEAT_HEX, teamTriggerWords, teamRefusalWords, sharesLife, sharesTurns, turnPlayerIds, isTurnOf, turnPartners, turnPartnerOf, turnWhose, teamAttackLines, teamBlockLines, TEAM_COLORS, DEFAULT_TEAMS, TEAM_MODES, JUGG_DEFAULTS, setupOf, teamModeOf, juggOf, juggLife, juggTeams, juggPerks, juggWords,
+module.exports = { jointBlock, jointBlockLines, teamBlockNotice, SEAT_HEX, teamTriggerWords, teamRefusalWords, sharesLife, sharesTurns, turnPlayerIds, isTurnOf, turnPartners, turnPartnerOf, turnWhose, teamAttackLines, teamBlockLines, TEAM_COLORS, DEFAULT_TEAMS, TEAM_MODES, JUGG_DEFAULTS, setupOf, teamModeOf, teamModeProblem, juggOf, juggLife, juggTeams, juggPerks, juggWords,
   setupWords, teamsOf, teamWords, sides, teamsProblem, gameConfig, boardTeams, teamOf, withTeamDamage, teamsField, teamLifeTip,
   poisonLabel, teamWinWords };

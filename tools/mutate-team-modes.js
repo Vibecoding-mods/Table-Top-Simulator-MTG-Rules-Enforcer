@@ -1,4 +1,4 @@
-// Break-it for 2v2 Team Commander and Juggernaut (tests/test_bridge_team_modes.js, tests/test_table_team_modes.js): each
+// Break-it for 2v2 (Standard only) and Juggernaut (Commander only) (tests/test_bridge_team_modes.js, tests/test_table_team_modes.js): each
 // mutation switches one piece of the team-mode code off, runs both tests, lists the checks that failed by name, then
 // puts the file back and checks it by sha256. A mutation no check catches is printed as SURVIVED. The Two-Headed Giant
 // pieces they share are tools/mutate-teams.js's.
@@ -44,7 +44,19 @@ const MUTATIONS = [
   ["table: mtg team moves the Juggernaut's teams", "tools/engine-renderer.lua", "  if ENGINE_TEAM_MODE == \"juggernaut\" then pl.broadcast(\"[MTG] In Juggernaut the teams follow", "  if false then pl.broadcast(\"[MTG] In Juggernaut the teams follow"],
   ["table: Start sends no mode", "tools/engine-renderer.lua", "function engineTeamModeSent() return ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil end", "function engineTeamModeSent() return nil end"],
   ["table: Start sends no Juggernaut", "tools/engine-renderer.lua", "function engineJuggSent() return (ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE == \"juggernaut\") and ENGINE_JUGG or nil end", "function engineJuggSent() return nil end"],
-  ["table: the button skips 2v2", "tools/engine-renderer.lua", "m == \"2hg\" and \"2v2\" or m == \"2v2\" and \"juggernaut\"", "m == \"2hg\" and \"juggernaut\" or m == \"2v2\" and \"juggernaut\""],
+  ["teamModeProblem: every team mode in every game mode", "bridge/teams.js", "  if (t.gameMode === gameMode) return null;\n", "  return null;\n"],
+  ["TEAM_MODES: 2v2 in Commander", "bridge/teams.js", "\"2v2\": { rule: \"teams\", name: \"2v2\", gameMode: \"standard\" }", "\"2v2\": { rule: \"teams\", name: \"2v2\", gameMode: \"commander\" }"],
+  ["TEAM_MODES: Juggernaut in Standard", "bridge/teams.js", "juggernaut: { rule: \"teams\", name: \"Juggernaut\", gameMode: \"commander\" }", "juggernaut: { rule: \"teams\", name: \"Juggernaut\", gameMode: \"standard\" }"],
+  ["start: the game mode not checked", "bridge/bridge.js", "(teams2hg.teamModeProblem(teamMode, mode) || teams2hg.teamsProblem(", "(teams2hg.teamsProblem("],
+  ["start: a Standard 2v2 said as free-for-all", "bridge/bridge.js", "${teams ? \"Standard\" : modeWords(mode, total)}", "${modeWords(mode, total)}"],
+  ["table: no refusal for the wrong game mode", "tools/engine-renderer.lua", "  if refusal ~= nil then pl.broadcast(", "  if false then pl.broadcast("],
+  ["table: every team mode in every game mode", "tools/engine-renderer.lua", "  if want == nil or want == ENGINE_GAME_MODE then return nil end\n", "  if true then return nil end\n"],
+  ["table: 2v2 in Commander", "tools/engine-renderer.lua", "ENGINE_TEAM_GAME_MODE = { [\"2hg\"] = \"commander\", [\"2v2\"] = \"standard\",", "ENGINE_TEAM_GAME_MODE = { [\"2hg\"] = \"commander\", [\"2v2\"] = \"commander\","],
+  ["table: a game-mode switch keeps the teams", "tools/engine-renderer.lua", "  if ENGINE_TEAMS ~= nil and ENGINE_TEAM_GAME_MODE[ENGINE_TEAM_MODE] ~= mode then\n", "  if false then\n"],
+  ["table: teams dropped without a word", "tools/engine-renderer.lua", "    broadcastToAll(\"[MTG] Teams set back to None: \"", "    (function() end)(\"[MTG] Teams set back to None: \""],
+  ["table: the Standard button cycles to 2HG", "tools/engine-renderer.lua", "ENGINE_GAME_MODE == \"standard\" and { [\"2v2\"] = \"ffa\" }", "ENGINE_GAME_MODE == \"standard\" and { [\"2v2\"] = \"2hg\" }"],
+  ["table: the Commander button keeps 2v2", "tools/engine-renderer.lua", "or { [\"2hg\"] = \"juggernaut\", juggernaut = \"ffa\" }", "or { [\"2hg\"] = \"2v2\", [\"2v2\"] = \"juggernaut\", juggernaut = \"ffa\" }"],
+  ["table: the Standard button starts at 2HG", "tools/engine-renderer.lua", "(m == nil and (ENGINE_GAME_MODE == \"standard\" and \"2v2\" or \"2hg\")", "(m == nil and \"2hg\""],
   ["table: the button's label says None", "tools/engine-renderer.lua", "  if m == \"juggernaut\" then return \"Juggernaut\\n\" .. ENGINE_JUGG.color end\n", ""],
   ["table: no Juggernaut tag", "tools/engine-renderer.lua", "  if t.teams.juggernaut ~= nil and t.active == t.teams.juggernaut then\n", "  if false then\n"],
   ["table: a lone winner's banner says WIN", "tools/engine-renderer.lua", "(#won == 1 and \" WINS THE GAME\" or \" WIN THE GAME\")", "\" WIN THE GAME\""],

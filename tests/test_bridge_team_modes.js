@@ -1,4 +1,4 @@
-// 2v2 Team Commander and Juggernaut in the bridge (docs/game-modes-spec.md §4.1, §6; bridge/teams.js): the start
+// 2v2 (Standard only) and Juggernaut (Commander only) in the bridge (docs/game-modes-spec.md §4.1, §6; bridge/teams.js): the start
 // message's team setup, the checks at start, the engine's gameConfig (teamRules "teams"; the Juggernaut's life, hand,
 // perks, own commander limit and first turn), what is said, and the board's sides, Juggernaut and winners.
 //   node tests/test_bridge_team_modes.js
@@ -39,7 +39,7 @@ async function startFlow(h) {
   const out = relay(h);
   const cfgAt = out.findIndex((r) => r.type === "BroadcastState" && r.state?.payload?.type === "gameConfig");
   const startAt = out.findIndex((r) => r.type === "StartGame");
-  return { blue, cfgAt, startAt, cfg: out[cfgAt]?.state?.payload, order: out[startAt]?.seat_order || [] };
+  return { blue, cfgAt, startAt, cfg: out[cfgAt]?.state?.payload, order: out[startAt]?.seat_order || [], format: out[startAt]?.format };
 }
 
 (async () => {
@@ -60,6 +60,12 @@ async function startFlow(h) {
   ok("2v2: three against one don't", /2v2 needs two teams of two/.test(T.teamsProblem({ White: 1, Red: 1, Yellow: 1, Blue: 2 }, 4, "2v2") || ""), T.teamsProblem({ White: 1, Red: 1, Yellow: 1, Blue: 2 }, 4, "2v2"));
   ok("2v2: three players don't", /2v2 needs all four seats/.test(T.teamsProblem(T.DEFAULT_TEAMS, 3, "2v2") || ""));
   ok("juggernaut: four players start", T.teamsProblem(T.juggTeams("White"), 4, "juggernaut") === null);
+  // each team mode's one game mode (the owner's call: 2v2 only in Standard)
+  ok("game mode: 2v2 in Standard", T.teamModeProblem("2v2", "standard") === null);
+  ok("game mode: Two-Headed Giant and Juggernaut in Commander", T.teamModeProblem("2hg", "commander") === null && T.teamModeProblem("juggernaut", "commander") === null);
+  same("game mode: 2v2 in Commander is refused, naming Standard", T.teamModeProblem("2v2", "commander"), "2v2 is played in Standard only, and the game mode is Commander. Switch with  mtg mode standard  or pick another Teams mode.");
+  same("game mode: Juggernaut in Standard is refused, naming Commander", T.teamModeProblem("juggernaut", "standard"), "Juggernaut is played in Commander only, and the game mode is Standard. Switch with  mtg mode commander  or pick another Teams mode.");
+  ok("game mode: Two-Headed Giant in Standard is refused", /^Two-Headed Giant is played in Commander only/.test(T.teamModeProblem("2hg", "standard") || ""));
   ok("juggernaut: three players don't", /Juggernaut is one against three/.test(T.teamsProblem(T.juggTeams("White"), 3, "juggernaut") || ""));
 
   // ── gameConfig ──
@@ -78,20 +84,39 @@ async function startFlow(h) {
 
   // ── a start through the bridge ──
   await run(async (h) => {
-    h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 3, teamMode: "2v2", teams: { White: 1, Red: 2, Yellow: 1, Blue: 2 } }) });
+    h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 3, mode: "standard", teamMode: "2v2", teams: { White: 1, Red: 2, Yellow: 1, Blue: 2 } }) });
     await h.flush();
     const g = h.B._getGame();
     same("2v2 start: the game keeps the teams and the mode", [g?.teams, g?.teamMode], [{ White: 1, Red: 2, Yellow: 1, Blue: 2 }, "2v2"]);
-    ok("2v2 start: said", chats(h).includes("[MTG] 2v2 Team Commander: White + Yellow vs Red + Blue (each player their own life and turn; teammates can't attack each other; a team wins when both its opponents have lost)."), chats(h).join(" | "));
+    ok("2v2 start: set up as Standard, not free-for-all", chats(h).some((c) => c.startsWith("[MTG] Setting up Standard: Blue + 3 Forge AI")), chats(h).join(" | "));
+    ok("2v2 start: said", chats(h).includes("[MTG] 2v2: White + Yellow vs Red + Blue (each player their own 20 life and turn; teammates can't attack each other; a team wins when both its opponents have lost)."), chats(h).join(" | "));
     const f = await startFlow(h);
     ok("2v2 start: gameConfig before StartGame", f.cfgAt >= 0 && f.startAt > f.cfgAt, `${f.cfgAt}/${f.startAt}`);
+    // (Standard: StartGame's format, so the node starts Forge's Constructed game, 20 life each, no commander and no
+    // commander damage; gameConfig sets no life of its own)
+    same("2v2 start: StartGame says Standard", f.format, "Standard");
+    ok("2v2 start: a Standard game, the seat on a built-in Standard deck (no commander)", g.mode === "standard" && [...g.seats.values()].every((s) => /^standard_/.test(s.deckId || "")), JSON.stringify([g.mode, ...[...g.seats.values()].map((s) => s.deckId)]));
     same("2v2 start: teamRules teams, each seat's team in the seat order", f.cfg,
       { type: "gameConfig", teamRules: "teams", players: f.order.map((u, i) => ({ username: u, team: [1, 2, 1, 2][i] })) });
   });
   await run(async (h) => {
-    h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 2, teamMode: "2v2", teams: { White: 1, Red: 2, Yellow: 1, Blue: 2 } }) });
+    h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 2, mode: "standard", teamMode: "2v2", teams: { White: 1, Red: 2, Yellow: 1, Blue: 2 } }) });
     await h.flush();
     ok("2v2 start: three players are refused", h.B._getGame() == null && chats(h).some((c) => /Not started: 2v2 needs all four seats/.test(c)), chats(h).join(" | "));
+  });
+  await run(async (h) => {
+    // a Commander 2v2 can't start from any path (an older table, a hand-made message): refused before anything is set up
+    h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 3, teamMode: "2v2", teams: { White: 1, Red: 2, Yellow: 1, Blue: 2 } }) });
+    await h.flush();
+    ok("2v2 start in Commander: refused, saying Standard plays it", h.B._getGame() == null && chats(h).includes("[MTG] Not started: 2v2 is played in Standard only, and the game mode is Commander. Switch with  mtg mode standard  or pick another Teams mode."), chats(h).join(" | "));
+    h.B.startGame(["Blue"], 3, false, true, [], 0, "commander", { White: 1, Red: 2, Yellow: 1, Blue: 2 }, "2v2");
+    await h.flush();
+    ok("2v2 start in Commander: refused by startGame itself too", h.B._getGame() == null, "a game was set up");
+  });
+  await run(async (h) => {
+    h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 3, mode: "standard", teamMode: "juggernaut", juggernaut: { color: "Blue" } }) });
+    await h.flush();
+    ok("juggernaut start in Standard: refused, saying Commander plays it", h.B._getGame() == null && chats(h).some((c) => c.startsWith("[MTG] Not started: Juggernaut is played in Commander only")), chats(h).join(" | "));
   });
   await run(async (h) => {
     h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 3, teamMode: "juggernaut", juggernaut: { color: "Blue", cmd: 42 } }) });
