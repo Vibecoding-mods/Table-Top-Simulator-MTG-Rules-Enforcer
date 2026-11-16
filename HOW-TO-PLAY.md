@@ -118,6 +118,11 @@ five minutes:
   it lies under, and its face shows on your screen, left of the ability box. Only you see it.
 - **Discarding most of your hand** (cleanup with a huge hand, "discard 2" with 3 cards): the table asks which cards
   to **keep** instead; the rest are discarded. Dragging a card onto your graveyard still discards that card.
+- **The same yes/no several times** (Smothering Tithe's "Pay {2}?" for each card you draw, Rhystic Study's for each
+  spell): the question offers **No ×3** (the third button, bottom right) to answer all of them at once, and **How many…**
+  to answer only some (pick the number, from 1 up). The chat says what was answered. Anything else that happens first
+  (another question, a new spell or ability on the stack, a new step) stops it, and the rest are asked as usual. A
+  "Pay?" offers only No ×3: paying asks for the mana each time.
 - **Long lists** (a creature type, a big search): the last button says **More...** and shows the next page; the
   search box narrows the list.
 - **Cancel a cost:** while you choose what to sacrifice, discard, exile or tap to pay for something, **Cancel** (the

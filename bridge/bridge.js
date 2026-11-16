@@ -1032,9 +1032,10 @@ class Seat {
   // - a text change's first word (the redone first question, within 3 prompt ids, read as the second) and the
   //   creatures that must attack (core-moves cleanup plan): textWord, mustAttack;
   // - the undone attack's engine data, refusal and picks (a rewind back into declare attackers showed the undone
-  //   attempt's "isn't legal", batch 1 review 2026-11-12): attackData, attackRefused, lastAttack.
+  //   attempt's "isn't legal", batch 1 review 2026-11-12): attackData, attackRefused, lastAttack;
+  // - a repeated yes/no's "×N" still answering (offerRepeat): repeatAnswer.
   static FOLLOW_UPS = ["endTurnAt", "resolveStack", "queuedPlay", "attachTo", "targetPicks", "cardsDone", "unless", "autoPayCard",
-    "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack", "attackData", "attackRefused", "lastAttack"];
+    "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack", "attackData", "attackRefused", "lastAttack", "repeatAnswer"];
   // resume: { username, slot, roomId } of a seat saved before the bridge stopped (resumeGame): it logs in again under
   // the same name as a reconnect (AuthResult below), so the relay hands back its seat and RequestResync the game
   constructor(color, deckId, resume = null) {
@@ -7972,6 +7973,99 @@ function resolvingStops(seat, gv) {
   if (seen >= RESOLVE_LOOP_REPEATS) return `${rs.label} stopped: the same stack came back ${seen} times (a loop?). Press it again to go on.`;
   return null;
 }
+// ── A repeated yes/no ("No ×3"): the same trigger on the stack several times asks the same player the same question
+// once each as it resolves (Smothering Tithe's "Pay {2}?" for each card an opponent draws, Rhystic Study's "Pay {1}?"
+// for each spell; the user, 2026-11-15: "I and my opponent had to answer No to 'pay {2}' multiple times"). The question
+// then offers "No ×N", "Yes ×N" and "How many…" (a number from 1 to N, then Yes or No). Choosing k answers this one and
+// the next k-1 alike with no new prompt, passing the player's priority between them while nothing but those triggers is
+// on the stack; anything else (another question, a new stack item, a new step) stops it, and the rest are asked as
+// usual. One chat line says what was answered (repeatEnd).
+//   seat.repeatAnswer: { src: the card's id, title: Forge's question, ability: its ability text, id: "yes" or "no",
+//     left: answers still to give (always 1 or more: the run ends at its last), done: answers given, ids: the run's stack items, stackAt: the stack's items at the
+//     press, turn, step, name: the card's name }
+// The payer a trigger on the stack names, as a slot: Forge's "[Player: x]" (a draw trigger: Smothering Tithe, Forge's
+// TriggerDrawn) or "[Card: ..., Activator: x, ...]" (a cast trigger: Rhystic Study); "?" when it names someone not in
+// game.playerOrder (never this seat, so never counted for a payment), null when its words name no payer at all.
+function stackPayer(s) {
+  const by = /\[(?:[^\]]*, )?(?:Activator|Player): ([^,\]]+)/.exec(String(s.text || ""))?.[1]?.trim().toLowerCase();
+  const k = by ? (game?.playerOrder || []).findIndex((u) => String(u || "").toLowerCase() === by) : -1;
+  return k >= 0 ? `player-${k}` : by ? "?" : null;
+}
+// The run of items on top of the stack that ask this seat this question: the top one (resolving, the one asking) and
+// each one under it from the same card with the same ability text and no targets, asking the same player (a payment's
+// payer by its stack words, a "may"'s controller). [] when the top item isn't the asking card's.
+function repeatRun(seat, prompt, gv, pays) {
+  const stack = gv.stack || [];
+  const top = stack[stack.length - 1];
+  if (!prompt.sourceCard?.id || !top || top.sourceId !== prompt.sourceCard.id) return [];
+  const asksMe = (s) => (pays ? [seat.slot, null].includes(stackPayer(s)) : s.controllerId === seat.slot);
+  const alike = (s) => s && s.sourceId === top.sourceId && s.controllerId === top.controllerId && (s.sourceAbilityText || "") === (top.sourceAbilityText || "")
+    && !(s.targets || []).length && asksMe(s);
+  const run = [];
+  while (alike(stack[stack.length - 1 - run.length])) run.push(stack[stack.length - 1 - run.length].id);
+  return run;
+}
+// Why a repeat run can't go on at this board: null when it can (the top item is one of its triggers, nothing new is on
+// the stack, the same turn and step), "" when its triggers are simply gone, else the words said.
+function repeatStops(rep, gv) {
+  const stack = gv.stack || [];
+  if (gv.turn !== rep.turn || gv.step !== rep.step) return "the step changed";
+  const added = stack.find((s) => !rep.stackAt.has(s.id));
+  if (added) return `${added.identity?.name || "something"} went on the stack`;
+  const top = stack[stack.length - 1];
+  return top && rep.ids.has(top.id) ? null : "";
+}
+// This question is the run's next one: the same card, Forge's same words, and repeatStops lets it go on.
+function repeatFits(rep, prompt, gv) {
+  return prompt.sourceCard?.id === rep.src && String(prompt.input?.presentation?.title || "") === rep.title
+    && String(prompt.sourceAbilityText || "") === rep.ability && repeatStops(rep, gv) === null;
+}
+// The run ends: the chat line, once ("You answered No to Smothering Tithe's "Pay {2}?" 3 times."), with why it stopped
+// when answers were left and something else came first.
+function repeatEnd(seat, why = "") {
+  const rep = seat.repeatAnswer;
+  if (!rep) return;
+  seat.repeatAnswer = null;
+  const ask = plainWords(rep.title.split(/\r?\n/)[0].trim());
+  const times = rep.done === 1 ? "once" : `${rep.done} times`;
+  chat(`[MTG] You answered ${rep.id === "yes" ? "Yes" : "No"} to ${rep.name}'s "${ask}" ${times}.${rep.left > 0 && why ? ` Stopped early (${why}): the rest are asked as usual.` : ""}`, seat.color);
+}
+// Adds the repeat buttons to a yes/no shown to the player when N >= 2 of it are waiting (repeatRun), and wraps its
+// toOutput to start the run. Yes ×N only when Yes needs no payment: a "Pay {2}?" Yes asks the payment next, its own
+// question, which would stop the run (the payment for someone else's card always asks, see payManaCost).
+function offerRepeat(seat, prompt, gv, ui, toOutput, forP) {
+  const ids = (ui.options || []).map((o) => o.id);
+  if (prompt.input?.type !== "chooseBoolean" || ui.mode !== "single" || ids.join() !== "yes,no" || ui.aboutCards || forP) return toOutput;
+  const yesLabel = ui.options[0].label, noLabel = ui.options[1].label;
+  const pays = /^Pay\b/i.test(String(prompt.input?.presentation?.title || "")) || /^Pay\b/i.test(String(yesLabel));
+  const run = repeatRun(seat, prompt, gv, pays);
+  const n = run.length;
+  if (n < 2) return toOutput;
+  const name = prompt.sourceCard?.identity?.name || "That card";
+  const base = (l) => String(l).split(":")[0].trim();
+  ui.options = [...ui.options, { id: "__repeat:no", label: `${base(noLabel)} ×${n}` }, ...(pays ? [] : [{ id: "__repeat:yes", label: `${base(yesLabel)} ×${n}` }]),
+    { id: "__repeat:some", label: "How many…" }];
+  ui.text = `${ui.text ? `${ui.text}\n` : ""}${n} of these are waiting (${name}). "×${n}" answers them all; "How many…" picks how many.`;
+  const start = (id, k) => {
+    if (k >= 2) seat.repeatAnswer = { src: prompt.sourceCard.id, title: String(prompt.input?.presentation?.title || ""), ability: String(prompt.sourceAbilityText || ""),
+      id, left: k - 1, done: 1, ids: new Set(run), stackAt: new Set((gv.stack || []).map((s) => s.id)), turn: gv.turn, step: gv.step, name };
+    return toOutput([id]);
+  };
+  const plain = { title: ui.title, show: ui.show, kind: "yesno", mode: "single" };
+  return (a) => {
+    if (a[0] === "__repeat:no" || a[0] === "__repeat:yes") return start(a[0].slice(9), n);
+    if (a[0] !== "__repeat:some") return toOutput(a);
+    const count = { ...plain, kind: "number", mode: "number", min: 1, max: n, default: n,
+      title: `${name}: ${pays ? `answer ${base(noLabel)} to` : "answer"} how many of these ${n}?`,
+      text: `This one and the next ones${pays ? "" : " the same way"}. The rest are asked as usual.` };
+    return next(count, (v) => {
+      const k = Math.max(1, Math.min(n, Number(v[0]) || 1));
+      if (pays) return start("no", k);
+      return next({ ...plain, title: `${name}: answer ${k === 1 ? "this one" : `these ${k}`} Yes or No?`, options: [{ id: "yes", label: yesLabel }, { id: "no", label: noLabel }] },
+        (b) => start(b[0] === "yes" ? "yes" : "no", k));
+    });
+  };
+}
 // The players a seat controls now (Forge's controlledBy: Mindslaver's turn, Opposition Agent's search).
 function ruledBy(gv, slot) {
   return (gv.players || []).filter((p) => p.id !== slot && p.controlledBy === slot).map((p) => p.id);
@@ -8126,6 +8220,12 @@ function onPrompt(seat, prompt) {
           if (seat.prompt) closePrompt(seat);
           return;
         }
+      }
+      // a repeated yes/no answered "×N" (offerRepeat): priority passes while only its triggers are on the stack
+      if (seat.repeatAnswer) {
+        const why = repeatStops(seat.repeatAnswer, gv);
+        if (why === null) { seat.respond(prompt.promptId, type, { type: "pass" }); return; }
+        repeatEnd(seat, why);
       }
       // "End turn": keep passing until the turn number changes (blocks, targets etc. still stop you).
       if (endTurnHolds(seat, gv)) {
@@ -9944,6 +10044,17 @@ function onPrompt(seat, prompt) {
     const quick = ui.options.filter((o) => String(o.id).startsWith("__"));
     ui.options = [...quick, ...ui.options.filter((o) => !String(o.id).startsWith("__")).sort((x, y) => String(x.label ?? "").localeCompare(String(y.label ?? ""), undefined, { numeric: true }))];
   }
+  // a repeated yes/no answered "×N": this question is its next one, answered alike unseen; any other question shown to
+  // the player ends it first (offerRepeat, repeatFits)
+  const rep = seat.repeatAnswer;
+  if (rep && type === "chooseBoolean" && repeatFits(rep, prompt, gv)) {
+    rep.left--; rep.done++;
+    seat.respond(prompt.promptId, type, toOutput([rep.id]));
+    if (rep.left <= 0) repeatEnd(seat);
+    return;
+  }
+  if (rep) repeatEnd(seat, type === "chooseBoolean" && prompt.sourceCard?.id === rep.src ? repeatStops(rep, gv) || "the question changed" : "another question came first");
+  toOutput = offerRepeat(seat, prompt, gv, ui, toOutput, forP);
   // Test mode (start with autoplay: true): the bridge answers every prompt itself with the first choice and TTS gets
   // nothing, so TTS's frame rate can be measured while only Forge is busy (the CPU-contention test).
   if (game?.autoplay) {

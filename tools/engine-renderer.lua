@@ -4671,7 +4671,8 @@ function engineUpdateCorner(color, p)
       if i > 1 and o.id == "__cancel" and small == nil then small, smallLabel = i, "Cancel" end
     end
     for i, o in ipairs(p.options) do
-      if i > 1 and o.id == "__group" then group, groupTip = i, tostring(o.label) break end
+      -- (or a repeated yes/no's "No ×3": the bridge's offerRepeat, answering this one and the next ones alike)
+      if i > 1 and (o.id == "__group" or o.id == "__repeat:no") then group, groupTip = i, tostring(o.label) break end
     end
     -- (the whole label when it fits, "Resolve 12× Spirit Token"; else without "Resolve ", then cut; the tooltip keeps it all)
     if group ~= nil then
@@ -5433,7 +5434,12 @@ function engineRowUpdate(color)
   local sub = tostring(p.text or ""):gsub("\n", "   ")
   if numberMode then
     local st = engineNumber[color]
-    if st == nil or st.prompt ~= p then st = { prompt = p, value = p.min or 0 } engineNumber[color] = st end
+    -- (from the question's own default when it has one in range: a repeated yes/no's "How many…" starts at all of them)
+    if st == nil or st.prompt ~= p then
+      local d = tonumber(p.default)
+      st = { prompt = p, value = (d ~= nil and d >= (p.min or 0) and d <= (p.max or d)) and d or (p.min or 0) }
+      engineNumber[color] = st
+    end
     sub = "Number: " .. tostring(st.value) .. "   (" .. tostring(p.min or 0) .. " to " .. tostring(p.max) .. ")   " .. sub
   -- (an exact number answers at the last click, onMtgRow: the line said "then Done" for Kenrith's one target, hp-07 re-test)
   elseif p.mode == "multi" and #tiles > 0 and tiles[1].opt ~= nil then
