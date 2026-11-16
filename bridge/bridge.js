@@ -3574,7 +3574,7 @@ const listOf = (names) => (names.length > 6 ? byCount(names) : names.join(", "))
 // "triggers", else at the end.
 function countedTriggers(lines) {
   const counts = lines.reduce((m, l) => m.set(l, (m.get(l) || 0) + 1), new Map());
-  return [...counts].map(([l, k]) => (k < 2 ? l : / triggers \(/.test(l) ? l.replace(" triggers (", ` triggers ×${k} (`) : l));
+  return [...counts].map(([l, k]) => (k < 2 ? l : / triggers \(/.test(l) ? l.replace(" triggers (", ` triggers ×${k} (`) : `${l} ×${k}`));
 }
 const byRuns = (names) => names.reduce((runs, n) => (runs.at(-1)?.[0] === n ? runs.at(-1)[1]++ : runs.push([n, 1]), runs), []).map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(", ");
 const listInOrder = (names) => (names.length > 6 ? byRuns(names) : names.join(", "));
