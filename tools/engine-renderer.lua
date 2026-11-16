@@ -935,12 +935,15 @@ function engineTeamOf(t, color)
   return nil
 end
 -- after the phase bar's turn: whose team's turn it is ("(YOUR TEAM)", "(TEAM WHITE + RED)", the Juggernaut's
--- "(JUGGERNAUT)"); "" outside a team game
+-- "(JUGGERNAUT)", the archenemy's "(ARCHENEMY)"); "" outside a team game
 function engineTeamTurnTag(t, viewer)
   local side = t and t.active and engineTeamOf(t, t.active)
   if side == nil then return "" end
   if t.teams.juggernaut ~= nil and t.active == t.teams.juggernaut then
     return "  <color=#FFD27A>" .. (viewer == t.active and "(YOU, THE JUGGERNAUT)" or "(JUGGERNAUT)") .. "</color>"
+  end
+  if t.teams.archenemy ~= nil and t.active == t.teams.archenemy then
+    return "  <color=#FFD27A>" .. (viewer == t.active and "(YOU, THE ARCHENEMY)" or "(ARCHENEMY)") .. "</color>"
   end
   local mine = false
   for _, c in ipairs(side) do if c == viewer then mine = true end end
@@ -1167,8 +1170,8 @@ function TL.clear()
 end
 -- From each board (updateTrackers), the end of a game (engineResetUi, m nil) and the setup redraw.
 function engineTeamLooks(m)
-  -- (2v2 and Juggernaut, rule "teams": the tint only, every side, the Juggernaut's gold; no team life panel, each player
-  -- has their own life)
+  -- (2v2, Juggernaut and Archenemy, rule "teams": the tint only, every side, the Juggernaut's and the archenemy's gold;
+  -- no team life panel, each player has their own life)
   local sides = ENGINE_MODE and m ~= nil and type(m.teams) == "table" and m.teams.sides or nil
   local shared = sides ~= nil and m.teams.rule ~= "teams"
   if type(sides) ~= "table" or #sides ~= 2 then
@@ -1183,7 +1186,7 @@ function engineTeamLooks(m)
   for _, side in ipairs(sides) do
     local k = 2
     for _, c in ipairs(side) do if c == "White" then k = 1 end end
-    if not shared and #side == 1 and side[1] == m.teams.juggernaut then k = 3 end
+    if not shared and #side == 1 and (side[1] == m.teams.juggernaut or side[1] == m.teams.archenemy) then k = 3 end
     if #side == 2 or not shared then
       for _, c in ipairs(side) do
         local l = TL.matLine(c, k)
@@ -4492,7 +4495,7 @@ function engineSidePrompt(color)
     local o = {}
     for k, pt in ipairs((engineRewind and engineRewind.points) or {}) do o[k] = { id = "undo:" .. k, label = tostring(pt.label) } end
     return { title = "Rewind to... (the others vote)", mode = "browse", nosearch = true, options = o,
-      text = #o == 0 and "No restore points yet." or "Pick a moment to go back to: the other players vote on it." }
+      text = #o == 0 and ((engineRewind and engineRewind.off) or "No restore points yet.") or "Pick a moment to go back to: the other players vote on it." }
   elseif tab == "settings" then
     -- (the host's switch: what moves on the table is the same for everyone; others see it greyed and can't press it)
     local host = Player[color] ~= nil and Player[color].host
