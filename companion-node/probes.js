@@ -154,6 +154,26 @@ function relayLogin(url, key, room, stepMs) {
   });
 }
 
+// Whether host:port takes a TCP connection: { kind: ok|refused|notFound|timeout|error, detail }. The own-server check
+// runs it first, because a failed WebSocket doesn't say why (Node's gives "network error" for all of these).
+function tcpReach(host, port, ms) {
+  return new Promise((done) => {
+    const net = require("net");
+    let finished = false;
+    const finish = (kind, detail) => { if (finished) return; finished = true; try { sock.destroy(); } catch { /* closing anyway */ } done({ kind, detail: detail || null }); };
+    const sock = net.connect({ host: host.replace(/^\[|\]$/g, ""), port });
+    sock.setTimeout(ms, () => finish("timeout", `no answer in ${Math.round(ms / 1000)} s`));
+    sock.on("connect", () => finish("ok"));
+    sock.on("error", (e) => {
+      const code = e && e.code;
+      if (code === "ECONNREFUSED") finish("refused", code);
+      else if (code === "ENOTFOUND" || code === "EAI_AGAIN") finish("notFound", code);
+      else if (code === "ETIMEDOUT") finish("timeout", code);
+      else finish("error", code || (e && e.message) || "connection failed");
+    });
+  });
+}
+
 // ───────────────────────────── processes and ports ─────────────────────────────
 
 // Every process this account can see: [{ pid, cmd, upSec }]. Linux: /proc (no tools needed); macOS: ps.
@@ -224,4 +244,4 @@ function commandOf(pid) {
   try { const r = spawnSync("ps", ["-o", "command=", "-p", String(pid)], { encoding: "utf8", timeout: 5000 }); return r.status === 0 && r.stdout.trim() ? r.stdout.trim() : null; } catch { return null; }
 }
 
-module.exports = { readText, readHead, tail, exists, tryWrite, writeJsonAtomic, which, run, launch, bytesRead, httpGet, httpPost, relayLogin, processes, listeners, kill, alive, commandOf };
+module.exports = { readText, readHead, tail, exists, tryWrite, writeJsonAtomic, which, run, launch, bytesRead, httpGet, httpPost, relayLogin, tcpReach, processes, listeners, kill, alive, commandOf };
