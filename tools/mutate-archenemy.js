@@ -37,6 +37,7 @@ const MUTATIONS = [
   ["withArchenemy: a table start without the host's list", "bridge/bridge.js", "schemes: setup.arch.schemes || archenemy.names } };", "schemes: setup.arch.schemes } };"],
   ["start: the switch not applied", "bridge/bridge.js", "(withArchenemy(teams2hg.setupOf(m))));", "(teams2hg.setupOf(m)));"],
   ["start: an archenemy not in the game let through", "bridge/bridge.js", "if (!(total === TABLE_COLORS.length || seatList.includes(a.color) || preset.includes(a.color))) {", "if (false) {"],
+  ["start: Archenemy on the 6-player table let through", "bridge/bridge.js", "    if (TABLE_COLORS.length !== teams2hg.TEAM_COLORS.length) { chat(", "    if (false) { chat("],
   ["start: the scheme deck unchecked", "bridge/bridge.js", "    if (problem) { chat(`[MTG] Not started: Archenemy: ${problem}.`); return; }\n", ""],
   ["start: the game not an Archenemy game", "bridge/bridge.js", "...(archGame ? { arch: archGame } : {}),", ""],
   ["start: gameConfig without the archenemy", "bridge/bridge.js", "game.teamTurns || null, game.arch || null) } });", "game.teamTurns || null) } });"],

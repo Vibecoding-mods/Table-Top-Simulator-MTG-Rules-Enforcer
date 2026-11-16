@@ -152,6 +152,13 @@ async function startFlow(h) {
     ok("Two-Headed Giant start with the switch off: no Archenemy anywhere", h.B._getGame()?.teamMode === "2hg" && !h.B._getGame()?.arch && f.cfg?.teamRules === "sharedLife" && !("archenemy" in (f.cfg || {})), JSON.stringify(f.cfg));
   });
 
+  await run(async (h) => {
+    h.B.onTTS({ t: "hello", json: JSON.stringify({ tableSeats: ["White", "Red", "Yellow", "Green", "Blue", "Purple"] }) });
+    h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 3, teamMode: "archenemy", archenemy: { color: "Blue" } }) });
+    await h.flush();
+    ok("start: Archenemy on the 6-player table is refused for now, saying why", h.B._getGame() == null && chats(h).some((c) => c.startsWith("[MTG] Not started: Archenemy is played on the 4-player table for now (this table has 6 seats)")), chats(h).join(" | "));
+  });
+
   // ── Undo off in an Archenemy game ──
   await run(async (h) => {
     const blue = new h.B.Seat("Blue", "neheb_minotaur_commander");

@@ -504,10 +504,10 @@ const randomSchemes = () => (forgeSchemes().length >= teams2hg.ARCH_SCHEMES ? sh
 const schemeWords = () => (archenemy.names ? `${archenemy.names.length} chosen schemes` : `${teams2hg.ARCH_SCHEMES} random schemes`);
 function onArchenemy(m) {
   const text = String(m.text || "").trim();
-  const color = TABLE_COLORS.find((c) => c.toLowerCase() === text.toLowerCase());
+  const color = teams2hg.TEAM_COLORS.find((c) => c.toLowerCase() === text.toLowerCase());
   if (text === "") return chat(`[MTG] Archenemy is ${archenemy.on ? `on: ${archenemy.color} is the archenemy, with ${schemeWords()}` : "off"}. The host sets it:  mtg archenemy <colour>  (the next games),  mtg archenemy off,  mtg schemes random  or  mtg schemes <name>; <name>; ...`, m.color);
   if (/^off$/i.test(text)) { archenemy.on = false; return chat("[MTG] Archenemy off for the next games."); }
-  if (!color) return chat(`[MTG] Use:  mtg archenemy <colour>  (${TABLE_COLORS.join(", ")}: a seated player, or an AI seat) or  mtg archenemy off`, m.color);
+  if (!color) return chat(`[MTG] Use:  mtg archenemy <colour>  (${teams2hg.TEAM_COLORS.join(", ")}: a seated player, or an AI seat) or  mtg archenemy off`, m.color);
   Object.assign(archenemy, { on: true, color });
   chat(`[MTG] Archenemy on for the next games: ${color} is the archenemy (${schemeWords()}; mtg schemes to choose), against everyone else as one team. Undo is off in Archenemy games.`);
 }
@@ -1687,6 +1687,8 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   let archGame = null;
   if (teams && teamMode === "archenemy") {
     const a = arch || teams2hg.archOf(null);
+    // (the team modes are the 4-player table's for now: teams.js TEAM_COLORS)
+    if (TABLE_COLORS.length !== teams2hg.TEAM_COLORS.length) { chat(`[MTG] Not started: Archenemy is played on the 4-player table for now (this table has ${TABLE_COLORS.length} seats).`); return; }
     if (!(total === TABLE_COLORS.length || seatList.includes(a.color) || preset.includes(a.color))) {
       chat(`[MTG] Not started: Archenemy: ${a.color} isn't in this game (seated: ${seatList.join(", ")}; AI players take the free seats in turn order). Seat ${a.color}, make it an AI seat (mtg ai ${a.color} forge), or fill all four seats.`);
       return;
