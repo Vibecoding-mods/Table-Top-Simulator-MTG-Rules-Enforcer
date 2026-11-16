@@ -21,7 +21,8 @@ cd /build
 [ $# -gt 0 ] || set -- MindslaverControlTest ExtraTurnRewindTest OptionalCardChoiceTest ManaBrewEngineAdapterTest \
   InteractiveSnapshotExtractorTest MayPlayVisibilityTest PassiveAiTest ApplyStateCreateCardTest AttackDefenderChoiceTest \
   ApplyStateDrawMillTest DungeonStateTest PlanechaseTest CardStateFlagsTest EffectsViewTest EngineEventDamageTest \
-  TeamGameTest RejoinRewindTest PlayerRulesTest DrawCountRewindTest TurnCounterRewindTest
+  TeamGameTest RejoinRewindTest PlayerRulesTest DrawCountRewindTest TurnCounterRewindTest SharedTurnsTest \
+  SharedTurnsDevTest SharedCombatTest SharedTurnsPlayTest
 failed=""
 for c in "$@"; do
   echo "=== $c"

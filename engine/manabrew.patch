@@ -10937,6 +10937,434 @@ index 0000000..1038adb
 +        }
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/SharedTurnsPlayTest.java b/forge-harness/src/test/java/forge/harness/host/SharedTurnsPlayTest.java
+new file mode 100644
+index 0000000..662473d
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/SharedTurnsPlayTest.java
+@@ -0,0 +1,422 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.ai.PlayerControllerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameOutcome;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.combat.Combat;
++import forge.game.phase.PhaseHandler;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.item.PaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.Deque;
++import java.util.EnumSet;
++import java.util.HashSet;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++
++public final class SharedTurnsPlayTest {
++    private SharedTurnsPlayTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        final Set<String> only = new HashSet<>(List.of(args));
++        CHECKS.put("cr805.4 aRewindAfterThePartnerDeclaredKeepsTheTeamsAttack", SharedTurnsPlayTest::aRewindAfterThePartnerDeclaredKeepsTheTeamsAttack);
++        CHECKS.put("cr805.5b aRewindToThePartnersPriorityPassesAsATeam", SharedTurnsPlayTest::aRewindToThePartnersPriorityPassesAsATeam);
++        CHECKS.put("cr805.10a twoAiPartnersAttackTogether", SharedTurnsPlayTest::twoAiPartnersAttackTogether);
++        CHECKS.put("cr805.10d anAiAttackerCountsTheDefendingPartnersBlockers", SharedTurnsPlayTest::anAiAttackerCountsTheDefendingPartnersBlockers);
++        CHECKS.put("cr805 aiTeamsPlayASharedTurnGameToTheEnd", SharedTurnsPlayTest::aiTeamsPlayASharedTurnGameToTheEnd);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            if (only.isEmpty() || only.contains(e.getKey()) || only.contains(e.getKey().split(" ")[1])) {
++                check(e.getKey(), e.getValue());
++            }
++        }
++        System.out.println(failed == 0 ? "PASS SharedTurnsPlayTest" : "FAIL SharedTurnsPlayTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void aRewindAfterThePartnerDeclaredKeepsTheTeamsAttack() throws Exception {
++        final Fixture f = new Fixture(true);
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        final Card whiteBears = creature("Grizzly Bears", f.white);
++        final Card redBears = creature("Grizzly Bears", f.red);
++        ph.devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, f.white, 3);
++        final Combat combat = new Combat(f.white);
++        ph.setCombat(combat);
++        combat.addAttacker(whiteBears, f.yellow);
++        combat.addAttacker(redBears, f.blue);
++        ph.setPriority(f.red);
++        f.recordCheckpoint();
++        ph.addExtraTurn(f.red);
++        f.game.getAction().moveToGraveyard(redBears, null);
++        ph.devModeSet(PhaseType.MAIN1, f.yellow, 4);
++        f.restoreFirstCheckpoint();
++        expect(ph.getPlayerTurn() == f.white && ph.getTurn() == 3 && ph.getPhase() == PhaseType.COMBAT_DECLARE_ATTACKERS,
++                "the rewind went to " + ph.getPlayerTurn() + "'s turn " + ph.getTurn() + " " + ph.getPhase() + ", not White's team's turn 3 attack");
++        expect(ph.isPlayerTurn(f.red) && ph.getPriorityPlayer() == f.red, "after the rewind Red's turn " + ph.isPlayerTurn(f.red) + ", priority " + ph.getPriorityPlayer());
++        final Combat back = ph.getCombat();
++        expect(back != null, "the rewind lost the team's combat");
++        final Card red = byId(back.getAttackers(), redBears.getId());
++        final Card white = byId(back.getAttackers(), whiteBears.getId());
++        expect(red != null && white != null, "after the rewind the team's attackers are " + back.getAttackers());
++        expect(back.getAttackingPlayerOf(red) == f.red && back.isAttackingPlayer(f.red),
++                "after the rewind Red's Bears attack for " + back.getAttackingPlayerOf(red));
++        expect(back.getDefenderByAttacker(red) == f.blue && back.getDefenderByAttacker(white) == f.yellow,
++                "after the rewind the attacks go to " + back.getDefenderByAttacker(white) + " and " + back.getDefenderByAttacker(red));
++        expect(ph.getNextTurn() == f.yellow, "the team's extra turn taken after the rewind point is still queued: next turn " + ph.getNextTurn());
++    }
++
++    private static void aRewindToThePartnersPriorityPassesAsATeam() throws Exception {
++        final Fixture f = new Fixture(true);
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        ph.devModeSet(PhaseType.MAIN1, f.white, 3);
++        ph.setPriority(f.red);
++        f.recordCheckpoint();
++        ph.devModeSet(PhaseType.END_OF_TURN, f.white, 3);
++        ph.setPriority(f.blue);
++        f.restoreFirstCheckpoint();
++        final List<Player> passes = passUntilTheStepEnds(f, PhaseType.MAIN1);
++        expect(passes.get(0) == f.red, "after the rewind " + passes.get(0) + " passed first, not Red");
++        expect(Collections.frequency(passes, f.yellow) == 1 && Collections.frequency(passes, f.blue) == 1,
++                "after the rewind the other team passed " + passes + ", not Yellow and Blue once each");
++        expect(passes.indexOf(f.yellow) > passes.lastIndexOf(f.white) && passes.indexOf(f.yellow) > passes.lastIndexOf(f.red),
++                "after the rewind the other team passed before White's team had: " + passes);
++        expect(ph.getPlayerTurn() == f.white && ph.getTurn() == 3,
++                "after the team passes the game is at " + ph.getPlayerTurn() + "'s turn " + ph.getTurn() + " " + ph.getPhase() + ", not White's team's turn 3");
++    }
++
++    private static List<Player> passUntilTheStepEnds(final Fixture f, final PhaseType step) throws Exception {
++        final List<Player> passes = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public List<SpellAbility> chooseSpellAbilityToPlay() {
++                    passes.add(p);
++                    return null;
++                }
++            });
++        }
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        final Field give = PhaseHandler.class.getDeclaredField("givePriorityToPlayer");
++        give.setAccessible(true);
++        give.set(ph, true);
++        for (int i = 0; i < 12 && ph.getPhase() == step; i++) {
++            withoutPrompts("a priority step", ph::mainLoopStep);
++        }
++        expect(ph.getPhase() != step, "the step never ended; passes " + passes);
++        return passes;
++    }
++
++    private static void twoAiPartnersAttackTogether() throws Exception {
++        final Fixture f = new Fixture(false);
++        final Card whiteBears = creature("Grizzly Bears", f.white);
++        final Card redGiant = creature("Hill Giant", f.red);
++        final Combat combat = declareAttackers(f);
++        expect(combat.isAttacking(whiteBears) && combat.isAttacking(redGiant),
++                "two AI partners facing an empty board attacked with " + combat.getAttackers() + ", not White's Bears and Red's Giant");
++        expect(combat.getAttackingPlayerOf(redGiant) == f.red, "Red's Giant attacks for " + combat.getAttackingPlayerOf(redGiant));
++    }
++
++    private static void anAiAttackerCountsTheDefendingPartnersBlockers() throws Exception {
++        for (int i = 0; i < 4; i++) {
++            final Fixture f = new Fixture(false);
++            final Card redBears = creature("Grizzly Bears", f.red);
++            for (int w = 0; w < 3; w++) {
++                creature("Craw Wurm", f.yellow).setTapped(true);
++            }
++            creature("Hill Giant", f.blue);
++            final Combat combat = declareAttackers(f);
++            expect(!combat.isAttacking(redBears),
++                    "Red's AI sent its Grizzly Bears at " + combat.getDefenderByAttacker(redBears) + " although Blue's untapped Hill Giant may block it (rule 805.10d)");
++        }
++    }
++
++    private static Combat declareAttackers(final Fixture f) throws Exception {
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        ph.devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, f.white, 3);
++        final Combat combat = new Combat(f.white);
++        ph.setCombat(combat);
++        final Method declare = PhaseHandler.class.getDeclaredMethod("declareAttackersTurnBasedAction");
++        declare.setAccessible(true);
++        withoutPrompts("declaring attackers", () -> invoke(declare, ph));
++        return combat;
++    }
++
++    private static void aiTeamsPlayASharedTurnGameToTheEnd() throws Exception {
++        final List<RegisteredPlayer> players = new ArrayList<>();
++        final String[] names = {"White", "Red", "Yellow", "Blue"};
++        for (int i = 0; i < 4; i++) {
++            final RegisteredPlayer rp = new RegisteredPlayer(i < 2 ? whiteDeck() : greenDeck()).setPlayer(new LobbyPlayerAi(names[i], null));
++            rp.setStartingLife(30);
++            rp.setTeamNumber(i < 2 ? 1 : 2);
++            players.add(rp);
++        }
++        final GameRules rules = new GameRules(GameType.Constructed);
++        rules.setAppliedVariants(EnumSet.of(GameType.Constructed));
++        rules.setSharedTeamLife(true);
++        rules.setSharedTeamTurns(true);
++        final Match match = new Match(rules, players, "SharedTurnsPlayTest");
++        final Game game = match.createGame();
++        final List<String> turns = new ArrayList<>();
++        final List<Set<Player>> attacks = new ArrayList<>();
++        for (final Player p : game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(game, p, p.getLobbyPlayer()) {
++                @Override
++                public void declareBlockers(final Player defender, final Combat combat) {
++                    final Set<Player> attackers = new HashSet<>();
++                    for (final Card c : combat.getAttackers()) {
++                        attackers.add(c.getController());
++                    }
++                    attacks.add(attackers);
++                    super.declareBlockers(defender, combat);
++                }
++
++                @Override
++                public List<SpellAbility> chooseSpellAbilityToPlay() {
++                    final PhaseHandler ph = game.getPhaseHandler();
++                    final String turn = ph.getTurn() + ":" + ph.getPlayerTurn().getName();
++                    if (turns.isEmpty() || !turns.get(turns.size() - 1).equals(turn)) {
++                        turns.add(turn);
++                    }
++                    return super.chooseSpellAbilityToPlay();
++                }
++            });
++        }
++        final long started = System.currentTimeMillis();
++        try {
++            withoutPrompts("an AI shared-turn game", () -> match.startGame(game), 600_000);
++        } catch (final AssertionError e) {
++            throw new AssertionError("at turn " + game.getPhaseHandler().getTurn() + " " + game.getPhaseHandler().getPhase() + ", turns " + turns + ": " + e.getMessage());
++        }
++        expect(game.isGameOver(), "the game did not end; turns " + turns);
++        final GameOutcome outcome = game.getOutcome();
++        expect(outcome != null && !outcome.isDraw(), "the game ended in a draw: " + (outcome == null ? null : outcome.getWinCondition()) + " after turn " + game.getPhaseHandler().getTurn());
++        final List<Player> all = game.getRegisteredPlayers();
++        final boolean whiteWon = all.get(0).hasWon();
++        expect(whiteWon == all.get(1).hasWon() && all.get(2).hasWon() == all.get(3).hasWon()
++                        && whiteWon != all.get(2).hasWon(),
++                "the game did not end with one team winning: " + all.get(0).getOutcome() + ", " + all.get(1).getOutcome() + ", " + all.get(2).getOutcome() + ", " + all.get(3).getOutcome());
++        for (final String turn : turns) {
++            final String holder = turn.split(":")[1];
++            expect(holder.equals("White") || holder.equals("Yellow"), "turn " + turn + " was not held by a team's first seat: " + turns);
++        }
++        for (int i = 1; i < turns.size(); i++) {
++            expect(!turns.get(i).split(":")[1].equals(turns.get(i - 1).split(":")[1]), "a team took two turns in a row with no extra turn: " + turns);
++        }
++        expect(attacks.stream().anyMatch(a -> a.size() == 2), "no combat had both partners attacking: " + attacks);
++        System.out.println("  game over in " + (System.currentTimeMillis() - started) / 1000 + " s after turn " + game.getPhaseHandler().getTurn() + " by " + outcome.getWinCondition()
++                + "; " + attacks.size() + " combats, " + attacks.stream().filter(a -> a.size() == 2).count() + " with both partners attacking");
++    }
++
++    private static Deck whiteDeck() {
++        final Map<String, Integer> list = new LinkedHashMap<>();
++        list.put("Plains", 17);
++        list.put("Suntail Hawk", 4);
++        list.put("Savannah Lions", 4);
++        list.put("Youthful Knight", 4);
++        list.put("Healer's Hawk", 3);
++        list.put("Skyhunter Patrol", 4);
++        list.put("Serra Angel", 4);
++        return deck(list);
++    }
++
++    private static Deck greenDeck() {
++        final Map<String, Integer> list = new LinkedHashMap<>();
++        list.put("Forest", 17);
++        list.put("Llanowar Elves", 4);
++        list.put("Grizzly Bears", 4);
++        list.put("Centaur Courser", 4);
++        list.put("Trained Armodon", 4);
++        list.put("Giant Growth", 3);
++        list.put("Craw Wurm", 4);
++        return deck(list);
++    }
++
++    private static Deck deck(final Map<String, Integer> list) {
++        final Deck deck = new Deck();
++        for (final Map.Entry<String, Integer> e : list.entrySet()) {
++            deck.getMain().add(paper(e.getKey()), e.getValue());
++        }
++        return deck;
++    }
++
++    private static Card byId(final List<Card> cards, final int id) {
++        for (final Card c : cards) {
++            if (c.getId() == id) {
++                return c;
++            }
++        }
++        return null;
++    }
++
++    private static Card creature(final String name, final Player p) {
++        final Card c = Card.fromPaperCard(paper(name), p);
++        c.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(ZoneType.Battlefield).add(c);
++        c.setSickness(false);
++        return c;
++    }
++
++    private static PaperCard paper(final String name) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        return (PaperCard) paper;
++    }
++
++    private static void invoke(final Method m, final Object target) {
++        try {
++            m.invoke(target);
++        } catch (final ReflectiveOperationException e) {
++            throw new RuntimeException(e.getCause() != null ? e.getCause() : e);
++        }
++    }
++
++    private static void withoutPrompts(final String what, final Runnable step) throws Exception {
++        withoutPrompts(what, step, 60_000);
++    }
++
++    private static void withoutPrompts(final String what, final Runnable step, final long millis) throws Exception {
++        final Throwable[] failure = new Throwable[1];
++        final Thread runner = new Thread(() -> {
++            try {
++                step.run();
++            } catch (final Throwable thrown) {
++                failure[0] = thrown;
++            }
++        }, what);
++        runner.setDaemon(true);
++        runner.start();
++        runner.join(millis);
++        if (runner.isAlive()) {
++            final StringBuilder stack = new StringBuilder();
++            final StackTraceElement[] frames = runner.getStackTrace();
++            for (int i = 0; i < Math.min(30, frames.length); i++) {
++                stack.append(" <- ").append(frames[i]);
++            }
++            throw new AssertionError(what + " did not finish in " + millis / 1000 + " s" + stack);
++        }
++        if (failure[0] != null) {
++            throw new AssertionError(what + " failed: " + failure[0], failure[0]);
++        }
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("shared-turns-play-test");
++        final Game game;
++        final Player white;
++        final Player red;
++        final Player yellow;
++        final Player blue;
++
++        Fixture(final boolean recording) {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final String[] names = {"White", "Red", "Yellow", "Blue"};
++            for (int i = 0; i < 4; i++) {
++                final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(names[i], null));
++                rp.setStartingLife(30);
++                rp.setTeamNumber(i < 2 ? 1 : 2);
++                players.add(rp);
++            }
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setAppliedVariants(EnumSet.of(GameType.Constructed));
++            rules.setSharedTeamLife(true);
++            rules.setSharedTeamTurns(true);
++            game = new Game(players, rules, new Match(rules, players, "SharedTurnsPlayTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++            game.getPhaseHandler().onStackResolved();
++            white = game.getPlayers().get(0);
++            red = game.getPlayers().get(1);
++            yellow = game.getPlayers().get(2);
++            blue = game.getPlayers().get(3);
++            for (final Player p : game.getPlayers()) {
++                for (int i = 0; i < 12; i++) {
++                    final Card land = Card.fromPaperCard(paper("Forest"), p);
++                    land.setGameTimestamp(game.getNextTimestamp());
++                    p.getZone(ZoneType.Library).add(land);
++                }
++            }
++            session.attach(game.getMatch(), game, Set.of(), recording);
++        }
++
++        void recordCheckpoint() throws Exception {
++            final Method record = ManaBrewInteractiveSession.class.getDeclaredMethod("recordCheckpoint");
++            record.setAccessible(true);
++            record.invoke(session);
++            if (checkpoints().isEmpty()) {
++                throw new AssertionError("no checkpoint was recorded");
++            }
++        }
++
++        void restoreFirstCheckpoint() throws Exception {
++            final Object first = checkpoints().peekFirst();
++            for (final Method method : ManaBrewInteractiveSession.class.getDeclaredMethods()) {
++                if (method.getName().equals("restore") && method.getParameterCount() == 1) {
++                    method.setAccessible(true);
++                    method.invoke(session, first);
++                    return;
++                }
++            }
++            throw new AssertionError("no restore method");
++        }
++
++        private Deque<?> checkpoints() throws Exception {
++            final Field field = ManaBrewInteractiveSession.class.getDeclaredField("checkpoints");
++            field.setAccessible(true);
++            return (Deque<?>) field.get(session);
++        }
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java b/forge-harness/src/test/java/forge/harness/host/SharedTurnsTest.java
 new file mode 100644
 index 0000000..89f73da
