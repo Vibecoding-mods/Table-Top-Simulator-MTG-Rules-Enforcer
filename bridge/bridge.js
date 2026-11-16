@@ -4253,7 +4253,8 @@ function logEvents(prev, cur, pub, facts = null) {
     // (the turns skipped on the way, above the new turn's header: skippedTurns)
     out.push(...skippedTurns(prev, cur, pub));
     // (an extra turn, Forge's flag: Stitch in Time's read as a plain turn, rebuilt hand test #15)
-    out.push(`--- ${who(cur.active)}'s turn ${game.turnsTaken?.[cur.active] || 1}${extraTurn(cur) ? " (extra turn)" : ""} ---`);
+    // (Two-Headed Giant Level 2: the turn is the team's, "--- White + Yellow's turn 2 ---", counted as the first seat's)
+    out.push(`--- ${turnOwnerWords(cur.active, pub)} turn ${game.turnsTaken?.[cur.active] || 1}${extraTurn(cur) ? " (extra turn)" : ""} ---`);
     // (a look at a library last turn says nothing about this turn's draw: Top looked, then the draw step's card read
     // "puts 1 card from their library", stage 3 review 2026-10-27)
     for (const st of game.seats.values()) st.forget("search");
