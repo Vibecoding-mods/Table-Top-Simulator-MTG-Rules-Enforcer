@@ -1058,7 +1058,7 @@ class Seat {
     this.closed = false; // "mtg reset" closed it on purpose: no reconnect
     this.lostAt = null;  // when the link to the relay dropped mid-game (reconnecting while set)
     this.mullsTaken = resume?.mullsTaken || 0; // (the prompt's mulliganCount is cards owed: 0 after the rules' free one)
-    if (resume) { this.roomId = resume.roomId; this.joined = true; this.lostAt = Date.now(); this.tries = 0; }
+    if (resume) { this.roomId = resume.roomId; this.joined = true; this.lostAt = Date.now(); this.tries = 0; this.rejoining = this.lostAt; }
     this.connect();
   }
   // One relay connection. A link that drops mid-game is reconnected (see RECONNECT_DELAYS); a replaced or dead
@@ -1108,12 +1108,14 @@ class Seat {
     if (this.lostAt == null) {
       this.lostAt = Date.now();
       this.tries = 0;
+      this.rejoining ??= this.lostAt; // (until the engine's board for the seat is in again: backIn)
       log(`${this.color}: relay connection lost; reconnecting`);
       chat(`[MTG] ${this.color} lost the engine connection. Reconnecting...`);
     }
     if (Date.now() - this.lostAt > RECONNECT_GIVE_UP_MS) {
       log(`${this.color}: gave up reconnecting after ${Math.round((Date.now() - this.lostAt) / 1000)} s`);
       this.lostAt = null;
+      this.rejoining = null;
       return chat(`[MTG] ${this.color} couldn't reconnect to the engine within a minute (the engine concedes a seat that stays away). Type "mtg reset" to start over.`);
     }
     const delay = RECONNECT_DELAYS[Math.min(this.tries++, RECONNECT_DELAYS.length - 1)];
@@ -1281,6 +1283,7 @@ class Seat {
           if (!msg.reconnected && this.roomId) {
             // (the node may not have rebuilt the room yet: a "room not found" is retried until rejoinUntil)
             this.rejoinUntil = Date.now() + RECONNECT_GIVE_UP_MS;
+            this.rejoinGaveUp = false;
             this.send({ type: "JoinRoom", room_id: this.roomId, observe: false, as_bot: false });
           }
           this.send({ type: "RequestResync" });
@@ -1335,6 +1338,18 @@ class Seat {
           }, 2000);
           break;
         }
+        // (the window is over and the room still refuses the seat: the engine has given it away. Said plainly, once; it
+        // was "Relay: Room not found", which told nobody what to do)
+        // (JoinRoom and RequestResync are both refused: the second refusal is the same news, logged only)
+        if (this.rejoinGaveUp && /room_not_found|not_in_room|game_not_in_progress/.test(msg.code)) { log(`${this.color}: rejoin refused (${msg.code}) again`); break; }
+        if (this.rejoinUntil && /room_not_found|not_in_room|game_not_in_progress/.test(msg.code)) {
+          log(`${this.color}: rejoin refused (${msg.code}) after ${Math.round(RECONNECT_GIVE_UP_MS / 1000)} s of tries; gave up`);
+          this.rejoinUntil = null;
+          this.rejoining = null;
+          this.rejoinGaveUp = true;
+          chat(`[MTG] ${this.color} couldn't get back into the game: the engine no longer holds that seat. Type "mtg reset" to start over.`);
+          break;
+        }
         // The relay sets a room back to 4 seats after every game, and the controller asks for more on its first room
         // update (onRoomUpdate). A fifth or sixth person whose JoinRoom got there first is refused "room full": that seat
         // asks again every 2 s, for 30 s (M6). After that, or with a relay still capped at 4, the refusal is said.
@@ -1377,7 +1392,7 @@ class Seat {
     const forUs = env.forPlayer === this.slot;
     switch (env.kind) {
       case "state":
-        if (forUs || (!this.board && env.forPlayer == null)) { this.board = { state: env.state, fingerprint: env.fingerprint ?? null }; checkRestored(this); noteBoard(env.state?.gameView); scheduleView(this); }
+        if (forUs || (!this.board && env.forPlayer == null)) { this.board = { state: env.state, fingerprint: env.fingerprint ?? null }; checkRestored(this); noteBoard(env.state?.gameView); scheduleView(this); if (this.rejoining) this.backIn(); }
         break;
       case "stateDelta":
         if (!forUs) break;
@@ -1386,6 +1401,7 @@ class Seat {
         noteBoard(this.board.state?.gameView);
         checkRestored(this);
         scheduleView(this);
+        if (this.rejoining) this.backIn();
         break;
       case "prompt":
         if (env.forPlayer === this.slot) {
@@ -1410,8 +1426,21 @@ class Seat {
         break;
     }
   }
+  // The first board after a dropped link or a bridge restart: the seat is in the game again. The table says so on the
+  // player's screen (tools/engine-renderer.lua engineRejoin: "Rejoining..." -> "You're back in"); the log has how long
+  // it took. A resumed game is sent to the table as soon as every seat has its board (resumeGame's 3 s was a guess).
+  backIn() {
+    log(`${this.color}: back in the game ${((Date.now() - this.rejoining) / 1000).toFixed(1)} s after the link dropped`);
+    this.rejoining = null;
+    if (game?.fromTable) toTTS({ t: "rejoin", color: this.color, state: "back" });
+    if (game?.resumed && !game.resumeSent && [...game.seats.values()].every((s) => s.board)) {
+      game.resumeSent = true;
+      guarded("resend after resume", resendToTable);
+    }
+  }
   close() {
     this.closed = true;
+    this.rejoining = null;
     clearTimeout(this.pingTimer);
     clearTimeout(this.reconnectTimer);
     clearTimeout(this.rejoinTimer);
@@ -1565,8 +1594,12 @@ function resumeGame(now = Date.now()) {
   if (snap.harmless?.length) game.harmless = snap.harmless.map((h) => new HarmlessSeat(h.color, null, h));
   log(`resuming the game saved ${Math.round(age / 1000)} s ago: ${snap.seats.map((st) => `${st.color} as ${st.username}`).join(", ")}`);
   chat("[MTG] The bridge restarted: rejoining the game...");
-  // (once the seats are back and the board has come in)
-  setTimeout(() => guarded("resend after resume", resendToTable), 3000);
+  // (once the seats are back and the board has come in: at once when every seat's board is in, Seat.backIn; else 3 s on)
+  setTimeout(() => {
+    if (game?.resumeSent) return;
+    if (game) game.resumeSent = true;
+    guarded("resend after resume", resendToTable);
+  }, 3000);
   return true;
 }
 

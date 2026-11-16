@@ -137,7 +137,16 @@ function load({ imageCache = {}, scryfall = "up", cardFaces = {}, scryfallCards 
     }
     effects.push({ flushLimit: limit });
   }
-  return { B, effects, flush, sockets };
+  // only the timers already due (the clock doesn't move): what was sent to TTS just now reaches `effects`
+  async function settle(limit = 200) {
+    for (let k = 0; k < limit; k++) {
+      await new Promise((r) => real.setImmediate(r));
+      timers.sort((a, b) => a.at - b.at || a.n - b.n);
+      if (!timers.length || timers[0].at > clock) return;
+      timers.shift().fn();
+    }
+  }
+  return { B, effects, flush, settle, sockets };
 }
 
 function restore() {
