@@ -332,3 +332,10 @@ table, typing in the search box, the 12 s hold, the GUID fix for `onObjectDestro
 - **Tests**: `test_table_gifs` "stills:" checks what White, Blue and Red each see of White's frame (the still over
   the video, the timed still, or the video) through play, hold, Replay, a new pick, hide/show, collapse, video,
   a leaver and a spectator, plus the chat lines and the one hint.
+
+## 2026-11-16: GIFs loop, no Replay
+
+The user asked for every GIF to loop for everyone, all the time. The timed still (`gifhold_`, laid over the playing
+tile after 12 s) and the Replay button (`gifplay_`) are gone, along with `PLAY_S` and `holdWait`; a click on a frame no
+longer replays it. The owner's GIF... and Hide sit either side of the centre. Players with `mtg gifs still` keep their
+always-on still (`gifstill_`), so a TTS that can't play .mp4 still shows a picture.
