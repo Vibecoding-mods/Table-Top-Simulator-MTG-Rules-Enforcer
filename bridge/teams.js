@@ -263,7 +263,7 @@ function withTeamDamage(p, pub) {
 // archColor: the archenemy's colour in an Archenemy game (the board's archenemy).
 function teamsField(pub, slotColor, mode = null, archColor = null) {
   const t = boardTeams(pub, slotColor);
-  if (!t) return {};
+  if (!t) return mode === "archenemy" && archColor ? archTeamsField(pub, slotColor, archColor) : {};
   const winner = pub.winnerId && (pub.players || []).find((p) => p.id === pub.winnerId);
   const won = winner && (winner.teamNumber != null || t.rule === "teams") ? t.byTeam.get(teamKey(winner)) || null : null;
   const sideList = [...t.byTeam.values()];
@@ -274,6 +274,19 @@ function teamsField(pub, slotColor, mode = null, archColor = null) {
   }
   return { teams: { poison: t.poison, ...(t.cmd != null ? { cmd: t.cmd } : {}), sides: sideList, ...(t.rule === "sharedTurns" ? { turns: "shared" } : {}),
     ...(pub.gameOver && won ? { won } : {}) } };
+}
+
+// Archenemy with no team numbers on the board: the engine names a team only when it has two players or more, so with
+// two players (the archenemy against one) the sides come from the archenemy's colour: the archenemy, and the rest.
+function archTeamsField(pub, slotColor, archColor) {
+  const colors = (pub.players || []).map((p) => slotColor[p.id] || p.id);
+  const others = colors.filter((c) => c !== archColor);
+  if (!colors.includes(archColor) || !others.length) return {};
+  const sideList = colors[0] === archColor ? [[archColor], others] : [others, [archColor]];
+  const winner = pub.winnerId && (pub.players || []).find((p) => p.id === pub.winnerId);
+  const winColor = winner ? slotColor[winner.id] || winner.id : null;
+  const won = winColor == null ? null : winColor === archColor ? [archColor] : others;
+  return { teams: { rule: "teams", mode: "archenemy", sides: sideList, archenemy: archColor, ...(pub.gameOver && won ? { won } : {}) } };
 }
 
 // The life counter's hover line in a shared-life game: "Team life: White + Red" (both partners' counters show the
