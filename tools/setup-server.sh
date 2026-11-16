@@ -11,7 +11,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 envfile="$root/stack/.env"
-bind="" public=0 seats=4 install=1 build=1 dry=0
+bind="" public=0 seats=6 install=1 build=1 dry=0
 
 while [ $# -gt 0 ]; do
   case "$1" in

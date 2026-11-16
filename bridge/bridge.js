@@ -1021,6 +1021,7 @@ function onAiSeatChat(text) {
 // The relay keeps a seat for the room's reconnect window (reconnect_timeout_s, 60 s by default; then the node
 // concedes it), and logging in again with the same username reclaims the session (AuthResult reconnected:true).
 const RECONNECT_DELAYS = [1000, 2000, 4000, 8000]; // then every 8 s
+const ROOM_FULL_TRIES = 15; // a seat refused "room full" while a game is set up asks again, 2 s apart (Seat.onRelay)
 const RECONNECT_GIVE_UP_MS = 55000; // last try starts by ~63 s: the relay forfeits the seat at reconnect_timeout_s + 5 = 65 s
 const PING_EVERY_MS = 20000, SILENT_DEAD_MS = 45000;
 // How long a player's answer is kept for the log (a target pick, a "Pay {1}?"): one window for every reader, so a pick
@@ -1334,6 +1335,19 @@ class Seat {
           }, 2000);
           break;
         }
+        // The relay sets a room back to 4 seats after every game, and the controller asks for more on its first room
+        // update (onRoomUpdate). A fifth or sixth person whose JoinRoom got there first is refused "room full": that seat
+        // asks again every 2 s, for 30 s (M6). After that, or with a relay still capped at 4, the refusal is said.
+        if (msg.code === "room_full" && game && !game.started && !game.closing && this.roomId && !this.joined && (this.fullTries || 0) < ROOM_FULL_TRIES) {
+          this.fullTries = (this.fullTries || 0) + 1;
+          log(`${this.color}: room full (${this.fullTries} of ${ROOM_FULL_TRIES}); joining again in 2 s`);
+          clearTimeout(this.rejoinTimer);
+          this.rejoinTimer = setTimeout(() => {
+            if (this.closed || !game || game.closing || this.joined) return;
+            this.send({ type: "JoinRoom", room_id: this.roomId, observe: false, as_bot: false });
+          }, 2000);
+          break;
+        }
         log(`${this.color}: relay error ${msg.code}: ${msg.message}`);
         if (msg.code !== "NotHost" && msg.code !== "not_host") chat(`[MTG] Relay: ${msg.message}`, this.color);
         break;
@@ -1522,7 +1536,9 @@ function saveResume() {
       // noteOuts; and the printed P/T seen for each name, so a copy's badge stays as it was, notePrinted)
       outOrder: game.outOrder, outStamp: game.outStamp, outWhere: game.outWhere, inLibrary: game.inLibrary, emptyAt: game.emptyAt, printedPT: game.printedPT,
       // (each plane's owner, for the 901.10 line: logEvents)
-      ...(game.planeOwners?.size ? { planeOwners: [...game.planeOwners] } : {}) },
+      ...(game.planeOwners?.size ? { planeOwners: [...game.planeOwners] } : {}),
+      // (a table of other seats than the 4-player one: its colours, which a restarted bridge has not heard yet)
+      ...(TABLE_COLORS !== DEFAULT_TABLE_COLORS ? { tableSeats: [...TABLE_COLORS] } : {}) },
     seats: [...game.seats.values()].map((st) => ({ color: st.color, deckId: st.deckId, username: st.username, slot: st.slot, roomId: st.roomId, mullsTaken: st.mullsTaken })),
     ...(game.harmless?.length ? { harmless: game.harmless.map((h) => ({ color: h.color, username: h.username, slot: h.slot, roomId: h.roomId })) } : {}),
   };
@@ -1544,6 +1560,7 @@ function resumeGame(now = Date.now()) {
   game = { ...snap.game, deckNames: new Set(snap.game.deckNames || []), planeOwners: new Map(snap.game.planeOwners || []), seats: new Map(), started: true, closing: false,
     maxSet: true, botsRequested: true, startSent: true, resumed: true };
   customArt.off = snap.game.artOff === true;
+  TABLE_COLORS = Object.freeze(tableSeatsOf(snap.game.tableSeats) || DEFAULT_TABLE_COLORS);
   for (const st of snap.seats) game.seats.set(st.color, new Seat(st.color, st.deckId, st));
   if (snap.harmless?.length) game.harmless = snap.harmless.map((h) => new HarmlessSeat(h.color, null, h));
   log(`resuming the game saved ${Math.round(age / 1000)} s ago: ${snap.seats.map((st) => `${st.color} as ${st.username}`).join(", ")}`);
@@ -1596,7 +1613,8 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   bots = Math.max(bots, preset.length);
   const total = seatList.length + bots;
   if (!seatList.length) { chat("[MTG] Nobody is seated."); return; }
-  // the table has a playmat per colour (TABLE_COLORS); a 5th player had no colour and no zones (5-8 players: PLAN M6)
+  // the table has a playmat per colour (TABLE_COLORS, the table's seats: 4, or 6 on the 6-player table); a player more
+  // would have no colour and no zones
   if (total < 2 || total > TABLE_COLORS.length) { chat(`[MTG] Need 2-${TABLE_COLORS.length} players total (seated ${seatList.length} + ${bots} AI).`); return; }
   // (each team mode has its one game mode: 2v2 Standard, the others Commander; the table refuses the rest, this is the
   // check for every other path to a start)
@@ -1697,8 +1715,12 @@ function onRoomUpdate(seat, room) {
     // (in this game's mode: "mtg aideck" decks of the other mode are left out, and the built-in decks are the mode's)
     const mode = game.mode || "commander";
     const chosen = aiDeckChoice.map((id) => loadPreset(id)).filter((d) => (d.deck.format || "commander") === MODES[mode].deck);
-    const choices = [...(game.forgeSeats || []).map((f) => [f.deck, null]), ...chosen.map((d) => [d, null]), ...game.aiTableDecks.map((d, i) => [d, game.aiTableColors?.[i] ?? null]),
-      ...defaultDecksOf(mode).filter((d) => !used.has(d)).map((id) => [loadPreset(id), null])].slice(0, forgeBots);
+    // (more AI than built-in decks nobody plays, 1 person + 5 AI on the 6-player table: the built-in decks again, the
+    // unused first, round and round; the node spawns one AI per deck sent)
+    const builtIn = defaultDecksOf(mode), spare = [...builtIn.filter((d) => !used.has(d)), ...builtIn.filter((d) => used.has(d))];
+    const choices = [...(game.forgeSeats || []).map((f) => [f.deck, null]), ...chosen.map((d) => [d, null]), ...game.aiTableDecks.map((d, i) => [d, game.aiTableColors?.[i] ?? null])];
+    for (let k = 0; choices.length < forgeBots && spare.length; k++) choices.push([loadPreset(spare[k % spare.length]), null]);
+    choices.length = Math.min(choices.length, forgeBots);
     const botDecks = choices.map(([d]) => d);
     game.botDeckColors = choices.map(([, c]) => c);
     for (const b of botDecks) for (const c of [...b.deck.cards, ...(b.deck.commanders || [])]) {
@@ -1812,7 +1834,30 @@ function gamePictures(order) {
 // ───────────────────────── Whole-table model for the group's table (SPEC §5, PLAN M4 step 3) ─────────────────────────
 // One message describing every player's zones, life, commander damage and tax. Public zones come from any seat's
 // view; each hand only from its own player's view, so hidden cards never reach other players.
-const TABLE_COLORS = ["White", "Red", "Yellow", "Blue"];
+// The table's seats, clockwise (turn order): the playmat colours. The table says them with "hello" and with each start
+// ("tableSeats", noteTableSeats); a table that says none is the 4-player one. They set the player limit, the turn
+// order and the AI players' colours (startGame, clockwiseOrder, onGameStarted). M6: the 6-player table has six.
+const DEFAULT_TABLE_COLORS = Object.freeze(["White", "Red", "Yellow", "Blue"]);
+const TTS_SEAT_COLORS = ["White", "Brown", "Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink"];
+const MAX_TABLE_SEATS = 6; // (the stack's room size, stack/compose.yml SEATS; the node seats at most that many)
+let TABLE_COLORS = DEFAULT_TABLE_COLORS;
+// The seat list a message carries (2-6 distinct TTS seat colours, in the table's order), or null for none or a bad one.
+function tableSeatsOf(list) {
+  if (!Array.isArray(list) || list.length < 2 || list.length > MAX_TABLE_SEATS) return null;
+  const seats = list.map((c) => TTS_SEAT_COLORS.find((x) => x.toLowerCase() === String(c).toLowerCase()));
+  return seats.every(Boolean) && new Set(seats).size === seats.length ? seats : null;
+}
+// fromHello: a hello without a list is a table that has none (the 4-player one): back to the default. A start without
+// one keeps what the hello said. Never while a game is set up: its colours were given from the list it began with.
+function noteTableSeats(m, fromHello) {
+  const said = tableSeatsOf(asList(m?.tableSeats));
+  if (m?.tableSeats != null && !said) log(`table seats not understood: ${String(JSON.stringify(m.tableSeats)).slice(0, 120)}`);
+  const want = said || (fromHello ? DEFAULT_TABLE_COLORS : TABLE_COLORS);
+  if (want.join() === TABLE_COLORS.join()) return;
+  if (game) return void log(`table seats ${want.join(", ")} not taken: a game is set up with ${TABLE_COLORS.join(", ")}`);
+  TABLE_COLORS = want === DEFAULT_TABLE_COLORS ? want : Object.freeze([...want]);
+  log(`table seats: ${TABLE_COLORS.join(", ")}`);
+}
 const DEFAULT_BACK = "https://steamusercontent-a.akamaihd.net/ugc/1647720103762682461/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/";
 // Pictures for cards that didn't come from the table (AI decks, tokens): TTS can't load Scryfall's redirecting
 // "named?format=image" links, so ask Scryfall's card API for the direct .jpg once and remember it on disk.
@@ -10846,6 +10891,7 @@ function onTTS(m) {
       tableStamp = m.stamp ?? null;
       tableKeepsRewind = m.keepRewind === true;
       noteMode(m); // (the table's game mode: a restarted bridge takes it up again)
+      noteTableSeats(m, true); // (its seats, clockwise: none said is the 4-player table)
       // (the table's repeat while it has drawn nothing, with no game running: nothing to send, suite review)
       if (m.again && !game?.started) break;
       log("TTS connected");
@@ -10859,6 +10905,7 @@ function onTTS(m) {
       noteStamp(m);
       warnIfOutOfStep();
       const go = () => {
+        noteTableSeats(m, false); // (the table's seats, if it says them: a bridge started after its hello)
         startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m), ...(({ teams, mode, jugg, turns }) => [teams, mode || "2hg", jugg, turns])(teams2hg.setupOf(m)));
         if (game && m.autoplay) game.autoplay = true;
       };

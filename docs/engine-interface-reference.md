@@ -53,7 +53,7 @@ Game identity: the relay generates `game_id` at `StartGame` (lobby:713); the nod
 |---|---|---|---|
 | `relay` | 8-18 | `mtg-relay:exile` (our build; stock was `ghcr.io/witchesofthehill/manabrew-server:latest`) | `MANABREW_SERVER_KEY=${MANABREW_SERVER_KEY:-tts-local}`, `RUST_LOG=manabrew_server=info`, port `127.0.0.1:9443`. Relay reads `FORGE_HOST` (default 0.0.0.0), `FORGE_PORT` (default 9443), `FORGE_MAX_ROOMS`, `MANABREW_SERVER_KEY` (`manabrew-server/src/config.rs:88-102`). |
 | `web` | 20-29 | `manabrew-web`, pinned by digest | browser client at `127.0.0.1:8080`, `RELAY_PASSWORD` = server key. |
-| `forge-room` | 31-46 | `mtg-forge-node:exile` (our build; stock was `manabrew-node:latest`) | `SELF_HOSTED_NODE_RELAY_URL=ws://relay:9443`, `_SERVER_KEY`, `_ROOM_NAME=tts-commander`, `_ENGINE_BACKEND=forge`, `_FORMAT=commander`, `_MAX_PLAYERS=${SEATS:-4}`, `_AUTO_START=true`, `RUST_LOG=self_hosted_node=info`. `STATE_DELTA` unset → on. |
+| `forge-room` | 31-46 | `mtg-forge-node:exile` (our build; stock was `manabrew-node:latest`) | `SELF_HOSTED_NODE_RELAY_URL=ws://relay:9443`, `_SERVER_KEY`, `_ROOM_NAME=tts-commander`, `_ENGINE_BACKEND=forge`, `_FORMAT=commander`, `_MAX_PLAYERS=${SEATS:-6}`, `_AUTO_START=true`, `RUST_LOG=self_hosted_node=info`. `STATE_DELTA` unset → on. |
 
 ~~All images are `:latest`, so a `docker compose pull` can change the wire protocol under the bridge.~~ Fixed: the relay
 and node are our local builds and the web client is pinned by digest, so a pull changes nothing. The bridge restarts the

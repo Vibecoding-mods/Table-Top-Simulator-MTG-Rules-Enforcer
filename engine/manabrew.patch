@@ -14181,9 +14181,18 @@ index 1f6d1c7..fc94465 100644
                      info!(
                          "[game] game started in room {} | order: {:?}",
 diff --git a/manabrew-rs/crates/manabrew-server/src/lobby.rs b/manabrew-rs/crates/manabrew-server/src/lobby.rs
-index 8994409..81db590 100644
+index 8994409..6caef8b 100644
 --- a/manabrew-rs/crates/manabrew-server/src/lobby.rs
 +++ b/manabrew-rs/crates/manabrew-server/src/lobby.rs
+@@ -637,7 +637,7 @@ pub fn set_max_players_sync(
+         }
+ 
+         let floor = (room.players.len() as u8).max(2);
+-        room.max_players = max_players.clamp(floor, 4);
++        room.max_players = max_players.clamp(floor, 8);
+     }
+ 
+     Ok(room_id)
 @@ -647,6 +647,7 @@ pub fn start_game_sync(
      state: &Arc<ServerState>,
      player_id: &str,

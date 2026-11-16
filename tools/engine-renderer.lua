@@ -7471,6 +7471,21 @@ function onObjectDestroy(obj)
   if tableObjectDestroy ~= nil then return tableObjectDestroy(obj) end
 end
 
+-- The bridge's greeting (bridge.js onTTS "hello"), at load and whenever the table asks for the game again (again).
+-- ENGINE_TABLE_SEATS: the table's seats, clockwise (turn order), sent as tableSeats with it and with each start (bridge.js
+-- noteTableSeats: they set the player limit, the turn order and the AI players' colours). nil on the 4-player table,
+-- whose four are the bridge's default; the 6-player table's profile sets its six (M6 step 10).
+function engineHello(again)
+  local m
+  if again then
+    m = { again = true, stamp = engineStamp(), keepRewind = true, mode = engineModeSent ~= nil and engineModeSent() or nil }
+  else
+    m = { stamp = engineStamp(), keepRewind = true, mode = engineModeSent ~= nil and engineModeSent() or nil }
+  end
+  if ENGINE_TABLE_SEATS ~= nil then m.tableSeats = ENGINE_TABLE_SEATS end
+  engineSend("hello", m)
+end
+
 -- ───────── surviving a reload ─────────
 -- Save & Play, Ctrl+S/loading a save, or a script reload keep the objects but forget this script's memory.
 -- The positions of anything moved aside are saved with the game; after a reload they are put back, leftover
@@ -7504,13 +7519,13 @@ Wait.frames(function()
   restoreStash()
   -- (rigs of an older effect bundle than the links': replaced now, one destroyed every half second)
   pcall(engineFxRenewRigs)
-  engineSend("hello", { stamp = engineStamp(), keepRewind = true, mode = engineModeSent ~= nil and engineModeSent() or nil })
+  engineHello(false)
   -- the running game sent back on that hello was not drawn once, after a TTS relaunch with a big table still loading
   -- (hp-22 re-test 2026-10-28: the bridge's record has it sent; the table showed READY): ask again while nothing came
   local function askAgain(tries)
     Wait.time(function()
       if lastTable ~= nil then return end
-      engineSend("hello", { again = true, stamp = engineStamp(), keepRewind = true, mode = engineModeSent ~= nil and engineModeSent() or nil })
+      engineHello(true)
       if tries > 1 then askAgain(tries - 1) end
     end, 10)
   end
@@ -8374,7 +8389,7 @@ do
       G.toldAt = now
       broadcastToAll("[MTG] The table can't be flipped while the engine is on.", {1, 0.6, 0.3})
       if lastTable ~= nil then engineRender(lastTable) end -- (at once, from the board the table has)
-      engineSend("hello", { again = true, stamp = engineStamp(), keepRewind = true, mode = engineModeSent ~= nil and engineModeSent() or nil })
+      engineHello(true)
     end
   end
   function engineFlipGuardTick()
@@ -9472,7 +9487,7 @@ function engineRefreshSeat(color)
   engineTableLog(color, "mtg refresh")
   broadcastToColor("[MTG] Drawing your view again...", color, { 1, 0.85, 0.4 })
   engineSeatBack(color)
-  engineSend("hello", { again = true, stamp = engineStamp(), keepRewind = true, mode = engineModeSent ~= nil and engineModeSent() or nil })
+  engineHello(true)
 end
 -- on load (engine mode is off then): the middle tile with its engine switch
 Wait.frames(function() if engineSetupButtons ~= nil then pcall(engineSetupButtons) end end, 60)
