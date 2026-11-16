@@ -3568,6 +3568,14 @@ function sacrificeWords(m, was) {
 const byCount = (names) => [...names.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(", ");
 const listOf = (names) => (names.length > 6 ? byCount(names) : names.join(", "));
 // (the same, keeping the order: only a run of one card next to itself counted, for cards whose order is told)
+// The trigger lines of one board, each line alike said once and counted (the owner, 2026-11-15: "if 20 pop up at once,
+// cut it down to 2"): 18 Soul Wardens' "Soul Warden's ability triggers (Blue): you gain 1 life" read
+// "Soul Warden's ability triggers ×18 (Blue): you gain 1 life", in the place of the first. The count goes after
+// "triggers", else at the end.
+function countedTriggers(lines) {
+  const counts = lines.reduce((m, l) => m.set(l, (m.get(l) || 0) + 1), new Map());
+  return [...counts].map(([l, k]) => (k < 2 ? l : / triggers \(/.test(l) ? l.replace(" triggers (", ` triggers ×${k} (`) : l));
+}
 const byRuns = (names) => names.reduce((runs, n) => (runs.at(-1)?.[0] === n ? runs.at(-1)[1]++ : runs.push([n, 1]), runs), []).map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(", ");
 const listInOrder = (names) => (names.length > 6 ? byRuns(names) : names.join(", "));
 // each kind's line, for the cards one player had moved that way at once (w: who, k: the kind and what it names)
@@ -5367,7 +5375,7 @@ function logEvents(prev, cur, pub, facts = null) {
     const why = parts.length && parts.reduce((a, x) => a + x.n, 0) === l - before ? `, ${lifeWords(parts)}` : "";
     out.push(`${who(p)}: ${before} -> ${l} life (${l > before ? "+" : ""}${l - before}${why})${cmdNow(p).map((w) => `; ${w}`).join("")}`);
   }
-  out.push(...triggered, ...afterResolved);
+  out.push(...countedTriggers(triggered), ...afterResolved);
   // (each group's line made once and kept on it, for the moves after the cuts below to find)
   for (const g of Object.values(groups)) out[g.at] = g.line = g.words[g.k.kind](who(g.owner), g.names, g.k);
   for (const [n, g] of Object.entries(p1Gains)) {
@@ -5790,7 +5798,8 @@ function sendTable() {
   // (the stack's instant and sorcery spells by card, ins / sor, for the board they resolve on: resolvedSpells)
   game.fxKinds = new Map();
   const kindOn = (s, k) => { if (s.sourceId) game.fxKinds.set(s.sourceId, k); return true; };
-  const stack = (pub.stack || []).map((s) => ({
+  // (a run of one trigger alike goes out as one item, counted: stackGroups)
+  const stack = stackGroups(pub.stack || [], pub, (s) => ({
     // (its text without Forge's card numbers: stackText)
     // (a plane's chaos trigger says so: chaosStackText)
     id: s.id, n: s.identity?.name || "?", tx: isAbilityOnStack(s, pub) && chaosEffect(s.sourceAbilityText) ? chaosStackText(s) : stackText(s), ctl: game.slotColor[s.controllerId] || null,
@@ -7454,6 +7463,22 @@ function showPrompt(seat, extra = {}) {
 // "Keep this order" finishes with the remaining items as they are.
 // title: a text ("<title>: pick #n") or a function of how many are already placed (plain words for the reorders a player
 // meets most: "Mirri's Guile: click the card to put on top", then "the next card").
+// The blocks of a trigger order question (reorder): items alike by keyOf (null: an item of its own) gathered under the
+// first of them, wherever the others are in Forge's list. of: first item's id -> the block's items, Forge's order,
+// for blocks of two or more; under: the ids of the others, which are not asked about.
+function triggerBlocks(items, keyOf) {
+  const byKey = new Map(), of = new Map(), under = new Set();
+  for (const i of items) {
+    const k = keyOf(i);
+    if (k == null) continue;
+    if (!byKey.has(k)) { byKey.set(k, [i]); continue; }
+    const block = byKey.get(k);
+    block.push(i);
+    of.set(block[0].id, block);
+    under.add(i.id);
+  }
+  return { of, under };
+}
 function orderSteps(title, hint, items, done, chosen = []) {
   if (items.length <= 1) return { auto: done([...chosen, ...items].map((i) => i.id)) };
   const ui = {
@@ -7963,6 +7988,30 @@ function stackRun(stack, who, gv) {
   let n = 0;
   while (alike(stack[stack.length - 1 - n])) n++;
   return { n, key: n ? stackRunKey(top) : null, name: top?.identity?.name || "?" };
+}
+// The table's stack items (sendTable's `stack`), each made by toItem from Forge's, with each run of the same trigger
+// alike (stackRunKey: the same controller, source name and words; an ability with no targets) sent as one item: the
+// run's bottom one, its id kept while the run resolves from the top, with x its count and srcs the run's other source
+// cards. The owner, 2026-11-15: "if 20 pop up at once, cut it down to 2" (Second Harvest's tokens and Soul Wardens);
+// the table draws one pop-up, one stack card and one stack-list name per run, not one per trigger. Spells, targeted
+// abilities and runs of one are sent as before.
+function stackGroups(stack, gv, toItem) {
+  const out = [];
+  let runKey = null, runSrcs = null; // (the run's source cards so far: a Set, 5,000 triggers in one live game)
+  for (const s of stack) {
+    const key = isAbilityOnStack(s, gv) && !(s.targets || []).length ? stackRunKey(s) : null;
+    const last = out[out.length - 1];
+    if (key && key === runKey) {
+      last.x = (last.x || 1) + 1;
+      if (s.sourceId && !runSrcs.has(s.sourceId)) { runSrcs.add(s.sourceId); (last.srcs ??= []).push(s.sourceId); }
+      continue;
+    }
+    const item = toItem(s);
+    out.push(item);
+    runKey = key;
+    runSrcs = new Set([item.src]);
+  }
+  return out;
 }
 function startResolving(gv, who, group) {
   const stack = gv.stack || [];
@@ -10016,9 +10065,21 @@ function onPrompt(seat, prompt) {
       if (bottom || exileAll || allSame || landsDown) { seat.respond(prompt.promptId, type, { type: "reorderDecision", orderedIds: input.items.map((i) => i.id) }); return; }
       // (Forge's object numbers left out of what is shown: "Counter Chart a Course (61)")
       // (and an effect's own name too: "First Day of Class (225)'s Effect" read so, keyword sweep kw-13)
-      const items = input.items.map((i) => ({ id: i.id, label: (teamTrig && teamTrig.theirs.has(i.id) ? `${nameOf(teamTrig.partner)}'s ` : "") + String(cardLabel(i.card)).replace(/^(.+?) \(\d+\)'s Effect$/, (m, n) => `${poss(n)} effect`) + (i.oracle ? `: ${shorten(oracleOf(i), 60)}` : ""), img: imgOf(i.card) }));
+      const labelOf = (i, card = cardLabel(i.card)) => (teamTrig && teamTrig.theirs.has(i.id) ? `${nameOf(teamTrig.partner)}'s ` : "") + String(card).replace(/^(.+?) \(\d+\)'s Effect$/, (m, n) => `${poss(n)} effect`) + (i.oracle ? `: ${shorten(oracleOf(i), 60)}` : "");
+      // (triggers alike, sameTrig's and the same partner's, are one item moved as a block, "Soul Warden ×18: ...": their
+      // order among themselves doesn't matter, so only the different ones are ordered; the owner, 2026-11-15, "if 20
+      // pop up at once, cut it down to 2". Not those that target, as allSame. Each block keeps Forge's order inside it.)
+      const blocks = triggerBlocks(trig ? input.items : [], (i) => (/\btarget\b/i.test(oracleOf(i)) ? null : `${sameTrig(i)}|${teamTrig?.theirs.has(i.id) ? "p" : ""}`));
+      const items = input.items.filter((i) => !blocks.under.has(i.id)).map((i) => {
+        const block = blocks.of.get(i.id);
+        if (!block) return { id: i.id, label: labelOf(i), img: imgOf(i.card) };
+        // (one card label for the block when all say the same, else the card's name: Scute Swarm tokens of two sizes)
+        const one = block.every((b) => cardLabel(b.card) === cardLabel(i.card));
+        return { id: i.id, label: labelOf(i, `${one ? cardLabel(i.card) : i.card?.identity?.name || cardLabel(i.card)} ×${block.length}`), img: imgOf(i.card) };
+      });
+      const unblock = (ids) => ids.flatMap((id) => (blocks.of.get(id) || [{ id }]).map((b) => b.id));
       const step = orderSteps(words, hint, onTop ? [...items].reverse() : items,
-        (ids) => ({ type: "reorderDecision", orderedIds: onTop ? [...ids].reverse() : ids }));
+        (ids) => ({ type: "reorderDecision", orderedIds: unblock(onTop ? [...ids].reverse() : ids) }));
       if (step.auto) { seat.respond(prompt.promptId, type, step.auto); return; }
       ({ ui, toOutput } = step);
       break;

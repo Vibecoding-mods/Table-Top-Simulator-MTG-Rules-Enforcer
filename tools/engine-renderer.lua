@@ -521,7 +521,8 @@ local function updateBadge(o, c, zone)
   local room = zone == "command" and type(c.dg) == "string" and c.dg ~= ""
   local costZone = ENGINE_COST_ZONES[zone] == true and not engineFlipped[c.id] and not room
   -- (and a suspended card beside its exile pile, its time counters: engineTimeCounters)
-  local text = (zone == "battlefield" or zone == "suspended" or room) and badgeText(c) or (costZone and engineCostText(c)) or ""
+  -- (and a stack card standing for a run of one trigger, its "xN": the bridge's stackGroups)
+  local text = (zone == "battlefield" or zone == "suspended" or room or (zone == "stack" and (c.groupN or 1) > 1)) and badgeText(c) or (costZone and engineCostText(c)) or ""
   if text ~= "" and (c.fd == true) ~= (engineFlipped[c.id] == true) then text = text .. "=under" end
   -- (the card's ability buttons are drawn with its badges: one set of buttons per card, engineAbilityButtons)
   local ab = engineAbilitySig ~= nil and engineAbilitySig(c) or ""
@@ -1285,7 +1286,8 @@ function engineBoardDiff(m)
       for _, z in ipairs({ "battlefield", "graveyard", "exile", "command" }) do
         for _, c in ipairs(pl[z] or {}) do public[c.id] = true end
       end
-      for _, sItem in ipairs(m.stack or {}) do if sItem.src then public[sItem.src] = true end end
+      -- (and a run of one trigger's other sources, srcs: the bridge's stackGroups)
+      for _, sItem in ipairs(m.stack or {}) do if sItem.src then public[sItem.src] = true end for _, o in ipairs(sItem.srcs or {}) do public[o] = true end end
       local tapped = {}
       for _, c in ipairs(pl.battlefield or {}) do if c.tap then tapped[c.id] = true end end
       local prev = engineBoardSeen[color]
@@ -2351,6 +2353,8 @@ function engineDrawLines(m, stackSpot)
   Global.setVectorLines(keep)
 end
 end
+-- A stack item's name, a run of one trigger counted (the bridge's stackGroups: x): "Soul Warden ×18"
+function engineStackLabel(st) return tostring(st.n) .. ((tonumber(st.x) or 1) > 1 and (" ×" .. st.x) or "") end
 function enginePopups(m)
   local newest
   local now = {}
@@ -2359,21 +2363,28 @@ function enginePopups(m)
     if not popSeen[st.id] then newest = st end
   end
   popSeen = now
+  -- (a run of one trigger is one pop-up, "Soul Warden ×18 - White" (the bridge's stackGroups, x its count); the one
+  -- showing says its new count when its run grows or resolves, with no new pop-up)
+  local function named(st) return engineStackLabel(st) .. (st.ctl and (" - " .. tostring(st.ctl)) or "") end
+  if newest == nil and popShown ~= nil then
+    for _, st in ipairs(m.stack or {}) do
+      if st.id == popShown.id and named(st) ~= popShown.who then popShown.who = named(st) UI.setValue("eng_pop_who", popShown.who) end
+    end
+  end
   if newest == nil or not panelReadyForPopup() then return end
   local stc = newest.src and not newest.fd and engineStatic[newest.src] or nil -- (face down: the stack's own words only)
   local img = engineUiImage(newest.f or (stc and stc.f) or ENGINE_BACK)
-  local who = newest.ctl and (" - " .. tostring(newest.ctl)) or ""
   -- the engine starts with "Ponder (18) - ": cut up to the first "(n) - " near the start ("^.-" on a long text made
   -- MoonSharp fail with "pattern too complex", which also stopped the rest of that table update)
   local text = tostring(newest.tx or "")
   local _, cut = text:sub(1, 120):find("%(%d+%) %- ")
   if cut ~= nil then text = text:sub(cut + 1) end
   engineSetImage("eng_pop_img", img)
-  UI.setValue("eng_pop_who", tostring(newest.n) .. who)
+  UI.setValue("eng_pop_who", named(newest))
   UI.setValue("eng_pop_text", engineCut(text, 260))
   enginePopOpen()
   popToken = popToken + 1
-  popShown = { id = newest.id, at = os.clock(), token = popToken }
+  popShown = { id = newest.id, at = os.clock(), token = popToken, who = named(newest) }
 end
 -- The pop-up stays while what it shows is on the stack (Arena keeps the stack in view), at least POP_MIN seconds so
 -- a quick resolve can still be read. Called with every board update, after enginePopups.
@@ -3067,8 +3078,9 @@ do
     local by = key and byOf[key] or nil
     if key == nil then
       local still = {}
-      for _, st in ipairs(now.stack) do still[st.id] = true end
-      for _, st in ipairs(prev.stack) do if key == nil and not still[st.id] and FX.keyOf(st.cl) ~= nil then key, by = FX.keyOf(st.cl), st.src end end
+      -- (a run of one trigger, x of them in one item (the bridge's stackGroups), has gone from when it counts fewer)
+      for _, st in ipairs(now.stack) do still[st.id] = tonumber(st.x) or 1 end
+      for _, st in ipairs(prev.stack) do if key == nil and (still[st.id] or 0) < (tonumber(st.x) or 1) and FX.keyOf(st.cl) ~= nil then key, by = FX.keyOf(st.cl), st.src end end
     end
     local seat = nil
     for _, st in ipairs(prev.stack) do if seat == nil and by ~= nil and st.src == by then seat = st.ctl end end
@@ -3798,10 +3810,18 @@ function engineRender(m)
       -- a card you dropped on your battlefield to cast waits right there, raised a little
       if engineManual[s.src] ~= nil then pos = engineManual[s.src] + Vector(0, 0.6, 0) end
       place(c, pos, rot, seen, nil, { zone = "stack", color = s.ctl })
-    elseif not s.spell and s.src and engineObjs[s.src] ~= nil then
-      stackGlow[s.src] = true -- an ability: its source glows purple; the panel lists the stack
+    elseif not s.spell and s.src and (engineObjs[s.src] ~= nil or engineObjs[engineGroupOf[s.src] or ""] ~= nil) then
+      -- an ability: its source glows purple; the panel lists the stack. A run of one trigger (x, the bridge's
+      -- stackGroups) lights each of its sources; a token folded into a token stack lights that stack's card (a stack
+      -- card each for 112 Second Harvest tokens' triggers before)
+      for k = 0, #(s.srcs or {}) do
+        local sid = k == 0 and s.src or s.srcs[k]
+        stackGlow[(engineObjs[sid] == nil and engineGroupOf[sid]) or sid] = true
+      end
     else
-      place({ id = "stack:" .. tostring(s.id), n = s.n, tl = "On the stack", tx = s.tx, f = s.f, b = ENGINE_BACK },
+      -- (a run of one trigger is one stack card, its count in its name and its "xN" badge)
+      local x = tonumber(s.x) or 1
+      place({ id = "stack:" .. tostring(s.id), n = s.n, tl = x > 1 and ("On the stack (×" .. x .. ")") or "On the stack", tx = s.tx, f = s.f, b = ENGINE_BACK, groupN = x > 1 and x or nil },
         pos, rot, seen, nil, { zone = "stack", color = s.ctl })
     end
   end
@@ -4187,7 +4207,8 @@ local function statusText()
     tostring(m.active), n, suffix, tostring(m.turn), tostring(m.step), tostring(m.priority))
   if m.stack and #m.stack > 0 then
     local names = {}
-    for i = #m.stack, 1, -1 do names[#names + 1] = m.stack[i].n end
+    -- (a run of one trigger once, counted: "Soul Warden ×18", the bridge's stackGroups)
+    for i = #m.stack, 1, -1 do names[#names + 1] = engineStackLabel(m.stack[i]) end
     s = s .. "\nStack (top first): " .. table.concat(names, ", ")
   end
   if m.gameOver then s = "GAME OVER" .. (m.winner and (" - winner: " .. tostring(m.winner)) or "") .. "\n" .. s end
@@ -10910,7 +10931,7 @@ function engineSelfCheck()
     if t ~= nil and t.getVar("count") ~= pl.life then add(c .. " life tracker shows " .. tostring(t.getVar("count")) .. ", engine says " .. tostring(pl.life)) end
   end
   -- a spell on the stack is drawn by its own card (the stack entry's source)
-  for _, s in ipairs(m.stack or {}) do if s.src then expected[s.src] = true end end
+  for _, s in ipairs(m.stack or {}) do if s.src then expected[s.src] = true end for _, o in ipairs(s.srcs or {}) do expected[o] = true end end
   for id, o in pairs(byId) do
     -- (a scry's cards are in the player's hand zone while they choose: engineScryPlace)
     if not expected[id] and (engineMeta[id] or {}).zone ~= "scry" and id ~= "trash" and not id:find("^library:") and not id:find("^stack:") and not id:find("^graveyard:") and not id:find("^exile:") then
