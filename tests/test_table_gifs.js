@@ -492,6 +492,13 @@ const SEATED = ["White", "Blue"];
     CHAT("Blue", "mtg gifs still", "blue still again"), lua("return 'ok'", "after toggle", 7 * 60), CHAT("Grey", "mtg gifs still", "grey still"),
     lua("__sim.seated.Blue = nil onPlayerChangeColor('Grey') return 'ok'", "blue leaves", 180), FRAMES("blue gone"),
     lua("return JSON.encode({ blue = engineGif.stills.Blue == true, grey = engineGif.stills.Grey == true })", "stills after"),
+    // (a spectator's stills set some other way still never reaches the visibility list)
+    lua("engineGif.stills.Grey = true engineGif.stills.Black = true engineGif.redraw('White') return 'ok'", "spectators forced"), FRAMES("spectators view"),
+    lua("engineGif.stills.Grey = nil engineGif.stills.Black = nil return 'ok'", "spectators unforced"),
+    // a pick with no still link: no still element (it would be a blank white card), none kept in the state
+    CHAT("Red", "mtg gifs still", "red still"), CHAT("White", "mtg gif plain", "w search 3"),
+    pick(3, [{ ...ITEMS[2], id: "noStill", still: undefined }]), { frames: 10 }, FRAMES("no still view"),
+    lua("return tostring(engineGif.state.White and engineGif.state.White.still)", "no still state"),
     CHAT("White", "mtg gifs", "state"),
   ] });
   ok("stills: no errors", !r.errors.length, r.errors.join(" | "));
@@ -515,7 +522,10 @@ const SEATED = ["White", "Blue"];
   ok("stills: expanded again, Blue's still is back", sees(W("expanded"), "Blue") === "still", view("expanded"));
   ok("stills: mtg gifs video undoes it", eq("blue video view", { White: "video", Blue: "video", Red: "video" }) && !(W("blue video view")?.xml || "").includes("gifstill_") && fxOf(r, "blue video").some((f) => f.includes("move again")), [view("blue video view"), fxOf(r, "blue video")]);
   const st = val(r, "stills after");
-  ok("stills: it goes with its player; a spectator's stays", st && st.blue === false && st.grey === true && /<Image id="gifstill_White" image="still" visibility="Grey"/.test(W("blue gone")?.xml || ""), [st, W("blue gone")?.xml]);
+  ok("stills: it goes with its player", st && st.blue === false && !(W("blue gone")?.xml || "").includes("gifstill_"), [st, W("blue gone")?.xml]);
+  ok("stills: a spectator is refused in plain words, nothing set", st && st.grey === false && fxOf(r, "grey still").some((f) => f.includes("Stills only is for seated players: take a seat first.")), [st, fxOf(r, "grey still")]);
+  ok("stills: Grey and Black never in the still's visibility", !(W("spectators view")?.xml || "").includes("gifstill_"), W("spectators view")?.xml);
+  ok("stills: a GIF with no still link gets no still element and keeps none", W("no still view")?.img === ITEMS[2].mp4 && JSON.parse(W("no still view")?.memo || "{}").id === "noStill" && !(W("no still view")?.xml || "").includes("gifstill_") && raw(r, "no still state") === "nil", [W("no still view")?.img, W("no still view")?.xml, raw(r, "no still state")]);
   const hints = r.steps.flatMap((x) => x.fx || []).filter((f) => f.includes("broadcastToAll") && f.includes("white square"));
   ok("stills: one hint to everyone at the first video, not again", hints.length === 1 && hints[0].includes("broadcastToAll") && hints[0].includes("(Steam Deck, Mac or Linux)? Type  mtg gifs still"), hints);
   ok("stills: the mtg gifs help line names it", fxOf(r, "state").some((f) => f.includes("mtg gifs still") && f.includes("white square")), fxOf(r, "state"));

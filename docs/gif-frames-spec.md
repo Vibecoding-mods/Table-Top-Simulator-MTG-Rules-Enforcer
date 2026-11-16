@@ -322,7 +322,9 @@ table, typing in the search box, the 12 s hold, the GUID fix for `onObjectDestro
   doesn't matter for them; for everyone else nothing changes (the element is left out when nobody has it on: an empty
   visibility would show it to everyone). They see no Replay effect. A collapsed frame is unchanged (no still), and an
   empty frame has none. Hide wins: a hider is left out of the list (and the frame's root already leaves them out).
-  The setting goes with its player when they leave, like `hidden` (`sync`); Grey and Black keep theirs. The still
+  The setting goes with its player when they leave (`sync`). Grey and Black are refused ("Stills only is for seated
+  players: take a seat first.") and never in the list: every spectator shares the colour. A GIF with no still link
+  gets no still element (it would be a blank white card), and `show` keeps a still only when it is a string. The still
   is the asset already set for `gifhold_`, so a new pick's re-set XML at 2 s and 6 s covers its white-while-loading.
 - **Hint**: the first time a frame's video arrives (its spawn's callback, not the still fallback, not collapsed) in a
   script session, everyone is told once: "GIF shows as a white square (Steam Deck, Mac or Linux)? Type mtg gifs

@@ -10971,11 +10971,13 @@ function engineGif.viewers()
   if not any then return "" end
   return ' visibility="' .. (#list > 0 and table.concat(list, "|") or "None") .. '"'
 end
--- the still picture over the whole frame for the stills-only players (not the hiders: hide wins), always on, so the
--- video tile under it never shows for them; "" when there are none (an empty visibility shows it to everyone)
+-- the still picture over the whole frame for the stills-only players (not the hiders: hide wins; never Grey or Black,
+-- a colour every spectator shares), always on, so the video tile under it never shows for them; "" when there are
+-- none (an empty visibility shows it to everyone) or the GIF has no still link (it would be a blank white card)
 function engineGif.stillXml(c, fw, fh)
   local G, list = engineGif, {}
-  for _, h in ipairs(G.COLORS) do if G.stills[h] and not G.hidden[h] then list[#list + 1] = h end end
+  if G.state[c] == nil or type(G.state[c].still) ~= "string" then return "" end
+  for _, h in ipairs(G.COLORS) do if G.stills[h] and not G.hidden[h] and h ~= "Grey" and h ~= "Black" then list[#list + 1] = h end end
   if #list == 0 then return "" end
   return '<Image id="gifstill_' .. c .. '" image="still" visibility="' .. table.concat(list, "|") .. '" width="' .. fw .. '" height="' .. fh .. '" preserveAspect="true" raycastTarget="false"/>'
 end
@@ -11228,7 +11230,7 @@ function engineGif.sync()
   -- (hide-for-me belongs to the player: whoever sits in a colour next doesn't inherit it; spectators keep theirs)
   local unhid = false
   for h in pairs(G.hidden) do if not seated[h] and h ~= "Grey" and h ~= "Black" then G.hidden[h] = nil unhid = true end end
-  for h in pairs(G.stills) do if not seated[h] and h ~= "Grey" and h ~= "Black" then G.stills[h] = nil unhid = true end end
+  for h in pairs(G.stills) do if not seated[h] then G.stills[h] = nil unhid = true end end
   if unhid then for f in pairs(G.frames) do if want[f] then G.redraw(f) end end end
   local gone = 0
   for c, o in pairs(G.frames) do
@@ -11257,7 +11259,7 @@ function engineGif.show(c, item)
   local G = engineGif
   if type(item) ~= "table" or type(item.mp4) ~= "string" then return end
   G.retried[c] = nil
-  G.state[c] = { id = tostring(item.id or ""), mp4 = item.mp4, still = item.still, title = G.xmlText(item.title), w = tonumber(item.w) or 1, h = tonumber(item.h) or 1 }
+  G.state[c] = { id = tostring(item.id or ""), mp4 = item.mp4, still = type(item.still) == "string" and item.still or nil, title = G.xmlText(item.title), w = tonumber(item.w) or 1, h = tonumber(item.h) or 1 }
   G.open[c] = nil
   G.playing[c] = true
   G.spawn(c)
@@ -11450,6 +11452,8 @@ function engineGif.chat(message, pl)
       G.hidden[c] = (low == "hide") or nil
       for f in pairs(G.frames) do G.redraw(f) end
       tellMe(low == "hide" and "GIF frames hidden on your screen (the others still see them). Type  mtg gifs show  to see them again." or "GIF frames shown on your screen.")
+    elseif low == "still" and (c == "Grey" or c == "Black") then
+      tellMe("Stills only is for seated players: take a seat first.")
     elseif low == "still" or low == "video" then
       G.stills[c] = (low == "still") or nil
       -- (a new picture element on their screen: drawn white until its asset loads, so the XML is set again at 2 s and 6 s)
