@@ -91,6 +91,72 @@ Check it on the 4-player file first: its profile must reproduce today's hard-cod
 - `seatGeometry` already reads `data[colour]`: nothing to do there.
 - `SETUP`'s Start tile is placed "between the four life counters": give the profile a Start position for each table.
 
+### 2.3.1 Steps 9–11 as built (2026-11-16, branch `m6-profile`)
+
+- `tools/table-profile.js <workshop.json> [--check]` writes `tools/profiles/<id>.json` (both tables checked in). It
+  holds GUIDs, positions, colours and our own choices only. Rules it uses (all in the file):
+  - seats: the registry's colours, clockwise from White by falling `atan2(z, x)` of the mats;
+  - life trackers, timers, commander zones: by object name with the colour in the Description; hand zones: the larger
+    HandTrigger of the seat's FogColor;
+  - commander zones in a pair: left to right as the player sees them (the hand zone's facing); a level pair (the
+    6-player table's lie one behind the other) nearest the player first. **This is a choice** for the 6-player table:
+    the first one is the tax label the renderer fills first (`TAX_LABELS[c][1]`);
+  - commander-damage trackers: the attacker is the Description, the victim the nearest life tracker; written in the
+    order the renderer always had (victims from White then anticlockwise, attackers nearest the middle first), because
+    Lua's `pairs` follows a table's build order. The 6-player table has none: `cmdDamage: null` and a `notFound` line;
+  - the remove list by kind (Encoder modules by name, all timers, all bundles under y −40, all but the west rikrassen
+    importer, the Bruh Button, the Drafting tools and Enablers bags); the clutter boxes are a per-table choice in
+    `TABLES` (none yet for the 6-player table: step 13).
+  - a table it has no `TABLES` entry for, or any missing field, is an error by name; nothing is written.
+- `make-engine-copy.js` reads the profile from its source; `--profile <file>` must match it byte for byte (a 4-player
+  profile on the 6-player file is refused). From it: the save name, the seats (AI seat loop, `mtg winner`, status
+  piece copies), `COMMAND_ZONES`, the remove list and boxes, the per-seat patch counts (life counters = seats, hand
+  counters = 2 × seats), and `TABLE_PROFILE = { id, seats, life, cmdDamage, tax, start, buttons, draw }` in Global
+  before the engine code. Gates for tools a table lacks print `SKIP` instead of `FAIL` (`features.wastes`,
+  `features.treachery`).
+- `engine-renderer.lua`: `LIFE_TRACKERS`, `CMD_DAMAGE`, `TAX_LABELS`, the effects' `TRACK` and carrier list,
+  `TABLE_BUTTONS`, `DRAW_BUTTONS`, `seatOfButton`'s list, `SETUP.seats` and the Start tile's spot read
+  `TABLE_PROFILE`. No new main-chunk local. **Still four-seat on purpose:** the team modes (2HG, 2v2, Juggernaut:
+  their colour lists and `TL.seats`), and the fixed button spots on the west strip (`MODE_SPOT`, `FRIENDLY_SPOT`,
+  `TEAMS_SPOT` at x −47: step 13).
+- On the 4-player table the built save is the same as before except the `TABLE_PROFILE` block and the lines that read it
+  (diffed); `test_table_golden` unchanged. Tests: `tests/test_table_profile.js`.
+- On the 6-player table (re-checked 2026-11-16, every patch and gate): all apply except the two `SKIP`s (no Wastes
+  button, no Treachery cards). Every definition of a gated name carries its gate, with one exception: the two
+  "Drop-On-Card Counter" tokens (in bags at x ±45.3) carry an `onNumberTyped` inside a script string they put on a
+  card; on the 4-player table the clutter boxes remove them. Step 13's boxes must too. The Counters gates count 76 / 104
+  / 12 functions (4-player: 80 / 120 / 20): the 6-player table has fewer counter objects, all gated.
+
+### 2.3.2 Plan for steps 12–13 (not built; §8's decisions)
+
+Step 12, commander damage as on the 4-player table (§8: permanent trackers, the 4-player objects and script):
+1. Source object: the 4-player table's "Commander Damage" token (script hash 0fdc193a, attacker = Description). It is
+   not in the repo and must not be: `make-engine-copy.js --tracker-source <the host's 4-player Workshop file>` copies
+   one tracker's object data from the host's own copy at build time (as the 6-player file itself is read). Without
+   the file: FAIL by name, never a fallback to the 6-player bags' older script (78a9eb00, colour from the Name).
+2. 30 trackers (each victim × 5 attackers), Description = attacker, locked, GUIDs made like the status-piece copies
+   (sha1 of victim:attacker, checked against every GUID of both tables).
+3. Spot (to confirm on screen): a row of five 1.4 apart along x on the middle strip, centred on the victim's life
+   tracker, z = −3.0 (south seats) / +3.0 (north): free once the timers are gone (they were at ±2.86); the strip runs
+   ±3.9 between the mats' inner edges.
+4. `TABLE_PROFILE.cmdDamage` from the made trackers, in the profile's order rule; the renderer, `mtg fix` (it reads
+   `CMD_DAMAGE` at Done) and Standard mode's put-away (`engineModePieces`) need no change.
+5. Tests: the 6-player sim sets all 30 from `pl.cmdDamage` and hides them in Standard; `test_table_claims`' icon-box
+   check run on the 6-player build.
+
+Step 13, background and buttons:
+1. Clutter boxes for the 6-player table in `TABLES`: the two end columns (west x −56…−44, east 44…56, the whole
+   length), checked against the report: they must take the 12 commander-damage bags, both Drop-On-Card Counters,
+   both Turn Order cards, the dice / keyword / mana columns, and keep the status pieces (kept by `STATUS_KEEP`).
+2. Backdrop as the 4-player engine table: the skybox is already set for every table; take Lighting and the sky
+   settings from the 4-player engine save's fields, keep the 6-player table's own surface. Check whether the mats'
+   picture still appears without the playmat enabler (0ae315 spawns it): keep 0ae315 if not.
+3. The west-strip buttons (`MODE_SPOT`, `FRIENDLY_SPOT`, `TEAMS_SPOT`) into `TABLE_PROFILE` (a `spots` table), placed
+   clear of Green's column (x −41.8) on the 6-player table; the Start tile at the profile's (0, 0.95, 0) clears the
+   mats' inner edges by 3.15.
+4. Needs the user's OK for the new 6-player save (§2.6) and a TTS session: a screenshot after each change
+   (`tools/tts-shot.ps1`).
+
 ### 2.4 Step 12: commander damage (3 h; the user chooses)
 
 Six seats need 30 trackers (each victim × 5 attackers). The table has bags, not trackers.

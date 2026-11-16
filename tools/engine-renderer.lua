@@ -4,15 +4,13 @@
 -- Everything here only runs after "mtg start"; the table is untouched until then.
 
 local ENGINE_BACK = "https://steamusercontent-a.akamaihd.net/ugc/1647720103762682461/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/"
-local LIFE_TRACKERS = { White = "23e485", Red = "448880", Yellow = "37e533", Blue = "395037" }
--- Commander damage trackers sit on the victim's side, one per attacking colour.
-local CMD_DAMAGE = {
-  White  = { Blue = "b748df", Yellow = "0f6598", Red = "6b6e1f" },
-  Blue   = { White = "bfcf4a", Red = "8d172a", Yellow = "f43e61" },
-  Yellow = { Red = "906d4b", White = "484c38", Blue = "45331a" },
-  Red    = { Yellow = "d5907a", Blue = "95eb63", White = "4bfa09" },
-}
-local TAX_LABELS = { White = {"908f60", "ce8ea5"}, Red = {"9d380e", "16aed3"}, Yellow = {"baffa9", "dc9c6d"}, Blue = {"0c0c5e", "3b2d18"} }
+-- The table's own objects come from its profile (TABLE_PROFILE, written into the Global script by make-engine-copy.js
+-- from tools/table-profile.js; docs/m6-six-seat-spec.md §2.3), so the same code runs the 4- and the 6-player table:
+-- colour -> life tracker GUID; victim -> attacking colour -> commander damage tracker GUID (they sit on the victim's
+-- side; empty on a table without them); colour -> its two commander zones' GUIDs (the tax labels).
+local LIFE_TRACKERS = TABLE_PROFILE.life
+local CMD_DAMAGE = TABLE_PROFILE.cmdDamage
+local TAX_LABELS = TABLE_PROFILE.tax
 
 -- Battlefield grid on each playmat (same spacing as the table's own tools): 10 cards per row, row 0 is the
 -- edge nearest the table centre, row 4 the edge nearest the player.
@@ -749,6 +747,7 @@ end
 -- (engineTeamsSent, engineTeamModeSent, engineJuggSent), so a restarted bridge needs nothing; the bridge checks them
 -- (bridge/teams.js) and the engine plays them. A table reload is back on free-for-all, as Free mulligans is back on
 -- none. Globals, not locals: the main chunk is at Lua's 200-local limit.
+-- (The team modes are four-seat modes: their colour lists below stay White, Red, Yellow, Blue, not TABLE_PROFILE.seats.)
 ENGINE_TEAMS = nil
 ENGINE_TEAM_MODE = nil -- "2hg" | "2v2" | "juggernaut" while ENGINE_TEAMS is set
 -- Two-Headed Giant's level: "shared" Level 2 (one turn for the team, attacks and blocks together: CR 805, 810.2), nil
@@ -2416,10 +2415,10 @@ do
     COLOURS = { "White", "Brown", "Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink", "Grey", "Black" },
     SOUND_OF = { knockout = "knockout", death = "death", wave = "death", player = "playerhit", damage = "damage", counter = "counter", countered = "countered" },
     WIPE = 3, BURST_MAX = 8, BIG_HIT = 5 }
-  local TRACK = { White = "23e485", Red = "448880", Yellow = "37e533", Blue = "395037" }
-  -- the carrier of the effect panels: White's life counter, else the first other one there is
+  local TRACK = LIFE_TRACKERS
+  -- the carrier of the effect panels: White's life counter, else the first other one there is (clockwise)
   function FX.carrier()
-    for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do
+    for _, c in ipairs(TABLE_PROFILE.seats) do
       local o = getObjectFromGUID(TRACK[c] or "")
       if o ~= nil and not o.isDestroyed() then return o end
     end
@@ -8419,21 +8418,15 @@ for _, n in ipairs({ "engineRender", "engineOnPrompt", "engineRenderPanels", "on
 -- The manual Untap / Reveal / Draw / Mill / Scry buttons and the Mulligan tiles stay in engine mode (they ask the
 -- engine, engineTableButton). A player who presses READY gets their own set out of the way: it goes under the table
 -- until they un-ready, the game ends or engine mode goes off (2026-10-21, the user's call).
-local TABLE_BUTTONS = {
-  "86e447", "1f3e4a", "18fb5d", "e2f7ae", -- Untap
-  "59ab68", "0ad181", "c489e1", "d67eb4", -- Reveal
-  "885f49", "305c12", "26775a", "b49d50", -- Draw
-  "67b4a5", "da5d0d", "d06889", "57914a", -- Mill
-  "ffa67c", "8a4c8b", "614515", "4e19c8", -- Scry
-  "c53ac6", "47645d", "3b07ae", "e0a3bc", -- Mulligan tiles
-}
+-- (every seat's Untap, Reveal, Draw, Mill and Scry buttons and Mulligan tile: the table's profile, TABLE_PROFILE)
+local TABLE_BUTTONS = TABLE_PROFILE.buttons
 local BUTTON_DROP = 20
 local buttonSeat = {} -- table button guid -> the seat whose playmat it is nearest (worked out once)
 local function seatOfButton(o)
   local guid = o.getGUID()
   if buttonSeat[guid] == nil then
     local p, bestD = o.getPosition(), nil
-    for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do
+    for _, c in ipairs(TABLE_PROFILE.seats) do
       local mat = data[c] and data[c].playmat
       if mat ~= nil then
         local m = mat.getPosition()
@@ -8462,7 +8455,7 @@ function engineTableButtons(hide)
   end
 end
 -- where `color`'s Draw button stands on the table (also while it is under it): the READY button goes there
-local DRAW_BUTTONS = { "885f49", "305c12", "26775a", "b49d50" }
+local DRAW_BUTTONS = TABLE_PROFILE.draw
 function engineDrawButtonSpot(color)
   local mat = data[color] and data[color].playmat
   if mat == nil then return nil end
@@ -8949,7 +8942,8 @@ end
 -- middle button offers "New game" (anyone, as "mtg reset"). Only in engine mode.
 do -- (its own scope: the main chunk is near the 200-locals limit of standard Lua, which the tests run on)
 engineReadyState = {} -- colour -> "ready" | "problem" (from the bridge's deck report)
-local SETUP = { tag = "mtgsetup", sig = nil, spawning = false, seats = { "White", "Red", "Yellow", "Blue" }, size = 2.5, tileW = 2.2, tileD = 1.5, -- (the tile fits the gap between the four life counters)
+-- (seats: the table's, clockwise; start: the tile's spot, between the life counters, from the profile too)
+local SETUP = { tag = "mtgsetup", sig = nil, spawning = false, seats = TABLE_PROFILE.seats, start = TABLE_PROFILE.start, size = 2.5, tileW = 2.2, tileD = 1.5, -- (the tile fits the gap between the four life counters)
   color = { wait = {0.85, 0.68, 0.12}, go = {0.2, 0.68, 0.3}, bad = {0.78, 0.2, 0.18}, idle = {0.28, 0.33, 0.46} } }
 
 local function setupTile()
@@ -9113,7 +9107,7 @@ function engineSetupButtons()
   if tile == nil then
     if not SETUP.spawning then
       SETUP.spawning = true
-      spawnObject({ type = "BlockSquare", position = { 0, 0.95, 0 }, scale = { SETUP.tileW, 0.08, SETUP.tileD }, callback_function = function(o)
+      spawnObject({ type = "BlockSquare", position = { SETUP.start[1], SETUP.start[2], SETUP.start[3] }, scale = { SETUP.tileW, 0.08, SETUP.tileD }, callback_function = function(o)
         SETUP.spawning = false
         o.setLock(true)
         o.setGMNotes(SETUP.tag)
@@ -9125,7 +9119,7 @@ function engineSetupButtons()
     end
   end
   if tile ~= nil and math.abs(tile.getScale().x - SETUP.tileW) > 0.01 then tile.setScale({ SETUP.tileW, 0.08, SETUP.tileD }) end -- (an older, bigger tile)
-  if tile ~= nil and tile.getPosition().y < -10 then tile.setPosition({ 0, 0.95, 0 }) end -- (an older tile kept under the table)
+  if tile ~= nil and tile.getPosition().y < -10 then tile.setPosition({ SETUP.start[1], SETUP.start[2], SETUP.start[3] }) end -- (an older tile kept under the table)
   if not ENGINE_MODE then
     if tile ~= nil then
       SETUP.drawn.tile = "Engine: off"

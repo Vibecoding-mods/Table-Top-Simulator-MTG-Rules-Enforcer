@@ -89,9 +89,9 @@ ok("importer: the engine copy's Card Importer has the DeckCheck code", importer 
 }
 
 // ───────── 2. the label beside the commander zones ─────────
-const RENDERER = fs.readFileSync(path.join(__dirname, "..", "tools", "engine-renderer.lua"), "utf8");
-const taxLine = RENDERER.slice(RENDERER.indexOf("local TAX_LABELS = {"), RENDERER.indexOf("\n", RENDERER.indexOf("local TAX_LABELS = {")));
-const tax = (c) => new RegExp(`${c} = \\{"([0-9a-f]{6})", "([0-9a-f]{6})"\\}`).exec(taxLine).slice(1);
+// (the commander zones: the 4-player table's profile, TABLE_PROFILE.tax in the built script)
+const PROFILE = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "tools", "profiles", "2296042369.json"), "utf8"));
+const tax = (c) => PROFILE.seat[c].commandZones.map((z) => z.guid);
 const q = (code, mark, frames) => ({ lua: code, mark, ...(frames != null ? { frames } : {}) });
 const valueOf = (r, mark) => r.steps.find((s) => s.step === mark)?.value;
 
