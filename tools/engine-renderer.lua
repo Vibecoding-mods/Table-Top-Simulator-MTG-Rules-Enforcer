@@ -4848,8 +4848,10 @@ function engineUpdateCorner(color, p)
   if smallLabel and #smallLabel > 30 then smallLabel = engineCut(smallLabel, 29) .. "…" end
   -- (passing priority with mana floating loses it: the pass button says how much is in your pool, "Next (3 floating)",
   -- PLAN 2026-11-13; after the cut above, so the count is never cut off: "Resolve (999 floating)" is 22)
+  -- (the pool of the player the priority is for: a player this seat controls, Mindslaver's turn, is the bridge's
+  -- forColor, their mana the pass loses, not the controller's own)
   if big == 1 and p.options[1].id == "__pass" then
-    local n = enginePoolTotal(color)
+    local n = enginePoolTotal(p.forColor or color)
     if n > 0 then bigLabel = bigLabel .. " (" .. n .. " floating)" end
   end
   if big == nil and small == nil and p == nil and not over and engineLinger(color, function() engineUpdateCorner(color, nil) end) then return end
@@ -5165,7 +5167,8 @@ function enginePoolList(pool)
   end
   return list
 end
--- the mana in `color`'s own pool on the last board, all colours together (0 with none, or no board)
+-- the mana in `color`'s pool on the last board, all colours together (0 with none, or no board); the pass button asks it
+-- for the player its priority is for (a prompt's forColor, else the seat's own)
 function enginePoolTotal(color)
   for _, pl in ipairs((lastTable and lastTable.players) or {}) do
     if pl.color == color then

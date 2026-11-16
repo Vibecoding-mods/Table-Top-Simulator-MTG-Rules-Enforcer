@@ -81,6 +81,23 @@ const labels = (list) => (Array.isArray(list) ? list.map((c) => c.label).join(" 
   ok("pool emptied: the pass button says Next again", valueOf(r, "big emptied") === "Next", valueOf(r, "big emptied"));
 }
 
+// a turn Blue controls for AI 1 (Mindslaver): the priority the bridge asks Blue for is AI 1's, its prompt's forColor
+// White (bridge.js actingFor), and the pass button counts AI 1's pool, the mana that pass loses, not Blue's own
+{
+  const FOR = (id, label = "Next") => ask({ promptId: id, kind: "priority", title: "AI 1's priority (you control)", mode: "single", forColor: "White", options: [{ id: "__pass", label }, { id: "__endturn", label: "End turn" }] });
+  const r = run([
+    board({ G: 1 }, { R: 2, B: 1 }), FOR(911), BIG("for theirs"),
+    FOR(912, "Resolve"), BIG("for resolve"),
+    board({ G: 1 }, null), FOR(913), BIG("for empty"),
+    board({ G: 1 }, { R: 2, B: 1 }), PRIO(914), BIG("own again"),
+  ]);
+  ok("controlled turn: no script errors", !r.errors.length, r.errors.slice(0, 3).join(" | "));
+  ok("controlled turn: the pass button counts the controlled player's pool, Next (3 floating)", valueOf(r, "for theirs") === "Next (3 floating)", valueOf(r, "for theirs"));
+  ok("controlled turn: Resolve too, Resolve (3 floating)", valueOf(r, "for resolve") === "Resolve (3 floating)", valueOf(r, "for resolve"));
+  ok("controlled turn: their empty pool says only Next, whatever is in Blue's", valueOf(r, "for empty") === "Next", valueOf(r, "for empty"));
+  ok("controlled turn: Blue's own priority after it counts Blue's own again, Next (1 floating)", valueOf(r, "own again") === "Next (1 floating)", valueOf(r, "own again"));
+}
+
 // a counter that lost its buttons (its own onload clears them) gets the chips back on the next board; the end of the
 // game takes them away and leaves a button of the counter's own
 {
