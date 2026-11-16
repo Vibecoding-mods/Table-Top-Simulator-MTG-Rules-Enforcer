@@ -497,7 +497,7 @@ index 32394268..e7c90cb7 100644
          }
          print("---- choose ability  (phase = " + phaseStr + ")");
 diff --git a/forge-game/src/main/java/forge/game/Game.java b/forge-game/src/main/java/forge/game/Game.java
-index 8d204538..1066e46d 100644
+index 8d204538..6d96a2a0 100644
 --- a/forge-game/src/main/java/forge/game/Game.java
 +++ b/forge-game/src/main/java/forge/game/Game.java
 @@ -1016,7 +1016,7 @@ public class Game {
@@ -519,6 +519,40 @@ index 8d204538..1066e46d 100644
          }
          for (final Card card : getCardsInGame()) {
              card.resetActivationsPerTurn();
+@@ -1479,6 +1480,23 @@ public class Game {
+         countersRemovedThisTurn.clear();
+     }
+ 
++    public void copyTurnHistoryTo(final Game to, final java.util.function.Function<Player, Player> mapPlayer) {
++        to.leftBattlefieldThisTurn = Lists.newArrayList(leftBattlefieldThisTurn);
++        to.leftGraveyardThisTurn = Lists.newArrayList(leftGraveyardThisTurn);
++        to.countersAddedThisTurn = HashBasedTable.create();
++        for (Table.Cell<CounterType, Player, List<Pair<Card, Integer>>> cell : countersAddedThisTurn.cellSet()) {
++            to.countersAddedThisTurn.put(cell.getRowKey(), mapPlayer.apply(cell.getColumnKey()), Lists.newArrayList(cell.getValue()));
++        }
++        to.countersRemovedThisTurn = ArrayListMultimap.create();
++        for (Map.Entry<CounterType, Pair<GameEntity, Integer>> e : countersRemovedThisTurn.entries()) {
++            GameEntity entity = e.getValue().getKey();
++            if (entity instanceof Player) {
++                entity = mapPlayer.apply((Player) entity);
++            }
++            to.countersRemovedThisTurn.put(e.getKey(), Pair.of(entity, e.getValue().getValue()));
++        }
++    }
++
+     public void addCounterRemovedThisTurn(CounterType cType, Card card, Integer value) {
+         countersRemovedThisTurn.put(cType, Pair.of(CardCopyService.getLKICopy(card), value));
+     }
+@@ -1590,6 +1608,9 @@ public class Game {
+     public Boolean getDayTime() {
+         return this.daytime;
+     }
++    public void dangerouslySetDayTime(Boolean value) {
++        this.daytime = value;
++    }
+     public void setDayTime(Boolean value) {
+         if (StaticAbilityCantChangeDayTime.cantChangeDay(this, value)) {
+             return;
 diff --git a/forge-game/src/main/java/forge/game/GameAction.java b/forge-game/src/main/java/forge/game/GameAction.java
 index e6cbe012..853f5941 100644
 --- a/forge-game/src/main/java/forge/game/GameAction.java
@@ -688,13 +722,108 @@ index 2a2d5583..b8e60e7d 100644
          return gamesPerMatch;
      }
 diff --git a/forge-game/src/main/java/forge/game/GameSnapshot.java b/forge-game/src/main/java/forge/game/GameSnapshot.java
-index c7208809..d0a896d9 100644
+index c7208809..91fedfda 100644
 --- a/forge-game/src/main/java/forge/game/GameSnapshot.java
 +++ b/forge-game/src/main/java/forge/game/GameSnapshot.java
-@@ -95,6 +95,10 @@ public class GameSnapshot {
+@@ -9,20 +9,28 @@ import forge.game.card.CardCopyService;
+ import forge.game.combat.Combat;
+ import forge.game.event.GameEventSnapshotRestored;
+ import forge.game.mana.Mana;
++import forge.game.phase.ExtraPhase;
++import forge.game.phase.Phase;
+ import forge.game.phase.PhaseHandler;
++import forge.game.phase.PhaseType;
+ import forge.game.player.Player;
+ import forge.game.player.RegisteredPlayer;
+ import forge.game.spellability.SpellAbility;
+ import forge.game.spellability.SpellAbilityStackInstance;
++import forge.game.trigger.Trigger;
++import forge.game.trigger.TriggerHandler;
+ import forge.game.trigger.TriggerType;
+ import forge.game.zone.PlayerZoneBattlefield;
+ import forge.game.zone.Zone;
+ import forge.game.zone.ZoneType;
+ 
++import java.util.ArrayList;
+ import java.util.Collections;
+ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
++import java.util.Objects;
++import java.util.function.Function;
+ 
+ public class GameSnapshot {
+     private final Game origGame;
+@@ -31,6 +39,11 @@ public class GameSnapshot {
+ 
+     private final SnapshotEntityMap gameObjectMap = new SnapshotEntityMap();
+ 
++    private final Map<Integer, Card> liveCards = new HashMap<>();
++    private TriggerHandler delayedTriggers;
++    private final List<Phase> phaseCommands = new ArrayList<>();
++    private Map<PhaseType, List<ExtraPhase>> extraPhases;
++
+     public GameSnapshot(Game origGame) {
+         this.origGame = origGame;
+     }
+@@ -55,6 +68,7 @@ public class GameSnapshot {
+         newGame = new Game(newPlayers, currentRules, newMatch);
+         restore = false;
+         assignGameState(origGame, newGame, includeStack);
++        saveLiveState();
+         //System.out.println("Storing game state with timestamp of :" + origGame.getTimestamp());
+ 
+         return newGame;
+@@ -66,9 +80,40 @@ public class GameSnapshot {
+ 
+         currentGame.fireEvent(new GameEventSnapshotRestored(true));
+         assignGameState(newGame, currentGame, true);
++        restoreLiveState(currentGame);
+         currentGame.fireEvent(new GameEventSnapshotRestored(false));
+     }
+ 
++    private static List<Phase> phases(Game game) {
++        return List.of(game.getUntap(), game.getUpkeep(), game.getBeginOfCombat(), game.getEndOfCombat(),
++                game.getEndOfTurn(), game.getCleanup());
++    }
++
++    private void saveLiveState() {
++        liveCards.clear();
++        for (Card c : getCardsToCopy(origGame)) {
++            liveCards.put(c.getId(), c);
++        }
++        delayedTriggers = new TriggerHandler(origGame);
++        origGame.getTriggerHandler().copyDelayedTriggersTo(delayedTriggers);
++        phaseCommands.clear();
++        for (Phase phase : phases(origGame)) {
++            Phase saved = new Phase(PhaseType.CLEANUP);
++            phase.copyCommandsTo(saved);
++            phaseCommands.add(saved);
++        }
++        extraPhases = origGame.getPhaseHandler().getExtraPhases();
++    }
++
++    private void restoreLiveState(Game currentGame) {
++        delayedTriggers.copyDelayedTriggersTo(currentGame.getTriggerHandler());
++        List<Phase> live = phases(currentGame);
++        for (int i = 0; i < live.size(); i++) {
++            live.get(i).restoreCommands(phaseCommands.get(i));
++        }
++        currentGame.getPhaseHandler().setExtraPhases(extraPhases);
++    }
++
+     public void assignGameState(Game fromGame, Game toGame, boolean includeStack) {
+         for (int i = 0; i < fromGame.getPlayers().size(); i++) {
+             Player origPlayer = fromGame.getPlayers().get(i);
+@@ -95,6 +140,15 @@ public class GameSnapshot {
                  // blanking the field there would make the lazy getter build a duplicate.
                  p.copyEffectCardsToSnapshot(toPlayer, c -> findBy(toGame, c));
              }
++            toPlayer.setNumRingTemptedYou(p.getNumRingTemptedYou());
++            toPlayer.clearRingBearer();
++            if (p.getRingBearer() != null && findBy(toGame, p.getRingBearer()) != null) {
++                toPlayer.setRingBearer(findBy(toGame, p.getRingBearer()));
++            }
 +            p.copyTurnHistoryToSnapshot(toPlayer, c -> {
 +                Card mapped = findBy(toGame, c);
 +                return mapped == null ? c : mapped;
@@ -702,7 +831,32 @@ index c7208809..d0a896d9 100644
              ((PlayerZoneBattlefield) toPlayer.getZone(ZoneType.Battlefield)).setTriggers(true);
          }
          toGame.getTriggerHandler().clearSuppression(TriggerType.ChangesZone);
-@@ -183,15 +187,37 @@ public class GameSnapshot {
+@@ -109,24 +163,6 @@ public class GameSnapshot {
+                 continue;
+             }
+ 
+-            // Why is this here? This whole area seems wrong
+-            if (origCard.hasRemembered()) {
+-                for (Object o : origCard.getRemembered()) {
+-                    if (o instanceof GameObject) {
+-                        // Sometimes, a spell can "remember" a token card that's not in any zone
+-                        // (and thus wouldn't have been copied) - for example Swords to Plowshares
+-                        // remembering its target for LKI. Skip these to not crash in find().
+-                        if (o instanceof Card && ((Card)o).getZone() == null) {
+-                            continue;
+-                        }
+-                        // Fix this with something else
+-                        c.addRemembered(find((GameObject) o));
+-                    } else {
+-                        System.err.println(c + " Remembered: " + o + "/" + o.getClass());
+-                        c.addRemembered(o);
+-                    }
+-                }
+-            }
+             // I think this is still wrong, but might be needed for within cost payment?
+             for (SpellAbility sa : c.getSpellAbilities()) {
+                 Player activatingPlayer = sa.getActivatingPlayer();
+@@ -183,18 +219,41 @@ public class GameSnapshot {
          newPlayer.setLifeStartedThisTurnWith(origPlayer.getLifeStartedThisTurnWith());
          newPlayer.setDamageReceivedThisTurn(origPlayer.getDamageReceivedThisTurn());
          newPlayer.setLandsPlayedThisTurn(origPlayer.getLandsPlayedThisTurn());
@@ -743,7 +897,11 @@ index c7208809..d0a896d9 100644
          newPlayer.setMaxHandSize(origPlayer.getMaxHandSize());
          newPlayer.setUnlimitedHandSize(origPlayer.isUnlimitedHandSize());
          newPlayer.setCrankCounter(origPlayer.getCrankCounter());
-@@ -284,6 +310,7 @@ public class GameSnapshot {
++        newPlayer.setSpeed(origPlayer.getSpeed());
+         // TODO creatureAttackedThisTurn
+ 
+         // Copy mana pool
+@@ -284,6 +343,7 @@ public class GameSnapshot {
      public void copyGameState(Game fromGame, Game toGame) {
          toGame.setAge(fromGame.getAge());
          toGame.dangerouslySetTimestamp(fromGame.getTimestamp());
@@ -751,6 +909,164 @@ index c7208809..d0a896d9 100644
          if (!restore) {
              // Card copies keep their original ids, so the fresh-id counters have to
              // move with them or ids handed out later would collide.
+@@ -295,18 +355,11 @@ public class GameSnapshot {
+         if (fromGame.getStartingPlayer() != null) {
+             toGame.setStartingPlayer(findBy(toGame, fromGame.getStartingPlayer()));
+         }
+-        if (fromGame.getMonarch() != null) {
+-            toGame.setMonarch(findBy(toGame, fromGame.getMonarch()));
+-        }
+-        if (fromGame.getMonarchBeginTurn() != null) {
+-            toGame.setMonarchBeginTurn(findBy(toGame, fromGame.getMonarchBeginTurn()));
+-        }
+-        if (fromGame.getHasInitiative() != null) {
+-            toGame.setHasInitiative(findBy(toGame, fromGame.getHasInitiative()));
+-        }
+-        if (fromGame.getDayTime() != null) {
+-            toGame.setDayTime(fromGame.getDayTime());
+-        }
++        toGame.setMonarch(fromGame.getMonarch() == null ? null : findBy(toGame, fromGame.getMonarch()));
++        toGame.setMonarchBeginTurn(fromGame.getMonarchBeginTurn() == null ? null : findBy(toGame, fromGame.getMonarchBeginTurn()));
++        toGame.setHasInitiative(fromGame.getHasInitiative() == null ? null : findBy(toGame, fromGame.getHasInitiative()));
++        toGame.dangerouslySetDayTime(fromGame.getDayTime());
++        fromGame.getPhaseHandler().copyTurnCountsTo(toGame.getPhaseHandler());
+ 
+         List<UnorderedEntities> unorderedEntities = Lists.newArrayList();
+ 
+@@ -323,15 +376,12 @@ public class GameSnapshot {
+ 
+             if (newCard == null) {
+                 // Storing a game uses this path...
+-                newCard = createCardCopy(toGame, toPlayer, fromCard);
++                newCard = createCardCopy(toGame, findBy(toGame, fromCard.getOwner()), fromCard);
+             } else {
+-                ZoneType type = newCard.getZone().getZoneType();
+-                if (type != fromType) {
+-                    if (type.equals(ZoneType.Stack)) {
+-                        toGame.getStackZone().remove(newCard);
+-                    } else {
+-                        toPlayer.getZone(type).remove(newCard);
+-                    }
++                Zone current = newCard.getZone();
++                Zone target = fromType.equals(ZoneType.Stack) ? toGame.getStackZone() : toPlayer.getZone(fromType);
++                if (current != null && current != target) {
++                    current.remove(newCard);
+                 }
+             }
+ 
+@@ -412,6 +462,112 @@ public class GameSnapshot {
+             }
+             // TODO: Verify that the above relationships are preserved bi-directionally or not.
+         }
++
++        for (Card fromCard : getCardsToCopy(fromGame)) {
++            Card newCard = findCardById(toGame, fromCard.getId());
++            if (newCard != null) {
++                copyCardState(fromCard, newCard, toGame);
++            }
++        }
++
++        fromGame.getStackZone().copyTurnHistoryTo(toGame.getStackZone());
++        for (Player p : fromGame.getPlayers()) {
++            Player toPlayer = findBy(toGame, p);
++            for (ZoneType zt : Player.ALL_ZONES) {
++                p.getZone(zt).copyTurnHistoryTo(toPlayer.getZone(zt));
++            }
++        }
++        fromGame.copyTurnHistoryTo(toGame, p -> findBy(toGame, p));
++    }
++
++    private void copyCardState(Card from, Card to, Game toGame) {
++        Function<Player, Player> mapPlayer = p -> p == null ? null : findBy(toGame, p);
++        if (!from.getCounters().equals(to.getCounters())) {
++            to.setCounters(HashMultiset.create(from.getCounters()));
++        }
++        to.setDamage(from.getDamage());
++        to.setHasBeenDealtDeathtouchDamage(from.hasBeenDealtDeathtouchDamage());
++        to.setHasBeenDealtExcessDamageThisTurn(from.hasBeenDealtExcessDamageThisTurn());
++        to.setExcessDamageReceivedThisTurn(from.getExcessDamageThisTurn());
++        to.setTurnInZone(from.getTurnInZone());
++        to.setTurnInController(mapPlayer.apply(from.getTurnInController()));
++        to.copyControllersFrom(from, mapPlayer);
++        to.copyActivationsFrom(from, sa -> findAbility(sa, from, to), mapPlayer);
++
++        to.clearRemembered();
++        for (Object o : from.getRemembered()) {
++            Object mapped = mapObject(o, toGame);
++            if (mapped != null) {
++                to.addRemembered(mapped);
++            }
++        }
++        to.clearImprintedCards();
++        to.addImprintedCards(mapCards(from.getImprintedCards(), toGame));
++        for (Card exiled : new CardCollection(to.getExiledCards())) {
++            to.removeExiledCard(exiled);
++        }
++        to.addExiledCards(mapCards(from.getExiledCards(), toGame));
++        to.setExiledWith(from.getExiledWith() == null ? null : (Card) mapObject(from.getExiledWith(), toGame));
++        to.setExiledBy(mapPlayer.apply(from.getExiledBy()));
++        to.setChosenCards(mapCards(from.getChosenCards(), toGame));
++        to.setChosenPlayer(mapPlayer.apply(from.getChosenPlayer()));
++        if (!Objects.equals(from.getChosenType(), to.getChosenType())) {
++            to.setChosenType(from.getChosenType());
++        }
++        if (!Objects.equals(from.getChosenType2(), to.getChosenType2())) {
++            to.setChosenType2(from.getChosenType2());
++        }
++        if (!from.getNamedCards().equals(to.getNamedCards())) {
++            to.setNamedCards(Lists.newArrayList(from.getNamedCards()));
++        }
++        if (!Objects.equals(from.getChosenNumber(), to.getChosenNumber())) {
++            if (from.getChosenNumber() == null) {
++                to.clearChosenNumber();
++            } else {
++                to.setChosenNumber(from.getChosenNumber());
++            }
++        }
++
++        // Until-end-of-turn effects come back only onto the object they were applied to: the
++        // commands that end them (put back with the phases, alongside any made since) hold that
++        // object, so on a newer object they would never end.
++        to.copyEffectsFrom(!restore || liveCards.get(to.getId()) == to ? from : null);
++    }
++
++    private Object mapObject(Object o, Game toGame) {
++        if (o instanceof Player) {
++            return findBy(toGame, (Player) o);
++        }
++        if (o instanceof Card) {
++            Card mapped = findBy(toGame, (Card) o);
++            if (mapped != null) {
++                return mapped;
++            }
++            return ((Card) o).getGame() == toGame ? o : null;
++        }
++        return o;
++    }
++
++    private CardCollection mapCards(Iterable<Card> cards, Game toGame) {
++        CardCollection mapped = new CardCollection();
++        for (Card c : cards) {
++            Object m = mapObject(c, toGame);
++            if (m != null) {
++                mapped.add((Card) m);
++            }
++        }
++        return mapped;
++    }
++
++    private static SpellAbility findAbility(SpellAbility sa, Card from, Card to) {
++        List<Trigger> fromTriggers = Lists.newArrayList(from.getTriggers());
++        List<Trigger> toTriggers = Lists.newArrayList(to.getTriggers());
++        for (int i = 0; i < fromTriggers.size(); i++) {
++            if (fromTriggers.get(i).getOverridingAbility() == sa) {
++                return i < toTriggers.size() ? toTriggers.get(i).ensureAbility() : null;
++            }
++        }
++        return findSAInCard(sa, to);
+     }
+ 
+     private static CardCollectionView getCardsToCopy(Game game) {
 diff --git a/forge-game/src/main/java/forge/game/ability/AbilityUtils.java b/forge-game/src/main/java/forge/game/ability/AbilityUtils.java
 index 9d90c5c3..e236aee3 100644
 --- a/forge-game/src/main/java/forge/game/ability/AbilityUtils.java
@@ -1245,6 +1561,90 @@ index 48ef9963..8fd74d94 100644
              final Card eff = createEffect(sa, player, name, image);
              eff.setSVar("NumTurns", "Number$" + numTurns);
              SpellAbility calcTurn = AbilityFactory.getAbility(effect, eff);
+diff --git a/forge-game/src/main/java/forge/game/card/Card.java b/forge-game/src/main/java/forge/game/card/Card.java
+index bcc6c1ac..5e358b93 100644
+--- a/forge-game/src/main/java/forge/game/card/Card.java
++++ b/forge-game/src/main/java/forge/game/card/Card.java
+@@ -7887,6 +7887,79 @@ public class Card extends GameEntity implements Comparable<Card>, IHasSVars, ITr
+         numberTurnActivations.clear();
+     }
+ 
++    public void copyActivationsFrom(final Card from, final java.util.function.Function<SpellAbility, SpellAbility> mapAbility,
++            final java.util.function.Function<Player, Player> mapPlayer) {
++        planeswalkerAbilityActivated = from.planeswalkerAbilityActivated;
++        planeswalkerActivationLimitUsed = from.planeswalkerActivationLimitUsed;
++        copyActivationTable(from.numberTurnActivations, numberTurnActivations, mapAbility, mapPlayer);
++        copyActivationTable(from.numberGameActivations, numberGameActivations, mapAbility, mapPlayer);
++        copyActivationTable(from.numberAbilityResolved, numberAbilityResolved, mapAbility, mapPlayer);
++    }
++
++    private static void copyActivationTable(final ActivationTable from, final ActivationTable to,
++            final java.util.function.Function<SpellAbility, SpellAbility> mapAbility,
++            final java.util.function.Function<Player, Player> mapPlayer) {
++        to.clear();
++        for (final Table.Cell<SpellAbility, Optional<StaticAbility>, Multiset<Player>> cell : from.cellSet()) {
++            final SpellAbility ability = mapAbility.apply(cell.getRowKey());
++            if (ability == null || cell.getColumnKey().isPresent()) {
++                continue;
++            }
++            final Multiset<Player> activators = HashMultiset.create();
++            for (final Player p : cell.getValue()) {
++                activators.add(mapPlayer.apply(p));
++            }
++            to.put(ability, cell.getColumnKey(), activators);
++        }
++    }
++
++    public void copyControllersFrom(final Card from, final java.util.function.Function<Player, Player> mapPlayer) {
++        controller = from.controller == null ? null : mapPlayer.apply(from.controller);
++        controllerTimestamp = from.controllerTimestamp;
++        tempControllers.clear();
++        for (final Entry<Long, Player> e : from.tempControllers.entrySet()) {
++            tempControllers.put(e.getKey(), mapPlayer.apply(e.getValue()));
++        }
++        view.updateController(this);
++    }
++
++    public void copyEffectsFrom(final Card from) {
++        if (!hasEffectCells() && (from == null || !from.hasEffectCells())) {
++            return;
++        }
++        copyEffectCells(from == null ? null : from.boostPT, boostPT);
++        copyEffectCells(from == null ? null : from.newPT, newPT);
++        copyEffectCells(from == null ? null : from.hiddenExtrinsicKeywords, hiddenExtrinsicKeywords);
++        copyEffectCells(from == null ? null : from.changedCardTypes, changedCardTypes);
++        copyEffectCells(from == null ? null : from.changedCardColors, changedCardColors);
++        changedCardKeywords.column(0L).clear();
++        if (from != null) {
++            for (final Entry<Long, KeywordsChange> e : from.changedCardKeywords.column(0L).entrySet()) {
++                changedCardKeywords.put(e.getKey(), 0L, e.getValue().copy(this, true));
++            }
++        }
++        updateTypeCache();
++        updateKeywords();
++        updateTypesForView();
++        updateColorForView();
++        updatePTforView();
++    }
++
++    private boolean hasEffectCells() {
++        return boostPT.containsColumn(0L) || newPT.containsColumn(0L) || hiddenExtrinsicKeywords.containsColumn(0L)
++                || changedCardTypes.containsColumn(0L) || changedCardColors.containsColumn(0L)
++                || changedCardKeywords.containsColumn(0L);
++    }
++
++    private static <V> void copyEffectCells(final Table<Long, Long, V> from, final Table<Long, Long, V> to) {
++        to.column(0L).clear();
++        if (from != null) {
++            for (final Entry<Long, V> e : from.column(0L).entrySet()) {
++                to.put(e.getKey(), 0L, e.getValue());
++            }
++        }
++    }
++
+     public void addCanBlockAdditional(int n, long timestamp) {
+         if (n <= 0) {
+             return;
 diff --git a/forge-game/src/main/java/forge/game/card/CardProperty.java b/forge-game/src/main/java/forge/game/card/CardProperty.java
 index d7947bff..0bfcc6d0 100644
 --- a/forge-game/src/main/java/forge/game/card/CardProperty.java
@@ -1602,8 +2002,54 @@ index 58a41b9d..d7d011e6 100644
      @Override
      protected String formatReminderText(String reminderText) {
          // some reminder does not contain cost
+diff --git a/forge-game/src/main/java/forge/game/phase/Phase.java b/forge-game/src/main/java/forge/game/phase/Phase.java
+index 0b747a2f..f1b06281 100644
+--- a/forge-game/src/main/java/forge/game/phase/Phase.java
++++ b/forge-game/src/main/java/forge/game/phase/Phase.java
+@@ -60,6 +60,41 @@ public class Phase implements java.io.Serializable {
+         registerMap.clear();
+     }
+ 
++    public void copyCommandsTo(final Phase to) {
++        to.clearCommands();
++        to.at.addAll(at);
++        to.until.addAll(until);
++        to.untilMap.putAll(untilMap);
++        to.untilEndMap.putAll(untilEndMap);
++        to.registerMap.putAll(registerMap);
++    }
++
++    public void restoreCommands(final Phase saved) {
++        restoreCommands(at, saved.at);
++        restoreCommands(until, saved.until);
++        restoreCommands(untilMap, saved.untilMap);
++        restoreCommands(untilEndMap, saved.untilEndMap);
++        restoreCommands(registerMap, saved.registerMap);
++    }
++
++    private static void restoreCommands(final List<GameCommand> live, final List<GameCommand> saved) {
++        final List<GameCommand> later = Lists.newArrayList(live);
++        later.removeAll(saved);
++        live.clear();
++        live.addAll(saved);
++        live.addAll(later);
++    }
++
++    private static void restoreCommands(final Multimap<Player, GameCommand> live, final Multimap<Player, GameCommand> saved) {
++        final Multimap<Player, GameCommand> later = MultimapBuilder.hashKeys().arrayListValues().build(live);
++        for (final java.util.Map.Entry<Player, GameCommand> e : saved.entries()) {
++            later.remove(e.getKey(), e.getValue());
++        }
++        live.clear();
++        live.putAll(saved);
++        live.putAll(later);
++    }
++
+     /**
+      * <p>
+      * Add a hardcoded trigger that will execute "at <phase>".
 diff --git a/forge-game/src/main/java/forge/game/phase/PhaseHandler.java b/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
-index 4a3a94df..bff00d63 100644
+index 4a3a94df..08b2d88f 100644
 --- a/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
 +++ b/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
 @@ -20,6 +20,8 @@ package forge.game.phase;
@@ -2414,8 +2860,8 @@ index 4a3a94df..bff00d63 100644
 +        for (int refused = 0; ; refused++) {
 +            declareJointBlockers(team);
 +            if (game.isGameOver()) {
-                 return;
-             }
++                return;
++            }
 +            String invalid = null;
 +            for (final Player member : team) {
 +                invalid = CombatUtil.validateBlocks(combat, member);
@@ -2424,8 +2870,8 @@ index 4a3a94df..bff00d63 100644
 +                }
 +            }
 +            if (invalid == null || refused >= MAX_REFUSED_TEAM_DECLARATIONS) {
-+                return;
-+            }
+                 return;
+             }
 +            for (final Player member : team) {
 +                Objects.requireNonNullElse(member.getDeclaresBlockers(), member).getController()
 +                        .notifyOfValue(null, null, "Block declaration invalid: " + invalid);
@@ -2633,7 +3079,40 @@ index 4a3a94df..bff00d63 100644
          } else {
              previous = extraTurns.peek().getPlayer();
          }
-@@ -1080,6 +1559,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -989,6 +1468,32 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+         return nMainsThisTurn;
+     }
+ 
++    public final void copyTurnCountsTo(final PhaseHandler to) {
++        to.nUpkeepsThisTurn = nUpkeepsThisTurn;
++        to.nUpkeepsThisGame = nUpkeepsThisGame;
++        to.nCombatsThisTurn = nCombatsThisTurn;
++        to.nMainsThisTurn = nMainsThisTurn;
++        to.nEndOfTurnsThisTurn = nEndOfTurnsThisTurn;
++        to.planarDiceSpecialActionThisTurn = planarDiceSpecialActionThisTurn;
++    }
++
++    public final Map<PhaseType, List<ExtraPhase>> getExtraPhases() {
++        final Map<PhaseType, List<ExtraPhase>> copy = Maps.newEnumMap(PhaseType.class);
++        for (final Map.Entry<PhaseType, Stack<ExtraPhase>> e : extraPhases.entrySet()) {
++            copy.put(e.getKey(), new ArrayList<>(e.getValue()));
++        }
++        return copy;
++    }
++
++    public final void setExtraPhases(final Map<PhaseType, List<ExtraPhase>> phases) {
++        extraPhases.clear();
++        for (final Map.Entry<PhaseType, List<ExtraPhase>> e : phases.entrySet()) {
++            final Stack<ExtraPhase> stack = new Stack<>();
++            stack.addAll(e.getValue());
++            extraPhases.put(e.getKey(), stack);
++        }
++    }
++
+     public final boolean beforeFirstPostCombatMainEnd() {
+         return nMainsThisTurn <= (is(PhaseType.MAIN2) ? 2 : 1);
+     }
+@@ -1080,6 +1585,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                          // 117.3c If a player has priority when they cast a spell, activate an ability, [play a land]
                          // that player receives priority afterward.
                          pFirstPriority = pPlayerPriority; // all opponents have to pass before stack is allowed to resolve
@@ -2641,7 +3120,7 @@ index 4a3a94df..bff00d63 100644
                      } else if (game.EXPERIMENTAL_RESTORE_SNAPSHOT) {
                          rollback = true;
                      }
-@@ -1129,7 +1609,22 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -1129,7 +1635,22 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
          if (DEBUG_PHASES) {
              System.out.println(TextUtil.concatWithSpace(playerTurn.toString(),TextUtil.addSuffix(phase.toString(),":"), pPlayerPriority.toString(),"is active, previous was", nextPlayer.toString()));
          }
@@ -3630,10 +4109,26 @@ index dde410ae..46b5b7ae 100644
  
          CardCollection attackers = (CardCollection) runParams.get(AbilityKey.Attackers);
 diff --git a/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java b/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
-index 627c7d49..380a4355 100644
+index 627c7d49..f3cd9284 100644
 --- a/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
 +++ b/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
-@@ -354,6 +354,11 @@ public class TriggerHandler {
+@@ -91,6 +91,15 @@ public class TriggerHandler {
+         playerDefinedDelayedTriggers.clear();
+     }
+ 
++    public final void copyDelayedTriggersTo(final TriggerHandler to) {
++        to.delayedTriggers.clear();
++        to.delayedTriggers.addAll(delayedTriggers);
++        to.thisTurnDelayedTriggers.clear();
++        to.thisTurnDelayedTriggers.addAll(thisTurnDelayedTriggers);
++        to.playerDefinedDelayedTriggers.clear();
++        to.playerDefinedDelayedTriggers.putAll(playerDefinedDelayedTriggers);
++    }
++
+     public final void handlePlayerDefinedDelTriggers(final Player player) {
+         final List<Trigger> playerTriggers = playerDefinedDelayedTriggers.removeAll(player);
+         playerTriggers.stream().filter(CardTraitPredicates.hasParam("ThisTurn")).forEach(thisTurnDelayedTriggers::add);
+@@ -354,6 +363,11 @@ public class TriggerHandler {
          return checkStatics;
      }
  
@@ -3808,6 +4303,26 @@ index 35ea040c..6a7f794b 100644
  
      public final void onNextTurn() {
          final Player active = game.getPhaseHandler().getPlayerTurn();
+diff --git a/forge-game/src/main/java/forge/game/zone/Zone.java b/forge-game/src/main/java/forge/game/zone/Zone.java
+index 8050c40f..6bf14ae9 100644
+--- a/forge-game/src/main/java/forge/game/zone/Zone.java
++++ b/forge-game/src/main/java/forge/game/zone/Zone.java
+@@ -262,6 +262,15 @@ public class Zone implements java.io.Serializable, Iterable<Card> {
+         enteredFromThisTurn.clear();
+     }
+ 
++    public final void copyTurnHistoryTo(final Zone to) {
++        to.cardsAddedThisTurn.clear();
++        to.cardsAddedThisTurn.putAll(cardsAddedThisTurn);
++        to.cardsAddedLastTurn.clear();
++        to.cardsAddedLastTurn.putAll(cardsAddedLastTurn);
++        to.enteredFromThisTurn.clear();
++        to.enteredFromThisTurn.putAll(enteredFromThisTurn);
++    }
++
+     @Override
+     public Iterator<Card> iterator() {
+         return cardList.iterator();
 diff --git a/forge-gui/res/cardsfolder/a/aetherling.txt b/forge-gui/res/cardsfolder/a/aetherling.txt
 index f6e89bab..88978a3b 100644
 --- a/forge-gui/res/cardsfolder/a/aetherling.txt
