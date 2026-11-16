@@ -8,7 +8,8 @@
 // The Workshop file is only read. The profile holds GUIDs, positions, colours and our own choices, never the table's
 // scripts, names or assets: the repo is public and the table is someone else's work.
 // A field it can't find is an error (exit 1, nothing written), never a guess; the one exception is cmdDamage, which a
-// table may not have (the 6-player one has bags, not trackers: M6 step 12), and is then null and listed in notFound.
+// table may not have, and is then null and listed in notFound, unless the table's choices make the trackers (the
+// 6-player table has bags, not trackers: M6 step 12 gives it the 4-player table's, cmdDamageMade).
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -18,12 +19,28 @@ const ROLES = ["playmat", "libraryZone", "graveyard", "mulliganButton", "untapBu
 
 // Our own choices per table (not facts of the save). Matched by facts that tell the tables apart (the seat count and
 // White's playmat: the same GUID is another seat's mat on the other table). A table with no entry here is refused.
-//   clutterBoxes: the side columns the engine copy clears (the user's red boxes on the 4-player table, 2026-10-18);
-//   the 6-player table's are M6 step 13, so none yet: its side columns stay as they are.
+//   clutterBoxes: the side columns the engine copy clears (the user's red boxes on the 4-player table, 2026-10-18).
+//     The 6-player table's (M6 step 13) are the 4-player ones' shape on its own end columns: the dice, keyword, mana
+//     and counter columns, both Drop-On-Card Counters, the 12 commander-damage bags, both Turn Order cards, the dungeon
+//     and reminder cards and Planechase; not the west importers or the playmat enabler (0ae315) at z -12..-18, which
+//     stay as on the 4-player table. They start at |x| 45, not 44: White's and Green's made tracker rows reach 44.6;
+//     nothing of the table's lies between 44 and 45.3.
+//   spots: the Game mode, Free mulligans and Teams buttons (MODE_SPOT, FRIENDLY_SPOT, TEAMS_SPOT in the renderer),
+//     world x, y, z on the west strip. On the 6-player table 2 further out than on the 4-player one: a button there is
+//     3.2 deep across the strip, and Green's column (x -41.8) and its tracker row (to -45.2) come nearer the end.
+//   makeCmdDamage: a table without commander-damage trackers gets the 4-player table's (make-engine-copy.js copies
+//     them from the host's 4-player Workshop file at build time; the 6-player table's own bags hold an older script):
+//     each victim's row of one per attacker, `step` apart along the victim's own left-to-right, centred on its life
+//     tracker's x, at z = `z` on its side of the middle strip (the turn timers' strip, empty once they are gone). Left to
+//     right the attackers in turn order from the next seat on, so the next seat's is the one on the player's left.
 const TABLES = [
   { id: "2296042369", seats: 4, whitePlaymat: "8b3401",
-    clutterBoxes: [{ x: [-56, -44], z: [-8.5, 32] }, { x: [44, 56], z: [-26, 8.5] }] },
-  { id: "2293586471", seats: 6, whitePlaymat: "7cffe1", clutterBoxes: [] },
+    clutterBoxes: [{ x: [-56, -44], z: [-8.5, 32] }, { x: [44, 56], z: [-26, 8.5] }],
+    spots: { mode: [-47, 1.1, -2.5], friendly: [-47, 1.1, 7.5], teams: [-47, 1.1, 17.5] } },
+  { id: "2293586471", seats: 6, whitePlaymat: "7cffe1",
+    clutterBoxes: [{ x: [-56, -45], z: [-8.5, 33] }, { x: [45, 56], z: [-33, 8.5] }],
+    spots: { mode: [-49, 1.1, -2.5], friendly: [-49, 1.1, 7.5], teams: [-49, 1.1, 17.5] },
+    makeCmdDamage: { step: 1.4, z: 3 } },
 ];
 
 // The objects the engine copy removes, by what they are (make-engine-copy.js used to name the 4-player table's GUIDs):
@@ -115,25 +132,35 @@ function extract(save) {
     }
   }
 
+  // our choices for this table (step 8 below says when there are none)
+  const white = seat.White && seat.White.playmat && seat.White.playmat.guid;
+  const choice = TABLES.find((t) => t.seats === seats.length && t.whitePlaymat === white);
+
   // 4. commander damage: one tracker per (victim, attacker); the attacker is its Description, the victim the seat
   // whose life tracker is nearest. Victims from the first seat, then anticlockwise; each victim's attackers nearest the
-  // table's middle first (the order the renderer's CMD_DAMAGE has always had: Lua's pairs follows it)
+  // table's middle first (the order the renderer's CMD_DAMAGE has always had: Lua's pairs follows it). A table without
+  // trackers whose choices make them (makeCmdDamage) gets them as made (cmdDamageMade), read by the same rule.
   const notFound = [];
-  let cmdDamage = null;
-  const trackers = named(/^Commander Damage$/); // (the bags are "<colour> Commander Damage")
-  if (!trackers.length) notFound.push("cmdDamage: no Commander Damage trackers on the table (M6 step 12 adds them)");
+  let cmdDamage = null, cmdDamageMade = null;
+  let trackers = named(/^Commander Damage$/).map((o) => ({ guid: o.GUID, attacker: colourOf(o), p: spot(o) })); // (the bags are "<colour> Commander Damage")
+  if (!trackers.length && choice && choice.makeCmdDamage && seats.every((c) => seat[c].lifeTracker && seat[c].hand && seat[c].playmat)) {
+    cmdDamageMade = makeTrackers(seats, seat, choice.makeCmdDamage, new Set([...allObjects(top)].map((o) => o.GUID)));
+    trackers = cmdDamageMade.map((t) => ({ guid: t.guid, attacker: t.attacker, p: { guid: t.guid, x: t.x, z: t.z }, made: t.victim }));
+  }
+  if (!trackers.length) notFound.push("cmdDamage: no Commander Damage trackers on the table, and none to make (TABLES makeCmdDamage)");
   else if (seats.every((c) => seat[c].lifeTracker)) {
     const rows = {};
-    for (const o of trackers) {
-      const p = spot(o);
+    for (const t of trackers) {
+      const p = t.p, attacker = t.attacker;
       let victim = null, best = Infinity;
       for (const c of seats) {
         const d = (seat[c].lifeTracker.x - p.x) ** 2 + (seat[c].lifeTracker.z - p.z) ** 2;
         if (d < best) { best = d; victim = c; }
       }
-      const attacker = colourOf(o);
-      if (!seats.includes(attacker)) { errors.push(`cmdDamage: ${o.GUID}'s attacker "${attacker}" is no seat`); continue; }
-      if (attacker === victim) { errors.push(`cmdDamage: ${o.GUID} (${attacker}) lies by its own colour's life tracker`); continue; }
+      if (!seats.includes(attacker)) { errors.push(`cmdDamage: ${t.guid}'s attacker "${attacker}" is no seat`); continue; }
+      if (attacker === victim) { errors.push(`cmdDamage: ${t.guid} (${attacker}) lies by its own colour's life tracker`); continue; }
+      // (a made one is read back by the same rule as a table's own: it must land on the victim it was made for)
+      if (t.made && t.made !== victim) { errors.push(`cmdDamage: the tracker made for ${t.made} (${attacker}, ${t.guid}) lies nearest ${victim}'s life tracker`); continue; }
       (rows[victim] = rows[victim] || []).push({ attacker, p });
     }
     cmdDamage = {};
@@ -181,9 +208,7 @@ function extract(save) {
     treachery: scripts.some((s) => /\bfunction getToken\b/.test(s)),
   };
 
-  // 8. our choices for this table
-  const white = seat.White && seat.White.playmat && seat.White.playmat.guid;
-  const choice = TABLES.find((t) => t.seats === seats.length && t.whitePlaymat === white);
+  // 8. our choices for this table (found above, before the commander damage that may need them)
   if (!choice) errors.push(`no choices for this table (${seats.length} seats, White's playmat ${white}): add it to TABLES in tools/table-profile.js`);
   const saveName = String(save.SaveName || "");
   if (!/ - scripted$/.test(saveName)) errors.push(`SaveName "${saveName}" doesn't end in " - scripted"`);
@@ -198,13 +223,44 @@ function extract(save) {
       seats,
       seat: Object.fromEntries(seats.map((c) => [c, seat[c]])),
       cmdDamage,
+      cmdDamageMade,
       start,
+      spots: choice.spots,
       remove: [...bags, ...remove],
       clutterBoxes: choice.clutterBoxes,
       features,
       notFound,
     },
   };
+}
+
+// The commander-damage trackers a table without them gets (TABLES makeCmdDamage), as { guid, victim, attacker, x, z,
+// rotY }: victims in seat order, each one's attackers left to right as the victim sees them (along the hand zone's
+// right, as seatGeometry reads it), in turn order from the next seat on; turned as the victim's playmat (the 4-player
+// table's trackers are: 180 on the south side, 0 on the north). GUIDs as the status-piece copies' (make-engine-copy.js):
+// sha1 of "victim:attacker", salted past any GUID in `taken` (the table's own; make-engine-copy checks the 4-player
+// table's too).
+function makeTrackers(seats, seat, rule, taken) {
+  const out = [];
+  const guidFor = (key) => {
+    for (let salt = 0; salt < 50; salt++) {
+      const g = require("crypto").createHash("sha1").update(`${key}${salt ? `:${salt}` : ""}`).digest("hex").slice(0, 6);
+      if (!taken.has(g)) { taken.add(g); return g; }
+    }
+    throw new Error(`no free GUID for the ${key} commander-damage tracker`);
+  };
+  seats.forEach((v, i) => {
+    const s = seat[v];
+    const yaw = (s.hand.rotY * Math.PI) / 180;
+    const right = { x: Math.cos(yaw), z: -Math.sin(yaw) };
+    const from = [...seats.slice(i + 1), ...seats.slice(0, i)];
+    const z0 = Math.sign(s.lifeTracker.z) * rule.z;
+    from.forEach((a, k) => {
+      const off = (k - (from.length - 1) / 2) * rule.step;
+      out.push({ guid: guidFor(`${v}:${a}`), victim: v, attacker: a, x: r3(s.lifeTracker.x + off * right.x), z: r3(z0 + off * right.z), rotY: r3(s.playmat.rotY) });
+    });
+  });
+  return out;
 }
 
 function* allObjects(list) {

@@ -896,7 +896,7 @@ function engineTeamChat(cmd, rest, pl, isHost)
 end
 -- The Teams button on the setup tile (host only, as typed), the game mode's team modes only (ENGINE_TEAM_GAME_MODE):
 -- Commander none -> Two-Headed Giant -> Juggernaut -> none; Standard none <-> 2v2
-TEAMS_SPOT = Vector(-47, 1.1, 17.5) -- (right of Free mulligans on the same strip, 10 apart as the other two: not yet seen on the real table)
+TEAMS_SPOT = Vector(TABLE_PROFILE.spots.teams[1], TABLE_PROFILE.spots.teams[2], TABLE_PROFILE.spots.teams[3]) -- (the table's profile: on the 4-player table -47, 1.1, 17.5, right of Free mulligans on the same strip, 10 apart as the other two: not yet seen on the real table)
 function engineTeamsLabel()
   local m = ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil
   if m == "juggernaut" then return "Juggernaut\n" .. ENGINE_JUGG.color end
@@ -9256,7 +9256,7 @@ end
 -- left away from the camera, have it sit where the cannon would be"). Start sends the count. A rematch keeps it; a
 -- table reload clears it.
 engineFriendly = 0
-FRIENDLY_SPOT = Vector(-47, 1.1, 7.5) -- (on the wood strip in front of the rim, right of Game mode with a gap; the user, 2026-11-14: "move these buttons down here and make sure they don't overlap". It was on the cannon's home, -60 0.732 0, on the rim)
+FRIENDLY_SPOT = Vector(TABLE_PROFILE.spots.friendly[1], TABLE_PROFILE.spots.friendly[2], TABLE_PROFILE.spots.friendly[3]) -- (the table's profile; on the 4-player table -47, 1.1, 7.5: on the wood strip in front of the rim, right of Game mode with a gap; the user, 2026-11-14: "move these buttons down here and make sure they don't overlap". It was on the cannon's home, -60 0.732 0, on the rim)
 function engineFriendlyLabel()
   return "Free mulligans\n" .. (engineFriendly == 0 and "None" or tostring(engineFriendly))
 end
@@ -9279,7 +9279,7 @@ end
 -- game runs, the game's own mode (the bridge's "started") decides what the table shows (engineModeNow).
 ENGINE_GAME_MODE = "commander"
 engineRunningMode = nil -- the running game's mode, from "started"; nil between games
-MODE_SPOT = Vector(-47, 1.1, -2.5) -- (left of Free mulligans on the same strip, 10 apart so the two never overlap, clear of the deck importer: live check 2026-11-14)
+MODE_SPOT = Vector(TABLE_PROFILE.spots.mode[1], TABLE_PROFILE.spots.mode[2], TABLE_PROFILE.spots.mode[3]) -- (the table's profile; on the 4-player table -47, 1.1, -2.5: left of Free mulligans on the same strip, 10 apart so the two never overlap, clear of the deck importer: live check 2026-11-14)
 function engineModeNow()
   if engineRunningMode ~= nil and engineTable ~= nil and engineTable() ~= nil then return engineRunningMode end
   return ENGINE_GAME_MODE

@@ -25,11 +25,11 @@ Inputs:
 | 6 | Table gates and golden refresh after the UI work | 1 | |
 | 7 | Relay seat cap, relay image rebuild, stack default 6 seats (§4). **Source done 2026-11-16** (branch `m6-seats`); image not built | 2 | lead's OK to rebuild the image |
 | 8 | Bridge seat handling (§5). **Done 2026-11-16** (branch `m6-seats`, not live) | 2.5 | |
-| 9 | Table profile extractor (§2.2) | 3 | |
-| 10 | `make-engine-copy.js` takes a profile; patches re-checked on the 6-player scripts | 4 | |
-| 11 | Renderer: per-table data instead of the 4-player tables | 3 | |
-| 12 | Commander damage on the 6-player table (§2.4) | 3 | user's choice A or B |
-| 13 | Background objects out, table buttons placed for six mats | 3 | |
+| 9 | Table profile extractor (§2.2). **Done 2026-11-16** (branch `m6-profile`, merged) | 3 | |
+| 10 | `make-engine-copy.js` takes a profile; patches re-checked on the 6-player scripts. **Done 2026-11-16** (`m6-profile`) | 4 | |
+| 11 | Renderer: per-table data instead of the 4-player tables. **Done 2026-11-16** (`m6-profile`) | 3 | |
+| 12 | Commander damage on the 6-player table (§2.4; §8 chose the 4-player trackers). **Built 2026-11-16** (branch `m6-table`, §2.3.3), not seen on screen | 3 | ~~user's choice A or B~~ |
+| 13 | Background objects out, table buttons placed for six mats. **Built 2026-11-16** (`m6-table`, §2.3.3), not seen on screen | 3 | a TTS session for the screenshots |
 | 14 | Golden recording for the 6-player table | 2 | |
 | 15 | Live: headless 6 seats twice, then host + 5 AI in real TTS, then a game with a friend | 5.5 | user's OK for a new save |
 | | **Total** | **44.5** | |
@@ -127,7 +127,7 @@ Check it on the 4-player file first: its profile must reproduce today's hard-cod
   card; on the 4-player table the clutter boxes remove them. Step 13's boxes must too. The Counters gates count 76 / 104
   / 12 functions (4-player: 80 / 120 / 20): the 6-player table has fewer counter objects, all gated.
 
-### 2.3.2 Plan for steps 12–13 (not built; §8's decisions)
+### 2.3.2 Plan for steps 12–13 (§8's decisions; built: §2.3.3)
 
 Step 12, commander damage as on the 4-player table (§8: permanent trackers, the 4-player objects and script):
 1. Source object: the 4-player table's "Commander Damage" token (script hash 0fdc193a, attacker = Description). It is
@@ -156,6 +156,45 @@ Step 13, background and buttons:
    mats' inner edges by 3.15.
 4. Needs the user's OK for the new 6-player save (§2.6) and a TTS session: a screenshot after each change
    (`tools/tts-shot.ps1`).
+
+### 2.3.3 Steps 12–13 as built (2026-11-16, branch `m6-table`; not seen in TTS yet)
+
+- **Trackers.** `tools/table-profile.js` gives a table without trackers whose `TABLES` entry has `makeCmdDamage`
+  (the 6-player one: step 1.4, z 3) the list `cmdDamageMade` (GUID, victim, attacker, x, z, rotY), and reads
+  `cmdDamage` back from it by the same rule as a table's own trackers (a made one that lands nearer another seat's
+  life tracker is an error by name). Each victim's row: five, 1.4 apart, centred on its life tracker's x, at z −3
+  (south) / +3 (north), turned as its mat (180 / 0, as the 4-player ones). **A choice to confirm:** left to right as the
+  victim sees it, the attackers in turn order from the next seat on, so the next seat's tracker is on the player's left
+  (White's row: Red, Yellow, Green, Blue, Purple from x 38.97 to 44.57). GUIDs: sha1 of `victim:attacker`, unsalted
+  (none clashes with either table). The 6-player profile now has no `notFound` line.
+- `make-engine-copy.js`, for any table but the 4-player one, reads the host's 4-player Workshop file (`--tracker-source
+  <file>`, default where TTS keeps it; only read). It must be the 4-player table with its trackers, whose script is
+  sha1 0fdc193a; then it adds 30 copies of b748df (Description = attacker, locked, `[0]`, tinted the attacker's TTS
+  colour) **before** the patches, so they are gated exactly as the 4-player ones (their built script is byte for byte
+  the 4-player trackers'). Without the file, with another table as it, or with a changed script: `FAIL` by name,
+  nothing written; never the bags' script. Counters gates on the 6-player table now 106 / 164 / 42 (was 76 / 104 / 12).
+- **Clutter boxes** (`TABLES`): west x −56…−45, z −8.5…33; east x 45…56, z −33…8.5. Not the whole length: the west
+  importers (ddf5de, 11415b) and the playmat enabler 0ae315 lie at z −12…−18 in the west column and stay, as on the
+  4-player table (0ae315 kept, so the mats' picture can't go missing; whether it is needed is still to see on screen).
+  From |x| 45, not 44: White's and Green's rows reach 44.57; nothing of the table's lies between 44 and 45.3. They take
+  150 objects: the 12 commander-damage bags, both Drop-On-Card Counters (and so the bag tokens c1ae57 / b8b5d4: no
+  ungated `onNumberTyped` is left on either table, checked), both Turn Order cards, both Turn Skipper pucks, the dice,
+  keyword, mana and counter columns, the dungeon and reminder cards, Planechase. The status pieces stay (`STATUS_KEEP`).
+- **Backdrop:** Lighting and Sky from the same 4-player file (they differ only in ReflectionIntensity, 0.223 against
+  0.164); the skybox was already set for every table; the 6-player table's own surface (TableURL) stays.
+- **West-strip buttons:** `TABLE_PROFILE.spots` (mode, friendly, teams); the renderer's `MODE_SPOT`, `FRIENDLY_SPOT`,
+  `TEAMS_SPOT` read it. 4-player table: −47 as before. 6-player table: x −49, z −2.5 / 7.5 / 17.5 (a quarter-turned
+  button is 3.2 deep across the strip: −50.6…−47.4, 2.2 clear of Green's row and 6 of its column). **A choice to
+  confirm on screen.** The team modes stay four-seat, as before.
+- **4-player build:** the same save except the comment above `TABLE_PROFILE`, its new `spots` line and the three spot
+  lines in the renderer (diffed line by line; everything outside the Global script identical).
+- Tests: `tests/test_table_six.js` (73: the made rows, the copies and their gates, free spots, the boxes, the backdrop,
+  the refusals; on the fake TTS all 30 set from `pl.cmdDamage`, a manual fix reads a turned one, Standard puts all 30
+  away and Commander brings them back, the renderer's life-tracker buttons clear every tracker, the west-strip buttons
+  in the cleared strip and clear of Green's column); `tests/test_table_profile.js` updated (55).
+- Still to do: the 6-player engine save (the user's OK, §2.6) and a TTS session for the screenshots (§2.3.2 step 13.4),
+  then step 14. `tools/make-table.js` still has no 6-player patcher (the friend package would need `--tracker-source`
+  too).
 
 ### 2.4 Step 12: commander damage (3 h; the user chooses)
 

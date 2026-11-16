@@ -1,20 +1,27 @@
 // Builds the "engine mode" copy of the group's table with the security issues removed
 // (table-review/COMPATIBILITY.md, "Must-fix before connecting the bridge").
 // The original workshop file is only read, never written.
-//   node make-engine-copy.js [source.json] [dest.json] [--profile tools/profiles/<id>.json]
+//   node make-engine-copy.js [source.json] [dest.json] [--profile tools/profiles/<id>.json] [--tracker-source <4p.json>]
 // The table's profile (its seats, their objects, what to remove: tools/table-profile.js) is read from the source itself;
 // --profile names the file it must match, so a profile can't be put on the wrong table (the two tables reuse GUIDs for
 // different seats, docs/m6-six-seat-spec.md §2.1). Default source: the 4-player table.
+// Another table (the 6-player one) also reads the host's own 4-player Workshop file, --tracker-source (default: where
+// TTS keeps it): its commander-damage trackers and its backdrop come from there (M6 steps 12-13). Only read, never
+// written, and never in the repo: the repo is public and the table is someone else's work.
 const fs = require("fs");
 const path = require("path");
 const tableProfile = require("./table-profile");
 
 const TTS = path.join(process.env.USERPROFILE || require("os").homedir(), "Documents", "My Games", "Tabletop Simulator");
 const ARGS = process.argv.slice(2);
-const PROFILE_AT = ARGS.indexOf("--profile");
-const PROFILE_FILE = PROFILE_AT >= 0 ? ARGS[PROFILE_AT + 1] || "" : null;
-const POS = ARGS.filter((a, i) => !a.startsWith("--") && (PROFILE_AT < 0 || i !== PROFILE_AT + 1));
-const SRC = POS[0] || path.join(TTS, "Mods", "Workshop", "2296042369.json");
+// (a flag's value: what follows it, "" when nothing does; null when the flag isn't given)
+const VALUE_FLAGS = ["--profile", "--tracker-source"];
+const flag = (name) => { const at = ARGS.indexOf(name); return at >= 0 ? ARGS[at + 1] || "" : null; };
+const PROFILE_FILE = flag("--profile");
+const POS = ARGS.filter((a, i) => !a.startsWith("--") && !VALUE_FLAGS.includes(ARGS[i - 1]));
+const FOUR_ID = "2296042369";
+const SRC = POS[0] || path.join(TTS, "Mods", "Workshop", `${FOUR_ID}.json`);
+const TRACKER_SOURCE = flag("--tracker-source") || path.join(TTS, "Mods", "Workshop", `${FOUR_ID}.json`);
 const TAG = "-- [engine copy]";
 
 const save = JSON.parse(fs.readFileSync(SRC, "utf8"));
@@ -45,6 +52,60 @@ function* allObjects(list) {
     yield o;
     yield* allObjects(o.ContainedObjects);
     yield* allObjects(Object.values(o.States || {}));
+  }
+}
+
+// ───────────── Another table: the 4-player table's commander damage and backdrop (M6 steps 12-13) ─────────────
+// The 6-player table has no commander-damage trackers (its bags hold an older script, colour from the Name), so it gets
+// the 4-player table's: one tracker's object copied from the host's own 4-player Workshop file, once per row of the
+// profile's cmdDamageMade (Description = the attacker, which the script tints itself by; locked; at 0), before the
+// patches below, so they are gated as the 4-player ones are. The source must be the 4-player table with its trackers
+// and their script exactly the one this code knows (sha1 0fdc193a): without it, FAIL, never the bags' script instead.
+// The backdrop (the user, 2026-11-15: "the same backdrop as the 4-player engine table"): the skybox below is set for
+// every table; Lighting and Sky are taken from the same file. The table's own surface (TableURL) stays.
+const TRACKER_SCRIPT_SHA1 = "0fdc193a";
+// (TTS's own player colours, Color.fromString: the 4-player trackers' ColorDiffuse is their attacker's)
+const PLAYER_TINT = { White: [1, 1, 1], Red: [0.856, 0.1, 0.094], Yellow: [0.905, 0.898, 0.172], Green: [0.192, 0.701, 0.168],
+  Blue: [0.118, 0.53, 1], Purple: [0.627, 0.125, 0.941] };
+if (PROFILE.id !== FOUR_ID) {
+  const fail = (what) => { report.push(`FAIL ${what}`); process.exitCode = 1; };
+  const sha1 = (s) => require("crypto").createHash("sha1").update(String(s)).digest("hex").slice(0, 8);
+  const four = fs.existsSync(TRACKER_SOURCE) ? JSON.parse(fs.readFileSync(TRACKER_SOURCE, "utf8")) : null;
+  const fourProfile = four && tableProfile.extract(four).profile;
+  if (!four) fail(`tracker source: ${TRACKER_SOURCE} isn't there (the host's 4-player Workshop file, ${FOUR_ID}: --tracker-source <file>)`);
+  else if (!fourProfile || fourProfile.id !== FOUR_ID || !fourProfile.cmdDamage) fail(`tracker source: ${TRACKER_SOURCE} isn't the 4-player table with its commander-damage trackers`);
+  else {
+    save.Lighting = JSON.parse(JSON.stringify(four.Lighting));
+    save.Sky = four.Sky;
+    report.push(`OK   backdrop: the 4-player table's Lighting and Sky (the skybox below; the table's own surface)`);
+    if (PROFILE.cmdDamageMade) {
+      const byGuid = new Map(four.ObjectStates.map((o) => [o.GUID, o]));
+      const theirs = Object.values(fourProfile.cmdDamage).flatMap((row) => Object.values(row)).map((g) => byGuid.get(g));
+      const scripts = [...new Set(theirs.map((o) => sha1(o.LuaScript)))];
+      if (scripts.length !== 1 || scripts[0] !== TRACKER_SCRIPT_SHA1) fail(`commander damage trackers: the 4-player table's trackers' script is ${scripts.join(", ")}, not ${TRACKER_SCRIPT_SHA1}`);
+      else {
+        const used = new Set([...allObjects(save.ObjectStates), ...allObjects(four.ObjectStates)].map((o) => o.GUID));
+        const clash = PROFILE.cmdDamageMade.filter((t) => used.has(t.guid)).map((t) => `${t.victim}:${t.attacker} ${t.guid}`);
+        const untinted = [...new Set(PROFILE.cmdDamageMade.filter((t) => !PLAYER_TINT[t.attacker]).map((t) => t.attacker))];
+        if (clash.length) fail(`commander damage trackers: GUIDs already on a table: ${clash.join(", ")}`);
+        else if (untinted.length) fail(`commander damage trackers: no player colour for ${untinted.join(", ")}`);
+        else {
+          const src = theirs[0];
+          for (const t of PROFILE.cmdDamageMade) {
+            const o = JSON.parse(JSON.stringify(src));
+            o.GUID = t.guid;
+            o.Description = t.attacker;
+            o.Locked = true;
+            o.Transform = { ...src.Transform, posX: t.x, posZ: t.z, rotY: t.rotY };
+            const [r, g, b] = PLAYER_TINT[t.attacker];
+            o.ColorDiffuse = { r, g, b };
+            o.LuaScriptState = "[0]";
+            save.ObjectStates.push(o);
+          }
+          report.push(`OK   commander damage trackers made from the 4-player table's (${src.GUID}, script ${TRACKER_SCRIPT_SHA1}): ${PROFILE.cmdDamageMade.length}`);
+        }
+      }
+    }
   }
 }
 
@@ -233,9 +294,9 @@ patchScripts("Global: hook 'mtg engine' chat command before other chat handling"
   save.LuaScript += `
 
 ${TAG} the table's profile (tools/table-profile.js, docs/m6-six-seat-spec.md §2.2): its seats clockwise, each seat's life
--- tracker, commander-damage trackers (victim -> attacker -> GUID; none on a table without them) and commander zones,
--- the Start tile's spot, the table's own Untap / Reveal / Draw / Mill / Scry buttons and Mulligan tiles (every seat's)
--- and the Draw buttons alone
+-- tracker, commander-damage trackers (victim -> attacker -> GUID; on the 6-player table the ones this build made) and
+-- commander zones, the Start tile's spot, the west strip's Game mode / Free mulligans / Teams buttons' spots, the
+-- table's own Untap / Reveal / Draw / Mill / Scry buttons and Mulligan tiles (every seat's) and the Draw buttons alone
 TABLE_PROFILE = {
   id = ${JSON.stringify(PROFILE.id)},
   seats = ${list(SEATS)},
@@ -243,6 +304,7 @@ TABLE_PROFILE = {
   cmdDamage = ${map(PROFILE.cmdDamage || {}, (row) => map(row, JSON.stringify))},
   tax = ${map(by((s) => s.commandZones.map((z) => z.guid)), list)},
   start = ${list(PROFILE.start)},
+  spots = ${map(PROFILE.spots, list)},
   buttons = ${list(["untapButton", "revealButton", "drawButton", "millButton", "scryButton", "mulliganButton"].flatMap(row))},
   draw = ${list(row("drawButton"))},
 }`;
@@ -940,7 +1002,8 @@ guard("Dungeon tokens", "function spawnTokens", ["spawnTokens"], { silent: true,
 // Also the profile's remove list, wherever they lie (tools/table-profile.js says why each): Encoder modules, the 2nd
 // importer, the Bruh Button, the turn timers, the 3D bundles under the table and the Drafting tools / Enablers bags (the
 // Pirate Cannon and the first-player die stay: hidden in engine mode, 2026-10-21). The profile's clutter boxes: on the
-// 4-player table beside Yellow/Red and beside White/Blue; none yet on the 6-player table (M6 step 13).
+// 4-player table beside Yellow/Red and beside White/Blue; on the 6-player table its two end columns, which also take
+// the two Drop-On-Card Counter bags, whose tokens put an ungated onNumberTyped onto a card (M6 step 13).
 const REMOVE = new Set(PROFILE.remove);
 const CLUTTER_BOXES = PROFILE.clutterBoxes;
 // Status pieces (docs/status-objects-spec.md, 2026-11-11): the clutter's pieces for a player status come back, parked
