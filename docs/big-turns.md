@@ -149,9 +149,11 @@ priority round.
   limit of a turn is a draw; a new turn asks again; the card limit is asked at the next trigger, and two before that are a
   draw; one huge token effect is asked once; the session asks the active person in plain words, its no is a draw, and an
   AI-only game draws. Merge: 20 at once, with every gain counted; no gate, nothing merged; the gate bounds it; Ajani's
-  Pridemate and Boon Reflection each stop it (and get every trigger); another effect below ends it; an AI seat turns it
-  off; it merges only while both people hold, up to where the first pass ends. Break-its: one mutation per rule, each failing named checks
-  (see the commit).
+  Pridemate and Boon Reflection each stop it (and get every trigger); another player's run below is not merged; an AI seat
+  turns it off; it merges only while both people hold, up to where the first pass ends. Break-its (17 mutations, one
+  container): 16 fail named checks. The one that does not: turning off the trigger check in `StackMerge.watched` (even
+  together with the waiting-trigger check) still leaves Pridemate unmerged, because its trigger is already pending after
+  the first gain and `hasSimultaneousStackEntries` stops the merge. The watcher check is a second guard, not the only one.
 - **Timing** (`BigTurnTimingTest`, prints the tables in section 2; `ARGS=25,50,100,200,400`).
 - **Bridge** (`tests/test_bridge_big_turns.js`, 36 checks): held pass, presses, `mtg stop`, the runaway question, the
   table's `mtg stop` and `mtg help`. Break-its: 10 mutations, each failing named checks.
