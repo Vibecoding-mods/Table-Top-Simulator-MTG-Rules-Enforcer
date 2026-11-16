@@ -354,6 +354,15 @@ const hostRequirements = () => `HOST REQUIREMENTS (the PC that runs the engine; 
     Windows and back in (or restart): the install adds you to the "docker-users" group, which only counts after a
     new sign-in.
   * If Docker says virtualization is off: turn on SVM (AMD) or Intel VT-x (Intel) in the PC's BIOS/UEFI settings.
+    Task Manager > Performance > CPU says "Virtualization: Enabled" when it is on. To get into the BIOS: hold
+    Shift while clicking Restart, then Troubleshoot > Advanced options > UEFI Firmware Settings > Restart (or press
+    Del, F2 or F10 as the PC starts). The setting is usually under Advanced, CPU Configuration or Overclocking:
+    "SVM Mode" (AMD) or "Intel Virtualization Technology" / "VT-x" (Intel) > Enabled. Save and exit with F10.
+  * If Docker still won't start: right-click Start > Terminal (Admin), click Yes, and run
+        wsl --install --no-distribution
+    then restart the PC. If it says WSL is out of date, run  wsl --update  there. If it says you aren't allowed
+    to use Docker, run  net localgroup docker-users "$env:USERNAME" /add  there, then sign out and back in.
+    More help, step by step: docs/docker-setup.md in the project's repository.
 - Tabletop Simulator (Steam).
 - The tables, subscribed on the Steam Workshop (this package doesn't include them; the companion makes the
   rules-engine table from your own copy):

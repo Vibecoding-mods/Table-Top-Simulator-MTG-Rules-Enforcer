@@ -11972,7 +11972,10 @@ function engineRejoin.onMessage(m)
   if type(m) ~= "table" or (m.t ~= "chat" and m.t ~= "rejoin") then return end
   local d = m
   if type(m.json) == "string" then
-    local ok, x = pcall(engineJsonDecode, m.json)
+    -- a chat line is decoded again only when it can be one of the lines below (every chat passes here)
+    local j = m.json
+    if m.t == "chat" and not (j:find("rejoining the game", 1, true) or j:find("the engine connection", 1, true) or j:find("reconnected to the engine", 1, true) or j:find(" couldn't ", 1, true)) then return end
+    local ok, x = pcall(engineJsonDecode, j)
     if not ok or type(x) ~= "table" then return end
     d = x
   end
