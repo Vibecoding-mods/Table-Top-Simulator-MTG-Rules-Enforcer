@@ -58,6 +58,9 @@ function simulate({ save, seated = ["Blue"], host = "Blue", steps = [], framesPe
     } else if (s.lua) r = run(`local __r = (function() ${s.lua} end)() __sim.frames(${s.frames ?? framesPerMsg}) return __r`, "=step");
     else if (s.frames) r = run(`__sim.frames(${s.frames})`, "=frames");
     if (r.error) errors.push(`step ${i} (${s.msg ? s.msg.t : s.mark || "lua"}): ${r.error}`);
+    // (a screen-UI set by a long id that has a short one changes nothing in TTS: engineUI was missed, tts-sim.lua)
+    const long = run(`local t = __sim.longIds __sim.longIds = {} return table.concat(t, ", ")`, "=longIds").value;
+    if (long) errors.push(`step ${i} (${s.msg ? s.msg.t : s.mark || "lua"}): screen UI set by its long id (not through engineUI): ${long.slice(0, 200)}`);
     if (s.mark) { record(s.mark, r.error ? { error: r.error } : (r.value ? { value: r.value } : undefined)); return; }
     record(`${i} ${s.msg ? s.msg.t : s.lua ? "lua" : "frames"}`, r.error ? { error: r.error } : (r.value ? { value: r.value } : undefined));
   });

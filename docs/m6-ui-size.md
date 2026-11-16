@@ -5,6 +5,48 @@ Measured 2026-11-05 on the current sources. Scripts: `tmp/ui-size/` (how to re-r
 
 The build plan that uses this is `docs/m6-six-seat-spec.md`.
 
+## 8. Built 2026-11-16 (branch `m6-ui-size`)
+
+Measured on the 2026-11-16 sources (the UI had changed since the 2026-11-05 numbers below: the Undo list and Settings
+are now tabs of the answer panel, so `eng_undolist_` and `eng_setpanel_` no longer exist). `tests/test_ui_budget.js`,
+engine mode on (a game started), Green and Purple borrowing Blue's and Red's data:
+
+| Human seats | Before | After | Under 60,000 |
+|---|---|---|---|
+| 1 | 26,142 | 16,785 | 43,215 |
+| 2 | 38,079 | 25,465 | 34,535 |
+| 3 | 47,711 | 32,256 | 27,744 |
+| 4 | 57,802 | 39,107 | 20,893 |
+| 5 | 67,740 | 45,938 | 14,062 |
+| 6 | 77,831 | **52,789** | **7,211** |
+
+Six seats with engine mode off (between games, the table's two panels back in): 58,862. A seat now costs about
+6,850 bytes (was about 10,000).
+
+What was done. None of it changes what a player sees or can do, so only the screen UI's text changed:
+- **Counter ids** (§4.2): `engineXmlCompact(xml, base)` gives each `eng_` element a code (`a`..`z`, `a1`...), kept in
+  `engineUiMap` for the session (a click from an older XML still means its own element). Every caller keeps the long
+  ids; the screen-UI calls go through `engineUI.*` (`setAttribute`, `setAttributes`, `setValue`, `getAttribute`,
+  `getValue`), which map them. No code equals one of the table's ids or classes. About 11,500 at six seats.
+- **One handler**: each `eng_` element's event is `E`, which calls the recorded handler with the long id, so every
+  handler runs unchanged (the search box's `onValueChanged` too). About 4,400.
+- **Self-closing**: `<X ...></X>` written `<X .../>`. A lone space inside an element is its text and stays. About 4,000.
+- **Line breaks** between our elements out. About 1,250.
+- **The table's Reveal-until-type and Cascade panels** (`SearchTypePanel`, `GetValuePanel`) left out while engine mode
+  is on (`engineTablePanels`): both tools are guarded then. Engine mode is in the rebuild key and `setEngineMode`
+  rebuilds the UI, so the normal table has them back. About 6,070. Cost: the first build of a game now comes when engine
+  mode turns on (the setup buttons or "started") instead of at the first question, and there is one more full
+  `UI.setXml` when engine mode goes off after the game. The golden diff showed only that, plus the text-colour
+  alternation (`engineFlipColor`, #FFFFFF / #FFFFFE) shifting by one call.
+- **Short class names** (codes, not `m<n>`): about 350.
+
+Not done (each changes what players see or how a handler works): shared copies (§4.1 item 2) and 20 answer buttons a
+page. The two-player probe (§6.2 of the spec) is still not run.
+
+Proof that nothing else changed: the table golden recorded with the new code but without the engine-mode rebuild
+matched the old recording on every step except the `UI.setXml` hash (the fake TTS records long ids, `tests/lua/tts-sim.lua`).
+The fake TTS now also fails a test on any screen-UI set made with a long id that has a code (a missed `engineUI`).
+
 ## Review (second agent, 2026-11-05 night)
 
 All scripts re-run on the current sources: every "today" number and every technique number reproduces exactly. Corrections, now applied below:
