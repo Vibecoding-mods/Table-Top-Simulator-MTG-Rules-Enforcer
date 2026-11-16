@@ -1,7 +1,8 @@
 // Break-it for Archenemy in the bridge (tests/test_bridge_archenemy.js; docs/team-turns-archenemy-plan.md step 8): each
 // mutation switches one piece of the Archenemy code off, runs the test, lists the checks that failed by name, then puts
 // the file back and checks it by sha256. A mutation no check catches is printed as SURVIVED. The table's chat lines
-// (tools/make-engine-copy.js) are not here: their tests need the TTS save.
+// (tools/make-engine-copy.js) are not here: their tests need the TTS save. The table functions that need no save
+// (tools/engine-renderer.lua: the archenemy's marks, the Undo tab) are, through tests/test_table_archenemy_lua.js.
 //   node tools/mutate-archenemy.js [--golden] [label pattern]
 const fs = require("fs");
 const path = require("path");
@@ -11,7 +12,7 @@ const { spawnSync } = require("child_process");
 const ROOT = path.join(__dirname, "..");
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
 // (the golden master too, with --golden: the new Archenemy scenarios must change by name; it needs a large heap)
-const TESTS = [["tests/test_bridge_archenemy.js", []], ...(process.argv.includes("--golden") ? [["tests/test_bridge_golden.js", ["--max-old-space-size=8192"]]] : [])];
+const TESTS = [["tests/test_bridge_archenemy.js", []], ["tests/test_table_archenemy_lua.js", []], ...(process.argv.includes("--golden") ? [["tests/test_bridge_golden.js", ["--max-old-space-size=8192"]]] : [])];
 
 // [label, file, from, to]: `from` must occur exactly once
 const MUTATIONS = [
@@ -36,7 +37,7 @@ const MUTATIONS = [
   ["withArchenemy: the switch ignored", "bridge/bridge.js", "  if (!archenemy.on) return setup;\n", "  return setup;\n"],
   ["withArchenemy: a table start without the host's list", "bridge/bridge.js", "schemes: setup.arch.schemes || archenemy.names } };", "schemes: setup.arch.schemes } };"],
   ["start: the switch not applied", "bridge/bridge.js", "(withArchenemy(teams2hg.setupOf(m))));", "(teams2hg.setupOf(m)));"],
-  ["start: an archenemy not in the game let through", "bridge/bridge.js", "if (!(total === TABLE_COLORS.length || seatList.includes(a.color) || preset.includes(a.color))) {", "if (false) {"],
+  ["start: an archenemy not in the game let through", "bridge/bridge.js", "if (![...seatList, ...preset, ...aiFree].includes(a.color)) {", "if (false) {"],
   ["start: Archenemy on the 6-player table let through", "bridge/bridge.js", "    if (TABLE_COLORS.length !== teams2hg.TEAM_COLORS.length) { chat(", "    if (false) { chat("],
   ["start: the scheme deck unchecked", "bridge/bridge.js", "    if (problem) { chat(`[MTG] Not started: Archenemy: ${problem}.`); return; }\n", ""],
   ["start: the game not an Archenemy game", "bridge/bridge.js", "...(archGame ? { arch: archGame } : {}),", ""],
@@ -44,6 +45,18 @@ const MUTATIONS = [
   ["board: the archenemy not passed to teamsField", "bridge/bridge.js", "game.teamMode, game.arch?.color || null), //", "game.teamMode), //"],
   ["undo: asked of the engine in an Archenemy game", "bridge/bridge.js", "  if (game.arch) return chat(`[MTG] ${ARCH_NO_UNDO}`, color);\n", ""],
   ["undo: the board doesn't say why", "bridge/bridge.js", "...(game?.arch ? { off: ARCH_NO_UNDO } : {})", "...{}"],
+  // the review follow-ups (docs/handoff/archenemy-polish-report.md)
+  ["polish 1: a refusal never says  mtg archenemy off", "bridge/bridge.js", "const off = a.sticky ? ARCH_SWITCH_OFF : \"\";", "const off = \"\";"],
+  ["polish 1: a start the switch made not marked", "bridge/bridge.js", "schemes: archenemy.names, sticky: true } };", "schemes: archenemy.names } };"],
+  ["polish 1: the way off said for a table's own start too", "bridge/bridge.js", "const off = a.sticky ? ARCH_SWITCH_OFF : \"\";", "const off = ARCH_SWITCH_OFF;"],
+  ["polish 4: the old seat check (an AI player's seat not counted)", "bridge/bridge.js", "if (![...seatList, ...preset, ...aiFree].includes(a.color)) {", "if (!(total === TABLE_COLORS.length || seatList.includes(a.color) || preset.includes(a.color))) {"],
+  ["polish 4: every free seat counted as an AI player's", "bridge/bridge.js", ".slice(0, Math.max(0, bots - preset.length));", ".slice(0, 99);"],
+  ["polish 5: no sides in a 2-player Archenemy game", "bridge/teams.js", "return mode === \"archenemy\" && archColor ? archTeamsField(pub, slotColor, archColor) : {};", "return {};"],
+  ["polish 5: the archenemy's win given to the other side", "bridge/teams.js", "winColor === archColor ? [archColor] : others", "others"],
+  ["polish 5: the sides out of turn order", "bridge/teams.js", "colors[0] === archColor ? [[archColor], others] : [others, [archColor]]", "[others, [archColor]]"],
+  ["polish 3: no (ARCHENEMY) on the phase bar", "tools/engine-renderer.lua", "  if t.teams.archenemy ~= nil and t.active == t.teams.archenemy then\n", "  if false then\n"],
+  ["polish 3: the archenemy's mat not gold", "tools/engine-renderer.lua", "(side[1] == m.teams.juggernaut or side[1] == m.teams.archenemy)", "side[1] == m.teams.juggernaut"],
+  ["polish 2: the Undo tab doesn't say why", "tools/engine-renderer.lua", "((engineRewind and engineRewind.off) or \"No restore points yet.\")", "\"No restore points yet.\""],
 ];
 
 const pattern = process.argv.slice(2).find((a) => !a.startsWith("--"));
