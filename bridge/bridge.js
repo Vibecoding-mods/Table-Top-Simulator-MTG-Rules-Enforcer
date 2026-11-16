@@ -8146,7 +8146,8 @@ function offerRepeat(seat, prompt, gv, ui, toOutput, forP) {
   const base = (l) => String(l).split(":")[0].trim();
   ui.options = [...ui.options, { id: "__repeat:no", label: `${base(noLabel)} ×${n}` }, ...(pays ? [] : [{ id: "__repeat:yes", label: `${base(yesLabel)} ×${n}` }]),
     { id: "__repeat:some", label: "How many…" }];
-  ui.text = `${ui.text ? `${ui.text}\n` : ""}${n} of these are waiting (${name}). "×${n}" answers them all; "How many…" picks how many.`;
+  // (first: the table cuts a long text at its end, and the card's words after it chopped this sentence off, live 2026-11-16)
+  ui.text = `${n} of these are waiting (${name}). "×${n}" answers them all; "How many…" picks how many.${ui.text ? `\n${ui.text}` : ""}`;
   const start = (id, k) => {
     if (k >= 2) seat.repeatAnswer = { src: prompt.sourceCard.id, title: String(prompt.input?.presentation?.title || ""), ability: String(prompt.sourceAbilityText || ""),
       id, left: k - 1, done: 1, ids: new Set(run), stackAt: new Set((gv.stack || []).map((s) => s.id)), turn: gv.turn, step: gv.step, name };
