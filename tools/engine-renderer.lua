@@ -3881,6 +3881,8 @@ function engineRender(m)
   sect("dispose")
   local okRw, errRw = pcall(engineRewindUpdate, m.rewind, m.gameOver)
   if not okRw then print("[MTG] rewind panel: " .. tostring(errRw)) end
+  local okTie, errTie = pcall(engineTieUpdate, m.tie, m.gameOver)
+  if not okTie then print("[MTG] tie panel: " .. tostring(errTie)) end
   updateTrackers(m)
   sect("trackers")
   if engineRefreshBrowse ~= nil then engineRefreshBrowse() end
@@ -4251,6 +4253,13 @@ local function rewindXml(c)
     .. '<Button id="eng_voteyes_' .. c .. '" onClick="onMtgVote" color="#2e7d32" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Rewind</Button>'
     .. '<Button id="eng_voteno_' .. c .. '" onClick="onMtgVote" color="#8e2a2a" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Keep playing</Button>'
     .. '<Button id="eng_votego_' .. c .. '" onClick="onMtgVote" color="#2e7d32" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Rewind</Button>'
+    .. '</HorizontalLayout></Panel>\n'
+    -- (the tie offer's pop-up, in the vote's style, under it: engineTieUpdate)
+    .. '<Panel id="eng_tie_' .. c .. '" visibility="' .. c .. '" width="600" height="146" rectAlignment="UpperCenter" offsetXY="0 -272" color="#161616F0" active="false">'
+    .. '<Text id="eng_tietext_' .. c .. '" width="580" height="84" rectAlignment="UpperCenter" offsetXY="0 -6" fontSize="17" color="#FFFFFF" alignment="MiddleCenter"> </Text>'
+    .. '<HorizontalLayout width="440" height="40" rectAlignment="LowerCenter" offsetXY="0 10" spacing="16" childForceExpandWidth="true">'
+    .. '<Button id="eng_tieyes_' .. c .. '" onClick="onMtgTie" color="#2e7d32" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Tie</Button>'
+    .. '<Button id="eng_tieno_' .. c .. '" onClick="onMtgTie" color="#8e2a2a" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Keep playing</Button>'
     .. '</HorizontalLayout></Panel>\n'
 end
 
@@ -5943,6 +5952,8 @@ end
 function engineRewindRedraw()
   rewindSig = nil
   engineRewindUpdate(engineRewind, lastTable ~= nil and lastTable.gameOver)
+  ENGINE_TIE_SIG = nil
+  engineTieUpdate(lastTable ~= nil and lastTable.tie or nil, lastTable ~= nil and lastTable.gameOver)
 end
 -- Auto-resolve (2026-10-23): your own setting, beside Undo; the bridge passes for you. A list since 2026-10-31 (the
 -- player's request): off, other players' turns, or until a phase ("mtg skip", the bridge's SKIP_PHASES). One choice at a
@@ -6037,6 +6048,57 @@ function onMtgUndoPick(player, value, id)
   if k == nil then return end
   if engineBrowse[c] == "undo" then engineOpenTab(c, "undo") end
   engineAskRewind(c, k)
+end
+-- ── a tie offer (the bridge's tieNews; the engine's gameView.tieOffer) ──
+-- A player who can't lose: the pop-up under the rewind vote's asks the players still to answer (Tie / Keep playing);
+-- after a no it stays up with the rounds without progress, until the lock is broken or the game is a forced tie.
+function engineTieUpdate(t, gameOver)
+  local sig = gameOver and "over" or t == nil and "" or (tostring(t.id) .. "|" .. tostring(t.status) .. "|" .. tostring(t.rounds) .. "|" .. table.concat(t.waiting or {}, ","))
+  if sig == ENGINE_TIE_SIG then return end
+  ENGINE_TIE_SIG = sig
+  for c in pairs(engineColors) do
+    if Player[c] ~= nil and Player[c].seated then engineTieDraw(c, t, gameOver) end
+  end
+end
+function engineTieDraw(c, t, gameOver)
+  local open = t ~= nil and not gameOver and (t.status == "pending" or t.status == "declined")
+  setAttr("eng_tie_" .. c, "active", open and "true" or "false")
+  local ask = open and t.status == "pending" and engineTieWaits(t, c)
+  setAttr("eng_tieyes_" .. c, "active", ask and "true" or "false")
+  setAttr("eng_tieno_" .. c, "active", ask and "true" or "false")
+  if open then setText("eng_tietext_" .. c, engineTieWords(t, ask)) end
+end
+-- whether the colour is still to answer the offer
+function engineTieWaits(t, c)
+  for _, w in ipairs(t.waiting or {}) do if w == c then return true end end
+  return false
+end
+-- the pop-up's words: who can't lose and why, then the offer (and who it waits for), or after a no the count
+function engineTieWords(t, mine)
+  local who = {}
+  for _, l in ipairs(t.locked or {}) do who[#who + 1] = tostring(l.who) .. " " .. table.concat(l.why or {}, " and ") end
+  local head = table.concat(who, "; ") .. ": the game may never end."
+  local n = tostring(t.toForce or 3)
+  if t.status == "declined" then
+    return head .. "\n" .. tostring(t.declinedBy or "A player") .. " declined the tie. Rounds without progress: " .. tostring(t.rounds or 0) .. " of " .. n .. "; at " .. n .. " the game is a forced tie."
+  end
+  local names = t.waitingNames or {}
+  return head .. " A tie is offered." .. ((mine or #names == 0) and "" or ("\nWaiting for " .. table.concat(names, ", ") .. "..."))
+end
+-- the player's Steam ID ("" when TTS gives none), and the seated players' for the start message (the accomplishments)
+function engineSteamOf(c)
+  local ok, s = pcall(function() return Player[c].steam_id end)
+  return ok and s ~= nil and tostring(s) or ""
+end
+function engineSteamIds(colors)
+  local out = {}
+  for _, c in ipairs(colors or {}) do out[c] = engineSteamOf(c) end
+  return out
+end
+function onMtgTie(player, value, id)
+  local c = player.color
+  if id == "eng_tieyes_" .. c then engineSend("tieVote", { color = c, accept = true, steam = engineSteamOf(c) })
+  elseif id == "eng_tieno_" .. c then engineSend("tieVote", { color = c, accept = false, steam = engineSteamOf(c) }) end
 end
 function onMtgVote(player, value, id)
   local c = player.color

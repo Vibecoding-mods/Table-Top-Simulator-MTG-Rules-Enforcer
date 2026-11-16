@@ -184,6 +184,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-16 (no image; built in a cloud session) | `engine1117-tie` (no image ids) | On top of `engine1117-3hg`: a tie offer when a player can't lose. New harness class `TieOffer`, rechecked at every priority question (`awaitPriorityAction`): Forge's `Player.cantLose()`, `canLoseLife()` false, `cantLoseForZeroOrLessLife()` with no poison (`canReceiveCounters(POISON)` false) and no opponent's commander, or a plain `DamageDone` / `Prevent$ True` replacement for that player. It offers the people a tie (an AI seat accepts); all yes ends the game as `GameEndReason.Draw` with each player's `intentionalDraw`. After a no, three full rounds (the turn coming back to the player whose turn it was at the no) with no progress (a life total down, poison, commander damage, a permanent leaving, a card from a library into a graveyard, a player losing) force the same draw. `TieOfferTest` 22 checks, break-it 24 of 24 | **Yes, optional:** `GameViewDto.tieOffer` (`TieOfferDto`, `TieLockDto`, `TieOfferStatus`; `serde(default)`, skipped when absent) and the directive `DirectiveInput::TieVote { voteId, accept }`. The relay parses directives against the protocol, so the relay must be rebuilt with the node | outer branch `cloud/tie-offer` (engine/manabrew.patch only; forge.patch unchanged) | not deployed | `engine1117-3hg` |
 | 2026-11-16 (no image; built in a cloud session) | `engine1117-3hg` (no image ids) | main's engine + Three-Headed Giant: a revise round's title names the partner who changed the team's block (a team of three); `ThreeHeadedGiantTest` | Node only (no protocol change) | outer branch `cloud/three-headed-giant` | not deployed | main's engine |
 | 2026-11-16 (not built; harness jar built in a cloud session) | Archenemy plumbing (on top of the 2026-11-16 patches) | A player's scheme list reaches Forge: the node copies a deck's `schemes` section (as it does `planes`) or a `gameConfig.players[].schemes` name list into `players[].schemes`; the harness resolves each name to a Forge scheme (refusing any other card), applies `GameType.Archenemy` when any player has one, and gives the deck through the new `RegisteredPlayer.setSchemes`, so life stays what the request says (the 80/40 house rule goes through `startingLife`). Forge: `Player.isArchenemy` stays true once a scheme deck was dealt, even with every scheme in motion (plan §2.4), and `setSchemeInMotion` does nothing on an empty scheme deck instead of reading past it. `ArchenemyTest` 5 checks and 2 node unit tests, each with a break-it | Node only (new optional `players[].schemes` and `gameConfig.players[].schemes`; relay unchanged) | outer branch `cloud/archenemy-engine`, merged on `archenemy-merge` after the AI team attack and relay seat cap rows: both patches regenerated from a source-level merge in a clean `fd16e2f` / `e7d2b93b` tree (main and the branch each applied and committed, then merged with git; no conflicts in the Java, Rust or Forge sources), `git apply --check` clean; `ArchenemyTest` added to the `harness-tests.sh` defaults | not deployed | the patches before it |
 | 2026-11-16 (not built yet) | engine1117-cap + AI team attack | On top of engine1117-cap + rewind draw count, in the same patches. The Forge attack AI now counts every creature the defending team can block with: with shared team life a defender's partner may block a creature attacking the defender (CR 805.10d, already in `CombatUtil.canBlock`), but `AiAttackController.getOpponentCreatures` listed only the chosen defender's creatures, so an AI sent a Grizzly Bears at a defender with no blockers into the partner's untapped Hill Giant. It now lists both partners' possible blockers when the game has shared team life (Level 1 and Level 2 2HG); free-for-all is unchanged. New harness test `SharedTurnsPlayTest` (5 checks): a rewind after the partner declared keeps the team's attack and drops a team extra turn taken after the point; a rewind to the partner's priority passes as a team; two AI partners attack together; the AI attacker counts the defending partner's blockers; a full AI-vs-AI 2HG Level 2 game (4 Forge AI, white flyers against green) plays to the end with one team winning, team turns alternating and both partners attacking in most combats. The rewind and team-attack checks passed before any change. Without the AI fix `anAiAttackerCountsTheDefendingPartnersBlockers` fails. `engine/checks/harness-tests.sh` now runs `SharedTurnsTest`, `SharedTurnsDevTest`, `SharedCombatTest` and `SharedTurnsPlayTest` by default | no | outer repo engine/forge.patch (forge-ai AiAttackController.java), engine/manabrew.patch (SharedTurnsPlayTest.java) | not yet | engine1116-teams3 |
@@ -262,6 +263,38 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-16 engine1117-tie: a tie offer when a player can't lose (built in the cloud, no image)
+- **What:** `forge-harness/.../host/TieOffer.java` (new). `ManaBrewInteractiveSession.awaitPriorityAction` calls
+  `TieOffer.update` before each priority question, so the lock is rechecked after every resolution.
+  - **A lock** is Forge's own checks: `Player.cantLose()` (Platinum Angel, Angel's Grace, Gideon's emblem);
+    `canLoseLife()` false (Platinum Emperion, Teferi's Protection); `cantLoseForZeroOrLessLife()` (Phyrexian Unlife) when
+    the player can't get poison counters (Solemnity) and no other player has a commander; or a `DamageDone` replacement
+    with `Prevent$ True` for that player and no other condition (Glacial Chasm; not Personal Sanctuary's "during your
+    turn").
+  - **The offer** is `gameView.tieOffer`: the locks with their reasons, the people still to answer, and who accepted
+    (an AI seat accepts at once).
+  - **The vote:** the `tieVote` directive. All yes is a draw: `intentionalDraw` for each player, then
+    `GameEndReason.Draw`, as `GameDrawEffect` does.
+  - **After a no,** full rounds are counted (the turn coming back to the player whose turn it was at the no) while nothing progresses (life down, poison, commander damage, a
+    permanent leaving the battlefield, a card from a library into a graveyard, a loss). Any progress starts the count
+    over. Three rounds force the same draw, with status `forced`.
+  - A broken lock clears the offer; a new lock is a new offer.
+- **Protocol (optional fields):**
+  - `GameViewDto.tie_offer: Option<TieOfferDto>` (`serde(default, skip_serializing_if = "Option::is_none")`);
+  - `TieOfferDto { vote_id, locks: [TieLockDto { player_id, reasons }], awaiting_player_ids, accepted_player_ids, status:
+    pending | declined { player_id } | agreed | forced, rounds_without_progress, rounds_to_force }`, every list and count
+    `serde(default)`;
+  - `DirectiveInput::TieVote { vote_id, accept }`, routed to the seat like `RestoreVote` (`host.rs`, `agent_impl`);
+  - `ManabrewProtocolAdapter` maps it to `tie_vote`.
+- **Tests:**
+  - `TieOfferTest`, 22 checks: each lock card, Unlife alone, Unlife against a commander, a conditional prevention, the
+    offer and AI acceptance, the draw, an old vote, a broken lock, the forced tie after three rounds, each kind of
+    progress, a life gain not counting, and the session's priority recheck, snapshot and directives.
+  - Break-it: `node tools/mutate-tie-offer-engine.js <tree>`, 24 of 24 caught by name.
+  - The whole harness suite passes (`engine/test-harness-local.sh --all`, 29 classes), and so do
+    `cargo test -p manabrew-protocol -p manabrew-agent-interface`.
+- **Not done:** no image, no live game.
 
 ### 2026-11-16 engine1117-3hg: Three-Headed Giant checks and the revise title (built in the cloud, no image)
 - **Checked:** the team code takes three members as it is: shared life and poison mirror to all three
