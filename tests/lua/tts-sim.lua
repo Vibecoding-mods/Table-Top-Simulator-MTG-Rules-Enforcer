@@ -269,6 +269,8 @@ end
 local ObjMeta = {}
 ObjMeta.__index = function(o, k)
   if k == "is_face_down" then local z = (o.__d.rot and o.__d.rot.z or 0) % 360 return z > 90 and z < 270 end
+  -- (a 3D text's words: the Card Importer's "Spawning here" labels; not drawn, so nothing is kept)
+  if k == "TextTool" then local n = function() end return { setValue = n, setFontSize = n, setFontColor = n, getValue = function() return "" end } end
   local m = M[k]
   if m then
     -- TTS methods are called with a dot (obj.getPosition()); a colon call passes the object twice
@@ -824,6 +826,7 @@ Player = setmetatable({}, { __index = function(t, color)
   p.clearSelectedObjects = function() end
   p.changeColor = function() end
   p.getPointerPosition = function() return vec(0, 0, 0) end
+  p.getPointerRotation = function() return 0 end -- (the Card Importer turns what it spawns by it)
   -- the object under the player's pointer: __sim.hover = { [color] = guid } (none by default)
   p.getHoverObject = function() local g = SIM.hover and SIM.hover[color] return g and getObjectFromGUID(g) or nil end
   p.lookAt = function() end
