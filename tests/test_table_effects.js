@@ -1549,11 +1549,15 @@ const wiped = (s, ids, by, extra = {}) => {
     { name: "an ability's damage", pre: [], by: null, hits: three.map((id, i) => ({ src: "w2", to: id, n: 2, q: i + 1 })), want: "death_wipe_G", side: "White", each: "death_burn" },
     { name: "the commonest cause", pre: [stackOf("c40", "Wrath of God", "White", "W"), stackOf("c50", "Pyroclasm", "White", "R")], by: (id) => (id === "b3" ? "c50" : "c40"), want: "death_wipe_W", side: "White", each: "death" },
     { name: "a spell gone from the stack", pre: [stackOf("c50", "Pyroclasm", "White", "R")], by: null, want: "death_wipe_R", side: "White", each: "death" },
+    // (a run of one trigger, the bridge's stackGroups: one item of x, one of them gone, its id still there)
+    { name: "one of a run of one trigger gone", pre: [stackOf("c50", "Pyroclasm", "White", "R", { sp: false, x: 3 })], post: [stackOf("c50", "Pyroclasm", "White", "R", { sp: false, x: 2 })], by: null, want: "death_wipe_R", side: "White", each: "death" },
   ];
   const steps = [pools(12, 4), send(s0, "first board"), LIVES];
   for (const c of cases) {
     const pre = clone(s0); pre.stack = c.pre;
-    steps.push(send(pre, `pre ${c.name}`, 10), POOLQ, send(wiped(pre, three, c.by, c.hits ? { hits: c.hits } : {}), c.name, 150), POOLQ, send(s0, `back ${c.name}`, 30));
+    const w = wiped(pre, three, c.by, c.hits ? { hits: c.hits } : {});
+    if (c.post) w.stack = c.post;
+    steps.push(send(pre, `pre ${c.name}`, 10), POOLQ, send(w, c.name, 150), POOLQ, send(s0, `back ${c.name}`, 30));
   }
   const t = run(steps);
   ok("wave colours: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));

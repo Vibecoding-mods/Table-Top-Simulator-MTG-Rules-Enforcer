@@ -404283,18 +404283,8 @@
        "spell": false,
        "tg": [],
        "f": "https://img.klrmngr.com/display/front/7/7/77df3ef0-65d7-29cd-b6cf-a36b5feba164.webp",
-       "cl": "C"
-      },
-      {
-       "id": "s2",
-       "n": "Evolving Wilds",
-       "tx": "",
-       "ctl": "Blue",
-       "src": "engine-card-22",
-       "spell": false,
-       "tg": [],
-       "f": "https://img.klrmngr.com/display/front/7/7/77df3ef0-65d7-29cd-b6cf-a36b5feba164.webp",
-       "cl": "C"
+       "cl": "C",
+       "x": 2
       }
      ],
      "cards": {},
