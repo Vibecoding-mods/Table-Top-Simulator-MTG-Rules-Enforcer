@@ -3,8 +3,9 @@
 // the Global script as TABLE_PROFILE, and tools/engine-renderer.lua draws from it instead of the 4-player tables.
 //  1. The 4-player profile is exactly what the code hard-coded before (the values below, copied from it), in the same
 //     order where Lua's pairs or a loop sees the order. The checked-in profiles are what the saves give today.
-//  2. The 6-player profile: six seats clockwise, each seat's own objects (the GUID traps of spec §2.1), no commander
-//     damage trackers (noted, not guessed), and a missing object is an error by name.
+//  2. The 6-player profile: six seats clockwise, each seat's own objects (the GUID traps of spec §2.1), commander
+//     damage from the trackers the build makes (tests/test_table_six.js checks them), and a missing object is an error
+//     by name.
 //  3. make-engine-copy: the right profile builds both tables; a profile of the other table is refused; the 6-player
 //     table's patches all apply, except the two for tools it hasn't got (said as SKIP).
 //  4. The renderer on the fake TTS with the 6-player table: six READY buttons, six life counters, marks and tax labels,
@@ -91,14 +92,14 @@ const six = tp.extract(sixSave);
     // (two zones one behind the other: the one nearest the player first, the rule for level zones)
     same("6p: each seat's commander zones, nearest the player first (9d380e is White's here)", p.seats.map((c) => p.seat[c].commandZones.map((z) => z.guid).join(" ")),
       ["9d380e 40584f", "f9be00 9cb4b6", "ba751d 48daef", "206ce5 2fa3e2", "144ccc 399da3", "2af6c5 47e079"]);
-    ok("6p: no commander damage trackers: null and said, not guessed", p.cmdDamage === null && p.notFound.length === 1 && /cmdDamage/.test(p.notFound[0]), JSON.stringify(p.notFound));
+    ok("6p: no commander damage trackers of its own: 30 made (M6 step 12), cmdDamage from them, nothing missing", p.cmdDamageMade && p.cmdDamageMade.length === 30 && p.cmdDamage != null && Object.keys(p.cmdDamage).length === 6 && p.notFound.length === 0, JSON.stringify(p.notFound));
     same("6p: the Start tile between the life counters", p.start, [0, 0.95, 0]);
     same("6p: no Wastes, no Treachery", p.features, { wastes: false, treachery: false });
     // the silent misses of the 4-player lists (m6-compare-objects.md §6.1): all six timers, both πKeywords, all eight bundles
     ok("6p: all six timers removed", ["809133", "37dd7e", "252e18", "8a13cc", "cbb976", "ab15d9"].every((g) => p.remove.includes(g)), p.remove.join(" "));
     ok("6p: both πKeywords removed (ae12d3 and the current ddd349)", p.remove.includes("ae12d3") && p.remove.includes("ddd349"), p.remove.join(" "));
     ok("6p: all eight 3D bundles under the table removed", ["eb479b", "cb1610", "a3e6a8", "c42075", "06d2e0", "f72932", "3da261", "5f75f7"].every((g) => p.remove.includes(g)), p.remove.join(" "));
-    same("6p: no clutter boxes yet (M6 step 13): the commander damage bags stay", p.clutterBoxes, []);
+    same("6p: its own clutter boxes, the end columns (M6 step 13)", p.clutterBoxes, [{ x: [-56, -45], z: [-8.5, 33] }, { x: [45, 56], z: [-33, 8.5] }]);
     same("6p: the engine save's name", p.saveName, "MTG 6 player table - ENGINE MODE");
   }
   // a missing object is an error by name: Green's life tracker and Purple's playmat taken out of a copy
@@ -112,7 +113,8 @@ const six = tp.extract(sixSave);
 
 // ───────── 3. make-engine-copy with a profile ─────────
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "mtg-profile-"));
-const copy = (src, out, profile) => spawnSync(process.execPath, [path.join(TOOLS, "make-engine-copy.js"), src, out, ...(profile ? ["--profile", profile] : [])], { encoding: "utf8", maxBuffer: 1 << 26 });
+// (the 6-player table reads the 4-player one for its commander-damage trackers and backdrop: --tracker-source)
+const copy = (src, out, profile) => spawnSync(process.execPath, [path.join(TOOLS, "make-engine-copy.js"), src, out, ...(profile ? ["--profile", profile] : []), "--tracker-source", FOUR], { encoding: "utf8", maxBuffer: 1 << 26 });
 let sixBuilt = null;
 try {
   const r6 = copy(SIX, path.join(tmp, "six.json"), profilePath("2293586471"));
