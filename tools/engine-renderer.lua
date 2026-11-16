@@ -3427,6 +3427,8 @@ do
     local mark = FX.resultMark[c]
     Wait.time(function() if FX.resultMark[c] == mark then engineUI.setAttribute("eng_result_" .. c, "active", "false") end end, hold)
   end
+  -- (another use of the banner takes it over: a result's pending hide leaves it alone, engineRejoin.banner)
+  engineFxResultTaken = function(c) FX.resultMark = FX.resultMark or {} FX.resultMark[c] = (FX.resultMark[c] or 0) + 1 end
   local function seatedColors(m)
     local out = {}
     for _, pl in ipairs(m.players or {}) do if pl.color and Player[pl.color] ~= nil and Player[pl.color].seated then out[#out + 1] = pl.color end end
@@ -11858,6 +11860,218 @@ Wait.frames(function()
   if not ok then print("[MTG] GIF frames: " .. tostring(err)) end
 end, 31)
 -- ═════════════════════ end of GIF FRAMES ═════════════════════
+
+-- ═════════════════════ REJOIN PROMPT (2026-11-16) ═════════════════════
+-- "Last night there were disconnects and people didn't know if they would be able to get back into the table once
+-- they rejoined; then the table updated and they were back in" (the user, after the 2026-11-15 group games: Yellow out
+-- of the seat 19 s at 22:34 and 15 s at 00:34, White out at 00:27). A player coming back sees, on their own screen
+-- (the middle banner, eng_result_<colour>), "Rejoining: the table is updating for you..." with the step it is at, then
+-- "You're back in"; if the way back fails, "Couldn't rejoin" and the chat says what to do. Everyone else is told
+-- "<colour> is rejoining..." and "<colour> is back." Four ways back, one prompt:
+--   tts     their TTS dropped and they are back in their seat (engineSeatCheck): their hand and board are drawn again.
+--           A player who connects while a game seat is empty is told the game kept it (onPlayerConnect).
+--   relay   the bridge's link to the engine for their seat dropped: the bridge's own chat lines say each step
+--           ("<C> lost the engine connection. Reconnecting...", "<C> reconnected to the engine.", "<C> couldn't ..."),
+--           then { t = "rejoin", state = "back" } once the engine's board for the seat is in again (bridge.js
+--           Seat.backIn). The lines are read as they are sent: tests/test_rejoin_prompt.js runs the bridge's real
+--           ones through this table, so a reworded line fails there by name.
+--   bridge  the bridge restarted and rejoins the saved game ("The bridge restarted: rejoining the game..."): every
+--           human seat of the game, then each seat as above.
+--   rewind  a rewind to before their concession or loss brings them back (their status on the board, conceded or lost
+--           -> playing): their cards are drawn again; the bridge says "<name> is back in the game." to everyone.
+-- The banner is only set (setAttribute on the existing element: no new screen UI), and set again after a rebuild of
+-- the screen UI, which would wipe it. HOLD: the least time "Rejoining" stays up before "You're back in": a TTS that
+-- rejoined is still loading the table when its seat is back, and the host can't tell when it is done.
+engineRejoin = { on = {}, gen = {}, status = {}, away = {},
+  HOLD = { tts = 3, relay = 1, bridge = 1, rewind = 1.5 },
+  STEPS = { "reconnecting to the engine", "resyncing the game", "redrawing your hand and board" } }
+-- colour's banner (only while an engine game has its seat: the element exists for seated colours in engine mode)
+function engineRejoin.banner(c, text, color, size)
+  local seats = engineGameSeats()
+  if seats == nil or not seats[c] or Player[c] == nil or not Player[c].seated then return end
+  local id = "eng_result_" .. c
+  if engineFxResultTaken ~= nil then engineFxResultTaken(c) end
+  engineUI.setValue(id, text)
+  engineUI.setAttribute(id, "fontSize", tostring(size))
+  engineUI.setAttribute(id, "color", color)
+  engineUI.setAttribute(id, "outline", "#101010E0")
+  engineUI.setAttribute(id, "active", "true")
+end
+function engineRejoin.words(r)
+  if r.why == "tts" or r.why == "rewind" then return "Rejoining: the table is updating for you...\n" .. engineRejoin.STEPS[3] end
+  return "Rejoining: the table is updating for you...\n" .. r.step .. " of 3: " .. engineRejoin.STEPS[r.step]
+end
+function engineRejoin.others(c, text)
+  for _, o in ipairs(getSeatedPlayers()) do if o ~= c then broadcastToColor(text, o, { 1, 0.85, 0.4 }) end end
+end
+-- colour is on its way back (why: tts, relay, bridge, rewind), at step 1-3; a step never goes back
+function engineRejoin.start(c, step, why)
+  local seats = engineGameSeats()
+  if seats == nil or not seats[c] then return end
+  local R = engineRejoin
+  local r = R.on[c]
+  if r == nil then
+    r = { step = step, why = why, at = os.clock() }
+    R.on[c] = r
+    R.gen[c] = (R.gen[c] or 0) + 1
+    engineTableLog(c, "rejoining (" .. why .. ")")
+    if Player[c] ~= nil and Player[c].seated then broadcastToColor("[MTG] Rejoining: the table is updating for you...", c, { 1, 0.85, 0.4 }) end
+    -- (a rewind is told by the bridge: "<name> is back in the game.")
+    if why ~= "rewind" then R.others(c, "[MTG] " .. c .. " is rejoining...") end
+  elseif step > r.step then r.step = step end
+  R.banner(c, R.words(r), "#FFD27A", 44)
+end
+-- set again what a rebuilt screen UI wiped (engineRenderPanels builds it hidden, three frames on)
+function engineRejoin.reassert()
+  local R = engineRejoin
+  for c, r in pairs(R.on) do R.banner(c, R.words(r), "#FFD27A", 44) end
+end
+-- "You're back in": once colour's cards are drawn (no spawn left in flight) and the banner has been up HOLD seconds
+function engineRejoin.finishSoon(c)
+  local R = engineRejoin
+  local r = R.on[c]
+  if r == nil or r.finishing then return end
+  r.finishing = true
+  local gen = R.gen[c]
+  local tries = 0
+  local function check()
+    if R.gen[c] ~= gen or R.on[c] ~= r then return end
+    tries = tries + 1
+    if next(engineSpawning) ~= nil and tries < 60 then Wait.time(check, 0.25) return end
+    R.done(c)
+  end
+  Wait.time(check, math.max(0.25, (R.HOLD[r.why] or 1) - (os.clock() - r.at)))
+end
+function engineRejoin.done(c)
+  local R = engineRejoin
+  local r = R.on[c]
+  if r == nil then return end
+  R.on[c] = nil
+  R.gen[c] = (R.gen[c] or 0) + 1
+  local gen = R.gen[c]
+  if engineGameSeats() == nil then return end -- (the game ended meanwhile: nothing to be back in)
+  engineTableLog(c, string.format("back in (%s), the prompt up %.1f s", r.why, os.clock() - r.at))
+  R.banner(c, "You're back in", "#9CFF9C", 64)
+  if Player[c] ~= nil and Player[c].seated then broadcastToColor("[MTG] You're back in.", c, { 0.6, 1, 0.6 }) end
+  if r.why ~= "rewind" then R.others(c, "[MTG] " .. c .. " is back.") end
+  Wait.time(function() if R.gen[c] == gen then engineUI.setAttribute("eng_result_" .. c, "active", "false") end end, 2.5)
+end
+-- the way back failed: the bridge's chat line says what to do (it goes to everyone)
+function engineRejoin.fail(c)
+  local R = engineRejoin
+  if R.on[c] == nil then return end
+  R.on[c] = nil
+  R.gen[c] = (R.gen[c] or 0) + 1
+  local gen = R.gen[c]
+  engineTableLog(c, "rejoin failed")
+  R.banner(c, "Couldn't rejoin\nsee the chat for what to do", "#FF8A7A", 44)
+  Wait.time(function() if R.gen[c] == gen then engineUI.setAttribute("eng_result_" .. c, "active", "false") end end, 10)
+end
+-- the bridge's lines and its "rejoin" message (see above)
+function engineRejoin.onMessage(m)
+  if type(m) ~= "table" or (m.t ~= "chat" and m.t ~= "rejoin") then return end
+  local d = m
+  if type(m.json) == "string" then
+    local ok, x = pcall(engineJsonDecode, m.json)
+    if not ok or type(x) ~= "table" then return end
+    d = x
+  end
+  local R = engineRejoin
+  local seats = engineGameSeats()
+  if seats == nil then return end
+  if m.t == "rejoin" then
+    if type(d.color) ~= "string" or not seats[d.color] then return end
+    if d.state == "back" then
+      R.start(d.color, 3, "relay")
+      if R.on[d.color] ~= nil then R.on[d.color].waitTable = true end
+      -- (no board may follow: one the same as the last isn't sent again)
+      Wait.time(function() R.finishSoon(d.color) end, 2)
+    end
+    return
+  end
+  local text = tostring(d.text or "")
+  if text == "[MTG] The bridge restarted: rejoining the game..." then
+    for c in pairs(seats) do R.start(c, 1, "bridge") end
+    return
+  end
+  for c in pairs(seats) do
+    if text == "[MTG] " .. c .. " lost the engine connection. Reconnecting..." then R.start(c, 1, "relay")
+    elseif text == "[MTG] " .. c .. " reconnected to the engine." then
+      if R.on[c] ~= nil then R.start(c, 2, R.on[c].why) else R.start(c, 2, "relay") end
+    elseif text:find("[MTG] " .. c .. " couldn't ", 1, true) == 1 then R.fail(c) end
+  end
+end
+engineRejoin.prevMsg = engineOnMessage
+function engineOnMessage(m)
+  local ok, err = pcall(engineRejoin.onMessage, m)
+  if not ok then print("[MTG] rejoin prompt: " .. tostring(err)) end
+  if type(m) == "table" and m.t == "rejoin" then return end
+  return engineRejoin.prevMsg(m)
+end
+-- the rewind way back: a human seat out (conceded or lost) on the last board and playing on this one
+engineRejoin.prevRender = engineRender
+function engineRender(m)
+  local R = engineRejoin
+  local back = {}
+  if type(m) == "table" and not m.gameOver then
+    for _, pl in ipairs(m.players or {}) do
+      if pl.color ~= nil and not pl.ai then
+        local was = R.status[pl.color]
+        if (was == "conceded" or was == "lost") and (pl.status == nil or pl.status == "playing") then back[#back + 1] = pl.color end
+        R.status[pl.color] = pl.status or "playing"
+      end
+    end
+  end
+  R.prevRender(m)
+  for _, c in ipairs(back) do R.start(c, 3, "rewind") end
+  for c, r in pairs(R.on) do if r.why == "rewind" or r.waitTable then R.finishSoon(c) end end
+  if next(R.on) ~= nil then Wait.frames(function() pcall(R.reassert) end, 5) end
+end
+-- a new game starts from nobody out
+engineRejoin.prevClear = engineClear
+function engineClear(...)
+  engineRejoin.status, engineRejoin.on = {}, {}
+  return engineRejoin.prevClear(...)
+end
+-- the TTS way back (engineSeatCheck draws the seat again; this tells the player and the table)
+engineRejoin.prevSeatCheck = engineSeatCheck
+function engineSeatCheck()
+  local R = engineRejoin
+  local was = engineSeatWatch.seated
+  R.prevSeatCheck()
+  local now, seats = engineSeatWatch.seated, engineGameSeats()
+  if was == nil or now == nil or seats == nil then return end
+  for c in pairs(seats) do
+    if was[c] and not now[c] then R.away[c] = os.clock()
+    elseif now[c] and not was[c] then
+      if R.away[c] ~= nil then engineTableLog(c, string.format("was out of the seat %.1f s", os.clock() - R.away[c])) end
+      R.away[c] = nil
+      R.start(c, 3, "tts")
+      R.finishSoon(c)
+      -- (engineSeatBack built the screen UI again: the banner goes back on once it is up)
+      Wait.frames(function() pcall(R.reassert) end, 6)
+    end
+  end
+end
+-- someone connects while a game seat is empty: the game kept it (they may come back as a spectator, or seated)
+engineRejoin.prevConnect = onPlayerConnect
+function onPlayerConnect(player)
+  local ok, err = pcall(function()
+    local seats = engineGameSeats()
+    if seats == nil or player == nil then return end
+    local empty = {}
+    for c in pairs(seats) do if Player[c] == nil or not Player[c].seated then empty[#empty + 1] = c end end
+    table.sort(empty)
+    if seats[player.color] then
+      player.broadcast("[MTG] Rejoining: the table is updating for you... Your seat and cards were kept.", { 1, 0.85, 0.4 })
+    elseif #empty > 0 then
+      player.broadcast("[MTG] A game is running. If you were playing, sit at your colour (" .. table.concat(empty, ", ") .. ") to rejoin: the game kept your seat and cards, and the table is drawn again for you.", { 1, 0.85, 0.4 })
+    end
+  end)
+  if not ok then print("[MTG] rejoin prompt: " .. tostring(err)) end
+  if engineRejoin.prevConnect ~= nil then return engineRejoin.prevConnect(player) end
+end
+-- ═════════════════════ end of REJOIN PROMPT ═════════════════════
 
 -- This script's version, set in the save by tools/patch-save.js; the bridge compares it with the last deploy
 function engineStamp() return "dev" end
