@@ -124,6 +124,31 @@ function addPieces(raw, built) {
   return { raw: out, added: add.map((o) => `${String(o.Nickname || o.Name).split("\n")[0]} (${o.GUID})`) };
 }
 
+// The Card Importer's DeckCheck links (docs/deckcheck-spec.md) live in the importer's own object script, which the
+// Global patch above never touches. Each top-level object whose built script has the DeckCheck code and whose saved
+// script hasn't gets the built script, as text, every other byte as it was. One that can't be found exactly once is
+// left alone and named. Pure: the tests drive it.
+function importerScripts(raw, built) {
+  const save = JSON.parse(raw);
+  const has = (s) => typeof s === "string" && s.includes("function deckcheckId(");
+  let out = raw;
+  const done = [], skipped = [], want = new Map();
+  for (const o of save.ObjectStates || []) {
+    const b = (built.ObjectStates || []).find((x) => x.GUID === o.GUID);
+    if (!b || !has(b.LuaScript) || has(o.LuaScript) || typeof o.LuaScript !== "string" || o.LuaScript === "") continue;
+    const old = JSON.stringify(o.LuaScript);
+    if (out.split(old).length !== 2) { skipped.push(o.GUID); continue; }
+    out = out.replace(old, () => JSON.stringify(b.LuaScript));
+    want.set(o.GUID, b.LuaScript);
+    done.push(`${String(o.Nickname || o.Name).split("\n")[0]} (${o.GUID})`);
+  }
+  if (!done.length) return { raw, updated: [], skipped };
+  const expected = { ...save, ObjectStates: save.ObjectStates.map((o) => (want.has(o.GUID) ? { ...o, LuaScript: want.get(o.GUID) } : o)) };
+  if (JSON.stringify(JSON.parse(out)) !== JSON.stringify(expected))
+    throw new Error("updating the Card Importer's script changed something else: nothing changed");
+  return { raw: out, updated: done, skipped };
+}
+
 function main(write) {
   const raw = fs.readFileSync(SAVE, "utf8");
   const save = JSON.parse(raw);
@@ -139,8 +164,11 @@ function main(write) {
   }
 
   const pieces = addPieces(rewrite(raw, script), built);
-  const out = pieces.raw;
   if (pieces.added.length) console.log(`add   ${pieces.added.length} status pieces, parked under the table: ${pieces.added.join(", ")}`);
+  const imp = importerScripts(pieces.raw, built);
+  const out = imp.raw;
+  if (imp.updated.length) console.log(`script ${imp.updated.join(", ")}: DeckCheck links added`);
+  for (const g of imp.skipped) console.log(`skip  ${g}: its script isn't in the save's file once, so its DeckCheck links weren't added`);
 
   // what comes out has to load and start: a held hunk can leave something the taken ones need. This sees no board:
   // tools/deploy.js plays real ones on the file a dry run returns.
@@ -163,4 +191,4 @@ function main(write) {
 }
 
 if (require.main === module) main(process.argv.includes("--write"));
-module.exports = { patch, hunks, heldBy, unheld, apply, stamped, rewrite, statusGuids, addPieces, ttsRunning, main, SAVE };
+module.exports = { patch, hunks, heldBy, unheld, apply, stamped, rewrite, statusGuids, addPieces, importerScripts, ttsRunning, main, SAVE };
