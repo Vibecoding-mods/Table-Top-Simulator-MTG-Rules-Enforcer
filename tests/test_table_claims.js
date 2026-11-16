@@ -518,6 +518,43 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("mtg mana: a pause long after the call adds nothing", late && !(late.fx || []).some((l) => l.includes("WebRequest") && l.includes("mana")), JSON.stringify((late && late.fx || []).slice(0, 2)));
   ok("mtg mana: someone else's pause doesn't take it", !/"op":"mana"/.test(sent(r, "editing White")), sent(r, "editing White").slice(0, 160));
 }
+// "mtg mana 3" typed in AI 1's draw step with a trigger on the stack: the fix waits for an empty stack, past the 30 s
+// window, and the full MANUAL FIX menu opened instead of the one-line fix (live 2026-11-16). Its own fix, seen within
+// 30 s of the call, is applied however long the pause takes; a fix of its that ended unpaused spends the call.
+{
+  const sent = (r, mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  const fx = (id, state, by = "Blue") => `engineFixUpdate({ id = ${id}, state = "${state}", by = "${by}", waiting = {} }) __sim.frames(10)`;
+  const r = run([q('engineChat("mtg mana 3", Player.Blue)', "mana 3"), q(fx(2, "pausing"), "pausing"),
+    q('engineAutoMana.Blue.at = os.clock() - 90', "long wait"), q(fx(2, "editing"), "paused late"),
+    q('engineFixUpdate(nil) engineChat("mtg mana 4", Player.Blue)', "mana 4"), q(fx(3, "pausing"), "pausing 3"),
+    q('engineFixUpdate(nil)', "cancelled"), q(fx(4, "editing"), "editing 4")]);
+  ok("mtg mana wait: no errors", r.errors.length === 0, r.errors.join(" | "));
+  const late = sent(r, "paused late");
+  ok("mtg mana wait: a pause 90 s after the call still adds 3 of each and presses Done", /"action":"done"/.test(late) && /"op":"mana"/.test(late)
+    && /"mana":"W W W U U U B B B R R R G G G C C C"/.test(late), late.slice(0, 300));
+  ok("mtg mana wait: its fix cancelled before the pause spends the call", !/"op":"mana"/.test(sent(r, "editing 4")), sent(r, "editing 4").slice(0, 200));
+}
+// While the fix waits for an empty stack, the seat with a question open (Smothering Tithe's "pay {2}?") sees no fix
+// panel over the question's: a small "Cancel fix" where Fix... sits, which cancels; the panel is back once the question
+// is answered (live 2026-11-16: the two panels lay over each other in the middle of the screen)
+{
+  const st = (mark) => q('return tostring(UI.getAttribute("eng_fixp_Blue", "active")) .. "|" .. tostring(UI.getAttribute("eng_fixcall_Blue", "active")) .. "|" .. tostring(UI.getAttribute("eng_fixcall_Blue", "text")) .. "|" .. tostring(UI.getAttribute("eng_fixcall_Blue", "width"))', mark);
+  const sent = (r, mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
+  const tithe = ask({ promptId: 9101, kind: "yesno", title: "Smothering Tithe: pay {2}?", mode: "single", text: "AI 1 creates a Treasure token.",
+    options: [{ id: "yes", label: "Pay" }, { id: "no", label: "Decline" }] });
+  const r = run([{ frames: 30 }, q('engineFixUpdate({ id = 1, state = "pausing", by = "Blue", waiting = {} }) __sim.frames(10)', "pausing"), st("no question"),
+    { ...tithe, mark: "asked" }, { frames: 10 }, st("question open"),
+    q('onMtgFix(Player.Blue, nil, "eng_fixcall_Blue")', "click"),
+    q('engineOnPrompt({ t = "prompt", color = "Blue" }) __sim.frames(10)', "answered"), st("question gone")]);
+  ok("fix aside: no errors", r.errors.length === 0, r.errors.join(" | "));
+  ok("fix aside: waiting with no question, the panel shows", String(valueOf(r, "no question")).split("|")[0] === "true", valueOf(r, "no question"));
+  const [panel, btn, text, width] = String(valueOf(r, "question open")).split("|");
+  ok("fix aside: a question open hides the waiting panel", panel === "false", valueOf(r, "question open"));
+  ok("fix aside: a small Cancel fix button instead", btn === "true" && text === "Cancel fix" && width === "96", valueOf(r, "question open"));
+  ok("fix aside: the button cancels the fix", /"action":"cancel"/.test(sent(r, "click")) && !/"action":"call"/.test(sent(r, "click")), sent(r, "click").slice(0, 200));
+  const back = String(valueOf(r, "question gone")).split("|");
+  ok("fix aside: the question gone, the panel is back and the button hides again", back[0] === "true" && back[1] === "false" && back[2] === "Fix...", valueOf(r, "question gone"));
+}
 // a manual fix names the other seat as the game log does ("AI 1 gets 5 of each colour", not "White"; bug h's leftover,
 // real table 2026-11-05)
 {
