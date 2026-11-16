@@ -3165,6 +3165,10 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       await asked(h, seat, AI_ACTIONS);
       ok("re-test bug 1: AI 1's main-phase priority under Mindslaver is shown to its controller", seat.prompt?.ui?.title === "AI 1's priority (you control)", JSON.stringify(seat.prompt?.ui?.title ?? null));
       ok("re-test bug 1: with AI 1's land and spell to play", (seat.prompt?.ui?.options || []).some((o) => o.id === "play:1601") && (seat.prompt?.ui?.options || []).some((o) => o.id === "cast:1602"), JSON.stringify(seat.prompt?.ui?.options));
+      // (the table's pass button counts the pool of the player the priority is for: the prompt names AI 1's colour)
+      const sentPrio = prompts(h).at(-1);
+      ok("floating mana: AI 1's priority under Mindslaver tells the table it is AI 1's (forColor, its pool on the pass button)",
+        sentPrio?.title === "AI 1's priority (you control)" && sentPrio?.forColor === "White", JSON.stringify(sentPrio && { title: sentPrio.title, forColor: sentPrio.forColor }));
       await answer(h, ["cast:1602"]);
       await asked(h, seat, { type: "chooseBoardTargets", candidates: [{ kind: "player", id: "player-0" }, { kind: "player", id: "player-1" }], minTargets: 1, maxTargets: 1, chosenTargets: 0,
         presentation: { title: "Choose a target to deal damage to" } }, { promptId: 901, sourceCard: BOLT, sourceAbilityText: BOLT.text });
@@ -4987,6 +4991,60 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     same("prepared: with a token copy of the creature beside it, the badge goes on the card",
       await tableWith([["battlefield", "player-0", [TOKEN_TWIN, RESEARCHER]], ["exile", "player-0", [COPY]]]),
       { badged: [RESEARCHER.id], linked: [`${COPY.id}>${RESEARCHER.id}`] });
+    // Two of one printing prepared by the same board: told apart by the order Forge made the copies (its ids, from
+    // game.nextCardId(), lowest first, numerically) against the order the creatures became prepared, read off the last
+    // board (prepOrder): an ability naming "prepared" gone from its stack, top first, by its source or its target; then
+    // a creature new to the battlefield ("enters prepared"). -> the second board's ties, "copy>creature", sorted.
+    const OTHER = { ...RESEARCHER, id: "engine-card-1310" }; // (a second Grave Researcher, after RESEARCHER on the battlefield)
+    const UPKEEP = (id, src) => ({ id, controllerId: "player-0", ownerId: "player-0", sourceId: src, identity: { name: "Grave Researcher" }, text: RESEARCHER_TEXT });
+    // (copies made by Forge in the order 999, then 1001: listed in exile the other way round, and "1001" before "999" as text)
+    const C999 = { ...COPY, id: "engine-card-999" }, C1001 = { ...COPY, id: "engine-card-1001" };
+    const twoBoards = async (first, second) => {
+      const h = harness.load();
+      const mk = (fill) => { const b = clone(F.board); fill(b.gameView); return b; };
+      const pz = (gv, zone, ownerId = "player-0") => gv.zones.find((z) => z.zone === zone && z.ownerId === ownerId);
+      const fill = (spec) => (gv) => { for (const [zone, ownerId, cards] of spec.zones) pz(gv, zone, ownerId).cards.push(...clone(cards)); gv.stack = clone(spec.stack || []); };
+      const seat = setup(h, mk(fill(first)));
+      h.B.sendTable(); await h.flush();
+      seat.board = { state: mk(fill(second)), fingerprint: null };
+      h.B.sendTable(); await h.flush();
+      // (the ties notePrepared made, which the table's badge, linked exile and log lines all read: game.prepared)
+      const links = [...(h.B._getGame()?.prepared || new Map())].map(([copy, p]) => `${copy}>${p.host}`).sort();
+      harness.restore();
+      return links;
+    };
+    const BOTH = ["battlefield", "player-0", [RESEARCHER, OTHER]];
+    same("prepared, two alike: the trigger on top of the stack resolved first, so Forge's first copy (the lower id) is its creature's",
+      await twoBoards({ zones: [BOTH], stack: [UPKEEP("engine-stack-50", RESEARCHER.id), UPKEEP("engine-stack-51", OTHER.id)] },
+        { zones: [BOTH, ["exile", "player-0", [C1001, C999]]] }),
+      [`${C1001.id}>${RESEARCHER.id}`, `${C999.id}>${OTHER.id}`]);
+    same("prepared, two alike: the other way round on the stack, the other way round on the table",
+      await twoBoards({ zones: [BOTH], stack: [UPKEEP("engine-stack-50", OTHER.id), UPKEEP("engine-stack-51", RESEARCHER.id)] },
+        { zones: [BOTH, ["exile", "player-0", [C1001, C999]]] }),
+      [`${C1001.id}>${OTHER.id}`, `${C999.id}>${RESEARCHER.id}`]);
+    same("prepared, two alike: a trigger still on the stack prepared nothing yet; the one that resolved did",
+      await twoBoards({ zones: [BOTH], stack: [UPKEEP("engine-stack-50", OTHER.id), UPKEEP("engine-stack-51", RESEARCHER.id)] },
+        { zones: [BOTH, ["exile", "player-0", [COPY]]], stack: [UPKEEP("engine-stack-50", OTHER.id)] }),
+      [`${COPY.id}>${RESEARCHER.id}`]);
+    // (Biblioplex Tomekeeper's "target creature becomes prepared", AI 1's: the copy in AI 1's exile, Blue's creature its target)
+    const TOMEKEEPER = { id: "engine-stack-60", controllerId: "player-1", ownerId: "player-1", sourceId: "engine-card-1400", identity: { name: "Biblioplex Tomekeeper" },
+      text: "Target creature becomes prepared. (Only creatures with prepare spells can become prepared.)", targets: [{ kind: "card", id: OTHER.id }] };
+    same("prepared, two alike: another card's ability prepares the creature it targeted, its copy in that card's controller's exile",
+      await twoBoards({ zones: [BOTH], stack: [TOMEKEEPER] }, { zones: [BOTH, ["exile", "player-1", [{ ...COPY, ownerId: "player-1", controllerId: "player-1" }]]] }),
+      [`${COPY.id}>${OTHER.id}`]);
+    // ("enters prepared" is a replacement, nothing on the stack: the creature new to the battlefield)
+    same("prepared, two alike: a creature that just entered is the prepared one, not the one already there",
+      await twoBoards({ zones: [["battlefield", "player-0", [RESEARCHER]]] }, { zones: [BOTH, ["exile", "player-0", [COPY]]] }),
+      [`${COPY.id}>${OTHER.id}`]);
+    // (near miss: the creature already there had an ability of other words leave the stack; that prepared nothing)
+    same("prepared, two alike: an ability without \"prepared\" in its words leaving the stack is no sign",
+      await twoBoards({ zones: [["battlefield", "player-0", [RESEARCHER]]], stack: [{ ...UPKEEP("engine-stack-52", RESEARCHER.id), text: "Whenever this creature attacks, surveil 1." }] },
+        { zones: [BOTH, ["exile", "player-0", [COPY]]] }),
+      [`${COPY.id}>${OTHER.id}`]);
+    // (a link once made stays while both are there, whatever the next board's stack did)
+    same("prepared, two alike: a link made on an earlier board is kept",
+      await twoBoards({ zones: [BOTH, ["exile", "player-0", [COPY]]] }, { zones: [BOTH, ["exile", "player-0", [COPY]]], stack: [] }),
+      [`${COPY.id}>${RESEARCHER.id}`]);
   }
   // engine1112's new optional fields (docs/readability-audit-2026-11-12.md E1-E6, E9), in the shapes the harness sends
   // them (manabrew-protocol game/mod.rs; CardStateFlagsTest, EffectsViewTest, EngineEventDamageTest): the words each
