@@ -1,6 +1,7 @@
 # DeckCheck links: import, bracket and threat level
 
-Status 2026-11-15: spec. The headless part is being built first; the TTS part comes later.
+Status 2026-11-15: headless part built and on main; TTS part (import, label) built on branch `deckcheck-tts`, tested
+on the fake TTS only. Not yet seen on the real table (see "TTS part" at the end).
 
 ## What the owner wants
 
@@ -108,5 +109,44 @@ Live shape: **confirmed 2026-11-15.**
 
   `deckcheckEntries` read 1 commander and 90 entries (100 cards), with the label "Bracket 3 · Threat 45 (32-51)".
 
-The TTS wiring (importer patch, label drawing, the start/end hide and show) comes after the headless part passes,
-and is tested on the real table.
+### TTS part
+
+Built 2026-11-15 (branch `deckcheck-tts`), gate `tests/test_table_deckcheck.js`:
+
+- **Import.** `tools/make-engine-copy.js` step 7 patches the engine copy's Card Importer (the Workshop file is only
+  read):
+  - `Importer.Deck` sends any `deckcheck.co/` link to `fetchDeckCheckDeck` (`tools/deckcheck-import.lua`), ahead of
+    Archidekt and Moxfield;
+  - `tools/deckcheck.lua` and `tools/deckcheck-import.lua` are appended to the importer's script;
+  - the spawned deck's data gets `GMNotes = qTbl.gmNotes` (nil for every other import);
+  - the help and "not supported" lines name DeckCheck.
+- `fetchDeckCheckDeck`: a link that isn't a deck link is refused with the 400 message and no request. Otherwise ONE
+  GET through the importer's own `WebGetSSL` (15 s timeout, no key). The status comes from `response_code`, else the
+  `HTTP/1.1 NNN` in the error, else 0 (no answer). Then `deckcheckError`, or `deckcheckEntries` → each card
+  `count` times, commanders first → `spawnDeckEntries`. The deck is named as on DeckCheck (`qTbl.full`, the deck's
+  description, as Moxfield's), and the tag goes in its GM notes. The answer is not kept.
+- Choices the spec left open:
+  - a 200 that isn't JSON, or isn't a deck, reads as the 500 message;
+  - more than 250 cards is refused ("the importer takes at most 250"), so a broken answer can't spawn thousands;
+  - a one-card deck spawns as a lone card, which carries no tag (the importer's solo-card path is unchanged).
+- **Label.** `tools/deckcheck.lua` is also appended to Global, before `engine-renderer.lua`. In `engineSetupButtons`,
+  with engine mode on and no game running, each seated colour's deck on its library spot (`getDeckFromZone`, the
+  deck the READY check reads) is read with `deckcheckReadTag` / `deckcheckLabel`. Each label is a button on the
+  seat's playmat (`engineDeckCheckDraw`):
+  - centred between the two commander zones, moved toward the library past the zones' near edge onto the strip
+    before the exile pile (White: about x 40.8, z -10.5);
+  - 5.4 x 0.75, readable from the seat;
+  - local x negated, because real TTS mirrors a mat zone's buttons.
+- The labels are part of the setup redraw's signature, so they follow the deck within the 2 s heal, and they go and
+  come back with the READY buttons:
+  - hidden once a game runs;
+  - while the game-over board shows, the decks are still put away, so there is no label;
+  - back after NEW GAME / `mtg reset` puts the decks back.
+- In 2HG and the team modes every seat reads its own deck.
+- To check on the real table:
+  - a real DeckCheck import (`Importer deck <link>`);
+  - that TTS gives `response_code` for a 403/404;
+  - the label's spot, size and direction for all four seats (`tools/tts-shot.ps1`);
+  - that it goes at a game start and comes back after NEW GAME.
+- Deploying: `tools/patch-save.js` patches Global only. The importer is an object script, so it reaches the user's
+  save only through a rebuild or `tools/tts-push-global.js --patched`, which wipes the table: never with decks on it.

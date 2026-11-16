@@ -8732,7 +8732,75 @@ function engineSetupIntact()
     for _, b in ipairs((mat and mat.getButtons()) or {}) do if b.click_function == "onMtgSetupReady" then any = true end end
     if not any then return false end
   end
+  for c in pairs(SETUP.drawn.dc or {}) do
+    local mat = data[c] and data[c].playmat
+    local any = false
+    for _, b in ipairs((mat and mat.getButtons()) or {}) do if b.click_function == "engineDeckCheckNoop" then any = true end end
+    if not any then return false end
+  end
   return true
+end
+
+-- ───────── DeckCheck bracket and threat label (docs/deckcheck-spec.md) ─────────
+-- In engine mode with no game running, each seated player whose deck on their library spot came from a DeckCheck link
+-- (the tag the Card Importer writes in the deck's GM notes, tools/deckcheck-import.lua) gets one label beside their
+-- commander zones: "Bracket 3 · Threat 54 (32-51)" (deckcheckLabel, tools/deckcheck.lua). No tag, no label: brackets
+-- are never estimated here. The label goes with the setup buttons: hidden while a game runs; after it, back once the
+-- decks are back on their spots (NEW GAME / mtg reset: while the game-over board shows they are still put away).
+-- It lies on the strip between the two commander zones and the exile pile (empty before a game), readable from the
+-- seat; each seat reads its own deck, so in 2HG and the team modes every player has their own.
+SETUP.dc = { w = 5.4, h = 0.75, half = 1.55, gap = 0.2, perWorld = 480, lift = 1.05, color = { 0.1, 0.12, 0.17, 0.92 } }
+function engineDeckCheckNoop() end
+-- seated colours -> { [colour] = label } and a key of them all (for the redraw signature)
+function engineDeckCheckLabels(seated)
+  local out, key = {}, {}
+  if deckcheckReadTag == nil or deckcheckLabel == nil then return out, "" end
+  for _, c in ipairs(seated) do
+    local zone = data[c] and data[c].libraryZone
+    local deck = zone and getDeckFromZone(zone) or nil
+    local label = deck and deckcheckLabel(deckcheckReadTag(tostring(deck.getGMNotes()))) or nil
+    out[c] = label
+    key[#key + 1] = c .. "=" .. tostring(label)
+  end
+  return out, table.concat(key, ";")
+end
+-- the label's world spot for colour c: the commander zones' middle, moved toward the library spot past the zones' near
+-- edge (half a card) and a gap, or nil
+function engineDeckCheckSpot(c)
+  local d = data[c]
+  local a = TAX_LABELS[c] and getObjectFromGUID(TAX_LABELS[c][1]) or nil
+  local b = TAX_LABELS[c] and getObjectFromGUID(TAX_LABELS[c][2]) or nil
+  if d == nil or d.libraryZone == nil or a == nil or b == nil then return nil end
+  local mid = (a.getPosition() + b.getPosition()) * 0.5
+  local lib = d.libraryZone.getPosition()
+  local v = Vector(lib.x - mid.x, 0, lib.z - mid.z)
+  local len = math.sqrt(v.x * v.x + v.z * v.z)
+  if len < 0.001 then return nil end
+  local k = (SETUP.dc.half + SETUP.dc.gap + SETUP.dc.h / 2) / len
+  return Vector(mid.x + v.x * k, SETUP.dc.lift, mid.z + v.z * k)
+end
+-- one label button on colour c's playmat
+function engineDeckCheckDraw(c, label)
+  local mat = data[c] and data[c].playmat
+  local at = engineDeckCheckSpot(c)
+  if mat == nil or at == nil then return end
+  local s = mat.getScale()
+  local hand = Player[c].getHandTransform()
+  local rot = (((hand and hand.rotation.y or 0) + 180) - mat.getRotation().y) % 360
+  local sx, sz = s.x, s.z
+  if math.floor(rot + 0.5) % 180 == 90 then sx, sz = s.z, s.x end -- (TTS stretches a button after turning it: setupButton)
+  -- (real TTS draws a mat zone's button with its local x mirrored: TL.put, live 2026-11-14)
+  local pos = mat.positionToLocal(at)
+  pos.x = -pos.x
+  local u = SETUP.dc.perWorld
+  -- (the largest font that fits, a letter about 0.58 of the font wide, as TL.font)
+  local font = math.max(60, math.floor(math.min(200, (SETUP.dc.w * u - 60) / (0.58 * math.max(1, #label)), SETUP.dc.h * u * 0.78)))
+  mat.createButton({ click_function = "engineDeckCheckNoop", function_owner = Global, label = label,
+    tooltip = "This deck's bracket and Threat Index from DeckCheck (deckcheck.co), with the score range of that bracket. A rule of the bracket can raise it, so the score may sit outside the range.",
+    position = pos, rotation = { 0, rot, 0 }, scale = { 1 / sx, 1 / s.y, 1 / sz },
+    width = math.floor(SETUP.dc.w * u), height = math.floor(SETUP.dc.h * u), font_size = font,
+    color = SETUP.dc.color, font_color = { 0.95, 0.9, 0.75 } })
+  SETUP.drawn.dc[c] = true
 end
 local function seatedSetupColors()
   local out = {}
@@ -8778,18 +8846,21 @@ function engineSetupButtons()
   local ready = 0
   for _, c in ipairs(seated) do if engineReadyState[c] == "ready" then ready = ready + 1 end end
   local over = game ~= nil and game.gameOver
+  -- (the DeckCheck labels: read only between games in engine mode)
+  local dcLabels, dcKey = {}, ""
+  if ENGINE_MODE and not running then dcLabels, dcKey = engineDeckCheckLabels(seated) end
   -- only when something changed (buttons on objects are synced to every player)
   local alive = {}
   for _, pl in ipairs((game and game.players) or {}) do if pl.status == "playing" then alive[#alive + 1] = tostring(pl.color) end end
   table.sort(alive)
   local sig = table.concat({ tostring(ENGINE_MODE), tostring(running), tostring(over), table.concat(seated, ","), tostring(ready), table.concat(alive, ","),
-    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly), tostring(ENGINE_GAME_MODE), engineTeamsLabel ~= nil and engineTeamsLabel() or "" }, "|")
+    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly), tostring(ENGINE_GAME_MODE), engineTeamsLabel ~= nil and engineTeamsLabel() or "", dcKey }, "|")
   -- (unchanged, and the buttons are still there: TTS's own scripts or a reload can wipe an object's buttons, and after a
   -- game ended the READY buttons and the middle tile stayed gone or stale, "Engine: off" with engine mode on, playtest
   -- 2026-10-24; engineSetupHeal below looks every 2 s)
   if sig == SETUP.sig and engineSetupIntact() then return end
   SETUP.sig = sig
-  SETUP.drawn = { tile = nil, mats = {} }
+  SETUP.drawn = { tile = nil, mats = {}, dc = {} }
   for _, c in ipairs(SETUP.seats) do
     local mat = data[c] and data[c].playmat
     if mat ~= nil then mat.clearButtons() end
@@ -8843,6 +8914,9 @@ function engineSetupButtons()
       setupButton(mat, "onMtgSetupReady", st == "ready" and "READY" or (st == "problem" and "FIX DECK" or "READY?"),
         st == "ready" and SETUP.color.go or (st == "problem" and SETUP.color.bad or SETUP.color.wait), at, c)
     end
+  end
+  for _, c in ipairs(seated) do
+    if dcLabels[c] ~= nil then engineDeckCheckDraw(c, dcLabels[c]) end
   end
   if tile ~= nil then
     local label, color, click = nil, nil, "onMtgSetupStart"
