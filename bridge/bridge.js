@@ -7984,10 +7984,11 @@ function resolvingStops(seat, gv) {
 //     left: answers still to give (always 1 or more: the run ends at its last), done: answers given, ids: the run's stack items, stackAt: the stack's items at the
 //     press, turn, step, name: the card's name }
 // The payer a trigger on the stack names, as a slot: Forge's "[Player: x]" (a draw trigger: Smothering Tithe, Forge's
-// TriggerDrawn) or "[Card: ..., Activator: x, ...]" (a cast trigger: Rhystic Study); "?" when it names someone not in
-// game.playerOrder (never this seat, so never counted for a payment), null when its words name no payer at all.
+// TriggerDrawn) or "[Card: ..., Activator: x, ...]" (a cast trigger: Rhystic Study), Player first when both are there;
+// "?" when it names someone not in game.playerOrder, null when its words name no payer at all.
 function stackPayer(s) {
-  const by = /\[(?:[^\]]*, )?(?:Activator|Player): ([^,\]]+)/.exec(String(s.text || ""))?.[1]?.trim().toLowerCase();
+  const text = String(s.text || "");
+  const by = (/\[[^\]]*?\bPlayer: ([^,\]]+)/.exec(text) || /\[[^\]]*?\bActivator: ([^,\]]+)/.exec(text))?.[1]?.trim().toLowerCase();
   const k = by ? (game?.playerOrder || []).findIndex((u) => String(u || "").toLowerCase() === by) : -1;
   return k >= 0 ? `player-${k}` : by ? "?" : null;
 }
@@ -7998,7 +7999,8 @@ function repeatRun(seat, prompt, gv, pays) {
   const stack = gv.stack || [];
   const top = stack[stack.length - 1];
   if (!prompt.sourceCard?.id || !top || top.sourceId !== prompt.sourceCard.id) return [];
-  const asksMe = (s) => (pays ? [seat.slot, null].includes(stackPayer(s)) : s.controllerId === seat.slot);
+  // (a payment only when its stack words name this seat as the payer: N may be too small, never too large)
+  const asksMe = (s) => (pays ? stackPayer(s) === seat.slot : s.controllerId === seat.slot);
   const alike = (s) => s && s.sourceId === top.sourceId && s.controllerId === top.controllerId && (s.sourceAbilityText || "") === (top.sourceAbilityText || "")
     && !(s.targets || []).length && asksMe(s);
   const run = [];
@@ -8221,9 +8223,10 @@ function onPrompt(seat, prompt) {
           return;
         }
       }
-      // a repeated yes/no answered "×N" (offerRepeat): priority passes while only its triggers are on the stack
+      // a repeated yes/no answered "×N" (offerRepeat): the seat's own priority passes while only its triggers are on the
+      // stack; a priority for a player it controls (Mindslaver) is never passed unseen, it ends the run
       if (seat.repeatAnswer) {
-        const why = repeatStops(seat.repeatAnswer, gv);
+        const why = forP ? `you have priority for ${nameOf(forP)}` : repeatStops(seat.repeatAnswer, gv);
         if (why === null) { seat.respond(prompt.promptId, type, { type: "pass" }); return; }
         repeatEnd(seat, why);
       }
