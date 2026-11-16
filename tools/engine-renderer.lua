@@ -11111,8 +11111,8 @@ end
 -- ═════════════════════ GIF FRAMES (docs/gif-frames-spec.md) ═════════════════════
 -- Every seated player gets a square frame as tall as a card on their own mat, always (in a game or not), once the
 -- host's bridge has a GIPHY key (it says so with gif_config). The frame is a Custom Tile whose picture is GIPHY's MP4
--- (TTS plays and loops an .mp4 image link, Phase 0 "route M"); it plays for 12 s, then a still picture (Object UI
--- Image) covers it until someone clicks Replay. The owner's search panel is Object UI on the frame (visible to the
+-- (TTS plays and loops an .mp4 image link, Phase 0 "route M"); it loops for everyone, all the time (the user,
+-- 2026-11-16: no 12 s hold, no Replay). The owner's search panel is Object UI on the frame (visible to the
 -- owner only); the search runs in the bridge (bridge/gifs.js), which holds the key: the key is never in this script
 -- or the save. Frames carry GM notes "mtggif:<colour>" (not "engine:", so the engine's sweeps, stray watcher and
 -- self-check never see them) and their GIF in the memo (JSON), so a saved game keeps them.
@@ -11147,7 +11147,6 @@ engineGif = {
   query = {},            -- colour -> the words in the panel's box
   req = {},              -- colour -> number of the newest search (older answers are dropped)
   playing = {},          -- colour -> true while the GIF plays (the still is off)
-  holdWait = {},         -- colour -> the Wait that puts the still back
   spawning = {},         -- colour -> true while its frame is being spawned
   spawnId = {},          -- colour -> number of its newest spawn (the watchdog's and a late callback's check)
   loaded = {},           -- colour -> the spawnId whose callback came (the frame's picture arrived)
@@ -11155,7 +11154,6 @@ engineGif = {
   retried = {},          -- colour -> 1: its picture is being tried again; 2: its still shows instead of the video
   dirty = {},            -- colour -> true: changed while spawning, spawn again when it lands
   SIZE = 1.53,           -- a Custom Tile at scale 1 is 2 x 2; a card is 3.06 tall
-  PLAY_S = 12,           -- seconds a GIF plays before it holds
   -- a collapsed frame (its owner's Hide; state.collapsed, so the memo and a reload keep it): a small plain tile, this
   -- many times smaller, for everyone. The GIF stays chosen; Show brings it back playing
   CS = 2.5,
@@ -11293,12 +11291,12 @@ function engineGif.xml(c)
     x[#x + 1] = '<Panel width="' .. fw .. '" height="' .. fh .. '" color="#141414" raycastTarget="false"><Text fontSize="40" fontStyle="Bold" color="#E0E0E0" position="0 24 0" width="190" height="60">GIF</Text>'
       .. '<Text fontSize="14" color="#9A9A9A" position="0 -30 0" width="186" height="70">' .. c .. "'s frame: GIF... below picks one" .. '</Text></Panel>'
   else
-    -- (no still link: no timed still, the GIF keeps playing; an Image of a missing asset is a blank white card)
-    x[#x + 1] = type(st.still) ~= "string" and "" or '<Image id="gifhold_' .. c .. '" image="still" width="' .. fw .. '" height="' .. fh .. '" preserveAspect="true" raycastTarget="false" active="' .. (G.playing[c] and "false" or "true") .. '"/>' .. G.stillXml(c, fw, fh)
-    x[#x + 1] = '<Button id="gifplay_' .. c .. '" position="0 ' .. by .. ' 0" width="80" height="32" fontSize="16" onClick="Global/engineGifUiClick">Replay</Button>'
-    x[#x + 1] = '<Button id="gifcol_' .. c .. '" visibility="' .. c .. '" position="88 ' .. by .. ' 0" width="80" height="32" fontSize="16" tooltip="Collapse your GIF to a small tile (everyone sees it so; Show brings it back)" onClick="Global/engineGifUiClick">Hide</Button>'
+    -- (the GIF loops for everyone, the user 2026-11-16: no timed still and no Replay; only a player with stills on sees
+    -- the still picture, gifstill_)
+    x[#x + 1] = G.stillXml(c, fw, fh)
+    x[#x + 1] = '<Button id="gifcol_' .. c .. '" visibility="' .. c .. '" position="44 ' .. by .. ' 0" width="80" height="32" fontSize="16" tooltip="Collapse your GIF to a small tile (everyone sees it so; Show brings it back)" onClick="Global/engineGifUiClick">Hide</Button>'
   end
-  x[#x + 1] = '<Button id="gifpick_' .. c .. '" visibility="' .. c .. '" position="' .. (st == nil and 0 or -88) .. ' ' .. by .. ' 0" width="80" height="32" fontSize="16" onClick="Global/engineGifUiClick">GIF...</Button>'
+  x[#x + 1] = '<Button id="gifpick_' .. c .. '" visibility="' .. c .. '" position="' .. (st == nil and 0 or -44) .. ' ' .. by .. ' 0" width="80" height="32" fontSize="16" onClick="Global/engineGifUiClick">GIF...</Button>'
   if G.open[c] then x[#x + 1] = G.panelXml(c, fw) end
   x[#x + 1] = '</Panel>'
   return table.concat(x)
@@ -11342,21 +11340,11 @@ function engineGif.redraw(c)
   for _, h in ipairs(G.COLORS) do if G.hidden[h] then hiders[#hiders + 1] = h end end
   o.setInvisibleTo(hiders)
 end
--- the GIF plays for PLAY_S seconds, then the still covers it
-function engineGif.play(c, fresh)
+-- the GIF loops on its tile for everyone (TTS loops an .mp4 image link); playing only marks it shown
+function engineGif.play(c)
   local G = engineGif
   if G.state[c] == nil or G.state[c].collapsed == true then return end
   G.playing[c] = true
-  local o = G.frames[c]
-  if type(G.state[c].still) ~= "string" then return end -- (no timed still to take off or put back)
-  if G.alive(o) and not fresh then o.UI.setAttribute("gifhold_" .. c, "active", "false") end
-  if G.holdWait[c] ~= nil then Wait.stop(G.holdWait[c]) end
-  G.holdWait[c] = Wait.time(function()
-    G.holdWait[c] = nil
-    G.playing[c] = nil
-    local f = G.frames[c]
-    if G.alive(f) then f.UI.setAttribute("gifhold_" .. c, "active", "true") end
-  end, G.PLAY_S)
 end
 
 -- ───── spawning ─────
@@ -11530,7 +11518,6 @@ function engineGif.collapse(c)
   if st == nil then return false end
   st.collapsed = (st.collapsed ~= true) or nil
   G.open[c] = nil
-  if G.holdWait[c] ~= nil then Wait.stop(G.holdWait[c]) G.holdWait[c] = nil end
   G.playing[c] = (st.collapsed == nil) or nil
   G.spawn(c)
   return true
@@ -11540,7 +11527,6 @@ function engineGif.clear(c)
   if G.state[c] == nil then return false end
   G.state[c] = nil
   G.playing[c] = nil
-  if G.holdWait[c] ~= nil then Wait.stop(G.holdWait[c]) G.holdWait[c] = nil end
   G.spawn(c)
   return true
 end
@@ -11632,7 +11618,6 @@ function engineGif.onClick(player, id)
   if u == nil then return end
   local kind, c = id:sub(1, u - 1), id:sub(u + 1)
   if G.frames[c] == nil then return end
-  if kind == "gifplay" then return G.play(c) end
   if player == nil or player.color ~= c then return end -- (the rest are the owner's, shown only to them)
   if kind == "gifpick" then
     G.open[c] = not G.open[c] or nil
@@ -11787,13 +11772,12 @@ function onPlayerAction(player, action, targets)
   for _, o in ipairs(targets or {}) do
     local c = engineGif.ownerOf(o)
     if c ~= nil then
-      -- (a click on a frame, anyone's: it plays again; a box selection over many objects doesn't play them. Selecting
-      -- is never refused, so a box over the table still selects the rest; moving the selection is a PickUp, refused.)
-      if action == A.Select and #targets == 1 then engineGif.play(c) end
+      -- (selecting a frame is never refused, so a box over the table still selects the rest; moving the selection is a
+      -- PickUp, refused. The GIF loops on its own: a click no longer replays it)
       local mine = player ~= nil and player.color == c
       if action ~= A.Select and not (mine and (action == A.PickUp or action == A.RotateIncrementalLeft or action == A.RotateIncrementalRight)) then
         if player ~= nil then
-          engineGif.say(player.color, mine and "Your GIF frame can only be moved (Clear in its panel empties it)." or (c .. "'s GIF frame: only " .. c .. " can move it. Its Replay button plays it again."))
+          engineGif.say(player.color, mine and "Your GIF frame can only be moved (Clear in its panel empties it)." or (c .. "'s GIF frame: only " .. c .. " can move it."))
         end
         return false
       end
