@@ -265,7 +265,8 @@ function engineStartGame(pl, rest, cleared)
   engineStartSentAt = os.clock()
   engineSendDecks(read, pl.color)
   engineSend("start", { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true, friendly = engineFriendly, mode = engineModeSent(), teams = engineTeamsSent ~= nil and engineTeamsSent() or nil,
-    teamMode = engineTeamModeSent ~= nil and engineTeamModeSent() or nil, juggernaut = engineJuggSent ~= nil and engineJuggSent() or nil })
+    teamMode = engineTeamModeSent ~= nil and engineTeamModeSent() or nil, juggernaut = engineJuggSent ~= nil and engineJuggSent() or nil,
+    teamTurns = engineTeamTurnsSent ~= nil and engineTeamTurnsSent() or nil })
 end
 
 -- All "mtg ..." chat commands. Returns false (hide the line) when handled, nil otherwise.
@@ -279,7 +280,7 @@ function engineChat(message, pl)
   -- (a player the table promoted for engine mode, enginePromoteSeated, is not a host here: the host-only commands stay the
   -- host's and their own promoted players')
   local isHost = pl.host or ((pl.admin or pl.promoted) and not (ENGINE_PROMOTED or {})[tostring(pl.steam_id)])
-  -- (the team modes' "mtg mode 2hg|2v2|juggernaut|ffa", "mtg team ..." and "mtg juggernaut ...": engineTeamChat, engine-renderer.lua)
+  -- (the team modes' "mtg mode 2hg|2v2|juggernaut|ffa", "mtg team ...", "mtg juggernaut ..." and "mtg 2hg turns ...": engineTeamChat, engine-renderer.lua)
   if engineTeamChat ~= nil and engineTeamChat(cmd, rest, pl, isHost) then return false end
   -- engine mode, starting a game, friendly mulligans and clearing a finished one: anyone, seated or not (playtest
   -- 2026-10-25: "allow non host to turn the engine on and off and to start games"; 2026-11-10: "allow anyone to
