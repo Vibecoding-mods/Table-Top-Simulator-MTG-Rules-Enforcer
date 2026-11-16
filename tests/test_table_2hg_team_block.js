@@ -130,15 +130,15 @@ const pickId = (c, id) => `local p = enginePrompts.${c} for i, o in ipairs(p.opt
   ok("old prompt: the old title, the panel not forced open, Done", old[1] === "Choose blockers" && old[0] !== "true" && old[3] === "Done", old.join(" | "));
   ok("old prompt: the partner's line is the Level 2 one, not Waiting", valueOf(r, "blue old") === "PlayerYellow is declaring blockers for your team...", valueOf(r, "blue old"));
 
-  // ── Two-Headed Giant's default: shared team turns ──
+  // ── Two-Headed Giant's default: each player's own turn (Level 1) until Level 2 is checked live ──
   const d = sim([
     q('return tostring(ENGINE_TEAM_TURNS)', "default"),
     q('engineChat("mtg mode 2hg", Player.White) engineStartSentAt = nil engineChat("mtg start", Player.White) return engineTeamsLabel()', "start", 10),
   ]);
   ok("default: no errors", !d.errors.length, d.errors.join(" | "));
-  ok("default: Two-Headed Giant is one turn for each team", valueOf(d, "default") === "shared", valueOf(d, "default"));
-  ok("default: its Start sends teamTurns shared without a command", /"teamTurns":"shared"/.test(sentOf(d, "start")) && valueOf(d, "start") === "Teams\n2HG team turns", `${valueOf(d, "start")} ${sentOf(d, "start").slice(0, 300)}`);
-  ok("default: the mode's help says the team takes one turn together", fxOf(d, "start").some((l) => /Each team takes one turn together: both partners untap, draw, attack and block together/.test(l)), fxOf(d, "start").join(" ").slice(0, 400));
+  ok("default: Two-Headed Giant is each player's own turn", valueOf(d, "default") === "nil", valueOf(d, "default"));
+  ok("default: its Start sends no teamTurns without a command", /teamMode/.test(sentOf(d, "start")) && !/teamTurns/.test(sentOf(d, "start")) && valueOf(d, "start") === "Teams\n2HG", `${valueOf(d, "start")} ${sentOf(d, "start").slice(0, 300)}`);
+  ok("default: the mode's help says each player takes their own turn", fxOf(d, "start").some((l) => /each player takes their own turn\..*mtg 2hg turns shared/.test(l)), fxOf(d, "start").join(" ").slice(0, 400));
 
   console.log(`${failed ? "FAIL" : "PASS"} test_table_2hg_team_block: ${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
