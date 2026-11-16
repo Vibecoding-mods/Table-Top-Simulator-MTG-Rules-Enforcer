@@ -14,9 +14,9 @@ const q = (lua, mark) => ({ lua, mark });
 const valueOf = (r, mark) => (r.steps.find((s) => s.step === mark) || {}).value;
 const told = (r, mark) => ((r.steps.find((s) => s.step === mark) || {}).fx || []).filter((l) => /broadcast/.test(l)).join(" | ");
 
-const RENDERER = fs.readFileSync(path.join(__dirname, "..", "tools", "engine-renderer.lua"), "utf8");
-const taxLine = RENDERER.slice(RENDERER.indexOf("local TAX_LABELS = {"), RENDERER.indexOf("\n", RENDERER.indexOf("local TAX_LABELS = {")));
-const taxOf = (c) => new RegExp(`${c} = \\{"([0-9a-f]{6})"`).exec(taxLine)[1];
+// (the commander zones: the 4-player table's profile, TABLE_PROFILE.tax in the built script)
+const PROFILE = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "tools", "profiles", "2296042369.json"), "utf8"));
+const taxOf = (c) => PROFILE.seat[c].commandZones[0].guid;
 
 // a deck on each of White's and Blue's library spots, a card on White's first commander spot, an engine card and an
 // Identity card there too; returns their GUIDs as a Lua table __t
