@@ -497,7 +497,7 @@ index 32394268..e7c90cb7 100644
          }
          print("---- choose ability  (phase = " + phaseStr + ")");
 diff --git a/forge-game/src/main/java/forge/game/Game.java b/forge-game/src/main/java/forge/game/Game.java
-index 8d204538..1066e46d 100644
+index 8d204538..78ff5ed8 100644
 --- a/forge-game/src/main/java/forge/game/Game.java
 +++ b/forge-game/src/main/java/forge/game/Game.java
 @@ -1016,7 +1016,7 @@ public class Game {
@@ -509,7 +509,135 @@ index 8d204538..1066e46d 100644
                  if (c.getOwner().equals(p)) {
                      planesLeavingGame.add(c);
                      planarController.removeCurrentPlane(c);
-@@ -1410,7 +1410,8 @@ public class Game {
+@@ -1156,7 +1156,76 @@ public class Game {
+ 
+     public void recordTokenRequest(final int count) {
+         resetRunawayWindowOnTurnChange();
+-        checkRunawayCap(count, runawayTokensPerEffectCap, "copies of one token from one effect");
++        askPendingRunaway();
++        final int limit = addCap(runawayTokensPerEffectCap, tokensAllowedThisTurn);
++        if (count > limit) {
++            askOrDraw(count, limit, "copies of one token from one effect");
++            tokensAllowedThisTurn = count - runawayTokensPerEffectCap;
++        }
++    }
++
++    // Big turns (docs/big-turns.md in the TTS project): past a cap, a host that set a RunawayChoice asks a player
++    // whether the turn goes on, at most RUNAWAY_CONTINUES_PER_TURN times a turn; each yes allows one more cap's worth.
++    // A no, no hook, or no yes left ends the game as the Draw below (CR 104.4b: a loop nobody can stop is a draw).
++    // The card cap is passed while a card is being made, so it is only marked there and asked at the next trigger
++    // fire or token request; a turn that makes another cap's worth of cards before then still ends at once.
++    public interface RunawayChoice {
++        boolean keepGoing(Game game, String what, int count, int cap);
++    }
++
++    public static final int RUNAWAY_CONTINUES_PER_TURN = 3;
++
++    private RunawayChoice runawayChoice;
++    private int runawayContinues = 0;
++    private int cardsAllowedThisTurn = 0;
++    private int triggersAllowedThisTurn = 0;
++    private int tokensAllowedThisTurn = 0;
++    private boolean cardsCapPending = false;
++    private boolean runawayAsking = false;
++
++    public void setRunawayChoice(final RunawayChoice choice) {
++        runawayChoice = choice;
++    }
++
++    public int getRunawayContinues() {
++        return runawayContinues;
++    }
++
++    private static int addCap(final int cap, final int extra) {
++        return cap > Integer.MAX_VALUE - extra ? Integer.MAX_VALUE : cap + extra;
++    }
++
++    private boolean mayAskRunaway() {
++        return !runawayTripped && runawayChoice != null && runawayContinues < RUNAWAY_CONTINUES_PER_TURN;
++    }
++
++    private void askOrDraw(final int count, final int limit, final String what) {
++        if (runawayFinalizing || runawayAsking) {
++            return;
++        }
++        if (mayAskRunaway()) {
++            runawayContinues++;
++            final boolean keep;
++            runawayAsking = true;
++            try {
++                keep = runawayChoice.keepGoing(this, what, count, limit);
++            } finally {
++                runawayAsking = false;
++            }
++            if (keep && !isGameOver()) {
++                return;
++            }
++        }
++        endRunawayGame(count, limit, what);
++    }
++
++    private void askPendingRunaway() {
++        if (!cardsCapPending || runawayAsking || runawayFinalizing) {
++            return;
++        }
++        cardsCapPending = false;
++        askOrDraw(cardsCreatedThisTurn, addCap(runawayCardsPerTurnCap, cardsAllowedThisTurn), "cards created");
++        cardsAllowedThisTurn = addCap(cardsAllowedThisTurn, runawayCardsPerTurnCap);
+     }
+ 
+     private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
+@@ -1186,11 +1255,16 @@ public class Game {
+             runawayTurnStamp = turnNow;
+             cardsCreatedThisTurn = 0;
+             triggersFiredThisTurn = 0;
++            runawayContinues = 0;
++            cardsAllowedThisTurn = 0;
++            triggersAllowedThisTurn = 0;
++            tokensAllowedThisTurn = 0;
++            cardsCapPending = false;
+         }
+     }
+ 
+-    private void checkRunawayCap(final int count, final int cap, final String what) {
+-        if (count <= cap || runawayFinalizing) {
++    private void endRunawayGame(final int count, final int cap, final String what) {
++        if (runawayFinalizing) {
+             return;
+         }
+         if (!runawayTripped) {
+@@ -1220,8 +1294,13 @@ public class Game {
+      *  TriggerHandler.runWaitingTriggers(). */
+     public void recordTriggerFired() {
+         resetRunawayWindowOnTurnChange();
++        askPendingRunaway();
+         triggersFiredThisTurn++;
+-        checkRunawayCap(triggersFiredThisTurn, runawayTriggersPerTurnCap, "triggers fired");
++        final int limit = addCap(runawayTriggersPerTurnCap, triggersAllowedThisTurn);
++        if (triggersFiredThisTurn > limit) {
++            askOrDraw(triggersFiredThisTurn, limit, "triggers fired");
++            triggersAllowedThisTurn = addCap(triggersAllowedThisTurn, runawayTriggersPerTurnCap);
++        }
+     }
+     // ---- end Endstep patch 24 ----
+ 
+@@ -1229,7 +1308,14 @@ public class Game {
+         // Endstep patch 24: per-turn card-creation guard (see above).
+         resetRunawayWindowOnTurnChange();
+         cardsCreatedThisTurn++;
+-        checkRunawayCap(cardsCreatedThisTurn, runawayCardsPerTurnCap, "cards created");
++        final int limit = addCap(runawayCardsPerTurnCap, cardsAllowedThisTurn);
++        if (cardsCreatedThisTurn > limit && !runawayFinalizing && !runawayAsking) {
++            if (mayAskRunaway() && cardsCreatedThisTurn <= addCap(limit, runawayCardsPerTurnCap)) {
++                cardsCapPending = true;
++            } else {
++                endRunawayGame(cardsCreatedThisTurn, limit, "cards created");
++            }
++        }
+         return ++cardIdCounter;
+     }
+     public int nextHiddenCardId() {
+@@ -1410,7 +1496,8 @@ public class Game {
              player.onCleanupPhase();
          }
          for (final Card c : getCardsIncludePhasingIn(ZoneType.Battlefield)) {
@@ -3609,7 +3737,7 @@ index dde410ae..46b5b7ae 100644
  
          CardCollection attackers = (CardCollection) runParams.get(AbilityKey.Attackers);
 diff --git a/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java b/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
-index 627c7d49..380a4355 100644
+index 627c7d49..6c8b9f08 100644
 --- a/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
 +++ b/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
 @@ -354,6 +354,11 @@ public class TriggerHandler {
@@ -3624,6 +3752,32 @@ index 627c7d49..380a4355 100644
      public void clearWaitingTriggers() {
          waitingTriggers.clear();
      }
+@@ -586,6 +591,25 @@ public class TriggerHandler {
+         } 
+     }
+ 
++    // Big turns (StackMerge): whether a trigger of one of these modes is active or delayed now
++    public final boolean watches(final Set<TriggerType> modes) {
++        for (final Trigger t : activeTriggers) {
++            if (modes.contains(t.getMode())) {
++                return true;
++            }
++        }
++        for (final Trigger t : Iterables.concat(delayedTriggers, playerDefinedDelayedTriggers.values())) {
++            if (modes.contains(t.getMode())) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    public final boolean hasWaitingTriggers() {
++        return !waitingTriggers.isEmpty();
++    }
++
+     public List<Trigger> getActiveTrigger(final TriggerType mode, final Map<AbilityKey, Object> runParams) {
+         List<Trigger> trigger = Lists.newArrayList();
+         for (final Trigger t : activeTriggers) {
 diff --git a/forge-game/src/main/java/forge/game/trigger/TriggerLifeGained.java b/forge-game/src/main/java/forge/game/trigger/TriggerLifeGained.java
 index b27e131d..c989497b 100644
 --- a/forge-game/src/main/java/forge/game/trigger/TriggerLifeGained.java
@@ -3690,10 +3844,75 @@ index 8ab7dbe3..43ca371f 100644
  
      @Override
 diff --git a/forge-game/src/main/java/forge/game/zone/MagicStack.java b/forge-game/src/main/java/forge/game/zone/MagicStack.java
-index 35ea040c..6a7f794b 100644
+index 35ea040c..2f219365 100644
 --- a/forge-game/src/main/java/forge/game/zone/MagicStack.java
 +++ b/forge-game/src/main/java/forge/game/zone/MagicStack.java
-@@ -838,6 +838,16 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -76,6 +76,8 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+     private final List<SpellAbility> thisTurnActivated = Lists.newArrayList();
+ 
+     private Card curResolvingCard = null;
++    private StackMerge.Gate mergeGate = null;
++    private int mergedResolutions = 0;
+ 
+     private final Game game;
+ 
+@@ -637,6 +639,10 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+ 
+         finishResolving(sa, thisHasFizzled);
+ 
++        if (!thisHasFizzled) {
++            resolveAlike(sa);
++        }
++
+         game.copyLastState();
+         if (isEmpty() && !hasSimultaneousStackEntries()) {
+             // assuming that if the stack is empty, no reason to hold on to old LKI data (everything is a new object)
+@@ -644,6 +650,44 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+         }
+     }
+ 
++    // Big turns (StackMerge): the items below the one just resolved that are alike, resolved now with no priority
++    // round, state-based-action check or static pass between them, as many as the gate allows
++    public final void setMergeGate(final StackMerge.Gate gate) {
++        mergeGate = gate;
++    }
++
++    public final int getMergedResolutions() {
++        return mergedResolutions;
++    }
++
++    private void resolveAlike(final SpellAbility first) {
++        if (mergeGate == null || !StackMerge.eligible(first)) {
++            return;
++        }
++        int left = Math.min(StackMerge.MAX_FOLLOWING, mergeGate.allowed(game));
++        if (left <= 0 || StackMerge.watched(game)) {
++            return;
++        }
++        while (left-- > 0 && !isEmpty() && !game.isGameOver() && !hasSimultaneousStackEntries()
++                && !game.getTriggerHandler().hasWaitingTriggers()) {
++            final SpellAbility next = peekAbility();
++            if (!StackMerge.alike(first, next) || hasFizzled(next, null)) {
++                return;
++            }
++            freezeStack(null);
++            setResolving(true);
++            curResolvingCard = next.getHostCard();
++            AbilityUtils.handleRemembering(next);
++            AbilityUtils.resolve(next);
++            final Map<AbilityKey, Object> runParams = AbilityKey.mapFromCard(next.getHostCard());
++            runParams.put(AbilityKey.SpellAbility, next);
++            game.getTriggerHandler().runTrigger(TriggerType.AbilityResolves, runParams, false);
++            game.fireEvent(new GameEventSpellResolved(next, false));
++            finishResolving(next, false);
++            mergedResolutions++;
++        }
++    }
++
+     private void finishResolving(final SpellAbility sa, final boolean fizzle) {
+         // SpellAbility is removed from the stack here
+         // temporarily removed removing SA after resolution
+@@ -838,6 +882,16 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          List<Player> players = game.getPlayersInTurnOrder(playerTurn);
  
          boolean result = false;
@@ -3710,7 +3929,7 @@ index 35ea040c..6a7f794b 100644
          // CR 603.3b
          for (Player p : players) {
              result |= chooseOrderOfSimultaneousStackEntry(p, false);
-@@ -849,6 +859,63 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -849,6 +903,63 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          return result;
      }
  
@@ -3774,7 +3993,7 @@ index 35ea040c..6a7f794b 100644
      private boolean chooseOrderOfSimultaneousStackEntry(final Player activePlayer, boolean isAbilityTriggered) {
          if (!activePlayer.isInGame()) {
              return false;
-@@ -931,6 +998,12 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -931,6 +1042,12 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
      public final List<Card> getSpellsCastLastTurn() {
          return lastTurnCast;
      }
@@ -3787,6 +4006,132 @@ index 35ea040c..6a7f794b 100644
  
      public final void onNextTurn() {
          final Player active = game.getPhaseHandler().getPlayerTurn();
+diff --git a/forge-game/src/main/java/forge/game/zone/StackMerge.java b/forge-game/src/main/java/forge/game/zone/StackMerge.java
+new file mode 100644
+index 00000000..19e20b28
+--- /dev/null
++++ b/forge-game/src/main/java/forge/game/zone/StackMerge.java
+@@ -0,0 +1,120 @@
++package forge.game.zone;
++
++import java.util.EnumSet;
++import java.util.Map;
++import java.util.Set;
++
++import org.apache.commons.lang3.StringUtils;
++
++import forge.game.Game;
++import forge.game.ability.ApiType;
++import forge.game.card.Card;
++import forge.game.replacement.ReplacementEffect;
++import forge.game.replacement.ReplacementType;
++import forge.game.spellability.SpellAbility;
++import forge.game.trigger.Trigger;
++import forge.game.trigger.TriggerType;
++import forge.game.trigger.WrappedAbility;
++
++/**
++ * Big turns (mtg-tts docs/big-turns.md): a run of identical stack items resolved back to back. After the top item
++ * resolves, up to {@link #MAX_FOLLOWING} items below it that are alike ({@link #alike}) resolve at once, each through
++ * the usual AbilityUtils.resolve with its own source, with no priority round, no state-based-action check and no
++ * static-ability pass between them; those run once after the last, as after any resolution.
++ *
++ * <p>Two things must hold, and both are checked here, not assumed:
++ * <ul>
++ * <li>No player loses a decision. The gate ({@link Gate}, set by the host) says how many more items may resolve
++ * before some player must be asked again: the mtg-tts harness allows a merge only when every player still in the
++ * game is a person holding a pass for the whole stack (an "exhaust" pass) and only up to where that pass ends. With
++ * no gate nothing is merged.</li>
++ * <li>Nothing can see the difference. The allowlist below holds only effects whose result is the same whether or not
++ * the game stops between them: nothing triggers on them, nothing replaces them, they ask nobody anything, and they
++ * cannot cause a state-based action.</li>
++ * </ul>
++ *
++ * <p>The allowlist (v1), each entry with why it is safe:
++ * <ul>
++ * <li><b>GainLife, untargeted, "you", a fixed number</b> (Soul Warden, Soul's Attendant, Essence Warden's own player,
++ * Bloodfell Caves): gaining life never causes a state-based action (704.5a is life 0 or less), the amount is a number
++ * and does not read the board, and each item still calls Player.gainLife with its own source, so life gained this
++ * turn and the times gained count each one. Not merged when anything could watch: a LifeGained or AbilityResolves
++ * trigger that is active or delayed (Ajani's Pridemate, a "whenever you gain life" emblem: in the usual order each
++ * one's trigger goes on the stack above the rest of the run), a GainLife replacement anywhere (Boon Reflection, Rhox
++ * Faithmender: a replacement may ask which applies first), an optional trigger (it asks), a trigger with an
++ * intervening "if" or a resolving check (it reads the board between items), conditions, unless costs, remembering,
++ * a sub-ability or a controller change.</li>
++ * </ul>
++ * Left out on purpose: token creation (a batch of tokens is one "one or more" event, and copies of a token differ by
++ * source, so merging changes what triggers), life loss (players can leave the game between items), damage (each has
++ * its own source and lifelink/infect watchers), counters (Hardened Scales-style replacements per event), drawing
++ * (Alms Collector-style "two or more" replacements, and an empty library is a state-based action).
++ */
++public final class StackMerge {
++    private StackMerge() {}
++
++    /** How many more items may resolve without a priority round after the one that just resolved (0: none). */
++    public interface Gate {
++        int allowed(Game game);
++    }
++
++    /** With the top item, 20 per merge: the same size as the harness's held pass. */
++    public static final int MAX_FOLLOWING = 19;
++
++    private static final Set<TriggerType> WATCHERS = EnumSet.of(TriggerType.LifeGained, TriggerType.AbilityResolves);
++    private static final Set<String> TRIGGER_CHECKS = Set.of("IsPresent", "IsPresent2", "CheckSVar", "CheckSecondSVar",
++            "ResolvingCheck", "OptionalDecider");
++    private static final String[] PARAM_PREFIXES = {"Condition", "Unless", "Remember", "Imprint", "Optional"};
++
++    /** Whether this stack item is on the allowlist. */
++    public static boolean eligible(final SpellAbility sa) {
++        if (!(sa instanceof WrappedAbility wrapped) || wrapped.getDecider() != null || sa.getApi() != ApiType.GainLife) {
++            return false;
++        }
++        if (sa.getSubAbility() != null || sa.usesTargeting() || sa.isOptionalTrigger() || sa.getControlledByPlayer() != null) {
++            return false;
++        }
++        final Trigger trigger = wrapped.getTrigger();
++        if (trigger == null) {
++            return false;
++        }
++        for (final String key : TRIGGER_CHECKS) {
++            if (trigger.hasParam(key)) {
++                return false;
++            }
++        }
++        final Map<String, String> params = wrapped.getWrappedAbility().getMapParams();
++        for (final String key : params.keySet()) {
++            for (final String prefix : PARAM_PREFIXES) {
++                if (key.startsWith(prefix)) {
++                    return false;
++                }
++            }
++        }
++        final String defined = params.get("Defined");
++        return StringUtils.isNumeric(params.get("LifeAmount")) && (defined == null || "You".equals(defined));
++    }
++
++    /** Whether next is the same effect as first: both on the allowlist, the same player, the same amount. */
++    public static boolean alike(final SpellAbility first, final SpellAbility next) {
++        return eligible(next) && next.getApi() == first.getApi()
++                && next.getActivatingPlayer() == first.getActivatingPlayer()
++                && StringUtils.equals(next.getParam("LifeAmount"), first.getParam("LifeAmount"))
++                && StringUtils.equals(next.getParam("Defined"), first.getParam("Defined"));
++    }
++
++    /** Whether anything in the game could see life being gained one item at a time. */
++    public static boolean watched(final Game game) {
++        if (game.getTriggerHandler().watches(WATCHERS)) {
++            return true;
++        }
++        for (final Card c : game.getCardsInGame()) {
++            for (final ReplacementEffect re : c.getReplacementEffects()) {
++                if (re.getMode() == ReplacementType.GainLife) {
++                    return true;
++                }
++            }
++        }
++        return false;
++    }
++}
 diff --git a/forge-gui/res/cardsfolder/a/aetherling.txt b/forge-gui/res/cardsfolder/a/aetherling.txt
 index f6e89bab..88978a3b 100644
 --- a/forge-gui/res/cardsfolder/a/aetherling.txt

@@ -8118,6 +8118,52 @@ function resolvingStops(seat, gv) {
   if (seen >= RESOLVE_LOOP_REPEATS) return `${rs.label} stopped: the same stack came back ${seen} times (a loop?). Press it again to go on.`;
   return null;
 }
+// ── Big turns (docs/big-turns.md): a priority this bridge passes by itself while the WHOLE stack is one run of the same
+// untargeted ability (stackRun: Scute Swarm's 75 landfall triggers, live 2026-11-15, one second each, two prompts a
+// trigger) is passed with exhaustStack. The engine then passes this player's priority itself, with no prompt and no
+// board, until the stack is empty, something new goes on it, or HELD_RESOLUTIONS of the run have resolved
+// (PriorityFastForward.EXHAUST_RESOLUTIONS in the engine), and asks again: the table catches up then, and "mtg stop"
+// (seat.stopChain) is seen then. Each trigger still resolves on its own, and questions (a "may", a target) are still
+// asked. Not for a player this seat controls (forP), not for a stack with anything else on it, and not for a run
+// shorter than HELD_MIN (a few prompts cost little, and every prompt shows the table the stack as it shrinks).
+const HELD_RESOLUTIONS = 20;
+const HELD_MIN = 5;
+// the engine's question at its runaway limit (ManaBrewInteractiveSession.keepGoingPastCap), told by its exact title
+const RUNAWAY_TITLE = "This turn passed the engine's limit";
+function heldPass(seat, gv, forP) {
+  const stack = gv.stack || [];
+  const top = stack[stack.length - 1];
+  const run = top && !forP ? stackRun(stack, top.controllerId, gv) : { n: 0 };
+  if (run.n < HELD_MIN || run.n !== stack.length) return { type: "pass" };
+  if (seat.resolveStack) seat.resolveStack.held = new Set(stack.map((x) => x.id));
+  // (said once a turn per run that is longer than one hold, to the seat being passed)
+  const said = `${gv.turn}\u0003${run.key}`;
+  if (run.n > HELD_RESOLUTIONS && seat.heldRunSaid !== said) {
+    seat.heldRunSaid = said;
+    chat(`[MTG] ${run.n} ${run.name} triggers resolve back to back; the table catches up every ${HELD_RESOLUTIONS}. Type "mtg stop" to stop at the next one.`, seat.color);
+  }
+  return { type: "pass", exhaustStack: true };
+}
+// "Resolve all" / "Resolve N×" after a held pass: the run's items gone since count as passes made (one prompt answered
+// them), so its count of the run and its cap of passes stay right
+function heldResolved(rs, gv) {
+  if (!rs.held) return;
+  const now = new Set((gv.stack || []).map((x) => x.id));
+  const gone = [...rs.held].filter((id) => !now.has(id)).length;
+  rs.held = null;
+  if (gone > 1) { rs.passes += gone - 1; if (rs.group) rs.left -= gone - 1; }
+}
+// "mtg stop" (seat.stopChain): the next priority with something on the stack is asked, whatever would have passed it
+// ("End turn", "Resolve all", auto-resolve, a skip, Arena-style passing); "Resolve all" ends there. An empty stack
+// forgets it (the chain is over).
+function stopsChain(seat, gv) {
+  if (!seat.stopChain) return false;
+  seat.stopChain = false;
+  if (!(gv.stack || []).length) return false;
+  seat.resolveStack = null;
+  chat("[MTG] Stopped (mtg stop): the stack waits for you.", seat.color);
+  return true;
+}
 // ── A repeated yes/no ("No ×3"): the same trigger on the stack several times asks the same player the same question
 // once each as it resolves (Smothering Tithe's "Pay {2}?" for each card an opponent draws, Rhystic Study's "Pay {1}?"
 // for each spell; the user, 2026-11-15: "I and my opponent had to answer No to 'pay {2}' multiple times"). The question
@@ -8381,9 +8427,11 @@ function onPrompt(seat, prompt) {
         if (why === null) { seat.respond(prompt.promptId, type, { type: "pass" }); return; }
         repeatEnd(seat, why);
       }
+      // "mtg stop": this priority is asked, whatever passes below would have passed it (stopsChain)
+      const stopNow = stopsChain(seat, gv);
       // "End turn": keep passing until the turn number changes (blocks, targets etc. still stop you).
-      if (endTurnHolds(seat, gv)) {
-        seat.respond(prompt.promptId, type, { type: "pass" });
+      if (!stopNow && endTurnHolds(seat, gv)) {
+        seat.respond(prompt.promptId, type, heldPass(seat, gv, forP));
         return;
       }
       // "Resolve all" / "Resolve N×": keep passing through what was there and this player's own new triggers; another
@@ -8391,11 +8439,12 @@ function onPrompt(seat, prompt) {
       const stackIds = (gv.stack || []).map((x) => x.id);
       let resolveSaid = "";
       if (seat.resolveStack) {
+        heldResolved(seat.resolveStack, gv);
         const why = resolvingStops(seat, gv);
         if (why === null) {
           seat.resolveStack.passes++;
           if (seat.resolveStack.group) seat.resolveStack.left--;
-          seat.respond(prompt.promptId, type, { type: "pass" });
+          seat.respond(prompt.promptId, type, heldPass(seat, gv, forP));
           return;
         }
         seat.resolveStack = null;
@@ -8434,7 +8483,7 @@ function onPrompt(seat, prompt) {
       // "mtg skip <phase>": passed until that phase; an opponent's spell or ability on the stack ends it there (see
       // SKIP_PHASES). Questions other than priority (targets, blocks, discards) are still asked.
       let skipStop = false;
-      if (seat.skipTo) {
+      if (seat.skipTo && !stopNow) {
         const theirs = (gv.stack || []).find((x) => notOurs(gv, x.controllerId, seat.slot));
         if (theirs || skipStopsHere(seat.skipTo, gv, seat.slot)) {
           // (said once per stop: each priority in that phase, or under that spell, asks without a second line)
@@ -8447,14 +8496,14 @@ function onPrompt(seat, prompt) {
           if (once) { seat.skipTo = null; autoNotice(seat); }
           skipStop = true; // (stopped there, whatever the step stops say)
         } else {
-          seat.respond(prompt.promptId, type, { type: "pass" });
+          seat.respond(prompt.promptId, type, heldPass(seat, gv, forP));
           if (seat.prompt) closePrompt(seat);
           return;
         }
       }
       // Auto-resolve: someone else's turn, so pass (your own turn still asks as usual)
-      if (autoResolve[seat.color] && !turnOf(gv, who)) {
-        seat.respond(prompt.promptId, type, { type: "pass" });
+      if (!stopNow && autoResolve[seat.color] && !turnOf(gv, who)) {
+        seat.respond(prompt.promptId, type, heldPass(seat, gv, forP));
         if (seat.prompt) closePrompt(seat);
         return;
       }
@@ -8479,11 +8528,11 @@ function onPrompt(seat, prompt) {
       const topItem = (gv.stack || [])[(gv.stack || []).length - 1];
       const ownSpellStop = !!topItem && topItem.controllerId === who && !isAbilityOnStack(topItem, gv) && actions.some((a) => a.type === "cast");
       const worthStopping = (myMain && !(gv.stack || []).length && actions.length > 0) || (actions.length && (opponentsStack || stepStop || ninjaStop || combatStop || attackerStop || ownSpellStop))
-        || undos.length > 0 || skipStop || holdStop;
+        || undos.length > 0 || skipStop || holdStop || stopNow;
       // what a stop on someone else's spell offered (to see why "Resolve" came up)
       if (worthStopping && opponentsStack) log(`${seat.color} may respond to the stack with: ${actions.map((a) => a.label || a.description || a.id).join(" | ") || "(nothing)"}`);
       if (!worthStopping) {
-        seat.respond(prompt.promptId, type, { type: "pass" });
+        seat.respond(prompt.promptId, type, heldPass(seat, gv, forP));
         if (seat.prompt) closePrompt(seat);
         return;
       }
@@ -8533,8 +8582,9 @@ function onPrompt(seat, prompt) {
         ...(actionSide(a, byId[a.cardId]) ? { side: actionSide(a, byId[a.cardId]) } : {}),
       })).filter((o) => o.label !== null), ...[...new Set(manaButtons.map((a) => a.cardId))].map((cid) => ({ id: `__mana:${cid}`, cardId: cid,
         label: manaButtonLabel(cname(cid), manaButtons.filter((m) => m.cardId === cid)) })), ...undos.map((a) => ({ id: a.id, cardId: a.cardId, label: `Untap ${cname(a.cardId)} (mana back)` }))] };
-      toOutput = (a) => (a[0] === "__pass" ? { type: "pass" } : a[0] === "__endturn" ? (seat.endTurnAt = gv.turn, { type: "pass" })
-        : a[0] === "__resolve" || a[0] === "__group" ? (seat.resolveStack = startResolving(gv, who, a[0] === "__group"), { type: "pass" })
+      // (a press that goes on passing passes held, heldPass; "Resolve" is one pass, the player sees the next item)
+      toOutput = (a) => (a[0] === "__pass" ? { type: "pass" } : a[0] === "__endturn" ? (seat.endTurnAt = gv.turn, heldPass(seat, gv, forP))
+        : a[0] === "__resolve" || a[0] === "__group" ? (seat.resolveStack = startResolving(gv, who, a[0] === "__group"), heldPass(seat, gv, forP))
         : String(a[0]).startsWith("__mana:") ? manaChoice(String(a[0]).slice(7)) : { type: "act", actionId: a[0] });
       // one button per mana creature/artifact; if it can make several kinds of mana, a question under this one asks
       // which (Back and a timeout return to priority and turn the card back: the table turns it at the button press,
@@ -8921,6 +8971,17 @@ function onPrompt(seat, prompt) {
       // drawn cards, then per card "Pay 4 {LIFE}?" (Pay / Decline, nothing else), and after a No "Select a card from
       // your hand": which chosen card goes back on top. So the question is "pay, or put one back", counted 1 of 2.
       const src = prompt.sourceCard?.identity?.name;
+      // The engine's runaway limit (docs/big-turns.md): its own words, both buttons as the engine names them, and a
+      // chat line to everyone for the answer (a draw at the limit said why, not only "Game over: a draw")
+      if (String(input.presentation?.title || "") === RUNAWAY_TITLE) {
+        ui = { title: RUNAWAY_TITLE, mode: "single", text: String(input.presentation?.description || ""),
+          options: [{ id: "yes", label: input.confirmLabel || "Keep going" }, { id: "no", label: input.denyLabel || "End in a draw" }] };
+        toOutput = (a) => {
+          chat(a[0] === "yes" ? `[MTG] ${nameOf(seat.slot)} kept the turn going past the engine's limit.` : `[MTG] ${nameOf(seat.slot)} ended the game in a draw at the engine's limit (too many triggers or tokens this turn).`);
+          return { type: "decision", value: a[0] === "yes" };
+        };
+        break;
+      }
       // Forge asks "Cancel Search? Up to N more card(s) can be selected." after a choice of fewer cards than allowed: the
       // player already pressed Done, which meant stop (the 2026-10-22 review saw it asked 3 times in one game)
       // "Sacrifice Food Token?" right after the player used that card's own "..., Sacrifice this: ..." ability: Forge
@@ -11048,6 +11109,18 @@ function onTTS(m) {
       if (!seat) { chat("[MTG] Hold: no game running.", m.color); break; }
       seat.hold = m.on === false ? null : seat.board?.state?.gameView?.turn ?? 0;
       chat(m.on === false ? "[MTG] Hold off." : "[MTG] Hold: you keep priority once this turn after something goes on the stack, if you can respond.", m.color);
+      break;
+    }
+    case "stopchain": {
+      // "mtg stop": the chain of passes ends at this seat's next priority with something on the stack (stopsChain); a
+      // held pass (heldPass) reaches it within HELD_RESOLUTIONS triggers. A "×N" yes/no run ends now.
+      const seat = game?.seats.get(m.color);
+      if (!seat) { chat("[MTG] Stop: no game running.", m.color); break; }
+      if (seat.prompt?.type === "chooseAction") { chat("[MTG] Stop: it is already your priority.", m.color); break; }
+      seat.stopChain = true;
+      seat.resolveStack = null;
+      repeatEnd(seat, "mtg stop");
+      chat(`[MTG] Stop: your next priority with something on the stack is asked (within ${HELD_RESOLUTIONS} triggers).`, m.color);
       break;
     }
     case "timer":
