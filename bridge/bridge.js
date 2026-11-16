@@ -6310,9 +6310,10 @@ function effectMarks(p, pub) {
   return [...all.slice(0, EFFECT_MARKS), `+${rest.length} MORE EFFECTS\t${rest.map((m) => m.split("\t")[1]).filter(Boolean).join("\n")}`];
 }
 // The spells cast this turn, for the active player (engine1112 PlayerDto.spellsCastThisTurn and GameViewDto.stormCount,
-// each sent only above 0, E6): "SPELLS THIS TURN: 2 (STORM 3)", the storm count being every player's spells
+// each sent only above 0, E6): "SPELLS THIS TURN: 2 (STORM 3)", the storm count being every player's spells. In a
+// shared-turn game both partners are active players, each with their own count.
 function spellsMark(p, pub) {
-  if (pub.activePlayerId !== p.id) return null;
+  if (!turnOf(pub, p.id)) return null;
   const mine = positive(p.spellsCastThisTurn), storm = positive(pub.stormCount);
   return mine || storm ? `SPELLS THIS TURN: ${mine} (STORM ${storm || mine})` : null;
 }
@@ -8189,7 +8190,12 @@ function actingFor(seat, prompt, gv) {
   if (!ruled.length) return null;
   const type = prompt.input?.type;
   if (type === "chooseAction") return ruled.includes(gv.priorityPlayerId) ? gv.priorityPlayerId : null;
-  if (type === "chooseAttackers") return ruled.includes(gv.activePlayerId) ? gv.activePlayerId : null;
+  // (in a shared-turn game either partner of the active team declares attacks: the one controlled player on the turn;
+  // the question names the controlling seat, so with both partners controlled it stays the active player's)
+  if (type === "chooseAttackers") {
+    const onTurn = ruled.filter((id) => turnOf(gv, id));
+    return onTurn.length === 1 ? onTurn[0] : ruled.includes(gv.activePlayerId) ? gv.activePlayerId : null;
+  }
   const cards = prompt.input?.cards || [];
   const allIn = (p) => { const hand = zoneOf(gv, "hand", p).cards || []; return cards.length > 0 && cards.every((c) => hand.some((x) => x.id === c.id)); };
   if (allIn(seat.slot)) return null;
@@ -11066,12 +11072,16 @@ const rewindStep = (step) => REWIND_STEPS[step] || STEP_WORDS[step] || step;
 // (every seat as the game log names it: an AI seat is "AI 2", not its colour "Yellow"; live check 2026-11-11, the rewind
 // list said "Yellow's attacks" and the vote "Waiting for Yellow" while the log said AI 2)
 const seatWords = (slot) => (game.slotColor[slot] ? nameOf(slot) : null);
-function checkpointLabel(c) {
-  return `turn ${c.turn}, ${nameOf(c.activePlayerId)}'s ${rewindStep(c.step)}`;
+// whose turn a turn was, for the rewind list and the log: "White's", or "White + Red's" in a shared-turn game (gv: a
+// board of the game, for its rules and teams)
+const turnOwnerWords = (activeId, gv) => (teams2hg.sharesTurns(gv)
+  ? `${teams2hg.teamWords(teams2hg.turnPlayerIds({ ...gv, activePlayerId: activeId }).map(nameOf))}'s` : `${nameOf(activeId)}'s`);
+function checkpointLabel(c, gv = null) {
+  return `turn ${c.turn}, ${turnOwnerWords(c.activePlayerId, gv)} ${rewindStep(c.step)}`;
 }
 function rewindState(gv) {
   const points = (gv.checkpoints || []).filter((c) => REWIND_STEPS[c.step]).slice(-12).reverse()
-    .map((c) => ({ id: c.checkpointId, label: checkpointLabel(c) }));
+    .map((c) => ({ id: c.checkpointId, label: checkpointLabel(c, gv) }));
   const v = gv.restoreVote;
   // (waiting: the colours still to vote, which the table matches against its own seats; waitingNames: the people among
   // them, by name. A harmless bot votes by itself at once (harmlessVotes), so the table isn't told it waits for one)
@@ -11718,7 +11728,7 @@ function debugPrompt(seat, type, prompt, gv) {
   const d = debugChoice[seat.color];
   if (!d || !game?.fromTable) return false;
   if (type === "mulligan") { seat.respond(prompt.promptId, "mulligan", { type: "mulliganDecision", keep: true }); return true; }
-  if (type === "chooseAction" && !game.fix && gv.activePlayerId === seat.slot && !(gv.stack || []).length) { delete debugChoice[seat.color]; openFix(seat.color, gv, d); }
+  if (type === "chooseAction" && !game.fix && turnOf(gv, seat.slot) && !(gv.stack || []).length) { delete debugChoice[seat.color]; openFix(seat.color, gv, d); }
   return false;
 }
 
@@ -12187,7 +12197,7 @@ function checkRestored(seat) {
     // (the turn as the log's headers count it, each player's own: "White's turn 4", suite review 2026-10-27)
     // (whose turn and which step: Forge's turn number counts every player's turns, unlike the log's headers, and the
     // per-player count isn't wound back, suite review 2026-10-27)
-    gameLogLine(`--- Rewound to ${nameOf(gv.activePlayerId)}'s turn (${rewindStep(gv.step)}) ---`);
+    gameLogLine(`--- Rewound to ${turnOwnerWords(gv.activePlayerId, gv)} turn (${rewindStep(gv.step)}) ---`);
     if (back.length) {
       const line = `${andList(back)} ${back.length > 1 ? "are" : "is"} back in the game.`;
       chat(`[MTG] ${line}`);
@@ -12379,6 +12389,7 @@ if (require.main === module) {
     alignment, tableCard, costNow, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
     summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword, playWindow,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
+    _spellsMark: spellsMark, _actingFor: actingFor, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice,
     _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, setPickedHand, splitHandText, handOps, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _customArt: customArt, artProblem, isCustomArt,
