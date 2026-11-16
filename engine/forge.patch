@@ -665,10 +665,21 @@ index 2a2d5583..b8e60e7d 100644
          return gamesPerMatch;
      }
 diff --git a/forge-game/src/main/java/forge/game/GameSnapshot.java b/forge-game/src/main/java/forge/game/GameSnapshot.java
-index c7208809..a211c2a6 100644
+index c7208809..d0a896d9 100644
 --- a/forge-game/src/main/java/forge/game/GameSnapshot.java
 +++ b/forge-game/src/main/java/forge/game/GameSnapshot.java
-@@ -183,11 +183,15 @@ public class GameSnapshot {
+@@ -95,6 +95,10 @@ public class GameSnapshot {
+                 // blanking the field there would make the lazy getter build a duplicate.
+                 p.copyEffectCardsToSnapshot(toPlayer, c -> findBy(toGame, c));
+             }
++            p.copyTurnHistoryToSnapshot(toPlayer, c -> {
++                Card mapped = findBy(toGame, c);
++                return mapped == null ? c : mapped;
++            }, pl -> findBy(toGame, pl));
+             ((PlayerZoneBattlefield) toPlayer.getZone(ZoneType.Battlefield)).setTriggers(true);
+         }
+         toGame.getTriggerHandler().clearSuppression(TriggerType.ChangesZone);
+@@ -183,15 +187,37 @@ public class GameSnapshot {
          newPlayer.setLifeStartedThisTurnWith(origPlayer.getLifeStartedThisTurnWith());
          newPlayer.setDamageReceivedThisTurn(origPlayer.getDamageReceivedThisTurn());
          newPlayer.setLandsPlayedThisTurn(origPlayer.getLandsPlayedThisTurn());
@@ -682,8 +693,41 @@ index c7208809..a211c2a6 100644
          newPlayer.setCommitedCrimeThisTurn(origPlayer.getCommittedCrimeThisTurn());
 +        newPlayer.setDilemmasFacedThisTurn(origPlayer.getDilemmasFacedThisTurn());
          newPlayer.setExpentThisTurn(origPlayer.getExpentThisTurn());
-         for (int j = 0; j < origPlayer.getSpellsCastThisTurn(); j++) {
-             newPlayer.addSpellCastThisTurn();
+-        for (int j = 0; j < origPlayer.getSpellsCastThisTurn(); j++) {
+-            newPlayer.addSpellCastThisTurn();
+-        }
++        newPlayer.setSpellsCastThisGame(origPlayer.getSpellsCastThisGame());
++        newPlayer.setNumDrawnThisDrawStep(origPlayer.numDrawnThisDrawStep());
++        newPlayer.setNumCardsInHandStartedThisTurnWith(origPlayer.getNumCardsInHandStartedThisTurnWith());
++        newPlayer.setNumRollsThisTurn(origPlayer.getNumRollsThisTurn());
++        newPlayer.setDiceRollsThisTurn(origPlayer.getDiceRollsThisTurn());
++        newPlayer.setNumFlipsThisTurn(origPlayer.getNumFlipsThisTurn());
++        newPlayer.setNumExploredThisTurn(origPlayer.getNumExploredThisTurn());
++        newPlayer.setNumForetoldThisTurn(origPlayer.getNumForetoldThisTurn());
++        newPlayer.setNumTokenCreatedThisTurn(origPlayer.getNumTokenCreatedThisTurn());
++        newPlayer.setInvestigatedThisTurn(origPlayer.getInvestigateNumThisTurn());
++        newPlayer.setScryThisTurn(origPlayer.getScryThisTurn());
++        newPlayer.setSurveilThisTurn(origPlayer.getSurveilThisTurn());
++        newPlayer.setAttractionsVisitedThisTurn(origPlayer.getAttractionsVisitedThisTurn());
++        newPlayer.setDescended(origPlayer.getDescended());
++        newPlayer.setVenturedThisTurn(origPlayer.getVenturedThisTurn());
++        newPlayer.setTappedLandForManaThisTurn(origPlayer.hasTappedLandForManaThisTurn());
++        newPlayer.setLifeGainedTimesThisTurn(origPlayer.getLifeGainedTimesThisTurn());
++        newPlayer.setLifeGainedByTeamThisTurn(origPlayer.getLifeGainedByTeamThisTurn());
++        newPlayer.setBeenDealtCombatDamageSinceLastTurn(origPlayer.hasBeenDealtCombatDamageSinceLastTurn());
++        newPlayer.setElementalBendThisTurn(origPlayer.getElementalBendThisTurn());
++        newPlayer.setLastTurnNr(origPlayer.getLastTurnNr());
+         newPlayer.setMaxHandSize(origPlayer.getMaxHandSize());
+         newPlayer.setUnlimitedHandSize(origPlayer.isUnlimitedHandSize());
+         newPlayer.setCrankCounter(origPlayer.getCrankCounter());
+@@ -284,6 +310,7 @@ public class GameSnapshot {
+     public void copyGameState(Game fromGame, Game toGame) {
+         toGame.setAge(fromGame.getAge());
+         toGame.dangerouslySetTimestamp(fromGame.getTimestamp());
++        toGame.getStack().setSpellsCast(fromGame.getStack().getSpellsCastThisTurn(), fromGame.getStack().getSpellsCastLastTurn());
+         if (!restore) {
+             // Card copies keep their original ids, so the fresh-id counters have to
+             // move with them or ids handed out later would collide.
 diff --git a/forge-game/src/main/java/forge/game/ability/AbilityUtils.java b/forge-game/src/main/java/forge/game/ability/AbilityUtils.java
 index 9d90c5c3..e236aee3 100644
 --- a/forge-game/src/main/java/forge/game/ability/AbilityUtils.java
@@ -2642,7 +2686,7 @@ index 7fe22ffe..a85836fa 100644
          }
      }
 diff --git a/forge-game/src/main/java/forge/game/player/Player.java b/forge-game/src/main/java/forge/game/player/Player.java
-index 4cbb6deb..1ede54b5 100644
+index 4cbb6deb..c4fee965 100644
 --- a/forge-game/src/main/java/forge/game/player/Player.java
 +++ b/forge-game/src/main/java/forge/game/player/Player.java
 @@ -107,6 +107,7 @@ public class Player extends GameEntity implements Comparable<Player> {
@@ -2922,7 +2966,7 @@ index 4cbb6deb..1ede54b5 100644
                      return true;
                  }
              }
-@@ -2251,6 +2397,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2251,9 +2397,72 @@ public class Player extends GameEntity implements Comparable<Player> {
      public final void setLandsPlayedLastTurn(int num) {
          landsPlayedLastTurn = num;
      }
@@ -2937,7 +2981,65 @@ index 4cbb6deb..1ede54b5 100644
      public final void setNumDrawnLastTurn(int num) {
          numDrawnLastTurn= num;
      }
-@@ -2387,6 +2541,12 @@ public class Player extends GameEntity implements Comparable<Player> {
++    public final void setNumDrawnThisDrawStep(int num) {
++        numDrawnThisDrawStep = num;
++    }
++    public final void setNumRollsThisTurn(int num) {
++        numRollsThisTurn = num;
++    }
++    public final void setNumFlipsThisTurn(int num) {
++        numFlipsThisTurn = num;
++    }
++    public final void setNumExploredThisTurn(int num) {
++        numExploredThisTurn = num;
++    }
++    public final void setNumForetoldThisTurn(int num) {
++        numForetoldThisTurn = num;
++    }
++    public final void setNumTokenCreatedThisTurn(int num) {
++        numTokenCreatedThisTurn = num;
++    }
++    public final void setInvestigatedThisTurn(int num) {
++        investigatedThisTurn = num;
++    }
++    public final void setScryThisTurn(int num) {
++        scryThisTurn = num;
++    }
++    public final void setSurveilThisTurn(int num) {
++        surveilThisTurn = num;
++    }
++    public final void setAttractionsVisitedThisTurn(int num) {
++        attractionsVisitedThisTurn = num;
++    }
++    public final void setVenturedThisTurn(int num) {
++        venturedThisTurn = num;
++    }
++    public final void setLifeGainedTimesThisTurn(int num) {
++        lifeGainedTimesThisTurn = num;
++    }
++    public final void setLifeGainedByTeamThisTurn(int num) {
++        lifeGainedByTeamThisTurn = num;
++    }
++    public final void setSpellsCastThisGame(int num) {
++        spellsCastThisGame = num;
++    }
++    public final void setLastTurnNr(int num) {
++        lastTurnNr = num;
++    }
++    public final void setDiceRollsThisTurn(List<Integer> rolls) {
++        diceRollsThisTurn = Lists.newArrayList(rolls);
++    }
++    public final Set<TriggerType> getElementalBendThisTurn() {
++        return elementalBendThisTurn;
++    }
++    public final void setElementalBendThisTurn(Set<TriggerType> types) {
++        elementalBendThisTurn.clear();
++        elementalBendThisTurn.addAll(types);
++    }
+ 
+     public final int getInvestigateNumThisTurn() {
+         return investigatedThisTurn;
+@@ -2387,6 +2596,12 @@ public class Player extends GameEntity implements Comparable<Player> {
          return controller.getLobbyPlayer();
      }
  
@@ -2950,7 +3052,7 @@ index 4cbb6deb..1ede54b5 100644
      public final RegisteredPlayer getRegisteredPlayer() {
          return game.getMatch().getPlayers().get(game.getRegisteredPlayers().indexOf(this));
      }
-@@ -2477,6 +2637,7 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2477,6 +2692,7 @@ public class Player extends GameEntity implements Comparable<Player> {
          investigatedThisTurn = 0;
          scryThisTurn = 0;
          surveilThisTurn = 0;
@@ -2958,7 +3060,46 @@ index 4cbb6deb..1ede54b5 100644
          resetDiscardedThisTurn();
          resetSacrificedThisTurn();
          resetVenturedThisTurn();
-@@ -2842,6 +3003,14 @@ public class Player extends GameEntity implements Comparable<Player> {
+@@ -2798,6 +3014,38 @@ public class Player extends GameEntity implements Comparable<Player> {
+         toPlayer.speedEffect = mapEffectCard(speedEffect, mapper);
+     }
+ 
++    public void copyTurnHistoryToSnapshot(Player toPlayer, Function<Card, Card> mapCard, Function<Player, Player> mapPlayer) {
++        toPlayer.discardedThisTurn = new ArrayList<>(discardedThisTurn);
++        toPlayer.sacrificedThisTurn = new ArrayList<>(sacrificedThisTurn);
++        toPlayer.spellsCastSinceBeginningOfLastTurn = new ArrayList<>(spellsCastSinceBeginningOfLastTurn);
++        toPlayer.planeswalkedToThisTurn = new CardCollection();
++        for (final Card c : planeswalkedToThisTurn) {
++            toPlayer.planeswalkedToThisTurn.add(mapCard.apply(c));
++        }
++        toPlayer.attackedPlayersLastTurn = new ArrayList<>();
++        for (final Player p : attackedPlayersLastTurn) {
++            toPlayer.attackedPlayersLastTurn.add(mapPlayer.apply(p));
++        }
++        toPlayer.attackedPlayersThisCombat = new ArrayList<>();
++        for (final Player p : attackedPlayersThisCombat) {
++            toPlayer.attackedPlayersThisCombat.add(mapPlayer.apply(p));
++        }
++        toPlayer.attackedThisTurn = new HashMap<>();
++        for (final Entry<GameEntity, List<Card>> e : attackedThisTurn.entrySet()) {
++            GameEntity defender = e.getKey();
++            if (defender instanceof Player) {
++                defender = mapPlayer.apply((Player) defender);
++            } else if (defender instanceof Card) {
++                defender = mapCard.apply((Card) defender);
++            }
++            final List<Card> attackers = new ArrayList<>();
++            for (final Card c : e.getValue()) {
++                attackers.add(mapCard.apply(c));
++            }
++            toPlayer.attackedThisTurn.put(defender, attackers);
++        }
++    }
++
+     private static Card mapEffectCard(Card effect, Function<Card, Card> mapper) {
+         // An effect card in no zone was not part of the copy; leave the
+         // snapshot's field unset so its lazy creation path stays consistent.
+@@ -2842,6 +3090,14 @@ public class Player extends GameEntity implements Comparable<Player> {
      public Iterable<Entry<Card, Integer>> getCommanderDamage() {
          return commanderDamage.entrySet();
      }
@@ -3487,7 +3628,7 @@ index 8ab7dbe3..43ca371f 100644
  
      @Override
 diff --git a/forge-game/src/main/java/forge/game/zone/MagicStack.java b/forge-game/src/main/java/forge/game/zone/MagicStack.java
-index 35ea040c..461d38fe 100644
+index 35ea040c..6a7f794b 100644
 --- a/forge-game/src/main/java/forge/game/zone/MagicStack.java
 +++ b/forge-game/src/main/java/forge/game/zone/MagicStack.java
 @@ -838,6 +838,16 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
@@ -3571,6 +3712,19 @@ index 35ea040c..461d38fe 100644
      private boolean chooseOrderOfSimultaneousStackEntry(final Player activePlayer, boolean isAbilityTriggered) {
          if (!activePlayer.isInGame()) {
              return false;
+@@ -931,6 +998,12 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+     public final List<Card> getSpellsCastLastTurn() {
+         return lastTurnCast;
+     }
++    public final void setSpellsCast(List<SpellAbility> thisTurn, List<Card> lastTurn) {
++        thisTurnCast.clear();
++        thisTurnCast.addAll(thisTurn);
++        lastTurnCast = Lists.newArrayList(lastTurn);
++        game.updateStackForView();
++    }
+ 
+     public final void onNextTurn() {
+         final Player active = game.getPhaseHandler().getPlayerTurn();
 diff --git a/forge-gui/res/cardsfolder/a/aetherling.txt b/forge-gui/res/cardsfolder/a/aetherling.txt
 index f6e89bab..88978a3b 100644
 --- a/forge-gui/res/cardsfolder/a/aetherling.txt

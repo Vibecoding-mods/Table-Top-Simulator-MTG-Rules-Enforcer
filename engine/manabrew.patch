@@ -13057,6 +13057,263 @@ index 0000000..a5d3088
 +        return SnapshotExtractor.javaCardId(card);
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/TurnCounterRewindTest.java b/forge-harness/src/test/java/forge/harness/host/TurnCounterRewindTest.java
+new file mode 100644
+index 0000000..0141732
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/TurnCounterRewindTest.java
+@@ -0,0 +1,251 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityKey;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.Deque;
++import java.util.List;
++import java.util.Set;
++
++public final class TurnCounterRewindTest {
++    private TurnCounterRewindTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++
++        check("rewindRestoresTheScryCount", TurnCounterRewindTest::rewindRestoresTheScryCount);
++        check("rewindRestoresTheTokensCreated", TurnCounterRewindTest::rewindRestoresTheTokensCreated);
++        check("rewindRestoresLifeGainedTimes", TurnCounterRewindTest::rewindRestoresLifeGainedTimes);
++        check("rewindRestoresLifeGainedByTeam", TurnCounterRewindTest::rewindRestoresLifeGainedByTeam);
++        check("rewindRestoresTheDiscardedCards", TurnCounterRewindTest::rewindRestoresTheDiscardedCards);
++        check("rewindRestoresTheTappedLandFlag", TurnCounterRewindTest::rewindRestoresTheTappedLandFlag);
++        check("rewindRestoresTheSpellsCastThisTurn", TurnCounterRewindTest::rewindRestoresTheSpellsCastThisTurn);
++        check("stormCountsFromTheCheckpointAfterARewind", TurnCounterRewindTest::stormCountsFromTheCheckpointAfterARewind);
++        System.out.println(failed == 0 ? "PASS TurnCounterRewindTest" : "FAIL TurnCounterRewindTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static void expect(final String what, final int wanted, final int actual) {
++        if (wanted != actual) {
++            throw new AssertionError("after the rewind " + what + " is " + actual + ", not the checkpoint's " + wanted);
++        }
++    }
++
++    private static void rewindRestoresTheScryCount() throws Exception {
++        final Fixture f = new Fixture();
++        f.blue.incScryThisTurn();
++        f.recordCheckpoint();
++        f.blue.incScryThisTurn();
++        f.blue.incScryThisTurn();
++        f.restoreFirstCheckpoint();
++        expect("Blue's scry count", 1, f.blue.getScryThisTurn());
++    }
++
++    private static void rewindRestoresTheTokensCreated() throws Exception {
++        final Fixture f = new Fixture();
++        final Card island = add("Island", f.blue, ZoneType.Library);
++        f.blue.addTokensCreatedThisTurn(island);
++        f.recordCheckpoint();
++        f.blue.addTokensCreatedThisTurn(island);
++        f.blue.addTokensCreatedThisTurn(island);
++        f.clearTriggers();
++        f.restoreFirstCheckpoint();
++        expect("Blue's tokens created", 1, f.blue.getNumTokenCreatedThisTurn());
++    }
++
++    private static void rewindRestoresLifeGainedTimes() throws Exception {
++        final Fixture f = new Fixture();
++        f.blue.gainLife(2, null, null);
++        f.recordCheckpoint();
++        f.blue.gainLife(3, null, null);
++        f.blue.gainLife(4, null, null);
++        f.clearTriggers();
++        f.restoreFirstCheckpoint();
++        expect("Blue's life gain count", 1, f.blue.getLifeGainedTimesThisTurn());
++        expect("Blue's team life gain count", 1, f.blue.getTeamLifeGainedTimesThisTurn());
++    }
++
++    private static void rewindRestoresLifeGainedByTeam() throws Exception {
++        final Fixture f = new Fixture();
++        f.blue.gainLife(2, null, null);
++        f.recordCheckpoint();
++        f.blue.gainLife(3, null, null);
++        f.clearTriggers();
++        f.restoreFirstCheckpoint();
++        expect("Blue's life gained by the team", 2, f.blue.getLifeGainedByTeamThisTurn());
++        expect("Blue's life gained", 2, f.blue.getLifeGainedThisTurn());
++    }
++
++    private static void rewindRestoresTheDiscardedCards() throws Exception {
++        final Fixture f = new Fixture();
++        final Card first = add("Island", f.blue, ZoneType.Hand);
++        final Card second = add("Island", f.blue, ZoneType.Hand);
++        f.blue.discard(first, null, false, AbilityKey.newMap());
++        f.clearTriggers();
++        f.recordCheckpoint();
++        f.blue.discard(f.game.getCardState(second), null, false, AbilityKey.newMap());
++        f.clearTriggers();
++        f.restoreFirstCheckpoint();
++        expect("Blue's discarded cards", 1, f.blue.getDiscardedThisTurn().size());
++        if (f.blue.getDiscardedThisTurn().get(0).getId() != first.getId()) {
++            throw new AssertionError("after the rewind Blue's discarded card is " + f.blue.getDiscardedThisTurn().get(0));
++        }
++    }
++
++    private static void rewindRestoresTheTappedLandFlag() throws Exception {
++        final Fixture f = new Fixture();
++        f.recordCheckpoint();
++        f.blue.setTappedLandForManaThisTurn(true);
++        f.restoreFirstCheckpoint();
++        if (f.blue.hasTappedLandForManaThisTurn()) {
++            throw new AssertionError("after the rewind Blue has tapped a land for mana this turn");
++        }
++    }
++
++    private static void rewindRestoresTheSpellsCastThisTurn() throws Exception {
++        final Fixture f = new Fixture();
++        f.cast("Ornithopter");
++        f.recordCheckpoint();
++        f.cast("Ornithopter");
++        f.cast("Ornithopter");
++        expect("the storm count before the rewind", 3, f.game.getStack().getSpellsCastThisTurn().size());
++        f.restoreFirstCheckpoint();
++        expect("Blue's spells cast this turn", 1, f.blue.getSpellsCastThisTurn());
++        expect("Blue's spells cast this game", 1, f.blue.getSpellsCastThisGame());
++        expect("the storm count", 1, f.game.getStack().getSpellsCastThisTurn().size());
++        expect("the viewed storm count", 1, f.game.getView().getStormCount());
++    }
++
++    private static void stormCountsFromTheCheckpointAfterARewind() throws Exception {
++        final Fixture f = new Fixture();
++        f.cast("Ornithopter");
++        f.recordCheckpoint();
++        f.cast("Ornithopter");
++        f.restoreFirstCheckpoint();
++        f.cast("Ornithopter");
++        expect("the storm count after casting again", 2, f.game.getStack().getSpellsCastThisTurn().size());
++        expect("Blue's spells cast this game after casting again", 2, f.blue.getSpellsCastThisGame());
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("turn-counter-rewind-test");
++        final Game game = newGame();
++        final Player white = game.getPlayers().get(0);
++        final Player blue = game.getPlayers().get(1);
++
++        Fixture() {
++            for (int i = 0; i < 6; i++) {
++                add("Island", blue, ZoneType.Library);
++                add("Island", white, ZoneType.Library);
++            }
++            session.attach(game.getMatch(), game, Set.of(), true);
++        }
++
++        void cast(final String name) {
++            final Card card = add(name, blue, ZoneType.Hand);
++            final SpellAbility spell = card.getFirstSpellAbility();
++            spell.setActivatingPlayer(blue);
++            game.getStack().add(spell);
++            game.getStack().resolveStack();
++            clearTriggers();
++        }
++
++        void clearTriggers() {
++            game.getStack().clearSimultaneousStack();
++        }
++
++        void recordCheckpoint() throws Exception {
++            final Method record = ManaBrewInteractiveSession.class.getDeclaredMethod("recordCheckpoint");
++            record.setAccessible(true);
++            record.invoke(session);
++            if (checkpoints().isEmpty()) {
++                throw new AssertionError("no checkpoint was recorded");
++            }
++        }
++
++        void restoreFirstCheckpoint() throws Exception {
++            final Object first = checkpoints().peekFirst();
++            for (final Method method : ManaBrewInteractiveSession.class.getDeclaredMethods()) {
++                if (method.getName().equals("restore") && method.getParameterCount() == 1) {
++                    method.setAccessible(true);
++                    method.invoke(session, first);
++                    return;
++                }
++            }
++            throw new AssertionError("no restore method");
++        }
++
++        private Deque<?> checkpoints() throws Exception {
++            final Field field = ManaBrewInteractiveSession.class.getDeclaredField("checkpoints");
++            field.setAccessible(true);
++            return (Deque<?>) field.get(session);
++        }
++
++        private Game newGame() {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final Deck deck = new Deck();
++            players.add(new RegisteredPlayer(deck).setPlayer(new ManaBrewInteractiveLobbyPlayer("White", session)));
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Blue", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            final Game created = new Game(players, rules, new Match(rules, players, "TurnCounterRewindTest"));
++            created.setAge(GameStage.Play);
++            created.getPhaseHandler().devModeSet(PhaseType.MAIN1, created.getPlayers().get(0));
++            created.getPhaseHandler().onStackResolved();
++            return created;
++        }
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++}
 diff --git a/manabrew-rs/crates/loadgen/src/main.rs b/manabrew-rs/crates/loadgen/src/main.rs
 index 3b914ff..a86f4f9 100644
 --- a/manabrew-rs/crates/loadgen/src/main.rs
