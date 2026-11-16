@@ -500,7 +500,7 @@ function engineChat(message, pl)
     pl.broadcast("[MTG] Commands:\\n${[
       " mtg ready / mtg ready all (host) - check decks",
       " mtg mode standard|commander (host) - the next games' format: Standard (60 cards, 20 life, no commander) or Commander",
-      " mtg mode 2hg / 2v2 / juggernaut / ffa (host) - Two-Headed Giant or 2v2 Team Commander (White + Red vs Yellow + Blue), Juggernaut (one against three) or free-for-all, in either format; mtg team <colour> 1|2 (host) - move a seat; mtg juggernaut <colour> / life|hand|draw|land <n> / cmd 21|42 / order first|after (host) - the Juggernaut",
+      " mtg mode 2hg / 2v2 / juggernaut / ffa (host) - Two-Headed Giant or Juggernaut (one against three) in Commander, 2v2 (White + Red vs Yellow + Blue) in Standard, or free-for-all; mtg team <colour> 1|2 (host) - move a seat; mtg juggernaut <colour> / life|hand|draw|land <n> / cmd 21|42 / order first|after (host) - the Juggernaut",
       " mtg commander - hover your commander first",
       " mtg clear deck - remove your own deck and commander from your seat (not during a game)",
       " mtg start [ai N] - start the engine game, optionally with N Forge AI players",

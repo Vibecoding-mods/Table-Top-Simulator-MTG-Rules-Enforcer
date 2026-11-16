@@ -1,4 +1,4 @@
-// 2v2 Team Commander and Juggernaut on the table (docs/game-modes-spec.md §4.1, §6; tools/engine-renderer.lua
+// 2v2 (Standard only) and Juggernaut (Commander only) on the table (docs/game-modes-spec.md §4.1, §6; tools/engine-renderer.lua
 // engineTeamChat, engineTeamsLabel / onMtgSetupTeams, engineTeamTurnTag, engineWinsWords, engineTeamLooks;
 // make-engine-copy.js's Start and concede): the host's "mtg mode 2v2|juggernaut" and "mtg juggernaut ...", what Start
 // sends, the Teams button on the setup tile, the phase bar's Juggernaut, a lone winner's banner, a 2v2 concede that is
@@ -38,13 +38,17 @@ const label = 'local tile for _, o in ipairs(getObjects()) do if o.getGMNotes() 
     q('setEngineMode(true) return "on"', "engine on", 30),
     q(label, "button none"),
     q('engineChat("mtg mode 2v2", Player.Yellow) ' + T, "not host"),
-    q('engineChat("mtg mode 2v2", Player.Blue) ' + T, "2v2", 5),
+    q('engineChat("mtg mode 2v2", Player.Blue) ' + T, "2v2 in commander", 5),
+    q('engineChat("mtg mode standard", Player.Blue) engineChat("mtg mode 2v2", Player.Blue) ' + T, "2v2", 5),
     q(label, "button 2v2"),
     q('engineChat("mtg team red 2", Player.Blue) engineChat("mtg team yellow 1", Player.Blue) ' + T, "2v2 moved"),
     q('engineStartSentAt = nil engineChat("mtg start ai 2", Player.Blue) return "started"', "start 2v2", 10),
     q('engineChat("mtg juggernaut blue", Player.Blue) engineChat("mtg juggernaut cmd 42", Player.Blue) engineChat("mtg juggernaut order after", Player.Blue) ' +
       'engineChat("mtg juggernaut land 1", Player.Blue) engineChat("mtg juggernaut life 70", Player.Blue) ' + T, "settings before"),
     q('engineChat("mtg juggernaut cmd 30", Player.Blue) engineChat("mtg juggernaut hand 99", Player.Blue) return ENGINE_JUGG.cmd .. " " .. ENGINE_JUGG.hand', "bad settings"),
+    q('engineChat("mtg mode juggernaut", Player.Blue) ' + T, "jugg in standard", 5),
+    q('engineChat("mtg mode 2hg", Player.Blue) ' + T, "2hg in standard", 5),
+    q('engineChat("mtg mode commander", Player.Blue) ' + T, "standard to commander", 5),
     q('engineChat("mtg mode juggernaut", Player.Blue) ' + T, "juggernaut", 5),
     q(label, "button jugg"),
     q('engineChat("mtg team red 1", Player.Blue) ' + T, "team in jugg"),
@@ -52,19 +56,28 @@ const label = 'local tile for _, o in ipairs(getObjects()) do if o.getGMNotes() 
     q('engineStartSentAt = nil engineChat("mtg start ai 2", Player.Blue) return "started"', "start jugg", 10),
     q('onMtgSetupTeams(nil, "Blue") ' + T, "click to ffa", 5),
     q('onMtgSetupTeams(nil, "Blue") ' + T, "click to 2hg", 5),
-    q('onMtgSetupTeams(nil, "Blue") ' + T, "click to 2v2", 5),
+    q('onMtgSetupTeams(nil, "Blue") ' + T, "click to jugg", 5),
     q('onMtgSetupTeams(nil, "Yellow") ' + T, "click not host", 5),
+    q('onMtgSetupTeams(nil, "Blue") onMtgSetupTeams(nil, "Blue") ' + T, "click jugg to 2hg", 5),
+    q('engineChat("mtg mode standard", Player.Blue) ' + T, "commander to standard", 5),
+    q('onMtgSetupTeams(nil, "Blue") ' + T, "std click to 2v2", 5),
+    q('onMtgSetupTeams(nil, "Blue") ' + T, "std click to ffa", 5),
+    q('engineChat("mtg mode commander", Player.Blue) ' + T, "ffa to commander", 5),
   ]);
   ok("commands: no errors", !r.errors.length, r.errors.join(" | "));
   ok("commands: the Teams button on the setup tile, None at first", valueOf(r, "button none") === "Teams\nNone", JSON.stringify(valueOf(r, "button none")));
   ok("commands: only the host sets a team mode", valueOf(r, "not host") === "nil" && /Only the host/.test(chats(r, "not host")), chats(r, "not host"));
-  ok("commands: 2v2 sets the long sides and says what it is", valueOf(r, "2v2") === "1122 2v2" && /2v2 Team Commander: White \+ Red vs Yellow \+ Blue\. Each player has their own life/.test(chats(r, "2v2")), `${valueOf(r, "2v2")} ${chats(r, "2v2")}`);
+  ok("modes: 2v2 is refused in Commander, saying Standard allows it", valueOf(r, "2v2 in commander") === "nil" && /2v2 is played in Standard only, and the game mode is Commander\. Switch with  mtg mode standard/.test(chats(r, "2v2 in commander")), `${valueOf(r, "2v2 in commander")} ${chats(r, "2v2 in commander")}`);
+  ok("commands: 2v2 sets the long sides and says what it is", valueOf(r, "2v2") === "1122 2v2" && /2v2: White \+ Red vs Yellow \+ Blue\. Standard decks; each player has their own life \(20\)/.test(chats(r, "2v2")), `${valueOf(r, "2v2")} ${chats(r, "2v2")}`);
   ok("commands: the button follows the mode (2v2)", valueOf(r, "button 2v2") === "Teams\n2v2", JSON.stringify(valueOf(r, "button 2v2")));
   ok("commands: mtg team moves a seat in 2v2", valueOf(r, "2v2 moved") === "1212 2v2", String(valueOf(r, "2v2 moved")));
   const s2 = sent(r, "start 2v2");
-  ok("start 2v2: the teams and the mode go with Start, no Juggernaut", /"t":"start"/.test(s2) && /"teamMode":"2v2"/.test(s2) && /"Red":2/.test(s2) && !/"juggernaut"/.test(s2), s2.slice(0, 500));
+  ok("start 2v2: the teams, the mode and Standard go with Start, no Juggernaut", /"t":"start"/.test(s2) && /"teamMode":"2v2"/.test(s2) && /"mode":"standard"/.test(s2) && /"Red":2/.test(s2) && !/"juggernaut"/.test(s2), s2.slice(0, 500));
   ok("commands: Juggernaut settings kept outside Juggernaut, with a note", valueOf(r, "settings before") === "1212 2v2" && /set the Juggernaut: Blue: 70 life, 10 cards, 1 extra card each draw step, 1 extra land play, out at 42 commander damage, a turn after every challenger's\. \(for Juggernaut games/.test(chats(r, "settings before")), chats(r, "settings before"));
   ok("commands: a bad setting is refused and says how", valueOf(r, "bad settings") === "42 10" && /Use:  mtg juggernaut/.test(chats(r, "bad settings")), `${valueOf(r, "bad settings")} ${chats(r, "bad settings")}`);
+  ok("modes: Juggernaut is refused in Standard, saying Commander allows it", valueOf(r, "jugg in standard") === "1212 2v2" && /Juggernaut is played in Commander only, and the game mode is Standard\. Switch with  mtg mode commander/.test(chats(r, "jugg in standard")), chats(r, "jugg in standard"));
+  ok("modes: Two-Headed Giant is refused in Standard", valueOf(r, "2hg in standard") === "1212 2v2" && /Two-Headed Giant is played in Commander only/.test(chats(r, "2hg in standard")), chats(r, "2hg in standard"));
+  ok("modes: Standard to Commander drops 2v2 and says so", valueOf(r, "standard to commander") === "nil" && /Teams set back to None: 2v2 is played in Standard only, not Commander\./.test(chats(r, "standard to commander")), `${valueOf(r, "standard to commander")} ${chats(r, "standard to commander")}`);
   ok("commands: Juggernaut puts the Juggernaut alone against the three", valueOf(r, "juggernaut") === "2221 juggernaut" && /Juggernaut: Blue \(Juggernaut\) vs White \+ Red \+ Yellow/.test(chats(r, "juggernaut")), `${valueOf(r, "juggernaut")} ${chats(r, "juggernaut")}`);
   ok("commands: the button names the Juggernaut", valueOf(r, "button jugg") === "Juggernaut\nBlue", JSON.stringify(valueOf(r, "button jugg")));
   ok("commands: mtg team is refused in Juggernaut", valueOf(r, "team in jugg") === "2221 juggernaut" && /teams follow the Juggernaut/.test(chats(r, "team in jugg")), chats(r, "team in jugg"));
@@ -73,8 +86,13 @@ const label = 'local tile for _, o in ipairs(getObjects()) do if o.getGMNotes() 
   ok("start juggernaut: the mode and the settings go with Start", /"teamMode":"juggernaut"/.test(sj) && /"juggernaut":\{/.test(sj) && /"color":"Yellow"/.test(sj) && /"cmd":42/.test(sj) && /"order":"after"/.test(sj) && /"life":70/.test(sj) && /"land":1/.test(sj), sj.slice(0, 600));
   ok("button: Juggernaut -> free-for-all", valueOf(r, "click to ffa") === "nil", String(valueOf(r, "click to ffa")));
   ok("button: free-for-all -> Two-Headed Giant", valueOf(r, "click to 2hg") === "1122 2hg", String(valueOf(r, "click to 2hg")));
-  ok("button: Two-Headed Giant -> 2v2", valueOf(r, "click to 2v2") === "1122 2v2", String(valueOf(r, "click to 2v2")));
-  ok("button: only the host", valueOf(r, "click not host") === "1122 2v2" && /Only the host/.test(chats(r, "click not host")), chats(r, "click not host"));
+  ok("button (Commander): Two-Headed Giant -> Juggernaut, no 2v2", valueOf(r, "click to jugg") === "2212 juggernaut", String(valueOf(r, "click to jugg")));
+  ok("button (Commander): Juggernaut -> free-for-all -> Two-Headed Giant", valueOf(r, "click jugg to 2hg") === "1122 2hg", String(valueOf(r, "click jugg to 2hg")));
+  ok("modes: Commander to Standard drops Two-Headed Giant and says so", valueOf(r, "commander to standard") === "nil" && /Teams set back to None: Two-Headed Giant is played in Commander only, not Standard\./.test(chats(r, "commander to standard")), `${valueOf(r, "commander to standard")} ${chats(r, "commander to standard")}`);
+  ok("button (Standard): free-for-all -> 2v2", valueOf(r, "std click to 2v2") === "1122 2v2", String(valueOf(r, "std click to 2v2")));
+  ok("button (Standard): 2v2 -> free-for-all, no Two-Headed Giant or Juggernaut", valueOf(r, "std click to ffa") === "nil", String(valueOf(r, "std click to ffa")));
+  ok("modes: a game-mode switch with no teams says nothing about teams", !/Teams set back/.test(chats(r, "ffa to commander")) && /set the game mode/.test(chats(r, "ffa to commander")), chats(r, "ffa to commander"));
+  ok("button: only the host", valueOf(r, "click not host") === "2212 juggernaut" && /Only the host/.test(chats(r, "click not host")), chats(r, "click not host"));
 }
 
 // ── a running game: the phase bar, the concede question, the end, the tint ──

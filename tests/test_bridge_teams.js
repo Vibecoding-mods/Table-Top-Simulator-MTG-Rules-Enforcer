@@ -77,23 +77,10 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
     same("start: the seat order is round the table", order, ["Forge AI", "Forge AI 2", "Forge AI 3", blue.username]);
   });
   await run(async (h) => {
-    // Two-Headed Giant in Standard (spec §12: 30 a team; the engine's default for a non-Commander game): the same teams,
-    // and StartGame says Standard, so the node starts Forge's Constructed game
+    // Two-Headed Giant is Commander only (spec §4.1, the owner's call): a Standard 2HG start is refused, by any path
     h.B.startGame(["Blue"], 3, false, true, [], 0, "standard", TEAMS);
     await h.flush();
-    const g = h.B._getGame();
-    const blue = g.seats.get("Blue");
-    blue.heartbeat = () => {};
-    blue.ws.emit("open");
-    frame(blue.ws, { type: "AuthResult", success: true });
-    frame(blue.ws, { type: "RoomList", rooms: [{ room_id: "room-1", room_name: "tts-commander", status: "Lobby" }] });
-    const bots = ["Forge AI", "Forge AI 2", "Forge AI 3"].map((u) => ({ username: u, ready: true, connected: true, is_bot: true }));
-    frame(blue.ws, { type: "RoomUpdate", room: { room_id: "room-1", status: "Lobby", max_players: 4, players: [{ username: blue.username, ready: true, connected: true }, ...bots] } });
-    await h.flush();
-    const out = relay(h);
-    const start = out.find((r) => r.type === "StartGame");
-    ok("start: a Standard 2HG start says Standard, with the teams", start?.format === "Standard" && out.some((r) => r.state?.payload?.type === "gameConfig" && r.state.payload.teamRules === "sharedLife"),
-      JSON.stringify({ format: start?.format, types: out.map((r) => r.state?.payload?.type || r.type) }));
+    ok("start: a Standard 2HG start is refused, saying Commander plays it", h.B._getGame() == null && chats(h).some((c) => c.includes("Not started: Two-Headed Giant is played in Commander only, and the game mode is Standard.")), chats(h).join(" | "));
   });
   await run(async (h) => {
     // the table's Start (make-engine-copy.js engineStartGame) carries the teams

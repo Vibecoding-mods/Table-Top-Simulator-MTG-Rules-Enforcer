@@ -741,7 +741,7 @@ end
 
 -- ───── The team modes (docs/game-modes-spec.md §4.1, §5.5-5.6, §6): Two-Headed Giant, 2v2, Juggernaut ─────
 -- The host's teams for the next games: nil is free-for-all. "mtg mode 2hg" (Two-Headed Giant, Level 2 unless "mtg 2hg turns own") and "mtg mode
--- 2v2" (2v2 Team Commander) set the sides (White + Red against Yellow + Blue, the two seats on each long side), "mtg
+-- 2v2" (2v2, Standard only) set the sides (White + Red against Yellow + Blue, the two seats on each long side), "mtg
 -- team <colour> <1|2>" moves a seat; "mtg mode juggernaut" puts the Juggernaut (ENGINE_JUGG.color, "mtg juggernaut
 -- <colour>") alone against the other three, with its settings ("mtg juggernaut life|hand|draw|land|cmd|order ...");
 -- "mtg mode ffa" ends it. Also the Teams button on the setup tile (onMtgSetupTeams). Sent with every start
@@ -756,7 +756,18 @@ ENGINE_TEAM_MODE = nil -- "2hg" | "2v2" | "juggernaut" while ENGINE_TEAMS is set
 ENGINE_TEAM_TURNS = "shared"
 -- the Juggernaut's settings (bridge/teams.js JUGG_DEFAULTS; life nil: twice the format's, 80 or 40)
 ENGINE_JUGG = { color = "White", hand = 10, draw = 1, land = 0, cmd = 21, order = "first" }
-ENGINE_TEAM_NAMES = { ["2hg"] = "Two-Headed Giant", ["2v2"] = "2v2 Team Commander", juggernaut = "Juggernaut" }
+ENGINE_TEAM_NAMES = { ["2hg"] = "Two-Headed Giant", ["2v2"] = "2v2", juggernaut = "Juggernaut" }
+-- the one game mode (ENGINE_GAME_MODE) each team mode is played in: 2v2 Standard, the other two Commander (the owner's
+-- call; bridge/teams.js TEAM_MODES checks it again at start)
+ENGINE_TEAM_GAME_MODE = { ["2hg"] = "commander", ["2v2"] = "standard", juggernaut = "commander" }
+-- why team mode m can't be picked in the current game mode, in words for chat; nil when it can
+function engineTeamModeRefusal(m)
+  local want = ENGINE_TEAM_GAME_MODE[m]
+  if want == nil or want == ENGINE_GAME_MODE then return nil end
+  local function words(k) return k == "standard" and "Standard" or "Commander" end
+  return ENGINE_TEAM_NAMES[m] .. " is played in " .. words(want) .. " only, and the game mode is " .. words(ENGINE_GAME_MODE)
+    .. ". Switch with  mtg mode " .. want .. "  first (or the Game mode button)."
+end
 function engineTeamsSent() return ENGINE_TEAMS end
 function engineTeamModeSent() return ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil end
 function engineJuggSent() return (ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE == "juggernaut") and ENGINE_JUGG or nil end
@@ -777,11 +788,11 @@ function engineTeamsText()
   if ENGINE_TEAM_MODE == "juggernaut" then return table.concat(s[1], " + ") .. " (Juggernaut) vs " .. table.concat(s[2], " + ") end
   return table.concat(s[1], " + ") .. " vs " .. table.concat(s[2], " + ")
 end
--- the Juggernaut's settings in words (bridge/teams.js juggWords, without the format: life "80 (40 in Standard)")
+-- the Juggernaut's settings in words (bridge/teams.js juggWords; Juggernaut is Commander only, so life "80")
 function engineJuggText()
   local j = ENGINE_JUGG
   local function n(k, one) return tostring(j[k]) .. " " .. one .. (j[k] == 1 and "" or "s") end
-  return j.color .. ": " .. (j.life ~= nil and tostring(j.life) or "80 (40 in Standard)") .. " life, " .. tostring(j.hand) .. " cards, "
+  return j.color .. ": " .. (j.life ~= nil and tostring(j.life) or "80") .. " life, " .. tostring(j.hand) .. " cards, "
     .. n("draw", "extra card") .. " each draw step, " .. n("land", "extra land play") .. ", out at " .. tostring(j.cmd)
     .. " commander damage, " .. (j.order == "after" and "a turn after every challenger's" or "goes first")
 end
@@ -794,8 +805,8 @@ end
 ENGINE_JUGG_LIMITS = { life = { 1, 999 }, hand = { 0, 30 }, draw = { 0, 5 }, land = { 0, 5 }, cmd = { 1, 99 } }
 -- what each mode means, said when the host picks it
 ENGINE_TEAM_HELP = {
-  ["2hg"] = ". Partners share life (30 a team, 80 in Commander), poison (15) and a commander's damage (42), block for each other and see each other's hands. Each team takes one turn together: both partners untap, draw, attack and block together. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host). Each player's own turn instead:  mtg 2hg turns own  (back:  mtg 2hg turns shared).",
-  ["2v2"] = ". Each player has their own life (40, 20 in Standard) and turn; teammates can't attack each other; a team wins when both its opponents have lost. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host).",
+  ["2hg"] = ". Partners share life (80 a team), poison (15) and a commander's damage (42), block for each other and see each other's hands. Each team takes one turn together: both partners untap, draw, attack and block together. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host). Each player's own turn instead:  mtg 2hg turns own  (back:  mtg 2hg turns shared).",
+  ["2v2"] = ". Standard decks; each player has their own life (20) and turn, no commander; teammates can't attack each other; a team wins when both its opponents have lost. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host).",
 }
 -- "mtg mode 2hg|2v2|juggernaut|ffa", "mtg team <colour> <1|2>" and "mtg juggernaut ..." (host): true when handled
 -- (engineChat, make-engine-copy.js); any other "mtg mode" word is left to the other game modes
@@ -815,7 +826,7 @@ function engineTeamChat(cmd, rest, pl, isHost)
       return true
     end
     ENGINE_TEAM_TURNS = level == "shared" and "shared" or nil
-    local note = (ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE == "2hg") and "" or " (for Two-Headed Giant games:  mtg mode 2hg)"
+    local note = (ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE == "2hg") and "" or (" (for Two-Headed Giant games:  mtg mode 2hg" .. (ENGINE_GAME_MODE == "standard" and ", in Commander)" or ")"))
     broadcastToAll("[MTG] " .. who .. " set Two-Headed Giant to " .. (level == "shared"
       and "one turn for each team: partners take their turn together, attack together and block together." or "each player's own turn, the team's back to back.") .. note, { 1, 0.85, 0.4 })
     redraw()
@@ -829,6 +840,8 @@ function engineTeamChat(cmd, rest, pl, isHost)
     redraw()
     return true
   end
+  local refusal = isMode and engineTeamModeRefusal(rest) or nil
+  if refusal ~= nil then pl.broadcast("[MTG] " .. refusal, { 1, 0.85, 0.4 }) return true end
   if isMode and rest == "juggernaut" then
     ENGINE_TEAM_MODE = "juggernaut"
     ENGINE_TEAMS = engineJuggTeams()
@@ -881,7 +894,8 @@ function engineTeamChat(cmd, rest, pl, isHost)
   broadcastToAll("[MTG] " .. who .. " put " .. seat .. " on team " .. n .. ": " .. engineTeamsText() .. ".", { 1, 0.85, 0.4 })
   return true
 end
--- The Teams button on the setup tile (host only, as typed): none -> Two-Headed Giant -> 2v2 -> Juggernaut -> none
+-- The Teams button on the setup tile (host only, as typed), the game mode's team modes only (ENGINE_TEAM_GAME_MODE):
+-- Commander none -> Two-Headed Giant -> Juggernaut -> none; Standard none <-> 2v2
 TEAMS_SPOT = Vector(-47, 1.1, 17.5) -- (right of Free mulligans on the same strip, 10 apart as the other two: not yet seen on the real table)
 function engineTeamsLabel()
   local m = ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil
@@ -892,7 +906,8 @@ function onMtgSetupTeams(obj, playerColor)
   local pl = Player[playerColor]
   if pl == nil then return end
   local m = ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil
-  engineChat("mtg mode " .. (m == nil and "2hg" or m == "2hg" and "2v2" or m == "2v2" and "juggernaut" or "ffa"), pl)
+  local nextOf = ENGINE_GAME_MODE == "standard" and { ["2v2"] = "ffa" } or { ["2hg"] = "juggernaut", juggernaut = "ffa" }
+  engineChat("mtg mode " .. (m == nil and (ENGINE_GAME_MODE == "standard" and "2v2" or "2hg") or nextOf[m] or "ffa"), pl)
 end
 function engineTeamId(color, id) return "team:" .. tostring(color) .. ":" .. tostring(id) end
 -- A partner's hand (810.5): the bridge sends it as teamHand with the seated partner who sees it, teamBy. Look-only
@@ -9054,7 +9069,7 @@ function onMtgSetupFriendly(obj, playerColor)
 end
 
 -- Game modes (docs/game-modes-spec.md §3): Commander (the default) or Standard (60-card decks, 20 life, no commander;
--- 1v1 or free-for-all). The host's pick for the next games, "mtg mode standard|commander" or the mode button beside
+-- 1v1, free-for-all or 2v2). The host's pick for the next games, "mtg mode standard|commander" or the mode button beside
 -- Free mulligans; sent to the bridge with every deck check and start (and with "hello"), only when it is Standard (the
 -- bridge reads no mode as Commander). A table reload is back on Commander, as Free mulligans is back on none. While a
 -- game runs, the game's own mode (the bridge's "started") decides what the table shows (engineModeNow).
@@ -9082,9 +9097,17 @@ function engineSetGameMode(mode, pl)
   if not running then for k in pairs(engineReadyState) do engineReadyState[k] = nil end end
   local who = pl ~= nil and (pl.steam_name or pl.color) or "The host"
   broadcastToAll("[MTG] " .. tostring(who) .. " set the game mode" .. (running and " for the next game" or "") .. ": "
-    .. (mode == "standard" and "Standard (decks of 60+ Standard cards, at most 4 of a card, no commander; 20 life; 1v1 or free-for-all)"
+    .. (mode == "standard" and "Standard (decks of 60+ Standard cards, at most 4 of a card, no commander; 20 life; 1v1, free-for-all or 2v2)"
       or "Commander (100-card decks with a commander, 40 life)") .. ". Everyone presses READY again" .. (running and " after this game." or "."), { 1, 0.85, 0.4 })
   engineSend("mode", { color = pl and pl.color or nil, mode = mode })
+  -- (a team mode the new game mode doesn't play goes back to none, said: 2v2 is Standard's, the others Commander's)
+  if ENGINE_TEAMS ~= nil and ENGINE_TEAM_GAME_MODE[ENGINE_TEAM_MODE] ~= mode then
+    local was = ENGINE_TEAM_NAMES[ENGINE_TEAM_MODE] or tostring(ENGINE_TEAM_MODE)
+    ENGINE_TEAMS = nil
+    ENGINE_TEAM_MODE = nil
+    broadcastToAll("[MTG] Teams set back to None: " .. was .. " is played in " .. (mode == "standard" and "Commander" or "Standard")
+      .. " only, not " .. (mode == "standard" and "Standard" or "Commander") .. ".", { 1, 0.85, 0.4 })
+  end
   if not running then engineModeLife(mode == "standard" and 20 or 40) end
   engineSetupButtons()
 end

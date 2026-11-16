@@ -1579,7 +1579,7 @@ const forgeBotCount = () => game.bots - (game.harmlessWanted || []).length;
 
 // fromTable: the group's table draws the game (default: games whose decks come from the table)
 // mode: "commander" | "standard" (MODES; the table's, sent with the start)
-// teams: the table's teams ({ White: 1, ... }, teams2hg.setupOf), null for free-for-all; either mode. teamMode: "2hg"
+// teams: the table's teams ({ White: 1, ... }, teams2hg.setupOf), null for free-for-all. teamMode: "2hg"
 // (the default with teams), "2v2" or "juggernaut"; jugg: the Juggernaut's settings (teams2hg.juggOf). A Juggernaut
 // start's teams are already the Juggernaut's (setupOf, the start handler).
 // turns: "shared" for Two-Headed Giant Level 2 (the team's one turn, teamRules "sharedTurns"), else null (setupOf).
@@ -1597,7 +1597,9 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   if (!seatList.length) { chat("[MTG] Nobody is seated."); return; }
   // the table has a playmat per colour (TABLE_COLORS); a 5th player had no colour and no zones (5-8 players: PLAN M6)
   if (total < 2 || total > TABLE_COLORS.length) { chat(`[MTG] Need 2-${TABLE_COLORS.length} players total (seated ${seatList.length} + ${bots} AI).`); return; }
-  const teamProblem = teams && teams2hg.teamsProblem(teams, total, teamMode);
+  // (each team mode has its one game mode: 2v2 Standard, the others Commander; the table refuses the rest, this is the
+  // check for every other path to a start)
+  const teamProblem = teams && (teams2hg.teamModeProblem(teamMode, mode) || teams2hg.teamsProblem(teams, total, teamMode));
   if (teamProblem) { chat(`[MTG] Not started: ${teamProblem}`); return; }
   const aiTable = aiSeats.filter((c) => readyFor(c, mode) && !preset.includes(c)).slice(0, bots - preset.length); // (empty seats' ready decks, in order: see below)
   // (a debug scenario with "planechase" turns it on for this game with its own planes, debugPlanechase)
@@ -1629,7 +1631,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   for (const c of Object.keys(debugChoice)) if (!seatList.includes(c)) { chat(`[MTG] Debug "${debugChoice[c].name}" dropped: ${c} isn't in this game.`); delete debugChoice[c]; }
   takePickedHands(seatList); // (a picked starting hand: debug tools, a game against the AI)
   const harmlessN = game.harmlessWanted.length, forgeN = forgeBotCount();
-  chat(`[MTG] Setting up${std ? ` ${modeWords(mode, total)}` : ""}: ${seatList.join(", ")}${forgeN ? ` + ${forgeN} Forge AI` : ""}${harmlessN ? ` + ${harmlessN} harmless bot${harmlessN > 1 ? "s" : ""}` : ""}...`);
+  chat(`[MTG] Setting up${std ? ` ${teams ? "Standard" : modeWords(mode, total)}` : ""}: ${seatList.join(", ")}${forgeN ? ` + ${forgeN} Forge AI` : ""}${harmlessN ? ` + ${harmlessN} harmless bot${harmlessN > 1 ? "s" : ""}` : ""}...`);
   if (preset.length) chat(`[MTG] AI seats: ${aiSeatsText(preset)}.`);
   if (teams) chat(`[MTG] ${teams2hg.setupWords(teamMode, teams, jugg, std, game.teamTurns || null)}`);
   log(`setup: seats ${seatList.join(", ")}, bots ${bots}, relay ${RELAY}`);

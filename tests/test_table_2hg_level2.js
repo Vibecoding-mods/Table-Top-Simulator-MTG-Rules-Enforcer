@@ -72,8 +72,8 @@ const level1 = (m) => { const x = clone(m); delete x.activeTeam; if (x.teams) de
       q('engineChat("mtg mode 2hg", Player.White) engineChat("mtg 2hg turns shared", Player.White) return tostring(ENGINE_TEAM_TURNS) .. " " .. engineTeamsLabel()', "shared"),
       q('engineChat("mtg 2hg turns", Player.White) return "x"', "ask"),
       q('engineStartSentAt = nil engineChat("mtg start", Player.White) return "started"', "start", 10),
-      q('engineChat("mtg mode 2v2", Player.White) engineStartSentAt = nil engineChat("mtg start", Player.White) return tostring(engineTeamTurnsSent())', "start 2v2", 10),
-      q('engineChat("mtg mode 2hg", Player.White) engineChat("mtg 2hg turns own", Player.White) engineStartSentAt = nil engineChat("mtg start", Player.White) return tostring(ENGINE_TEAM_TURNS)', "own", 10),
+      q('engineChat("mtg mode standard", Player.White) engineChat("mtg mode 2v2", Player.White) engineStartSentAt = nil engineChat("mtg start", Player.White) return tostring(engineTeamTurnsSent())', "start 2v2", 10),
+      q('engineChat("mtg mode commander", Player.White) engineChat("mtg mode 2hg", Player.White) engineChat("mtg 2hg turns own", Player.White) engineStartSentAt = nil engineChat("mtg start", Player.White) return tostring(ENGINE_TEAM_TURNS)', "own", 10),
     ]);
     const sent = (mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
     ok("level: no errors", !r.errors.length, r.errors.join(" | "));
