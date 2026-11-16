@@ -576,6 +576,9 @@ function engineChat(message, pl)
   elseif cmd == "hold" then
     -- keep priority once this turn after something goes on the stack (also the Hold button); "mtg hold off"
     engineSend("hold", { color = pl.color, on = rest ~= "off" })
+  elseif cmd == "stop" then
+    -- stop a long run of triggers at your next priority (the bridge passes them back to back, docs/big-turns.md)
+    engineSend("stopchain", { color = pl.color })
   elseif cmd == "refresh" then
     -- your hand, your open question and your panels drawn again, and the game asked for again (after a lag-out, or a
     -- question that never showed: engineSeatBack in engine-renderer.lua)
@@ -673,6 +676,7 @@ function engineChat(message, pl)
       " mtg art off|on (host) - the players' own card pictures (1 Sol Ring #https://... in the deck list) or the normal ones, for everyone",
       " mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)",
       " mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)",
+      " mtg stop - stop a long run of triggers resolving by itself: your next priority with something on the stack is asked",
       " mtg refresh - your hand, your question and your panels drawn again (after a lag-out, or a question that never showed)",
       " mtg timer [seconds] / mtg timer off (host) - turn timers for everyone",
       " mtg concede - leave the game; mtg winner <colour> (host, Treachery)",

@@ -23,7 +23,7 @@ cd /build
   ApplyStateDrawMillTest DungeonStateTest PlanechaseTest CardStateFlagsTest EffectsViewTest EngineEventDamageTest \
   TeamGameTest RejoinRewindTest PlayerRulesTest DrawCountRewindTest TurnCounterRewindTest SharedTurnsTest \
   SharedTurnsDevTest SharedCombatTest SharedTurnsPlayTest ArchenemyTest ArchenemySchemeSweepTest ArchenemyViewTest \
-  FirstPlayerTest CardStateRewindTest
+  FirstPlayerTest CardStateRewindTest BigTurnsTest
 failed=""
 for c in "$@"; do
   echo "=== $c"
