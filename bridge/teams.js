@@ -32,6 +32,14 @@
 // Juggernaut's own normal turns skipped (Forge ReplaceBeginTurn ExtraTurn$ False), so rewinds and extra turns stay
 // Forge's. The Juggernaut wins when all three have lost; the three win together when the Juggernaut loses.
 
+// Three-Headed Giant (spec §8, rule 810.11): Two-Headed Giant with three a team, on the six-seat table, Level 1 (each
+// player their own turn, the team's back to back). The teams are the table's sides, which are next to each other in
+// turn order (White + Red + Yellow, Green + Blue + Purple; the engine needs partners side by side in seat order). The
+// engine gives the team's life and limits by team size: 45 life, 20 poison (810.11), 120 life and 63 commander damage
+// in Commander (its own house numbers, 40 and 21 a head); the bridge sends only the teams.
+const SIX_COLORS = ["White", "Red", "Yellow", "Green", "Blue", "Purple"]; // (the six-seat table in turn order, bridge.js TABLE_COLORS)
+const THREE_TEAMS = { White: 1, Red: 1, Yellow: 1, Green: 2, Blue: 2, Purple: 2 };
+
 const TEAM_COLORS = ["White", "Red", "Yellow", "Blue"]; // (the table's seats in turn order, bridge.js TABLE_COLORS)
 // the default sides: the two seats on each long side of the table, which are next to each other in turn order
 const DEFAULT_TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
@@ -53,6 +61,7 @@ function teamsOf(raw) {
 // sent. turns: "shared" for a Two-Headed Giant start whose teamTurns is "shared" (Level 2, the table's "mtg 2hg turns
 // shared"), else null (Level 1: each player takes their own turn).
 function setupOf(m) {
+  if (m?.teamMode === "3hg") return { teams: { ...THREE_TEAMS }, mode: "3hg", jugg: null, turns: null };
   if (m?.teamMode === "juggernaut") {
     const jugg = juggOf(m.juggernaut);
     return { teams: juggTeams(jugg.color), mode: "juggernaut", jugg, turns: null };
@@ -69,11 +78,13 @@ const TEAM_MODES = {
   "2hg": { rule: "sharedLife", name: "Two-Headed Giant", gameMode: "commander" },
   "2v2": { rule: "teams", name: "2v2", gameMode: "standard" },
   juggernaut: { rule: "teams", name: "Juggernaut", gameMode: "commander" },
+  "3hg": { rule: "sharedLife", name: "Three-Headed Giant", gameMode: null, seats: 6 }, // (either game mode; the six-seat table)
 };
 const teamModeOf = (raw) => (Object.prototype.hasOwnProperty.call(TEAM_MODES, raw) ? raw : "2hg");
 // Why a team mode can't be played in a game mode ("commander" | "standard"), in words for chat; null when it can.
 function teamModeProblem(teamMode, gameMode) {
   const t = TEAM_MODES[teamModeOf(teamMode)];
+  if (t.gameMode == null) return null;
   if (t.gameMode === gameMode) return null;
   const words = (k) => (k === "standard" ? "Standard" : "Commander");
   return `${t.name} is played in ${words(t.gameMode)} only, and the game mode is ${words(gameMode)}. Switch with  mtg mode ${t.gameMode}  or pick another Teams mode.`;
@@ -137,8 +148,10 @@ function sides(teams) {
 // every seat filled (AI players take the empty ones), and partners next to each other in turn order, round the table
 // (the team plays its turns back to back, and the engine's first-draw skip counts the starting team's first turns).
 // "2v2": two teams of two, any split. "juggernaut": four players (the teams come from the Juggernaut's colour, juggTeams).
+// "3hg": all six seats filled (the teams are the table's sides, THREE_TEAMS).
 function teamsProblem(teams, total, mode = "2hg") {
   const fill = "Add AI players with  mtg start ai N  or  mtg ai <colour> forge.";
+  if (mode === "3hg") return total === SIX_COLORS.length ? null : `Three-Headed Giant needs all six seats filled (seated players + AI players), not ${total}. ${fill}`;
   if (mode === "juggernaut") return total === 4 ? null : `Juggernaut is one against three: all four seats filled (seated players + AI players), not ${total}. ${fill}`;
   const s = sides(teams);
   const split = `two teams of two (now team 1: ${teamWords(s[1]) || "nobody"}, team 2: ${teamWords(s[2]) || "nobody"}). Use  mtg team <colour> <1|2>.`;
@@ -252,6 +265,10 @@ function setupWords(mode, teams, jugg, std, turns = null) {
     return `Juggernaut: ${jugg.color} (${juggWords(jugg, std)}) vs ${teamWords(TEAM_COLORS.filter((c) => c !== jugg.color))} (${std ? 20 : 40} life each). The Juggernaut wins when all three have lost; the three win together when the Juggernaut loses.`;
   }
   if (mode === "2v2") return `2v2: ${teamWords(s[1])} vs ${teamWords(s[2])} (each player their own 20 life and turn; teammates can't attack each other; a team wins when both its opponents have lost).`;
+  if (mode === "3hg") {
+    const t = { 1: SIX_COLORS.filter((c) => teams[c] === 1), 2: SIX_COLORS.filter((c) => teams[c] === 2) };
+    return `Three-Headed Giant: ${teamWords(t[1])} vs ${teamWords(t[2])} (shared life: ${std ? 45 : 120} a team, poison 20; each player takes their own turn, the team's back to back; the team blocks together).`;
+  }
   if (turns === "shared") return `Two-Headed Giant: ${teamWords(s[1])} vs ${teamWords(s[2])} (shared life, poison 15; each team takes one turn together, attacks together and blocks together).`;
   return `Two-Headed Giant: ${teamWords(s[1])} vs ${teamWords(s[2])} (shared life, poison 15; each player takes their own turn, the team's back to back).`;
 }
@@ -401,4 +418,4 @@ function teamBlockNotice(text) {
 }
 module.exports = { jointBlock, jointBlockLines, teamBlockNotice, SEAT_HEX, teamTriggerWords, teamRefusalWords, sharesLife, sharesTurns, turnPlayerIds, isTurnOf, turnPartners, turnPartnerOf, turnWhose, teamAttackLines, teamBlockLines, TEAM_COLORS, DEFAULT_TEAMS, TEAM_MODES, JUGG_DEFAULTS, setupOf, teamModeOf, teamModeProblem, juggOf, juggLife, juggTeams, juggPerks, juggWords,
   setupWords, teamsOf, teamWords, sides, teamsProblem, gameConfig, boardTeams, teamOf, withTeamDamage, teamsField, teamLifeTip,
-  poisonLabel, teamWinWords };
+  poisonLabel, teamWinWords, SIX_COLORS, THREE_TEAMS };

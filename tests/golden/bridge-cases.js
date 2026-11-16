@@ -7327,4 +7327,34 @@ add(promptCase("rebuilt #7: an opponent's reveal said once as theirs", D2.board,
   } });
 }
 
+// ── Three-Headed Giant (docs/game-modes-spec.md §8): 3v3 on the six-seat table, the teams its sides ──
+{
+  const SIX = ["White", "Red", "Yellow", "Green", "Blue", "Purple"];
+  const say = (h, t, json) => h.B.onTTS({ t, json: JSON.stringify(json) });
+  const summary = (h) => { const g = h.B._getGame(); return g ? { teams: g.teams, teamMode: g.teamMode || null } : null; };
+  add({ name: "3HG: a start on the four-seat table is refused", run: async (h) => {
+    say(h, "start", { seats: ["Blue"], bots: 3, teamMode: "3hg" }); await h.flush();
+    return summary(h);
+  } });
+  add({ name: "3HG: four of six seats is refused", run: async (h) => {
+    say(h, "hello", { tableSeats: SIX });
+    say(h, "start", { seats: ["Blue"], bots: 3, teamMode: "3hg" }); await h.flush();
+    return summary(h);
+  } });
+  add({ name: "3HG: six seats, the sides as teams, to gameConfig", run: async (h) => {
+    say(h, "hello", { tableSeats: SIX });
+    say(h, "start", { seats: ["Blue"], bots: 5, teamMode: "3hg" }); await h.flush();
+    const blue = h.B._getGame().seats.get("Blue");
+    blue.heartbeat = () => {};
+    blue.ws.emit("open");
+    const frame = (msg) => blue.ws.emit("message", JSON.stringify(msg));
+    frame({ type: "AuthResult", success: true });
+    frame({ type: "RoomList", rooms: [{ room_id: "room-1", room_name: "tts-commander", status: "Lobby" }] });
+    const bots = ["Forge AI", "Forge AI 2", "Forge AI 3", "Forge AI 4", "Forge AI 5"].map((u) => ({ username: u, ready: true, connected: true, is_bot: true }));
+    frame({ type: "RoomUpdate", room: { room_id: "room-1", status: "Lobby", max_players: 6, players: [{ username: blue.username, ready: true, connected: true }, ...bots] } });
+    await h.flush();
+    return summary(h);
+  } });
+}
+
 module.exports = cases;
