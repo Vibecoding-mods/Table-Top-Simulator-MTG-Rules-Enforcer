@@ -2984,9 +2984,35 @@ function ownerOf(c, z) { return game?.owners?.get(c.id) || c.ownerId || z?.owner
 // is a human seat, so an AI's creature's copy goes by its printing alone. A copy keeps the creature it was first matched
 // with while both are there; a new one takes a creature of that printing with another name not already prepared, a
 // card before a token copy of it, and of those first one controlled by the copy's exile owner (Forge's activator,
-// AlterAttributeEffect: the creature's own controller unless another card prepared it). Two alike prepared at once may
-// swap names, the one gap. -> game.prepared: copy id -> { host: the creature's id, hostName, ctl: its controller,
-// spell: the copy's name }.
+// AlterAttributeEffect: the creature's own controller unless another card prepared it).
+// Two of one printing becoming prepared by the same board are told apart by when each was prepared, which Forge's ids
+// record: getProtoType numbers each copy with game.nextCardId(), so the new copies, lowest id first, are in the order
+// they were made, and each takes the first creature in the order they became prepared (prepOrder): first one whose
+// ability, a trigger or an activation naming "prepared", left the last board's stack, from its top down (the stack
+// resolves from the top; its source, else the creatures it targeted, Biblioplex Tomekeeper's), then one new to the
+// battlefield ("enters prepared": a replacement, nothing on the stack), then the rest. Within one of those groups the
+// owner and card-before-token rules above, then battlefield order (Codie's "each creature you control", Forge's
+// Defined list in zone order). -> game.prepared: copy id -> { host: the creature's id, hostName, ctl: its controller, spell: the
+// copy's name }; game.prepLast: the board's battlefield ids and stack, for the next board's prepOrder.
+// (a card's Forge id, its number in "engine-card-1301"; Infinity for none)
+const forgeIdOf = (id) => { const m = /(\d+)$/.exec(String(id || "")); return m ? Number(m[1]) : Infinity; };
+// the rank of each battlefield card in the order the creatures became prepared since the last board (lower first; one
+// rank for all new to the battlefield, one for the rest): see notePrepared. last: game.prepLast, or null on a first
+// board (every card then ranks alike).
+function prepOrder(field, pub, last) {
+  const rank = new Map();
+  if (!last) return rank;
+  const ids = new Set(field.map((f) => f.id)), still = new Set((pub.stack || []).map((s) => s.id));
+  let at = 0;
+  for (let i = last.stack.length - 1; i >= 0; i--) {
+    const s = last.stack[i];
+    if (still.has(s.id) || !/\bprepared\b/i.test(String(s.text || ""))) continue;
+    const named = ids.has(s.sourceId) ? [s.sourceId] : (s.targets || []).map((t) => t.id).filter((id) => ids.has(id));
+    for (const id of named) if (!rank.has(id)) rank.set(id, at++);
+  }
+  for (const f of field) if (!rank.has(f.id)) rank.set(f.id, last.field.has(f.id) ? at + 1 : at);
+  return rank;
+}
 function notePrepared(pub) {
   if (!game) return new Map();
   const field = [];
@@ -3010,16 +3036,21 @@ function notePrepared(pub) {
     const h = field.find((f) => f.id === was.get(c.id)?.host);
     if (h) link(c, h);
   }
-  for (const { c, owner } of copies) {
-    if (now.has(c.id)) continue;
+  // (the new copies in the order Forge made them, each to the first creature by prepOrder)
+  const rank = prepOrder(field, pub, game.prepLast);
+  const fresh = copies.filter(({ c }) => !now.has(c.id)).sort((a, b) => forgeIdOf(a.c.id) - forgeIdOf(b.c.id));
+  for (const { c, owner } of fresh) {
     const alike = field.filter((f) => !hosting.has(f.id) && f.identity.name !== c.identity.name && f.identity.setCode === c.identity.setCode
       && String(f.identity.cardNumber) === String(c.identity.cardNumber) && (playable.has(c.id) || !viewed.has(f.controllerId)));
-    const cards = alike.filter((f) => !f.identity.isToken);
-    const pool = cards.length ? cards : alike;
+    const first = Math.min(...alike.map((f) => rank.get(f.id) ?? 0));
+    const soonest = alike.filter((f) => (rank.get(f.id) ?? 0) === first);
+    const cards = soonest.filter((f) => !f.identity.isToken);
+    const pool = cards.length ? cards : soonest;
     const h = pool.find((f) => (f.controllerId || owner) === owner) || pool[0];
     if (h) link(c, h);
   }
   game.prepared = now;
+  game.prepLast = { field: new Set(field.map((f) => f.id)), stack: (pub.stack || []).map((s) => ({ id: s.id, sourceId: s.sourceId, text: s.text, targets: s.targets })) };
   return now;
 }
 // the prepared copy whose creature is this one (notePrepared), or null
@@ -10205,7 +10236,9 @@ function onPrompt(seat, prompt) {
   seat.prompt = { promptId: prompt.promptId, type, toOutput, input, sentAt: performance.now(), picks: [], ui, forP };
   if (process.env.MTG_TRACE) log(`prompt ${seat.color} #${prompt.promptId}: ${type} "${ui.title}"`);
   if (seat.tripsOpen) { seat.tripsOpen = false; noteSample(ttsStats.trips, "after an answer", seat.trips); }
-  toTTS({ t: "prompt", color: seat.color, promptId: prompt.promptId, ...ui });
+  // (forColor: the colour of the player a seat controls that this question is for, actingFor; the table's pass button
+  // counts that player's floating mana, Mindslaver's turn, PLAN 2026-11-13)
+  toTTS({ t: "prompt", color: seat.color, promptId: prompt.promptId, ...ui, ...(forP && game?.slotColor?.[forP] ? { forColor: game.slotColor[forP] } : {}) });
   armTimer(seat);
 }
 

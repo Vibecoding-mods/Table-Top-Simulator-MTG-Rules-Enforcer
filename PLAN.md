@@ -20,9 +20,12 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
     (local z 1.5, centred, "G2" in the mana's colour, W U B R G C order, hover names the player and the amounts),
     edited in place and redrawn only on a change, removed with the game's counters; the pass button reads "Next (3
     floating)" / "Resolve (1 floating)" from your own pool (`enginePoolTotal`). The status-text line stays. Tests:
-    tests/test_table_floating_mana.js (incl. the fit on all four counters). Gap: a turn you control (Mindslaver)
-    counts your own pool on the button, not the controlled player's. Needs a look on the real table (chip size,
-    colours).
+    tests/test_table_floating_mana.js (incl. the fit on all four counters). Needs a look on the real table (chip
+    size, colours).
+  - ✅ (in source, 2026-11-16, branch small-gaps) Gap closed: a turn you control (Mindslaver) counted your own pool on
+    the button. The bridge's prompt now carries `forColor`, the controlled player's colour (from `actingFor`), and the
+    button counts that pool (`enginePoolTotal(p.forColor or color)`). Tests: test_table_floating_mana "controlled
+    turn:", test_bridge_claims "floating mana: AI 1's priority under Mindslaver".
 
 ## 2026-11-12
 - 🔶 (in source, not seen live) Prepared readable on the table (docs/HAND-TEST-HP06.md #20; Grave Researcher, Emeritus
@@ -36,8 +39,13 @@ Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and 
   creature (`ew`) when it isn't in a seated player's playable row, and its hover says it is the creature's copy, not a
   card. Log: "Grave Researcher becomes prepared (Reanimate)" in place of "Reanimate is exiled", "White casts
   Reanimate (prepared by Grave Researcher)", "Grave Researcher becomes unprepared"; the copy ceasing with its creature
-  says nothing. Gap: two prepared creatures of one printing at once may swap names. Tests: tests/test_bridge_claims.js
-  "prepared:" (18 checks, near misses included). Needs a look on the real table.
+  says nothing. Tests: tests/test_bridge_claims.js "prepared:" (18 checks, near misses included). Needs a look on
+  the real table.
+  - ✅ (in source, 2026-11-16, branch small-gaps) Gap closed: two prepared creatures of one printing at once could swap.
+    New copies now go in Forge's creation order (their ids, from `nextCardId()` in getProtoType, lowest first) to the
+    creatures in the order they became prepared, read off the last board (`prepOrder`): an ability naming "prepared"
+    gone from the stack, top first, by source or target, then a creature new to the battlefield, then the old rules.
+    Tests: test_bridge_claims "prepared, two alike:" (7 checks).
 
 ## 2026-11-11
 - ✅ Round 3 live check (deploy 05641398 / 71f6557, scenarios/live-r3.json, White vs a Forge AI, 21:36–22:01):
