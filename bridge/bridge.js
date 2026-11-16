@@ -2428,6 +2428,9 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
     bp, bt,
     ctr: Object.fromEntries(Object.entries(c.counters || {}).filter(([, k]) => k)), dmg: c.damage || 0,
     att: c.attachedTo || null, tok: !!c.identity.isToken, sick: !!c.summoningSick, ctl: game.slotColor[c.controllerId] || null,
+    // (a token of a pile the engine stopped counting at its cap: "infinitely many", docs/big-turns-2-spec.md 1.6; the
+    // table does not read it yet)
+    ...(c.unbounded ? { inf: true } : {}),
     // (a battle's protector, by colour: the table's attack line names it, engineAttackTargetName)
     ...(c.protectorId && game.slotColor[c.protectorId] ? { prot: game.slotColor[c.protectorId] } : {}),
     // in combat: attacking (and at whom), blocking (from the game's blocker list)
@@ -6607,13 +6610,25 @@ function attackWordFits(card, word) {
 // all or one defender and why (`unavailable`: [{ cardId, defenderId?, reason, sourceId?, sourceName? }]) and the attack
 // limits (`limits`: [{ max, defenderId?, sourceId, sourceName }]). Such an engine always sends `unavailable` and
 // `limits`, empty or not; an older one sends neither and the text reading (attackRules) stays. Effects with no text on
-// the board (War Tax, Sivitri's +1, an emblem) are known only this way. Returns null, or { costs: { attackerId: [...] },
-// unavailable, limits }.
+// the board (War Tax, Sivitri's +1, an emblem) are known only this way. A newer engine also sends what each attacker
+// deals each defender unblocked (`damage`: [{ defenderId, damage, poison, commander? }]) and, per defender, how much it
+// can take (`attackTargets[]`: life, poisonLeft, commanderLeft [{ commanderId, left }], canLose), for the attack tax's
+// lethal minimum (docs/big-turns-2-spec.md 3.2); kept here, not read yet. Returns null, or
+// { costs: { attackerId: [...] }, unavailable, limits, damage: { attackerId: [...] }, defenders: { defenderId: {...} } }.
 function engineAttackData(input) {
   if (!Array.isArray(input?.unavailable) && !Array.isArray(input?.limits)) return null;
   const costs = {};
-  for (const a of input.attackers || []) costs[a.attackerId] = (a.costs || []).map((c) => ({ ...c, cost: engineCostWords(c.cost), sourceNames: c.sourceNames || [] }));
-  return { costs, unavailable: input.unavailable || [], limits: input.limits || [] };
+  const damage = {};
+  for (const a of input.attackers || []) {
+    costs[a.attackerId] = (a.costs || []).map((c) => ({ ...c, cost: engineCostWords(c.cost), sourceNames: c.sourceNames || [] }));
+    if (Array.isArray(a.damage)) damage[a.attackerId] = a.damage;
+  }
+  const defenders = {};
+  for (const t of input.attackTargets || []) {
+    if (t.life == null && t.poisonLeft == null && t.canLose == null && !t.commanderLeft?.length) continue;
+    defenders[t.id] = { life: t.life ?? null, poisonLeft: t.poisonLeft ?? null, commanderLeft: t.commanderLeft || [], canLose: t.canLose ?? null };
+  }
+  return { costs, unavailable: input.unavailable || [], limits: input.limits || [], damage, defenders };
 }
 // Forge's cost text (Cost.toSimpleString: its parts joined by ", ") in the words attackCostSum uses: a worked-out X's
 // shard is left out ("{X}{3}" for Sphere of Safety with 3 enchantments, ManaCost.getSimpleString; Forge pays the X as 0,

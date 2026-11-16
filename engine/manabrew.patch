@@ -3011,7 +3011,7 @@ index fb82e6d..8084ad2 100644
              return null;
          }
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..175adc2 100644
+index 643e5de..8b8769a 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,12 +6,15 @@ import forge.harness.common.ParityCardMap;
@@ -3612,7 +3612,7 @@ index 643e5de..175adc2 100644
              if (action == null) {
                  if (closed || game.isGameOver()) {
                      return syntheticPass();
-@@ -1966,6 +2212,14 @@ public final class ManaBrewInteractiveSession {
+@@ -1966,6 +2212,17 @@ public final class ManaBrewInteractiveSession {
                  announceState();
                  continue;
              }
@@ -3624,10 +3624,13 @@ index 643e5de..175adc2 100644
 +                announceState();
 +                continue;
 +            }
++            if ("offer_tie".equals(kind) || "tie_vote".equals(kind) || "release_hold".equals(kind)) {
++                continue;
++            }
              if ("set_snapshot_recording".equals(kind)) {
                  if (action.get("player").getAsInt() == InteractiveBridge.HOST_SEAT) {
                      setSnapshotRecording(action.get("enabled").getAsBoolean());
-@@ -1987,6 +2241,17 @@ public final class ManaBrewInteractiveSession {
+@@ -1987,6 +2244,17 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3645,7 +3648,7 @@ index 643e5de..175adc2 100644
      private static JsonObject syntheticPass() {
          final JsonObject pass = new JsonObject();
          pass.addProperty("kind", "pass");
-@@ -2010,6 +2275,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2010,6 +2278,8 @@ public final class ManaBrewInteractiveSession {
          if (!restoreApproved()) {
              return false;
          }
@@ -3654,7 +3657,7 @@ index 643e5de..175adc2 100644
          final RestoreVote vote = restoreVote;
          if (!checkpoints.contains(vote.checkpoint)) {
              vote.status = RestoreVoteStatus.UNAVAILABLE;
-@@ -2067,22 +2334,16 @@ public final class ManaBrewInteractiveSession {
+@@ -2067,22 +2337,16 @@ public final class ManaBrewInteractiveSession {
          if (handler.getTurn() == checkpointTurn && handler.getPhase() == checkpointPhase) {
              return;
          }
@@ -3681,7 +3684,7 @@ index 643e5de..175adc2 100644
          if (checkpointMetricsEnabled) {
              final long finished = System.nanoTime();
              synchronized (checkpointTimings) {
-@@ -2091,6 +2352,168 @@ public final class ManaBrewInteractiveSession {
+@@ -2091,6 +2355,168 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3850,7 +3853,7 @@ index 643e5de..175adc2 100644
      private void publishCheckpointViews() {
          final List<Map<String, Object>> views = new ArrayList<>();
          for (final Checkpoint checkpoint : checkpoints) {
-@@ -2124,6 +2547,10 @@ public final class ManaBrewInteractiveSession {
+@@ -2124,6 +2550,10 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
@@ -3861,7 +3864,7 @@ index 643e5de..175adc2 100644
          if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
                  || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
              return;
-@@ -2157,11 +2584,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2157,11 +2587,7 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void restore(final Checkpoint target) {
@@ -3874,7 +3877,7 @@ index 643e5de..175adc2 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2598,431 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2601,431 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4306,7 +4309,7 @@ index 643e5de..175adc2 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +3055,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +3058,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -4323,7 +4326,7 @@ index 643e5de..175adc2 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +3099,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +3102,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -4332,7 +4335,7 @@ index 643e5de..175adc2 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +3142,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +3145,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -4355,7 +4358,7 @@ index 643e5de..175adc2 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +3186,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +3189,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -4386,7 +4389,7 @@ index 643e5de..175adc2 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,16 +3450,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,24 +3453,136 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -4406,15 +4409,15 @@ index 643e5de..175adc2 100644
                      a.isGoaded() || !StaticAbilityMustAttack.entitiesMustAttack(a).isEmpty();
              attackers.add(new AttackerOptionDto(
 -                    SnapshotExtractor.javaCardId(a), validTargetIds, mustAttack));
-+                    SnapshotExtractor.javaCardId(a), validTargetIds, mustAttack, attackCosts(a, combat)));
++                    SnapshotExtractor.javaCardId(a), validTargetIds, mustAttack, attackCosts(a, combat), null));
          }
          final List<AttackTargetDto> attackTargets = new java.util.ArrayList<>();
          for (final GameEntity defender : combat.getDefenders()) {
-@@ -2596,7 +3472,114 @@ public final class ManaBrewInteractiveSession {
+             attackTargets.add(new AttackTargetDto(
                      defenderId(defender), defender.getName(),
-                     enumFromWire(defenderKind(defender), AttackTargetKind.class)));
-         }
--        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets));
+-                    enumFromWire(defenderKind(defender), AttackTargetKind.class)));
++                    enumFromWire(defenderKind(defender), AttackTargetKind.class), null, null, null, null));
++        }
 +        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets,
 +                attackRefusals(combat, availableAttackers), attackLimits(combat)));
 +    }
@@ -4492,7 +4495,8 @@ index 643e5de..175adc2 100644
 +                            SnapshotExtractor.javaCardId(source), source.getName());
 +                }
 +            }
-+        }
+         }
+-        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets));
 +        return new AttackRefusalDto(cardId, defenderId, "other", null, null);
 +    }
 +
@@ -4526,7 +4530,7 @@ index 643e5de..175adc2 100644
      }
  
      private void publishBlockersPrompt(
-@@ -2604,7 +3587,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2604,7 +3590,8 @@ public final class ManaBrewInteractiveSession {
              final List<Card> attackers,
              final List<Card> availableBlockers,
              final Map<Card, List<Card>> validBlockersByAttacker,
@@ -4536,7 +4540,7 @@ index 643e5de..175adc2 100644
      ) {
          final Player defendingPlayer = game.getRegisteredPlayers().get(playerId);
          final List<BlockableAttackerDto> attackerOptions = new java.util.ArrayList<>();
-@@ -2627,7 +3611,17 @@ public final class ManaBrewInteractiveSession {
+@@ -2627,7 +3614,17 @@ public final class ManaBrewInteractiveSession {
              availableBlockerIds.add(SnapshotExtractor.javaCardId(blocker));
          }
          publishAgentPrompt("player-" + playerId, null,
@@ -4555,7 +4559,7 @@ index 643e5de..175adc2 100644
      }
  
      private void publishDamageAssignmentOrderPrompt(
-@@ -2918,7 +3912,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2918,7 +3915,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4565,7 +4569,7 @@ index 643e5de..175adc2 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +3923,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +3926,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -4591,7 +4595,7 @@ index 643e5de..175adc2 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +3955,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +3958,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -4602,7 +4606,7 @@ index 643e5de..175adc2 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +3983,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +3986,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -4618,7 +4622,7 @@ index 643e5de..175adc2 100644
  
      private String sourceAbilityText(final String sourceCardId) {
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManabrewProtocolAdapter.java b/forge-harness/src/main/java/forge/harness/host/ManabrewProtocolAdapter.java
-index 18db021..195090f 100644
+index 18db021..b504e7f 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManabrewProtocolAdapter.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManabrewProtocolAdapter.java
 @@ -49,12 +49,19 @@ final class ManabrewProtocolAdapter {
@@ -4641,7 +4645,7 @@ index 18db021..195090f 100644
                  flat.addProperty("kind", "choose_cards");
                  flat.add("card_ids", copyStringArray(output, "chosenCardIds"));
                  return flat;
-@@ -220,6 +227,11 @@ final class ManabrewProtocolAdapter {
+@@ -220,6 +227,22 @@ final class ManabrewProtocolAdapter {
                  flat.addProperty("kind", "set_snapshot_recording");
                  flat.addProperty("enabled", directive.get("enabled").getAsBoolean());
                  break;
@@ -4649,6 +4653,17 @@ index 18db021..195090f 100644
 +                flat.addProperty("kind", "apply_state");
 +                flat.addProperty("fixId", directive.get("fixId").getAsInt());
 +                flat.add("ops", directive.getAsJsonArray("ops"));
++                break;
++            case "offerTie":
++                flat.addProperty("kind", "offer_tie");
++                break;
++            case "tieVote":
++                flat.addProperty("kind", "tie_vote");
++                flat.addProperty("voteId", directive.get("voteId").getAsInt());
++                flat.addProperty("accept", directive.get("accept").getAsBoolean());
++                break;
++            case "releaseHold":
++                flat.addProperty("kind", "release_hold");
 +                break;
              default:
                  throw new UnsupportedOperationException("unsupported directive: " + kind);
@@ -12373,6 +12388,94 @@ index 0000000..2461701
 +        }
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/ProtocolDefaultsTest.java b/forge-harness/src/test/java/forge/harness/host/ProtocolDefaultsTest.java
+new file mode 100644
+index 0000000..fd6df22
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/ProtocolDefaultsTest.java
+@@ -0,0 +1,82 @@
++package forge.harness.host;
++
++import com.google.gson.Gson;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.harness.protocol.AttackTargetDto;
++import forge.harness.protocol.AttackTargetKind;
++import forge.harness.protocol.AttackerOptionDto;
++import forge.harness.protocol.CardDto;
++
++import java.util.List;
++
++public final class ProtocolDefaultsTest {
++    private ProtocolDefaultsTest() {}
++
++    private static final Gson GSON = new Gson();
++    private static int failed;
++
++    public static void main(final String[] args) {
++        check("offerTie", () -> {
++            final JsonObject flat = decode("{\"type\":\"offerTie\"}", 2);
++            expect("offer_tie".equals(kind(flat)) && flat.get("player").getAsInt() == 2, "offerTie: " + flat);
++        });
++        check("tieVote", () -> {
++            final JsonObject flat = decode("{\"type\":\"tieVote\",\"voteId\":7,\"accept\":true}", 1);
++            expect("tie_vote".equals(kind(flat))
++                    && flat.get("voteId").getAsInt() == 7
++                    && flat.get("accept").getAsBoolean()
++                    && flat.get("player").getAsInt() == 1, "tieVote: " + flat);
++        });
++        check("releaseHold", () -> {
++            final JsonObject flat = decode("{\"type\":\"releaseHold\"}", 0);
++            expect("release_hold".equals(kind(flat)), "releaseHold: " + flat);
++        });
++        check("attackerWithoutDamageKeepsItsWire", () -> {
++            final JsonObject obj = GSON.toJsonTree(
++                    new AttackerOptionDto("card-1", List.of("player-1"), false, List.of(), null)).getAsJsonObject();
++            expect(!obj.has("damage") && obj.has("costs"), "attacker: " + obj);
++        });
++        check("attackTargetWithoutTaxDataKeepsItsWire", () -> {
++            final JsonObject obj = GSON.toJsonTree(new AttackTargetDto(
++                    "player-1", "Blue", AttackTargetKind.PLAYER, null, null, null, null)).getAsJsonObject();
++            expect(obj.keySet().equals(java.util.Set.of("id", "label", "kind")), "target: " + obj);
++        });
++        check("cardIsBoundedByDefault", () -> {
++            final CardDto dto = new CardDto();
++            expect(!dto.unbounded, "a new card is unbounded");
++        });
++        System.out.println(failed == 0 ? "PASS ProtocolDefaultsTest" : "FAIL ProtocolDefaultsTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private static JsonObject decode(final String directive, final int player) {
++        final JsonObject canonical = JsonParser.parseString(
++                "{\"type\":\"directive\",\"player\":" + player + ",\"directive\":" + directive + "}").getAsJsonObject();
++        return ManabrewProtocolAdapter.decodeAction(canonical);
++    }
++
++    private static String kind(final JsonObject flat) {
++        return flat.has("kind") ? flat.get("kind").getAsString() : "";
++    }
++
++    private interface Check {
++        void run();
++    }
++
++    private static void check(final String name, final Check body) {
++        try {
++            body.run();
++            System.out.println("ok " + name);
++        } catch (RuntimeException | AssertionError error) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + error.getMessage());
++        }
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/RejoinRewindTest.java b/forge-harness/src/test/java/forge/harness/host/RejoinRewindTest.java
 new file mode 100644
 index 0000000..849bb01
@@ -17116,18 +17219,19 @@ index c778de5..a8a9364 100644
          None,
      );
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs b/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs
-index 358c48f..ee1dcb7 100644
+index 358c48f..aec532f 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs
-@@ -44,6 +44,7 @@ pub(super) fn choose_attackers<T: Responder>(
+@@ -44,6 +44,8 @@ pub(super) fn choose_attackers<T: Responder>(
              attacker_id,
              valid_target_ids: all_target_ids.clone(),
              must_attack: false,
 +            costs: Vec::new(),
++            damage: Vec::new(),
          })
          .collect();
      agent.send_prompt(
-@@ -51,6 +52,8 @@ pub(super) fn choose_attackers<T: Responder>(
+@@ -51,6 +53,8 @@ pub(super) fn choose_attackers<T: Responder>(
              manabrew_protocol::prompts::choose_attackers::ChooseAttackersInput {
                  attackers,
                  attack_targets,
@@ -17136,7 +17240,7 @@ index 358c48f..ee1dcb7 100644
              },
          ),
          None,
-@@ -103,6 +106,10 @@ pub(super) fn choose_blockers<T: Responder>(
+@@ -103,6 +107,10 @@ pub(super) fn choose_blockers<T: Responder>(
                  attackers,
                  available_blocker_ids,
                  error: None,
@@ -17160,26 +17264,54 @@ index 35a1b62..ac4f860 100644
          None,
      );
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/mod.rs b/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/mod.rs
-index bac285e..a8e0d58 100644
+index bac285e..f92555d 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/mod.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/mod.rs
-@@ -221,7 +221,8 @@ impl<R: Responder> PromptAgent<R> {
+@@ -221,7 +221,11 @@ impl<R: Responder> PromptAgent<R> {
              DirectiveInput::Concede => self.conceded = true,
              DirectiveInput::RequestRestore { .. }
              | DirectiveInput::RestoreVote { .. }
 -            | DirectiveInput::SetSnapshotRecording { .. } => {}
 +            | DirectiveInput::SetSnapshotRecording { .. }
-+            | DirectiveInput::ApplyState { .. } => {}
++            | DirectiveInput::ApplyState { .. }
++            | DirectiveInput::OfferTie
++            | DirectiveInput::TieVote { .. }
++            | DirectiveInput::ReleaseHold => {}
          }
      }
  
-@@ -657,7 +658,8 @@ impl<R: Responder> PlayerAgent for PromptAgent<R> {
+@@ -268,6 +272,10 @@ impl<R: Responder> PromptAgent<R> {
+                     id: format!("player-{}", pid.0),
+                     label: format!("Player {}", pid.0),
+                     kind: AttackTargetKind::Player,
++                    life: None,
++                    poison_left: None,
++                    commander_left: Vec::new(),
++                    can_lose: None,
+                 },
+                 // The Rust engine can't distinguish a planeswalker from a
+                 // battle yet; approximate any permanent target as a walker.
+@@ -275,6 +283,10 @@ impl<R: Responder> PromptAgent<R> {
+                     id: format!("card-{}", cid.0),
+                     label: format!("Permanent {}", cid.0),
+                     kind: AttackTargetKind::Planeswalker,
++                    life: None,
++                    poison_left: None,
++                    commander_left: Vec::new(),
++                    can_lose: None,
+                 },
+             })
+             .collect()
+@@ -657,7 +669,11 @@ impl<R: Responder> PlayerAgent for PromptAgent<R> {
                  directive:
                      DirectiveInput::RequestRestore { .. }
                      | DirectiveInput::RestoreVote { .. }
 -                    | DirectiveInput::SetSnapshotRecording { .. },
 +                    | DirectiveInput::SetSnapshotRecording { .. }
-+                    | DirectiveInput::ApplyState { .. },
++                    | DirectiveInput::ApplyState { .. }
++                    | DirectiveInput::OfferTie
++                    | DirectiveInput::TieVote { .. }
++                    | DirectiveInput::ReleaseHold,
              } => Self::default_pass(),
          };
          match action {
@@ -17214,10 +17346,10 @@ index 3385214..d968b3c 100644
          Reorder(reorder::ReorderInput {
              presentation: common::PromptPresentation {
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
-index 76fdc4f..2dbf963 100644
+index 76fdc4f..d769ff7 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
-@@ -789,6 +789,28 @@ fn card_to_dto_for_viewer(game: &GameState, cid: CardId, viewer: Option<PlayerId
+@@ -789,6 +789,29 @@ fn card_to_dto_for_viewer(game: &GameState, cid: CardId, viewer: Option<PlayerId
          // Rust engine doesn't surface it yet.
          would_die_in_combat: false,
          zone: None,
@@ -17243,10 +17375,11 @@ index 76fdc4f..2dbf963 100644
 +        cant_attack: false,
 +        cant_block: false,
 +        must_attack: false,
++        unbounded: false,
      }
  }
  
-@@ -859,6 +881,8 @@ impl GameViewDtoExt for GameViewDto {
+@@ -859,6 +882,8 @@ impl GameViewDtoExt for GameViewDto {
                          .cloned()
                          .unwrap_or_else(|| card.card_name.clone()),
                      room: card.svars.get("CurrentRoom").cloned().unwrap_or_default(),
@@ -17255,7 +17388,7 @@ index 76fdc4f..2dbf963 100644
                  })
              });
              let active_scheme_names: Vec<String> = command_zone
-@@ -936,9 +960,17 @@ impl GameViewDtoExt for GameViewDto {
+@@ -936,9 +961,17 @@ impl GameViewDtoExt for GameViewDto {
                  player_keywords,
                  commander_casts,
                  dungeon_state,
@@ -17273,7 +17406,7 @@ index 76fdc4f..2dbf963 100644
                  counters,
                  mana_pool: mana_pool_to_map(&pool),
                  commander_damage,
-@@ -1015,6 +1047,7 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1015,6 +1048,7 @@ impl GameViewDtoExt for GameViewDto {
                      identity,
                      text: entry.spell_ability.ability_text.clone(),
                      source_ability_text: stack_source_ability_text(game, &entry.spell_ability),
@@ -17281,7 +17414,7 @@ index 76fdc4f..2dbf963 100644
                      is_permanent_spell: entry.is_creature_spell || entry.is_permanent_spell,
                      is_casting: entry.is_pending_cast,
                      is_double_faced: source_card.map(|c| c.is_double_faced()).unwrap_or(false),
-@@ -1022,6 +1055,7 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1022,6 +1056,7 @@ impl GameViewDtoExt for GameViewDto {
                          .map(|c| u8::from(c.is_transformed))
                          .unwrap_or_default(),
                      targets: collect_stack_targets(&entry.spell_ability),
@@ -17289,7 +17422,7 @@ index 76fdc4f..2dbf963 100644
                  }
              })
              .collect();
-@@ -1061,9 +1095,15 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1061,9 +1096,18 @@ impl GameViewDtoExt for GameViewDto {
              initiative_holder_id: game.initiative_holder.map(player_id_str),
              day_time: day_time_of(game),
              active_plane_names: (!active_plane_names.is_empty()).then_some(active_plane_names),
@@ -17302,14 +17435,17 @@ index 76fdc4f..2dbf963 100644
 +            delayed: None,
 +            storm_count: None,
 +            team_rules: None,
++            tie_vote: None,
++            stalemate: None,
++            draw_reason: None,
          }
      }
  
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
-index 0f579af..de354f8 100644
+index 0f579af..85a1eac 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
 +++ b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
-@@ -149,12 +149,147 @@ pub struct GameViewDto {
+@@ -149,12 +149,198 @@ pub struct GameViewDto {
      pub day_time: DayTime,
      #[ts(optional)]
      pub active_plane_names: Option<Vec<String>>,
@@ -17336,6 +17472,57 @@ index 0f579af..de354f8 100644
 +    #[serde(default, skip_serializing_if = "Option::is_none")]
 +    #[ts(optional)]
 +    pub team_rules: Option<TeamRulesDto>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub tie_vote: Option<TieVoteDto>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub stalemate: Option<StalemateDto>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub draw_reason: Option<String>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "game/index.ts")]
++pub struct TieVoteDto {
++    pub vote_id: u32,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub requested_by_player_id: Option<String>,
++    pub awaiting_player_ids: Vec<String>,
++    pub status: TieVoteStatus,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(
++    tag = "type",
++    rename_all = "camelCase",
++    rename_all_fields = "camelCase"
++)]
++#[ts(export, export_to = "game/index.ts")]
++pub enum TieVoteStatus {
++    Pending,
++    Accepted,
++    Declined { player_id: String },
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "game/index.ts")]
++pub struct StalemateDto {
++    pub player_id: String,
++    pub lock: String,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub card_id: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub card_name: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub rounds_without_progress: Option<u32>,
 +}
 +
 +#[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -17457,7 +17644,7 @@ index 0f579af..de354f8 100644
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-@@ -216,6 +351,58 @@ pub enum PlayerStatus {
+@@ -216,6 +402,58 @@ pub enum PlayerStatus {
  pub struct DungeonStateDto {
      pub name: String,
      pub room: String,
@@ -17516,7 +17703,7 @@ index 0f579af..de354f8 100644
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-@@ -254,10 +441,36 @@ pub struct PlayerDto {
+@@ -254,10 +492,36 @@ pub struct PlayerDto {
      pub commander_casts: HashMap<String, u32>,
      #[ts(optional)]
      pub dungeon_state: Option<DungeonStateDto>,
@@ -17553,7 +17740,7 @@ index 0f579af..de354f8 100644
      pub counters: BTreeMap<PlayerCounterKind, u32>,
      pub mana_pool: BTreeMap<ManaColor, u32>,
      #[ts(type = "Record<string, number>")]
-@@ -397,6 +610,59 @@ pub struct CardDto {
+@@ -397,6 +661,61 @@ pub struct CardDto {
      #[serde(default, skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub zone: Option<ZoneKind>,
@@ -17610,10 +17797,12 @@ index 0f579af..de354f8 100644
 +    pub cant_block: bool,
 +    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
 +    pub must_attack: bool,
++    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
++    pub unbounded: bool,
  }
  
  #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-@@ -412,11 +678,47 @@ pub struct StackObjectDto {
+@@ -412,11 +731,47 @@ pub struct StackObjectDto {
      #[serde(skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub source_ability_text: Option<String>,
@@ -17661,7 +17850,7 @@ index 0f579af..de354f8 100644
  }
  
  #[cfg(test)]
-@@ -433,11 +735,13 @@ mod stack_object_tests {
+@@ -433,11 +788,13 @@ mod stack_object_tests {
              identity: CardIdentity::default(),
              text: String::new(),
              source_ability_text: Some("When this enters, draw a card.".into()),
@@ -17676,15 +17865,29 @@ index 0f579af..de354f8 100644
  
          let value = serde_json::to_value(stack_object).unwrap();
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_attackers.rs b/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_attackers.rs
-index 7df4820..561562b 100644
+index 7df4820..68f410e 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_attackers.rs
 +++ b/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_attackers.rs
-@@ -10,6 +10,47 @@ pub struct AttackerOptionDto {
+@@ -10,6 +10,61 @@ pub struct AttackerOptionDto {
      pub attacker_id: String,
      pub valid_target_ids: Vec<String>,
      pub must_attack: bool,
 +    #[serde(default)]
 +    pub costs: Vec<AttackCostDto>,
++    #[serde(default, skip_serializing_if = "Vec::is_empty")]
++    pub damage: Vec<AttackDamageDto>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "prompts/chooseAttackers.ts")]
++pub struct AttackDamageDto {
++    pub defender_id: String,
++    pub damage: u32,
++    pub poison: u32,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub commander: Option<u32>,
 +}
 +
 +#[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -17727,7 +17930,7 @@ index 7df4820..561562b 100644
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-@@ -18,6 +59,10 @@ pub struct AttackerOptionDto {
+@@ -18,6 +73,10 @@ pub struct AttackerOptionDto {
  pub struct ChooseAttackersInput {
      pub attackers: Vec<AttackerOptionDto>,
      pub attack_targets: Vec<AttackTargetDto>,
@@ -17785,6 +17988,36 @@ index 41bcd1f..91a01ed 100644
      ChooseCardsDecision { chosen_card_ids: Vec<String> },
 +    Cancel,
  }
+diff --git a/manabrew-rs/crates/manabrew-protocol/src/prompts/common.rs b/manabrew-rs/crates/manabrew-protocol/src/prompts/common.rs
+index 8a554b2..9f373ee 100644
+--- a/manabrew-rs/crates/manabrew-protocol/src/prompts/common.rs
++++ b/manabrew-rs/crates/manabrew-protocol/src/prompts/common.rs
+@@ -181,6 +181,25 @@ pub struct AttackTargetDto {
+     pub id: String,
+     pub label: String,
+     pub kind: AttackTargetKind,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub life: Option<i32>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub poison_left: Option<i32>,
++    #[serde(default, skip_serializing_if = "Vec::is_empty")]
++    pub commander_left: Vec<CommanderLeftDto>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub can_lose: Option<bool>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "prompts/common.ts")]
++pub struct CommanderLeftDto {
++    pub commander_id: String,
++    pub left: i32,
+ }
+ 
+ #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/prompts/mod.rs b/manabrew-rs/crates/manabrew-protocol/src/prompts/mod.rs
 index 0594ad2..7533fd8 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/prompts/mod.rs
@@ -17816,7 +18049,7 @@ index 88b5700..882ac92 100644
 +    },
  }
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs b/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs
-index a1bcdce..c6fb754 100644
+index a1bcdce..4b66617 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs
 +++ b/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs
 @@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
@@ -17837,11 +18070,14 @@ index a1bcdce..c6fb754 100644
  #[serde(
      tag = "type",
      rename_all = "camelCase",
-@@ -33,6 +33,84 @@ pub enum DirectiveInput {
+@@ -33,6 +33,87 @@ pub enum DirectiveInput {
      RequestRestore { checkpoint_id: u32 },
      RestoreVote { vote_id: u32, accept: bool },
      SetSnapshotRecording { enabled: bool },
 +    ApplyState { fix_id: u32, ops: Vec<StateOp> },
++    OfferTie,
++    TieVote { vote_id: u32, accept: bool },
++    ReleaseHold,
 +}
 +
 +#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -18347,7 +18583,7 @@ index e19dcde..53dc343 100644
 +    }
  }
 diff --git a/manabrew-rs/crates/self-hosted-node/src/host.rs b/manabrew-rs/crates/self-hosted-node/src/host.rs
-index 7e1ddef..848b90b 100644
+index 7e1ddef..0524bf1 100644
 --- a/manabrew-rs/crates/self-hosted-node/src/host.rs
 +++ b/manabrew-rs/crates/self-hosted-node/src/host.rs
 @@ -183,6 +183,7 @@ struct HostSnapshot {
@@ -18415,14 +18651,17 @@ index 7e1ddef..848b90b 100644
                          remote_prompt_tx,
                          remote_response_rxs,
                          game_over_tx,
-@@ -2178,7 +2203,9 @@ fn route_remote_directive(
+@@ -2178,7 +2203,12 @@ fn route_remote_directive(
      info!(claimed_slot, player_index, ?directive, "routing directive");
      match directive {
          DirectiveInput::Concede => concede_seat(engine_session, player_index),
 -        DirectiveInput::RequestRestore { .. } | DirectiveInput::RestoreVote { .. } => {
 +        DirectiveInput::RequestRestore { .. }
 +        | DirectiveInput::RestoreVote { .. }
-+        | DirectiveInput::ApplyState { .. } => {
++        | DirectiveInput::ApplyState { .. }
++        | DirectiveInput::OfferTie
++        | DirectiveInput::TieVote { .. }
++        | DirectiveInput::ReleaseHold => {
              send_seat_message(
                  engine_session,
                  player_index,
@@ -18439,10 +18678,10 @@ index 9c35616..8fa7268 100644
                          )
                          .await?;
 diff --git a/src/lib/gameCard.ts b/src/lib/gameCard.ts
-index 5bcb862..b9adca0 100644
+index 5bcb862..25e77d6 100644
 --- a/src/lib/gameCard.ts
 +++ b/src/lib/gameCard.ts
-@@ -41,6 +41,19 @@ export const GAME_CARD_DEFAULTS: ClientCardDto = {
+@@ -41,6 +41,20 @@ export const GAME_CARD_DEFAULTS: ClientCardDto = {
    isWarpExiled: false,
    foil: false,
    wouldDieInCombat: false,
@@ -18459,6 +18698,7 @@ index 5bcb862..b9adca0 100644
 +  cantAttack: false,
 +  cantBlock: false,
 +  mustAttack: false,
++  unbounded: false,
  };
  
  export function isFacelessCard(card: Pick<CardDto, "isFaceDown" | "identity">): boolean {
