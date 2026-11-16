@@ -108,7 +108,10 @@ const check = async (setting) => L.decideServer(setting, await probes.relayLogin
       const dump = path.join(home, "dump.json");
       try { fs.unlinkSync(dump); } catch { /* none */ }
       const r = await new Promise((done) => {
-        const p = spawn(process.execPath, [path.join(C, "companion.js"), "--home", home, "--observe", "--no-web", "--dump", dump, "--saves", path.join(home, "saves"),
+        // on Windows the companion refuses to start (it is the Linux/macOS one), so the test runs it as on Linux there
+        const asLinux = process.platform === "win32" ? ["--require", path.join(home, "as-linux.js")] : [];
+        if (asLinux.length) fs.writeFileSync(path.join(home, "as-linux.js"), 'Object.defineProperty(process, "platform", { value: "linux" });\n');
+        const p = spawn(process.execPath, [...asLinux, path.join(C, "companion.js"), "--home", home, "--observe", "--no-web", "--dump", dump, "--saves", path.join(home, "saves"),
           "--state", path.join(home, "state"), "--log", path.join(home, "logs", "companion.log"), "--bridge-url", "http://127.0.0.1:9", "--steps", "1,2,3", ...extra],
           { env: { ...process.env, MTG_CONTAINER_RUNTIME: "docker", MTG_SERVER_KEY: "" } });
         let stdout = "", stderr = "";
