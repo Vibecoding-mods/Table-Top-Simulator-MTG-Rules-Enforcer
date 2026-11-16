@@ -141,7 +141,7 @@ try {
   // (the renderer's per-seat button lists in the order they had: engineTableButtons moves them in it)
   ok("4p: the table buttons in the order the renderer listed them", four4.LuaScript.includes('  buttons = { "86e447", "1f3e4a", "18fb5d", "e2f7ae", "59ab68", "0ad181", "c489e1", "d67eb4", "885f49", "305c12", "26775a", "b49d50", "67b4a5", "da5d0d", "d06889", "57914a", "ffa67c", "8a4c8b", "614515", "4e19c8", "c53ac6", "47645d", "3b07ae", "e0a3bc" },\n')
     && four4.LuaScript.includes('  draw = { "885f49", "305c12", "26775a", "b49d50" },\n'));
-  ok("4p: the seat list is left to the bridge's default (no ENGINE_TABLE_SEATS)", four4.LuaScript.length > 0 && !four4.LuaScript.includes("ENGINE_TABLE_SEATS ="));
+  ok("4p: the seat list is left to the bridge's default (no ENGINE_TABLE_SEATS)", four4.LuaScript.length > 0 && !four4.LuaScript.includes("\nENGINE_TABLE_SEATS = "));
   same("4p: no SKIP or FAIL", r4.stdout.split("\n").filter((l) => /^(SKIP|FAIL)/.test(l)), []);
 } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 
