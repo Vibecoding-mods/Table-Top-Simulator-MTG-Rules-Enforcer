@@ -751,10 +751,10 @@ end
 -- none. Globals, not locals: the main chunk is at Lua's 200-local limit.
 ENGINE_TEAMS = nil
 ENGINE_TEAM_MODE = nil -- "2hg" | "2v2" | "juggernaut" while ENGINE_TEAMS is set
--- Two-Headed Giant's level: "shared" Level 2, the default (one turn for the team, attacks and blocks together: CR 805,
--- 810.2), nil Level 1 (each player's own turn, the team's back to back). "mtg 2hg turns shared|own" (host); sent with
+-- Two-Headed Giant's level: "shared" Level 2 (one turn for the team, attacks and blocks together: CR 805, 810.2), nil
+-- Level 1, the default until Level 2 is checked live (each player's own turn, the team's back to back). "mtg 2hg turns shared|own" (host); sent with
 -- Start as teamTurns, only in a Two-Headed Giant game (engineTeamTurnsSent; the bridge's gameConfig says "sharedTurns").
-ENGINE_TEAM_TURNS = "shared"
+ENGINE_TEAM_TURNS = nil
 -- the Juggernaut's settings (bridge/teams.js JUGG_DEFAULTS; life nil: twice the format's, 80 or 40)
 ENGINE_JUGG = { color = "White", hand = 10, draw = 1, land = 0, cmd = 21, order = "first" }
 ENGINE_TEAM_NAMES = { ["2hg"] = "Two-Headed Giant", ["2v2"] = "2v2", juggernaut = "Juggernaut" }
@@ -806,7 +806,7 @@ end
 ENGINE_JUGG_LIMITS = { life = { 1, 999 }, hand = { 0, 30 }, draw = { 0, 5 }, land = { 0, 5 }, cmd = { 1, 99 } }
 -- what each mode means, said when the host picks it
 ENGINE_TEAM_HELP = {
-  ["2hg"] = ". Partners share life (80 a team), poison (15) and a commander's damage (42), block for each other and see each other's hands. Each team takes one turn together: both partners untap, draw, attack and block together. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host). Each player's own turn instead:  mtg 2hg turns own  (back:  mtg 2hg turns shared).",
+  ["2hg"] = ". Partners share life (80 a team), poison (15) and a commander's damage (42), block for each other and see each other's hands; each player takes their own turn. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host). One turn for each team, attacking and blocking together:  mtg 2hg turns shared  (back:  mtg 2hg turns own).",
   ["2v2"] = ". Standard decks; each player has their own life (20) and turn, no commander; teammates can't attack each other; a team wins when both its opponents have lost. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host).",
 }
 -- "mtg mode 2hg|2v2|juggernaut|ffa", "mtg team <colour> <1|2>" and "mtg juggernaut ..." (host): true when handled
