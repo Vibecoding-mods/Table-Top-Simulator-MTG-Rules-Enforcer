@@ -537,10 +537,12 @@ function onSchemes(m) {
 function withArchenemy(setup) {
   if (setup.mode === "archenemy") return { ...setup, arch: { ...setup.arch, schemes: setup.arch.schemes || archenemy.names } };
   if (!archenemy.on) return setup;
-  return { teams: teams2hg.juggTeams(archenemy.color), mode: "archenemy", jugg: null, turns: null, arch: { color: archenemy.color, schemes: archenemy.names } };
+  return { teams: teams2hg.juggTeams(archenemy.color), mode: "archenemy", jugg: null, turns: null, arch: { color: archenemy.color, schemes: archenemy.names, sticky: true } };
 }
 // Undo in an Archenemy game: the engine takes no restore points there (the schemes in play aren't rewind-safe yet)
 const ARCH_NO_UNDO = "Undo isn't available in Archenemy games: the schemes in play can't be rewound yet.";
+// (a start the switch made an Archenemy game: the switch stays on for the next games, so a refusal says how to turn it off)
+const ARCH_SWITCH_OFF = " The Archenemy switch is on for the next games: type  mtg archenemy off  to play without it.";
 
 // a plane for the deck sent to the engine (as a preset's cards are, loadPreset)
 const planeDeckCard = (name) => ({ identity: { name, setCode: "", cardNumber: "" }, manaCost: "", cmc: 0, types: [planeNamed(name)?.phenomenon ? "Phenomenon" : "Plane"],
@@ -1688,9 +1690,13 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   if (teams && teamMode === "archenemy") {
     const a = arch || teams2hg.archOf(null);
     // (the team modes are the 4-player table's for now: teams.js TEAM_COLORS)
-    if (TABLE_COLORS.length !== teams2hg.TEAM_COLORS.length) { chat(`[MTG] Not started: Archenemy is played on the 4-player table for now (this table has ${TABLE_COLORS.length} seats).`); return; }
-    if (!(total === TABLE_COLORS.length || seatList.includes(a.color) || preset.includes(a.color))) {
-      chat(`[MTG] Not started: Archenemy: ${a.color} isn't in this game (seated: ${seatList.join(", ")}; AI players take the free seats in turn order). Seat ${a.color}, make it an AI seat (mtg ai ${a.color} forge), or fill all four seats.`);
+    const off = a.sticky ? ARCH_SWITCH_OFF : "";
+    if (TABLE_COLORS.length !== teams2hg.TEAM_COLORS.length) { chat(`[MTG] Not started: Archenemy is played on the 4-player table for now (this table has ${TABLE_COLORS.length} seats).${off}`); return; }
+    // (the colours in this game: the seated ones, the AI seats', then the AI players' free seats in turn order, as
+    // clockwiseOrder seats them)
+    const aiFree = TABLE_COLORS.filter((c) => !seatList.includes(c) && !preset.includes(c)).slice(0, Math.max(0, bots - preset.length));
+    if (![...seatList, ...preset, ...aiFree].includes(a.color)) {
+      chat(`[MTG] Not started: Archenemy: ${a.color} isn't in this game (seated: ${seatList.join(", ")}; AI players take the free seats in turn order). Seat ${a.color}, make it an AI seat (mtg ai ${a.color} forge), or fill all four seats.${off}`);
       return;
     }
     const names = a.schemes || randomSchemes();
@@ -12524,7 +12530,7 @@ if (require.main === module) {
     summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword, playWindow,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
     _spellsMark: spellsMark, _actingFor: actingFor, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice,
-    _archenemy: archenemy, _onArchenemy: onArchenemy, _onSchemes: onSchemes, _withArchenemy: withArchenemy, _forgeSchemes: forgeSchemes, ARCH_NO_UNDO,
+    _archenemy: archenemy, _onArchenemy: onArchenemy, _onSchemes: onSchemes, _withArchenemy: withArchenemy, _forgeSchemes: forgeSchemes, ARCH_NO_UNDO, ARCH_SWITCH_OFF,
     _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, setPickedHand, splitHandText, handOps, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _customArt: customArt, artProblem, isCustomArt,
