@@ -313,6 +313,17 @@ Plan steps 1, 3 and part of 2. The life rule, the refusals, the view, rewind, th
 - step 6, rewind off in scheme games;
 - steps 7 to 11: the image, the bridge, the table, images and the live game.
 
+### 2.9 Rules done (2026-11-16, branch `cloud/archenemy-rules`)
+
+Step 2's leftovers and step 6. The report is `docs/handoff/archenemy-rules-report.md`.
+
+- **Refusals:** no archenemy, two archenemies, fewer than 20 schemes or more than 2 copies, and shared life.
+- **Life:** the archenemy starts at 80 in Commander and 40 otherwise, unless named; the others keep the format's life.
+- **Teams:** the archenemy is alone on team 1 and the others are one team. The archenemy wins alone, and the others
+  win together.
+- **Rewind:** no restore points in scheme games.
+- **Proof:** `ArchenemyTest` 14 of 14, each new check with a break-it.
+
 ## 3. Recommended order and why
 
 1. **Finish Level 2 first (about 40 hours).** The code exists. It is the larger risk because it is a default flip.
