@@ -887,8 +887,8 @@ function engineTeamChat(cmd, rest, pl, isHost)
   local col, n = rest:match("^(%a+)%s+([12])$")
   local seat = nil
   for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do if col ~= nil and c:lower() == col then seat = c end end
-  if seat == nil then pl.broadcast("[MTG] Use:  mtg team <white|red|yellow|blue> <1|2>  (after  mtg mode 2hg  or  mtg mode 2v2)") return true end
-  if ENGINE_TEAMS == nil then pl.broadcast("[MTG] Teams are for Two-Headed Giant and 2v2: type  mtg mode 2hg  or  mtg mode 2v2  first.") return true end
+  if seat == nil then pl.broadcast("[MTG] Use:  mtg team <white|red|yellow|blue> <1|2>  (after  mtg mode 2hg  in Commander or  mtg mode 2v2  in Standard)") return true end
+  if ENGINE_TEAMS == nil then pl.broadcast("[MTG] Teams are for Two-Headed Giant and 2v2: type  mtg mode 2hg  (Commander) or  mtg mode 2v2  (Standard) first.") return true end
   if ENGINE_TEAM_MODE == "juggernaut" then pl.broadcast("[MTG] In Juggernaut the teams follow the Juggernaut: type  mtg juggernaut <colour>.") return true end
   ENGINE_TEAMS[seat] = tonumber(n)
   broadcastToAll("[MTG] " .. who .. " put " .. seat .. " on team " .. n .. ": " .. engineTeamsText() .. ".", { 1, 0.85, 0.4 })
