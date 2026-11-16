@@ -7269,4 +7269,62 @@ add(promptCase("rebuilt #7: an opponent's reveal said once as theirs", D2.board,
     attackAsk(["self-hosted-node-77-bot", "Chandra, Torch of Defiance (412)", "Somebody Else"]), [["2"]]));
 }
 
+// ── M6 step 8: the table's seats (hello's tableSeats), up to six ──
+{
+  const SIX = ["White", "Red", "Yellow", "Green", "Blue", "Purple"]; // (the 6-player table, clockwise: m6 spec §2.1)
+  const BOT = "self-hosted-node-77-bot";
+  const relayOut = (h) => h.effects.map((e) => e.relay).filter(Boolean);
+  // a seat logged in and in the room (no "open": no Authenticate and no ping timers)
+  const enter = (seat) => { frame(seat.ws, { type: "AuthResult", success: true }); frame(seat.ws, { type: "RoomList", rooms: [{ room_id: "room-1", room_name: "tts-commander", status: "Lobby" }] }); };
+  const roomOf = (players, max) => ({ type: "RoomUpdate", room: { room_id: "room-1", host: "node", status: "Lobby", max_players: max,
+    players: players.map((username) => ({ username, ready: true, connected: true, is_bot: username.startsWith(BOT) })) } });
+  add({ name: "M6 seats: the hello's six seats set the limit (seven refused, six set up)", run: async (h) => {
+    h.B.onTTS({ t: "hello", json: JSON.stringify({ tableSeats: SIX }) });
+    h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 6, requireReady: false, fromTable: true }) });
+    await h.flush();
+    const refused = h.B._getGame() === null;
+    h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 5, requireReady: false, fromTable: true }) });
+    await h.flush();
+    return { refused, total: h.B._getGame()?.total ?? null };
+  } });
+  add({ name: "M6 seats: one person + five AI get five decks, a six-seat room and the clockwise colours", run: async (h) => {
+    h.B.onTTS({ t: "hello", json: JSON.stringify({ tableSeats: SIX }) });
+    h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 5, requireReady: false, fromTable: true }) });
+    await h.flush();
+    const blue = h.B._getGame().seats.get("Blue");
+    enter(blue);
+    frame(blue.ws, roomOf([blue.username], 4));
+    await h.flush();
+    const bots = [BOT, `${BOT} 3`, `${BOT} 2`, `${BOT} 5`, `${BOT} 4`];
+    frame(blue.ws, roomOf([blue.username, ...bots], 6));
+    await h.flush();
+    const start = relayOut(h).find((r) => r.type === "StartGame");
+    frame(blue.ws, { type: "GameStarted", game_id: "g-6", player_order: start?.seat_order || [], starting_life: 40 });
+    await h.flush();
+    const spawn = relayOut(h).find((r) => r.state?.payload?.type === "spawnBot");
+    const started = h.effects.map((e) => e.tts).filter((t) => t && t.t === "started")[0];
+    return { maxPlayers: relayOut(h).filter((r) => r.type === "SetMaxPlayers").map((r) => r.max_players), decks: (spawn?.state.payload.decks || []).map((d) => d.deckName),
+      order: start?.seat_order || null, colors: started?.colors || null, ai: started?.ai || null };
+  } });
+  add({ name: "M6 seats: a fifth person refused \"room full\" joins again", run: async (h) => {
+    h.B.onTTS({ t: "hello", json: JSON.stringify({ tableSeats: SIX }) });
+    h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["White", "Red", "Yellow", "Green", "Blue"], bots: 0, requireReady: false, fromTable: true }) });
+    await h.flush();
+    const seats = [...h.B._getGame().seats.values()];
+    for (const s of seats) enter(s);
+    const first4 = seats.slice(0, 4).map((s) => s.username);
+    frame(seats[0].ws, roomOf(first4, 4));
+    frame(seats[4].ws, { type: "Error", code: "room_full", message: "Room is full: room-1" });
+    await h.flush();
+    return { joins: relayOut(h).filter((r) => r.type === "JoinRoom").length };
+  } });
+  add({ name: "M6 seats: a hello without seats is the 4-player table again", run: async (h) => {
+    h.B.onTTS({ t: "hello", json: JSON.stringify({ tableSeats: SIX }) });
+    h.B.onTTS({ t: "hello", json: JSON.stringify({}) });
+    h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 4, requireReady: false, fromTable: true }) });
+    await h.flush();
+    return { game: h.B._getGame() !== null };
+  } });
+}
+
 module.exports = cases;

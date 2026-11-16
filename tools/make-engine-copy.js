@@ -246,6 +246,8 @@ TABLE_PROFILE = {
   buttons = ${list(["untapButton", "revealButton", "drawButton", "millButton", "scryButton", "mulliganButton"].flatMap(row))},
   draw = ${list(row("drawButton"))},
 }`;
+  // the bridge's default is the 4-player table's four, so only another table names its seats (engineHello, bridge noteTableSeats)
+  if (SEATS.length !== 4) save.LuaScript += `\nENGINE_TABLE_SEATS = TABLE_PROFILE.seats`;
 }
 save.LuaScript += `
 
@@ -348,9 +350,12 @@ function engineStartGame(pl, rest, cleared)
   if engineStartSentAt ~= nil and os.clock() - engineStartSentAt < 5 then return false end
   engineStartSentAt = os.clock()
   engineSendDecks(read, pl.color)
-  engineSend("start", { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true, friendly = engineFriendly, mode = engineModeSent(), teams = engineTeamsSent ~= nil and engineTeamsSent() or nil,
+  local start = { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true, friendly = engineFriendly, mode = engineModeSent(), teams = engineTeamsSent ~= nil and engineTeamsSent() or nil,
     teamMode = engineTeamModeSent ~= nil and engineTeamModeSent() or nil, juggernaut = engineJuggSent ~= nil and engineJuggSent() or nil,
-    teamTurns = engineTeamTurnsSent ~= nil and engineTeamTurnsSent() or nil })
+    teamTurns = engineTeamTurnsSent ~= nil and engineTeamTurnsSent() or nil }
+  -- (the table's seats, clockwise, when it isn't the 4-player table: engineHello, tools/engine-renderer.lua)
+  if ENGINE_TABLE_SEATS ~= nil then start.tableSeats = ENGINE_TABLE_SEATS end
+  engineSend("start", start)
 end
 
 -- All "mtg ..." chat commands. Returns false (hide the line) when handled, nil otherwise.

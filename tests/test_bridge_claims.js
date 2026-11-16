@@ -5794,6 +5794,140 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       harness.restore();
     }
   }
+  // ── M6 step 8 (docs/m6-six-seat-spec.md §5): the table's seats, clockwise, set TABLE_COLORS (bridge.js noteTableSeats):
+  // the player limit, the turn order and the AI colours; AI decks cycle; a fifth/sixth person refused "room full" joins
+  // again. The 6-player table's seats, clockwise: White, Red, Yellow, Green, Blue, Purple (spec §2.1).
+  {
+    const SIX = ["White", "Red", "Yellow", "Green", "Blue", "Purple"];
+    const BOT = "self-hosted-node-77-bot";
+    const relayOut = (h) => h.effects.map((e) => e.relay).filter(Boolean);
+    const chats = (h) => sent(h, "chat").map((c) => c.text).join(" | ");
+    const enter = (seat) => {
+      seat.ws.emit("message", JSON.stringify({ type: "AuthResult", success: true }));
+      seat.ws.emit("message", JSON.stringify({ type: "RoomList", rooms: [{ room_id: "room-1", room_name: "tts-commander", status: "Lobby" }] }));
+    };
+    const roomOf = (players, max) => JSON.stringify({ type: "RoomUpdate", room: { room_id: "room-1", host: "node", status: "Lobby", max_players: max,
+      players: players.map((username) => ({ username, ready: true, connected: true, is_bot: username.startsWith(BOT) })) } });
+    const hello = (h, m) => h.B.onTTS({ t: "hello", json: JSON.stringify(m) });
+    const start = (h, seats, bots) => h.B.onTTS({ t: "start", json: JSON.stringify({ seats, bots, requireReady: false, fromTable: true }) });
+    // the limit: four seats without a list, six with the 6-player table's
+    {
+      const h = harness.load();
+      start(h, ["Blue"], 4); await h.flush();
+      ok("M6 seats: no seat list is the 4-player table (five players refused, 2-4)", h.B._getGame() === null && /Need 2-4 players/.test(chats(h)), chats(h));
+      harness.restore();
+    }
+    {
+      const h = harness.load();
+      hello(h, { tableSeats: SIX });
+      start(h, ["Blue"], 6); await h.flush();
+      ok("M6 seats: with six seats, seven players are refused (2-6)", h.B._getGame() === null && /Need 2-6 players/.test(chats(h)), chats(h));
+      start(h, ["Blue"], 5); await h.flush();
+      ok("M6 seats: with six seats, six players are set up", h.B._getGame()?.total === 6, chats(h));
+      harness.restore();
+    }
+    {
+      const h = harness.load();
+      hello(h, { tableSeats: SIX }); hello(h, { stamp: 1 });
+      start(h, ["Blue"], 4); await h.flush();
+      ok("M6 seats: a hello without a list sets the four back", h.B._getGame() === null && /Need 2-4 players/.test(chats(h)), chats(h));
+      harness.restore();
+    }
+    {
+      const h = harness.load();
+      // (a start may carry them too: a bridge started after the table's hello)
+      h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 5, requireReady: false, fromTable: true, tableSeats: SIX }) }); await h.flush();
+      ok("M6 seats: a start's own seat list counts", h.B._getGame()?.total === 6, chats(h));
+      harness.restore();
+    }
+    for (const [label, bad] of [["a seventh seat", [...SIX, "Pink"]], ["a colour twice", ["White", "Red", "White"]], ["no such seat", ["White", "Grey"]], ["one seat", ["White"]], ["not a list", "White,Red"]]) {
+      const h = harness.load();
+      hello(h, { tableSeats: SIX }); hello(h, { tableSeats: bad });
+      start(h, ["Blue"], 4); await h.flush();
+      ok(`M6 seats: a bad list (${label}) is the 4-player table`, h.B._getGame() === null && /Need 2-4 players/.test(chats(h)), chats(h));
+      harness.restore();
+    }
+    {
+      const h = harness.load();
+      start(h, ["Blue"], 1); await h.flush();
+      hello(h, { tableSeats: SIX });
+      ok("M6 seats: the list doesn't change under a game that is set up", h.B._getGame()?.total === 2 && !h.effects.some((e) => /^table seats: /.test(e.log || "")), h.effects.filter((e) => /table seats/.test(e.log || "")).map((e) => e.log).join(" | "));
+      harness.restore();
+    }
+    // one person + five AI: the room raised to six, five decks, clockwise colours
+    {
+      const h = harness.load();
+      hello(h, { tableSeats: SIX });
+      start(h, ["Blue"], 5); await h.flush();
+      const blue = h.B._getGame().seats.get("Blue");
+      enter(blue);
+      blue.ws.emit("message", roomOf([blue.username], 4)); await h.flush();
+      ok("M6 seats: the room is asked for six seats", JSON.stringify(relayOut(h).filter((r) => r.type === "SetMaxPlayers").map((r) => r.max_players)) === "[6]",
+        JSON.stringify(relayOut(h).filter((r) => r.type === "SetMaxPlayers")));
+      const spawn = relayOut(h).find((r) => r.state?.payload?.type === "spawnBot");
+      const decks = (spawn?.state.payload.decks || []).map((d) => d.deckName);
+      const builtIn = (h.B._getGame().seats.get("Blue").deckId);
+      ok("M6 seats: five AI get five decks (the built-in ones again once the unused run out)", decks.length === 5 && new Set(decks).size === 4, JSON.stringify(decks));
+      ok("M6 seats: the unused built-in decks come first, the person's own last", builtIn === "neheb_minotaur_commander" && !/Neheb/i.test(decks.slice(0, 3).join()) && /Neheb/i.test(decks[3]), JSON.stringify(decks));
+      const bots = [BOT, `${BOT} 3`, `${BOT} 2`, `${BOT} 5`, `${BOT} 4`];
+      blue.ws.emit("message", roomOf([blue.username, ...bots], 6)); await h.flush();
+      const order = relayOut(h).find((r) => r.type === "StartGame")?.seat_order || [];
+      ok("M6 seats: clockwise, the person at Blue is fifth of six", order.length === 6 && order[4] === blue.username, JSON.stringify(order));
+      blue.ws.emit("message", JSON.stringify({ type: "GameStarted", game_id: "g-6", player_order: order, starting_life: 40 })); await h.flush();
+      const st = sent(h, "started")[0] || {};
+      ok("M6 seats: the AI take White, Red, Yellow, Green and Purple, in turn order", JSON.stringify(Object.values(st.colors || {})) === JSON.stringify(SIX) && JSON.stringify(st.ai) === JSON.stringify(["White", "Red", "Yellow", "Green", "Purple"]),
+        JSON.stringify([st.colors, st.ai]));
+      ok("M6 seats: the game's turn order said in chat goes round all six", /Seats in turn order: AI 1 → AI 2 → AI 3 → AI 4 → Blue → AI 5/.test(chats(h)), chats(h));
+      harness.restore();
+    }
+    {
+      // the resume file keeps the list: written by a six-seat game, read by a fresh bridge
+      const fs = require("fs");
+      const h = harness.load();
+      hello(h, { tableSeats: SIX });
+      start(h, ["Blue"], 5); await h.flush();
+      const g = h.B._getGame();
+      Object.assign(g, { started: true, roomId: "room-1", playerOrder: ["a", "b"], slotNames: {}, slotColor: {} });
+      let text = null;
+      const w0 = fs.writeFile;
+      fs.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) text = String(d); return w0(p, d, ...rest); };
+      h.B.saveResume(); await h.flush();
+      fs.writeFile = w0;
+      harness.restore();
+      ok("M6 seats: a six-seat game's resume file keeps the six", JSON.stringify(JSON.parse(text || "{}").game?.tableSeats) === JSON.stringify(SIX), String(text).slice(0, 200));
+    }
+    // the fifth person, refused "room full" while the room is still at 4, joins again; 15 refusals are said
+    {
+      const h = harness.load();
+      hello(h, { tableSeats: SIX });
+      start(h, ["White", "Red", "Yellow", "Green", "Blue"], 0); await h.flush();
+      const seats = [...h.B._getGame().seats.values()];
+      for (const s of seats) enter(s);
+      const joins0 = relayOut(h).filter((r) => r.type === "JoinRoom").length;
+      seats[0].ws.emit("message", roomOf(seats.slice(0, 4).map((s) => s.username), 4));
+      seats[4].ws.emit("message", JSON.stringify({ type: "Error", code: "room_full", message: "Room is full: room-1" }));
+      await h.flush();
+      const joins1 = relayOut(h).filter((r) => r.type === "JoinRoom").length;
+      ok("M6 seats: a fifth person refused \"room full\" asks to join again", joins0 === 5 && joins1 === 6, `${joins0} then ${joins1}`);
+      ok("M6 seats: and the refusal isn't said while it retries", !/Room is full/.test(chats(h)), chats(h));
+      for (let k = 0; k < 15; k++) { seats[4].ws.emit("message", JSON.stringify({ type: "Error", code: "room_full", message: "Room is full: room-1" })); await h.flush(); }
+      ok("M6 seats: after 15 tries the refusal is said", /Room is full/.test(chats(h)) && relayOut(h).filter((r) => r.type === "JoinRoom").length === 20, `${relayOut(h).filter((r) => r.type === "JoinRoom").length} joins; ${chats(h)}`);
+      harness.restore();
+    }
+    {
+      // (a seat in the room isn't asked again: a late "room full" for it changes nothing)
+      const h = harness.load();
+      hello(h, { tableSeats: SIX });
+      start(h, ["Blue"], 1); await h.flush();
+      const blue = h.B._getGame().seats.get("Blue");
+      enter(blue);
+      blue.ws.emit("message", roomOf([blue.username], 4)); await h.flush();
+      const before = relayOut(h).filter((r) => r.type === "JoinRoom").length;
+      blue.ws.emit("message", JSON.stringify({ type: "Error", code: "room_full", message: "Room is full: room-1" })); await h.flush();
+      ok("M6 seats: a seat already in the room doesn't join again on a stray \"room full\"", relayOut(h).filter((r) => r.type === "JoinRoom").length === before, `${before}`);
+      harness.restore();
+    }
+  }
   console.log(failed ? `\n${failed} claim checks failed (${passed} passed)` : `all ${passed} claim checks pass`);
   process.exit(failed ? 1 : 0);
 })();
