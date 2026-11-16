@@ -259,6 +259,60 @@ are the table, about 25 hours.
 4. **Rewind: off in scheme games at first.** Undo says it is not available in Archenemy games until the scheme zones are rewind-safe.
 5-8. **Not asked; defaults taken:** a separate mode from Juggernaut; an AI may be the Archenemy (a spike checks it first); scheme images from the same source as the rest; rule 904 as written (turn order, the Archenemy goes first).
 
+### 2.8 Engine plumbing done (2026-11-16, branch `cloud/archenemy-engine`, not built into an image)
+
+Plan steps 1, 3 and part of 2. The life rule, the refusals, the view, rewind, the bridge and the table are not done.
+
+**Passed:**
+
+- `ArchenemyTest`, 5 of 5, using Forge's own scripts: Look Skyward and Despair, Roots of All Evil, I Am Untouchable.
+- Node unit tests `copies_a_decks_schemes_for_java` and `a_game_config_seat_gives_its_player_schemes`.
+- `engine/test-harness-local.sh --all`: 26 of 26 classes.
+- `git apply --check` of both patches on clean Forge `e7d2b93` and Manabrew `fd16e2f`. Only the changed sections
+  differ: Forge `Player.java` and `RegisteredPlayer.java`; Manabrew `Archenemy.java`, `ArchenemyTest.java`,
+  `ManaBrewEngineAdapter.java` and `java_backend.rs`.
+
+**Built:**
+
+- **Node:** `PlayerConfig.schemes` comes from the deck's `schemes` section, or from `gameConfig.players[].schemes`,
+  a list of names that wins when given, for the bridge's random 20 or a pasted list. It is left out of the JSON when
+  empty.
+- **Harness:**
+  - `players[].schemes` is parsed into `PlayerConfig.getSchemes()`.
+  - `Archenemy.schemeDecks` resolves each name and refuses a card that is no scheme.
+  - `appliedVariants` adds `GameType.Archenemy`.
+  - `registeredPlayer` gives the deck through the new `RegisteredPlayer.setSchemes`, without `forVariants`' 40 life.
+    The 80/40 house rule (§2.7) goes through the per-player `startingLife`.
+- **Forge, the isArchenemy fix of §2.4:**
+  - A player dealt a scheme deck stays the archenemy while every scheme is in motion.
+  - `setSchemeInMotion` returns on an empty scheme deck. Before, an effect that sets a scheme in motion, and with the
+    stable flag the main phase too, read past the empty deck.
+  - The first request had asked for "true only while the scheme deck is non-empty". That was already Forge's
+    behaviour, so this follows the plan instead.
+
+**Break-its.** Each failed its check by name, and each file was restored and checked by sha256.
+
+| Break-it | Fails |
+| --- | --- |
+| schemes not given to Forge | aSchemeDeckReachesTheSchemeDeckZone: "White's scheme deck holds []" |
+| schemes not parsed | aSchemeDeckReachesTheSchemeDeckZone: "a start request with schemes did not apply the Archenemy variant" |
+| no set in motion at main 1 | aSchemeIsSetInMotionAtTheArchenemysFirstMainPhase: "command zone []" |
+| state-based return removed | aNonOngoingSchemeReturnsToTheBottom: "the scheme deck is [Roots of All Evil], not Look Skyward and Despair on the bottom" |
+| Ongoing check removed | anOngoingSchemeStaysUntilAbandoned: "the ongoing scheme left the command zone" |
+| empty-deck guard removed | anArchenemyWithEverySchemeInMotionStaysTheArchenemy: `IndexOutOfBoundsException` |
+| archenemy flag not set | anArchenemyWithEverySchemeInMotionStaysTheArchenemy: "with every scheme in motion White is no longer the archenemy" |
+| deck schemes not copied (node) | copies_a_decks_schemes_for_java |
+| gameConfig schemes not copied (node) | a_game_config_seat_gives_its_player_schemes |
+
+**Left:**
+
+- step 2's refusals (no archenemy, two archenemies, a bad deck size), the 80/40 life through `startingLife`, and the
+  team and win checks;
+- step 4, the view;
+- step 5, the spike over every scheme;
+- step 6, rewind off in scheme games;
+- steps 7 to 11: the image, the bridge, the table, images and the live game.
+
 ## 3. Recommended order and why
 
 1. **Finish Level 2 first (about 40 hours).** The code exists. It is the larger risk because it is a default flip.
