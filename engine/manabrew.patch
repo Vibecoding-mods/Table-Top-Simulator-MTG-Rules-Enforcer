@@ -2611,7 +2611,7 @@ index c69b549..524a9d3 100644
  
      public static final class CardIdentity {
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
-index fb82e6d..550846b 100644
+index fb82e6d..c3efaa2 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 @@ -11,6 +11,8 @@ import forge.harness.common.HarnessPlayPlumbing;
@@ -2812,7 +2812,19 @@ index fb82e6d..550846b 100644
      @Override
      public CardCollection orderBlockers(final Card attacker, final CardCollection blockers) {
          return session.awaitDamageAssignmentOrder(me(), attacker, blockers);
-@@ -760,8 +860,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -730,7 +830,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+     public CardCollection chooseCardsToDiscardFrom(
+             final Player playerDiscard, final SpellAbility sa, final CardCollection validCards, final int min, final int max,
+             final CardCollectionView visibleToChooser) {
+-        return session.awaitCardChoice("choose_discard", me(), validCards, min, max);
++        if (max <= 0 || validCards.isEmpty()) {
++            return new CardCollection();
++        }
++        return session.awaitCardChoice("choose_discard", me(), validCards, Math.max(min, 0), max);
+     }
+ 
+     @Override
+@@ -760,8 +863,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      @Override
      public CardCollectionView chooseCardsForCost(final CardCollectionView optionList, final SpellAbility sa,
              final CostPartWithList cpl, final int amount, final boolean isOptional, final String prompt) {
@@ -2823,7 +2835,7 @@ index fb82e6d..550846b 100644
          if (isOptional && selected.size() != amount) {
              return null;
          }
-@@ -790,8 +890,16 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -790,8 +893,16 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          if (sourceList.isEmpty()) {
              return CardCollection.EMPTY;
          }
@@ -2842,7 +2854,7 @@ index fb82e6d..550846b 100644
      }
  
      @Override
-@@ -832,7 +940,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -832,7 +943,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          final CardCollection cards = cardOptions(optionList);
          if (cards == null) {
              return rememberSecretPlayerViewer(
@@ -2851,7 +2863,7 @@ index fb82e6d..550846b 100644
          }
          final CardCollection selected = session.awaitCardChoice(
                  "choose_cards_for_effect", me(), cards, 1, 1, sourceName(sa), sourceCardId(sa), title, isOptional);
-@@ -895,7 +1003,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -895,7 +1006,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
              CardLists.sortByCmcDesc(sorted);
              return new CardCollection(sorted.subList(0, Math.max(min, Math.min(cappedMax, 1))));
          }
@@ -2861,7 +2873,7 @@ index fb82e6d..550846b 100644
      }
  
      @Override
-@@ -2514,6 +2623,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2514,6 +2626,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public void notifyOfValue(final SpellAbility saSource, final GameObject realtedTarget, final String value) {
@@ -2872,7 +2884,7 @@ index fb82e6d..550846b 100644
          final String message = MessageUtil.formatNotificationMessage(saSource, player, realtedTarget, value);
          if (saSource != null && saSource.isManaAbility()) {
              game.getGameLog().add(GameLogEntryType.LAND, message);
-@@ -2620,7 +2733,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2620,7 +2736,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      }
  
      private <T extends GameEntity> T chooseSingleEntityGeneric(
@@ -2882,7 +2894,7 @@ index fb82e6d..550846b 100644
          final List<T> opts = new ArrayList<>();
          for (final T option : optionList) {
              opts.add(option);
-@@ -2632,7 +2746,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2632,7 +2749,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          for (final T option : opts) {
              labels.add(option == null ? "?" : option.toString());
          }
@@ -5281,6 +5293,450 @@ index 0000000..26ce99d
 +            created.getPhaseHandler().devModeSet(PhaseType.MAIN1, created.getPlayers().get(0));
 +            created.getPhaseHandler().onStackResolved();
 +            return created;
++        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/ArchenemySchemeSweepTest.java b/forge-harness/src/test/java/forge/harness/host/ArchenemySchemeSweepTest.java
+new file mode 100644
+index 0000000..a62cb8d
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/ArchenemySchemeSweepTest.java
+@@ -0,0 +1,438 @@
++package forge.harness.host;
++
++import com.google.gson.JsonArray;
++import com.google.gson.JsonElement;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.StaticData;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.ability.AbilityUtils;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.io.IOException;
++import java.lang.reflect.Field;
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.nio.file.Paths;
++import java.util.ArrayList;
++import java.util.EnumSet;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++import java.util.TreeMap;
++import java.util.TreeSet;
++import java.util.concurrent.locks.ReentrantLock;
++import java.util.stream.Stream;
++
++public final class ArchenemySchemeSweepTest {
++    private ArchenemySchemeSweepTest() {}
++
++    private static final Path CARDS = Paths.get("forge/forge-gui/res/cardsfolder");
++    private static final List<String> FILLER = List.of("Roots of All Evil", "Look Skyward and Despair");
++    private static final long TIMEOUT_MS = 60_000;
++    private static final int MAX_ANSWERS = 200;
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        final Set<String> only = Set.of(args);
++        final Map<String, Boolean> selfTriggers = schemeScripts();
++        final List<String> schemes = new ArrayList<>(selfTriggers.keySet());
++        final Map<String, String> failures = new TreeMap<>();
++        final Map<String, Set<String>> promptsSeen = new TreeMap<>();
++        int ran = 0;
++        for (final String scheme : schemes) {
++            if (!only.isEmpty() && !only.contains(scheme)) {
++                continue;
++            }
++            ran++;
++            final Set<String> prompts = new TreeSet<>();
++            try {
++                sweep(scheme, selfTriggers.get(scheme), prompts);
++                System.out.println("ok " + scheme + (prompts.isEmpty() ? "" : " prompts " + prompts));
++            } catch (final Throwable failure) {
++                failures.put(scheme, String.valueOf(failure));
++                System.out.println("FAIL " + scheme + ": " + failure);
++            }
++            promptsSeen.put(scheme, prompts);
++        }
++        final Set<String> allPrompts = new TreeSet<>();
++        promptsSeen.values().forEach(allPrompts::addAll);
++        System.out.println("swept " + ran + " of " + schemes.size() + " schemes; prompt types answered " + allPrompts);
++        for (final Map.Entry<String, String> failure : failures.entrySet()) {
++            System.out.println("failed: " + failure.getKey() + ": " + failure.getValue());
++        }
++        System.out.println(failures.isEmpty() ? "PASS ArchenemySchemeSweepTest" : "FAIL ArchenemySchemeSweepTest: " + failures.size() + " failed");
++        System.exit(failures.isEmpty() && ran > 0 ? 0 : 1);
++    }
++
++    static Map<String, Boolean> schemeScripts() throws IOException {
++        final Map<String, Boolean> names = new TreeMap<>();
++        try (Stream<Path> files = Files.walk(CARDS)) {
++            for (final Path file : (Iterable<Path>) files.filter(p -> p.toString().endsWith(".txt"))::iterator) {
++                String name = null;
++                boolean scheme = false;
++                boolean selfTrigger = false;
++                for (final String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
++                    if (line.startsWith("Name:") && name == null) {
++                        name = line.substring(5).trim();
++                    } else if (line.startsWith("Types:")) {
++                        final String types = line.substring(6).trim();
++                        scheme = types.equals("Scheme") || types.equals("Ongoing Scheme");
++                    } else if (line.startsWith("T:Mode$ SetInMotion") && line.contains("ValidCard$ Card.Self")) {
++                        selfTrigger = true;
++                    }
++                }
++                if (scheme && name != null) {
++                    names.put(name, selfTrigger);
++                }
++            }
++        }
++        if (names.size() < 50) {
++            throw new AssertionError("found only " + names.size() + " scheme scripts under " + CARDS);
++        }
++        return names;
++    }
++
++    private static void sweep(final String name, final boolean selfTrigger, final Set<String> prompts) throws Exception {
++        final Fixture f = new Fixture();
++        final Card scheme = add(name, f.white, ZoneType.SchemeDeck);
++        final List<Card> filler = new ArrayList<>();
++        for (final String other : FILLER) {
++            if (!other.equals(name)) {
++                filler.add(add(other, f.white, ZoneType.SchemeDeck));
++            }
++        }
++        final boolean ongoing = scheme.getType().toString().contains("Ongoing");
++        expect(scheme.isScheme(), name + " is not a scheme card");
++        expect(f.white.getCardsIn(ZoneType.SchemeDeck).get(0) == scheme, "the swept scheme is not on top of the scheme deck");
++        f.run(prompts, () -> {
++            f.white.setSchemeInMotion(null);
++            f.settle();
++        });
++        expect(!selfTrigger || f.resolved.contains(name), "its \"when you set this scheme in motion\" ability never resolved; resolved " + f.resolved);
++        if (ongoing) {
++            final Card inCommand = f.inCommand(name);
++            expect(inCommand != null, "the ongoing scheme left the command zone before it was abandoned: scheme deck "
++                    + names(f.white.getCardsIn(ZoneType.SchemeDeck)));
++            f.run(prompts, () -> {
++                final SpellAbility abandon = AbilityFactory.getAbility("DB$ Abandon", inCommand);
++                abandon.setActivatingPlayer(f.white);
++                AbilityUtils.resolve(abandon);
++                f.settle();
++            });
++            expect(f.inCommand(name) == null, "the abandoned scheme is still in the command zone");
++            expect(f.inSchemeDeck(name), "the abandoned scheme is not in the scheme deck: " + names(f.white.getCardsIn(ZoneType.SchemeDeck)));
++        } else {
++            expect(f.inCommand(name) == null, "the non-ongoing scheme stayed in the command zone");
++            final List<Card> deck = new ArrayList<>(f.white.getCardsIn(ZoneType.SchemeDeck));
++            final int at = indexOf(deck, name);
++            expect(at >= 0, "the non-ongoing scheme did not go back to the scheme deck: " + names(deck));
++            for (int i = at + 1; i < deck.size(); i++) {
++                expect(!filler.contains(deck.get(i)), "the non-ongoing scheme is not on the bottom: " + names(deck));
++            }
++        }
++    }
++
++    private static int indexOf(final List<Card> cards, final String name) {
++        for (int i = 0; i < cards.size(); i++) {
++            if (cards.get(i).getName().equals(name)) {
++                return i;
++            }
++        }
++        return -1;
++    }
++
++    private static List<String> names(final Iterable<Card> cards) {
++        final List<String> out = new ArrayList<>();
++        for (final Card card : cards) {
++            out.add(card.getName());
++        }
++        return out;
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = StaticData.instance().fetchCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = StaticData.instance().fetchCard(name);
++        }
++        if (paper == null) {
++            throw new AssertionError("no card " + name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    static JsonObject answer(final JsonObject prompt) {
++        final JsonObject input = prompt.getAsJsonObject("input");
++        final String type = input.get("type").getAsString();
++        final JsonObject out = new JsonObject();
++        switch (type) {
++            case "chooseAction" -> out.addProperty("type", "pass");
++            case "payManaCost" -> out.addProperty("type", "cancel");
++            case "chooseBoardTargets" -> {
++                final JsonArray candidates = input.getAsJsonArray("candidates");
++                final int k = Math.min(Math.min(input.get("maxTargets").getAsInt(), Math.max(input.get("minTargets").getAsInt(), 1)), candidates.size());
++                if (k == 0 && input.has("cancellable") && input.get("cancellable").getAsBoolean()) {
++                    out.addProperty("type", "cancel");
++                } else {
++                    out.addProperty("type", "boardTargets");
++                    final JsonArray chosen = new JsonArray();
++                    for (int i = 0; i < k; i++) {
++                        final JsonObject c = candidates.get(i).getAsJsonObject();
++                        final JsonObject ref = new JsonObject();
++                        ref.add("kind", c.get("kind"));
++                        ref.add("id", c.get("id"));
++                        chosen.add(ref);
++                    }
++                    out.add("chosen", chosen);
++                }
++            }
++            case "chooseBoolean" -> {
++                out.addProperty("type", "decision");
++                out.addProperty("value", true);
++            }
++            case "chooseCards" -> {
++                out.addProperty("type", "chooseCardsDecision");
++                final JsonArray ids = new JsonArray();
++                final JsonArray cards = input.getAsJsonArray("cards");
++                for (int i = 0; i < Math.min(input.get("min").getAsInt(), cards.size()); i++) {
++                    ids.add(cards.get(i).getAsJsonObject().get("id"));
++                }
++                out.add("chosenCardIds", ids);
++            }
++            case "chooseNumber" -> {
++                out.addProperty("type", "numberDecision");
++                out.add("chosenNumber", input.get("min"));
++            }
++            case "chooseFromSelection" -> {
++                out.addProperty("type", "selectionDecision");
++                final int k = Math.min(Math.min(Math.max(input.get("minTotal").getAsInt(), 1), input.get("maxTotal").getAsInt()),
++                        input.getAsJsonArray("options").size());
++                final JsonArray indices = new JsonArray();
++                for (int i = 0; i < k; i++) {
++                    indices.add(i);
++                }
++                out.add("chosenIndices", indices);
++            }
++            case "chooseAttackers" -> {
++                out.addProperty("type", "declareAttackers");
++                out.add("assignments", new JsonArray());
++            }
++            case "chooseBlockers" -> {
++                out.addProperty("type", "declareBlockers");
++                out.add("assignments", new JsonArray());
++            }
++            case "chooseDamageAssignmentOrder" -> {
++                out.addProperty("type", "damageAssignmentOrderDecision");
++                out.add("orderedBlockerIds", input.get("blockerIds"));
++            }
++            case "chooseCombatDamageAssignment" -> {
++                out.addProperty("type", "combatDamageAssignmentDecision");
++                final JsonArray blockers = input.getAsJsonArray("blockerIds");
++                final JsonObject a = new JsonObject();
++                a.add("assigneeId", blockers.isEmpty() ? input.get("defenderId") : blockers.get(0));
++                a.add("damage", input.get("totalDamage"));
++                final JsonArray assignments = new JsonArray();
++                assignments.add(a);
++                out.add("assignments", assignments);
++            }
++            case "reorder" -> {
++                out.addProperty("type", "reorderDecision");
++                final JsonArray ids = new JsonArray();
++                for (final JsonElement item : input.getAsJsonArray("items")) {
++                    ids.add(item.getAsJsonObject().get("id"));
++                }
++                out.add("orderedIds", ids);
++            }
++            case "scry" -> {
++                out.addProperty("type", "scryDecision");
++                final JsonArray zones = input.getAsJsonArray("zones");
++                int top = 0;
++                for (int i = 0; i < zones.size(); i++) {
++                    if (zones.get(i).getAsString().equals("libraryTop")) {
++                        top = i;
++                    }
++                }
++                final JsonArray zoneIds = new JsonArray();
++                for (int i = 0; i < zones.size(); i++) {
++                    final JsonArray ids = new JsonArray();
++                    if (i == top) {
++                        for (final JsonElement c : input.getAsJsonArray("cards")) {
++                            ids.add(c.getAsJsonObject().get("id"));
++                        }
++                    }
++                    zoneIds.add(ids);
++                }
++                out.add("zoneCardIds", zoneIds);
++            }
++            case "chooseColor" -> {
++                out.addProperty("type", "colorDecision");
++                final JsonObject colors = new JsonObject();
++                colors.add(input.getAsJsonArray("validColors").get(0).getAsString(), input.get("amount"));
++                out.add("chosenColors", colors);
++            }
++            case "revealCards" -> out.addProperty("type", "revealCardsAcknowledged");
++            case "diceRolled" -> out.addProperty("type", "diceRolledAcknowledged");
++            default -> throw new AssertionError("unhandled prompt type " + type + ": " + prompt);
++        }
++        final JsonObject action = new JsonObject();
++        action.addProperty("type", type);
++        action.add("output", out);
++        return action;
++    }
++
++    private interface Step {
++        void run();
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("archenemy-sweep");
++        final Game game;
++        final Player white;
++        final Player blue;
++        final ReentrantLock lock;
++        final Set<String> resolved = new TreeSet<>();
++
++        Fixture() throws Exception {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new ManaBrewInteractiveLobbyPlayer("White", session)));
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new ManaBrewInteractiveLobbyPlayer("Blue", session)));
++            players.get(0).setTeamNumber(Archenemy.ARCHENEMY_TEAM);
++            players.get(1).setTeamNumber(Archenemy.OPPONENTS_TEAM);
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setAppliedVariants(EnumSet.of(GameType.Constructed, GameType.Archenemy));
++            game = new Game(players, rules, new Match(rules, players, "ArchenemySchemeSweepTest"));
++            game.setAge(GameStage.Play);
++            white = game.getPlayers().get(0);
++            blue = game.getPlayers().get(1);
++            for (final Player p : game.getPlayers()) {
++                for (final String card : List.of("Grizzly Bears", "Serra Angel", "Ornithopter", "Plains", "Island", "Swamp", "Mountain", "Forest", "Glorious Anthem")) {
++                    final Card c = add(card, p, ZoneType.Battlefield);
++                    c.setSickness(false);
++                }
++                for (final String card : List.of("Lightning Bolt", "Grizzly Bears", "Island")) {
++                    add(card, p, ZoneType.Hand);
++                }
++                for (final String card : List.of("Llanowar Elves", "Divination")) {
++                    add(card, p, ZoneType.Graveyard);
++                }
++                for (int i = 0; i < 10; i++) {
++                    add(i % 2 == 0 ? "Grizzly Bears" : "Forest", p, ZoneType.Library);
++                }
++            }
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, white, 1);
++            game.getPhaseHandler().onStackResolved();
++            session.attach(game.getMatch(), game, Set.of(), false);
++            final Field field = ManaBrewInteractiveSession.class.getDeclaredField("gameLock");
++            field.setAccessible(true);
++            lock = (ReentrantLock) field.get(session);
++            game.getAction().checkStaticAbilities();
++        }
++
++        Card inCommand(final String name) {
++            for (final Card c : white.getCardsIn(ZoneType.Command)) {
++                if (c.getName().equals(name)) {
++                    return c;
++                }
++            }
++            return null;
++        }
++
++        boolean inSchemeDeck(final String name) {
++            return white.getCardsIn(ZoneType.SchemeDeck).stream().anyMatch(c -> c.getName().equals(name));
++        }
++
++        void settle() {
++            for (int i = 0; i < 40; i++) {
++                game.getAction().checkStateEffects(true);
++                game.getStack().addAllTriggeredAbilitiesToStack();
++                if (game.getStack().isEmpty() || game.isGameOver()) {
++                    game.getAction().checkStateEffects(true);
++                    return;
++                }
++                final SpellAbility top = game.getStack().peekAbility();
++                if (top != null && top.getHostCard() != null) {
++                    resolved.add(top.getHostCard().getName());
++                }
++                game.getStack().resolveStack();
++            }
++            throw new AssertionError("the stack never emptied");
++        }
++
++        void run(final Set<String> prompts, final Step step) throws Exception {
++            final Throwable[] failure = new Throwable[1];
++            final Thread worker = new Thread(() -> {
++                lock.lock();
++                try {
++                    step.run();
++                } catch (final Throwable thrown) {
++                    failure[0] = thrown;
++                } finally {
++                    lock.unlock();
++                }
++            }, "scheme-sweep");
++            worker.setDaemon(true);
++            worker.start();
++            final long deadline = System.currentTimeMillis() + TIMEOUT_MS;
++            long answered = 0;
++            int answers = 0;
++            while (worker.isAlive()) {
++                if (System.currentTimeMillis() > deadline) {
++                    session.close();
++                    throw new AssertionError("stuck after " + answers + " answers; last prompt " + session.getLatestPromptJson());
++                }
++                final String json = session.getLatestPromptJson();
++                if (json != null) {
++                    final JsonObject prompt = JsonParser.parseString(json).getAsJsonObject();
++                    final long id = prompt.get("promptId").getAsLong();
++                    if (id > answered) {
++                        answered = id;
++                        if (++answers > MAX_ANSWERS) {
++                            session.close();
++                            throw new AssertionError("asked more than " + MAX_ANSWERS + " prompts; last " + json);
++                        }
++                        final String type = prompt.getAsJsonObject("input").get("type").getAsString();
++                        final String who = prompt.has("decidingPlayerId") ? prompt.get("decidingPlayerId").getAsString() : "?";
++                        prompts.add(type + "@" + (who.equals("player-0") ? "archenemy" : who.equals("player-1") ? "opponent" : who));
++                        session.submitAction(answer(prompt).toString());
++                    }
++                }
++                Thread.sleep(5);
++            }
++            if (failure[0] != null) {
++                throw new AssertionError("threw " + failure[0], failure[0]);
++            }
 +        }
 +    }
 +}
