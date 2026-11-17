@@ -80,7 +80,7 @@ const SETS = {
     ["an ability resolving doesn't check", "forge", G + "ability/AbilityUtils.java", "        final Game game = pl.getGame();\n        game.checkLoopWatchdog();\n", "        final Game game = pl.getGame();\n", "BigTurnsTest", "anAbilityResolvingChecksTheWatchdog"],
     ["a replacement run doesn't check", "forge", G + "replacement/ReplacementHandler.java", "        game.checkLoopWatchdog();\n        final Object affected", "        final Object affected", "BigTurnsTest", "aReplacementRunChecksTheWatchdog"],
     ["a resolution starting is no progress", "forge", G + "zone/MagicStack.java", "    public final void resolveStack() {\n        game.noteLoopProgress();", "    public final void resolveStack() {", "BigTurnsTest", "aResolutionStartingIsProgress"],
-    ["an unanswered stuck loop keeps going", "mb", H + "ManaBrewInteractiveSession.java", "        if (LOOP_QUESTION.equals(what)) {\n            g.setDrawReason(\"stuckLoop\");\n            return false;", "        if (false) {", "BigTurnsTest", "aStuckLoopNobodyAnswersIsADraw"],
+    ["an unanswered stuck loop keeps going", "mb", H + "ManaBrewInteractiveSession.java", "        if (Game.STUCK_LOOP.equals(what)) {\n            g.setDrawReason(\"stuckLoop\");\n            return false;", "        if (false) {", "BigTurnsTest", "aStuckLoopNobodyAnswersIsADraw"],
     ["an answered action is no progress", "mb", H + "ManaBrewInteractiveSession.java", "            game.noteLoopProgress();\n            final String kind", "            final String kind", "BigTurnsTest", "anAnsweredActionIsProgress"],
   ],
 };

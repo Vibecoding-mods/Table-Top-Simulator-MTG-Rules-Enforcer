@@ -1412,7 +1412,7 @@ end
 -- stack of 20 draws a stack of 19 and a card of 1, two objects, never the 20 a split lays out.
 ENGINE_GROUP_MIN = 5
 -- the badge of a stack of infinitely many tokens (inf), and the engine's cap on one pile (Game.UNBOUNDED_TOKENS); the
--- infinity sign is in Arial and Liberation Sans, the fonts TTS draws button labels with ("xINF" if it ever shows a box)
+-- infinity sign is not yet seen on real TTS: "xINF" is the fallback if its button font draws a box
 ENGINE_INF_BADGE = "x∞"
 ENGINE_TOKEN_CAP = 500
 engineGroupOf = {} -- engine card id -> representative id while it is drawn as part of a group
