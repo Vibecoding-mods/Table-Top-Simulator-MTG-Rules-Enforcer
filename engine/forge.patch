@@ -3459,6 +3459,64 @@ index 66837611..360e66ad 100644
                      return false;
                  }
              }
+diff --git a/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java b/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java
+index 4d9877fb..4afbdb84 100644
+--- a/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java
++++ b/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java
+@@ -99,6 +99,7 @@ public class ReplacementHandler {
+         }
+ 
+         final List<ReplacementEffect> possibleReplacers = Lists.newArrayList();
++        final LastStateIndex lastStates = new LastStateIndex(runParams);
+ 
+         // Round up Static replacement effects
+         game.forEachCardInGame(crd -> {
+@@ -122,7 +123,8 @@ public class ReplacementHandler {
+             // only when not prelist
+             boolean noLKIstate = c != crd || event != ReplacementType.Moved || c.isImmutable() || runParams.get(AbilityKey.LastStateBattlefield) == null;
+             if (!noLKIstate) {
+-                Card lastState = ((CardCollectionView) runParams.get(AbilityKey.LastStateBattlefield)).get(c);
++                Card lastState = useLastStateIndex ? lastStates.get(c)
++                        : ((CardCollectionView) runParams.get(AbilityKey.LastStateBattlefield)).get(c);
+                 if (lastState != c) {
+                     // use LKI because it has the right RE from the state before the effect started
+                     c = lastState;
+@@ -172,6 +174,35 @@ public class ReplacementHandler {
+         return possibleReplacers;
+     }
+ 
++    // LastStateBattlefield.get(c) is a linear search, run once per card of the game per replacement check, which made
++    // a board of many tokens cubic. The same answer from a hash lookup, rebuilt if the collection is replaced or resized.
++    // false: the old linear search, for tests that compare the two
++    public static volatile boolean useLastStateIndex = true;
++
++    private static final class LastStateIndex {
++        private final Map<AbilityKey, Object> runParams;
++        private CardCollectionView indexed;
++        private int indexedSize;
++        private Map<Card, Card> firstEqual;
++
++        LastStateIndex(final Map<AbilityKey, Object> runParams) {
++            this.runParams = runParams;
++        }
++
++        Card get(final Card c) {
++            final CardCollectionView states = (CardCollectionView) runParams.get(AbilityKey.LastStateBattlefield);
++            if (states != indexed || states.size() != indexedSize) {
++                indexed = states;
++                indexedSize = states.size();
++                firstEqual = new HashMap<>();
++                for (final Card state : states) {
++                    firstEqual.putIfAbsent(state, state);
++                }
++            }
++            return firstEqual.getOrDefault(c, c);
++        }
++    }
++
+     public boolean cantHappenCheck(final ReplacementType event, final Map<AbilityKey, Object> runParams) {
+         return !getReplacementList(event, runParams, ReplacementLayer.CantHappen).isEmpty();
+     }
 diff --git a/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java b/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java
 index 42c36fb2..5f35f204 100644
 --- a/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java
