@@ -1965,14 +1965,15 @@ function enginePlayerCounters(o, pl)
 end
 -- The extra turns a player has coming (the bridge's extraTurns, Forge's extra turn count, the ones still to come: it
 -- drops as each begins) as a label beside the life counter, counted from 1: one is "EXTRA TURN", two "EXTRA TURN 2x",
--- n "EXTRA TURN nx" (2026-11-12, the user; it was a lone number, the count + 1, so one extra turn read "2", live check
+-- n "EXTRA TURN nx" up to 99, then "EXTRA TURNS 99+" (stress catalog #21: "EXTRA TURN 1000x" overran x -2 at font 120)
+-- (2026-11-12, the user; it was a lone number, the count + 1, so one extra turn read "2", live check
 -- batch 1 item 4; docs/extra-turn-counter-spec.md); none at 0 or with no count (an engine from before it). Across the
 -- counter's top-left lobe, the side away from its [R]: centred at local z -1.45, its right edge at x 0.55 (the [R] from
 -- 0.61) and growing to the left, at most to -2 (a commander-damage icon from -2.13 on two seats), at the largest of
 -- `fonts` it fits in (engineMarksWidth, as the marks boxes); at its largest, 175 for one extra turn, 222 high, its box (z -1.68..-1.22) stays
 -- clear of the life number's button (to -1.08) and the -20 under it (from -0.95), checked in
 -- tests/test_table_claims.js "extra-turn badge fit". The hover text names the count, "AI 1 has 2 extra turns coming",
--- and finds the button again (engineExtraTurnTip)
+-- with the real count past 99 too, and finds the button again (engineExtraTurnTip)
 function engineExtraTurnTip(t)
   return type(t) == "string" and t:sub(-7) == " coming" and t:find(" extra turn", 1, true) ~= nil
 end
@@ -1985,7 +1986,7 @@ function engineExtraTurnBadge(o, pl)
     if at ~= nil then o.removeButton(at) end
     return
   end
-  local label = n == 1 and "EXTRA TURN" or ("EXTRA TURN " .. tostring(n) .. "x")
+  local label = n == 1 and "EXTRA TURN" or (n > 99 and "EXTRA TURNS 99+" or ("EXTRA TURN " .. tostring(n) .. "x"))
   local tip = tostring(pl.name or pl.color) .. " has " .. tostring(n) .. (n == 1 and " extra turn" or " extra turns") .. " coming"
   if now ~= nil and now.label == label and now.tooltip == tip then return end
   local right, left, fonts = 0.55, -2, { 175, 150, 135, 120 }
