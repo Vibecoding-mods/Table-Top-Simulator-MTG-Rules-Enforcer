@@ -845,6 +845,169 @@ index 0000000..e70b67a
 +        }
 +    }
 +}
+diff --git a/forge-harness/src/main/java/forge/harness/host/CombatStatics.java b/forge-harness/src/main/java/forge/harness/host/CombatStatics.java
+new file mode 100644
+index 0000000..7fc7e50
+--- /dev/null
++++ b/forge-harness/src/main/java/forge/harness/host/CombatStatics.java
+@@ -0,0 +1,157 @@
++package forge.harness.host;
++
++import forge.game.Game;
++import forge.game.GameEntity;
++import forge.game.ability.AbilityUtils;
++import forge.game.card.Card;
++import forge.game.combat.CombatUtil;
++import forge.game.keyword.Keyword;
++import forge.game.phase.PhaseHandler;
++import forge.game.player.Player;
++import forge.game.staticability.StaticAbility;
++import forge.game.staticability.StaticAbilityCantAttackBlock;
++import forge.game.staticability.StaticAbilityMode;
++import forge.game.zone.ZoneType;
++
++import java.util.ArrayList;
++import java.util.List;
++
++final class CombatStatics {
++    private final Game game;
++    private final List<StaticAbility> cantAttack = new ArrayList<>();
++    private final List<StaticAbility> canAttackDefender = new ArrayList<>();
++    private final List<StaticAbility> cantBlock = new ArrayList<>();
++    private final List<StaticAbility> mustAttack = new ArrayList<>();
++
++    private CombatStatics(final Game game) {
++        this.game = game;
++    }
++
++    static CombatStatics of(final Game game) {
++        final CombatStatics out = new CombatStatics(game);
++        for (final Card source : game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
++            for (final StaticAbility stAb : source.getStaticAbilities()) {
++                final boolean attack = stAb.checkMode(StaticAbilityMode.CantAttack);
++                final boolean defender = stAb.checkMode(StaticAbilityMode.CanAttackDefender);
++                final boolean block = stAb.checkMode(StaticAbilityMode.CantBlock);
++                final boolean must = stAb.checkMode(StaticAbilityMode.MustAttack);
++                if (!(attack || defender || block || must) || !stAb.checkConditions()) {
++                    continue;
++                }
++                if (attack) {
++                    out.cantAttack.add(stAb);
++                }
++                if (defender) {
++                    out.canAttackDefender.add(stAb);
++                }
++                if (block) {
++                    out.cantBlock.add(stAb);
++                }
++                if (must) {
++                    out.mustAttack.add(stAb);
++                }
++            }
++        }
++        return out;
++    }
++
++    Game game() {
++        return game;
++    }
++
++    boolean canBlockNextTurn(final Card blocker) {
++        if (blocker == null || !blocker.isCreature() || blocker.isBattle()) {
++            return false;
++        }
++        if (blocker.hasKeyword("CARDNAME can't block.") || blocker.hasKeyword("CARDNAME can't attack or block.")) {
++            return false;
++        }
++        if (cantBlock(blocker)) {
++            return false;
++        }
++        if (blocker.hasKeyword("CARDNAME can't attack or block alone.") || blocker.hasKeyword("CARDNAME can't block alone.")) {
++            return CombatUtil.canBlock(blocker, true);
++        }
++        return true;
++    }
++
++    private boolean cantBlock(final Card blocker) {
++        if (blocker.isDetained()) {
++            return true;
++        }
++        for (final StaticAbility stAb : cantBlock) {
++            if (StaticAbilityCantAttackBlock.applyCantBlockAbility(stAb, blocker)) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    boolean canAttackNextTurn(final Card attacker, final GameEntity defender) {
++        if (attacker.isBattle()) {
++            return false;
++        }
++        if (attacker.isGoaded()) {
++            return CombatUtil.canAttackNextTurn(attacker, defender);
++        }
++        return !cantAttack(attacker, defender);
++    }
++
++    private boolean cantAttack(final Card attacker, final GameEntity defender) {
++        if (attacker.hasKeyword("CARDNAME can't attack.") || attacker.hasKeyword("CARDNAME can't attack or block.")) {
++            return true;
++        }
++        if (attacker.isDetained()) {
++            return true;
++        }
++        for (final StaticAbility stAb : cantAttack) {
++            if (cantAttackApplies(stAb, attacker, defender)) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    private boolean cantAttackApplies(final StaticAbility stAb, final Card card, final GameEntity target) {
++        if (!stAb.isKeyword(Keyword.DEFENDER)
++                || stAb.hasParam("DefenderNotNearestToYouInChosenDirection") || stAb.hasParam("UnlessDefender")) {
++            return StaticAbilityCantAttackBlock.applyCantAttackAbility(stAb, card, target);
++        }
++        if (!stAb.matchesValidParam("ValidCard", card) || stAb.getIgnoreEffectCards().contains(card)
++                || !stAb.matchesValidParam("Target", target)) {
++            return false;
++        }
++        return !canAttackDefender(card, target);
++    }
++
++    private boolean canAttackDefender(final Card card, final GameEntity target) {
++        for (final StaticAbility stAb : canAttackDefender) {
++            if (StaticAbilityCantAttackBlock.applyCanAttackDefenderAbility(stAb, card, target)) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    boolean mustAttack(final Card attacker) {
++        final PhaseHandler phases = game.getPhaseHandler();
++        for (final StaticAbility stAb : mustAttack) {
++            if (!stAb.matchesValidParam("ValidCreature", attacker)) {
++                continue;
++            }
++            if (!stAb.hasParam("MustAttack")) {
++                return true;
++            }
++            for (final GameEntity e : AbilityUtils.getDefinedEntities(stAb.getHostCard(), stAb.getParam("MustAttack"), stAb)) {
++                if (e instanceof Player attackPl && phases.isPlayerTurn(attackPl)) {
++                    continue;
++                }
++                if (e instanceof Card attackPw && phases.isPlayerTurn(attackPw.getController())) {
++                    continue;
++                }
++                return true;
++            }
++        }
++        return false;
++    }
++}
 diff --git a/forge-harness/src/main/java/forge/harness/host/DungeonView.java b/forge-harness/src/main/java/forge/harness/host/DungeonView.java
 new file mode 100644
 index 0000000..3fa96b5
@@ -1677,10 +1840,10 @@ index 0000000..9d713d1
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..9793ba2 100644
+index 713e1ef..4dbb01c 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-@@ -26,27 +26,40 @@ import forge.card.MagicColor;
+@@ -26,27 +26,39 @@ import forge.card.MagicColor;
  import forge.card.mana.ManaAtom;
  import forge.game.Game;
  import forge.game.GameEntity;
@@ -1705,7 +1868,6 @@ index 713e1ef..9793ba2 100644
  import forge.game.spellability.SpellAbility;
  import forge.game.spellability.SpellAbilityStackInstance;
  import forge.game.spellability.TargetChoices;
-+import forge.game.staticability.StaticAbilityMustAttack;
  import forge.game.trigger.Trigger;
 +import forge.game.zone.Zone;
  import forge.game.zone.ZoneType;
@@ -1721,14 +1883,28 @@ index 713e1ef..9793ba2 100644
  import java.util.LinkedHashMap;
  import java.util.List;
  import java.util.Map;
-@@ -96,7 +109,38 @@ public final class InteractiveSnapshotExtractor {
+@@ -96,7 +108,52 @@ public final class InteractiveSnapshotExtractor {
  
      }
  
 +    static final class SnapshotRound {
 +        private final Map<Player, FCollectionView<GameEntity>> defenders = new HashMap<>();
 +        private final Map<Card, CombatFlags> flags = new IdentityHashMap<>();
++        private CombatStatics statics;
 +        private int computed;
++        private int staticScans;
++
++        int staticScans() {
++            return staticScans;
++        }
++
++        private CombatStatics statics(final Game game) {
++            if (statics == null || statics.game() != game) {
++                staticScans++;
++                statics = CombatStatics.of(game);
++            }
++            return statics;
++        }
 +
 +        int computedFlags() {
 +            return computed;
@@ -1760,7 +1936,7 @@ index 713e1ef..9793ba2 100644
  
      public static String snapshotJson(
              final Game game,
-@@ -106,18 +150,80 @@ public final class InteractiveSnapshotExtractor {
+@@ -106,18 +163,80 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
@@ -1843,7 +2019,7 @@ index 713e1ef..9793ba2 100644
      private static Map<String, Object> buildGameView(
              final Game game,
              final SpellAbility castingAbility,
-@@ -126,7 +232,9 @@ public final class InteractiveSnapshotExtractor {
+@@ -126,7 +245,9 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
@@ -1854,7 +2030,7 @@ index 713e1ef..9793ba2 100644
      ) {
          final Map<String, Object> base = SnapshotExtractor.extractSnapshot(game);
  
-@@ -139,12 +247,12 @@ public final class InteractiveSnapshotExtractor {
+@@ -139,12 +260,12 @@ public final class InteractiveSnapshotExtractor {
              players.add(toPlayer(game, player, index, viewer));
              zones.add(zoneWithVisibility("hand", ownerId, game,
                      player.getCardsIn(ZoneType.Hand), index, true, viewerPlayer, false,
@@ -1869,7 +2045,7 @@ index 713e1ef..9793ba2 100644
              final List<Card> commandZone = new ArrayList<>();
              for (final Card card : player.getCardsIn(ZoneType.Command)) {
                  if (!card.isImmutable()) {
-@@ -171,7 +279,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -171,7 +292,7 @@ public final class InteractiveSnapshotExtractor {
          final Map<String, List<JsonObject>> battlefieldByController = new LinkedHashMap<>();
          for (final Player player : game.getRegisteredPlayers()) {
              final int ownerIndex = SnapshotExtractor.playerIndex(game, player);
@@ -1878,7 +2054,7 @@ index 713e1ef..9793ba2 100644
                  final String controllerId =
                          "player-" + SnapshotExtractor.playerIndex(game, card.getController());
                  final CardDto dto = toCard(
-@@ -224,13 +332,33 @@ public final class InteractiveSnapshotExtractor {
+@@ -224,13 +345,33 @@ public final class InteractiveSnapshotExtractor {
          view.put("dayTime", dayTime(game));
          view.put("checkpoints", checkpoints);
          view.put("snapshotRecording", snapshotRecording);
@@ -1912,7 +2088,7 @@ index 713e1ef..9793ba2 100644
          final Object winner = base.get("winner");
          if (winner != null) {
              view.put("winnerId", "player-" + winner);
-@@ -285,7 +413,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -285,7 +426,7 @@ public final class InteractiveSnapshotExtractor {
          out.put("cardsDrawnThisTurn", player.getNumDrawnThisTurn());
          out.put("damagePrevention", player.getPreventNextDamageTotalShields());
          out.put("isExtraTurn", player.isExtraTurn());
@@ -1921,7 +2097,7 @@ index 713e1ef..9793ba2 100644
          final Player controller = player.getControllingPlayer();
          if (controller != null && controller != player) {
              out.put("controlledBy", "player-" + SnapshotExtractor.playerIndex(game, controller));
-@@ -299,18 +427,34 @@ public final class InteractiveSnapshotExtractor {
+@@ -299,18 +440,34 @@ public final class InteractiveSnapshotExtractor {
          out.put("ringLevel", player.getNumRingTemptedYou());
          out.put("speed", player.getSpeed());
          out.put("hasEnduringStory", player.hasEnduringStory());
@@ -1957,7 +2133,7 @@ index 713e1ef..9793ba2 100644
          return out;
      }
  
-@@ -325,19 +469,6 @@ public final class InteractiveSnapshotExtractor {
+@@ -325,19 +482,6 @@ public final class InteractiveSnapshotExtractor {
          return names;
      }
  
@@ -1977,7 +2153,7 @@ index 713e1ef..9793ba2 100644
      private static List<String> activeSchemeNames(final Player player) {
          final List<String> names = new ArrayList<>();
          for (final Card card : player.getCardsIn(ZoneType.Command)) {
-@@ -348,6 +479,26 @@ public final class InteractiveSnapshotExtractor {
+@@ -348,6 +492,26 @@ public final class InteractiveSnapshotExtractor {
          return names;
      }
  
@@ -2004,7 +2180,7 @@ index 713e1ef..9793ba2 100644
      private static Integer teamNumber(final Game game, final Player player) {
          for (final Player other : game.getRegisteredPlayers()) {
              if (other != player && other.getTeam() == player.getTeam()) {
-@@ -367,7 +518,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -367,7 +531,7 @@ public final class InteractiveSnapshotExtractor {
          return counters;
      }
  
@@ -2013,7 +2189,7 @@ index 713e1ef..9793ba2 100644
          if (value > 0) {
              map.put(key, value);
          }
-@@ -444,13 +595,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -444,13 +608,14 @@ public final class InteractiveSnapshotExtractor {
              final boolean castable,
              final Player viewerPlayer,
              final boolean keepHiddenEntries,
@@ -2030,7 +2206,7 @@ index 713e1ef..9793ba2 100644
                  views.add(visibleCard(toCard(
                          game, card, ownerIndex, castable, viewerPlayer, secretChoiceVisibility)));
              } else if (keepHiddenEntries) {
-@@ -499,6 +651,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -499,6 +664,7 @@ public final class InteractiveSnapshotExtractor {
          dto.effectiveManaCost = null;
          dto.commanderTax = null;
          dto.madnessCost = null;
@@ -2038,7 +2214,7 @@ index 713e1ef..9793ba2 100644
      }
  
      private static Player playerForIndex(final Game game, final int viewer) {
-@@ -685,6 +838,22 @@ public final class InteractiveSnapshotExtractor {
+@@ -685,6 +851,22 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -2061,7 +2237,7 @@ index 713e1ef..9793ba2 100644
      private static CardDto toCard(
              final Game game,
              final Card card,
-@@ -714,6 +883,11 @@ public final class InteractiveSnapshotExtractor {
+@@ -714,6 +896,11 @@ public final class InteractiveSnapshotExtractor {
              dto.toughness = String.valueOf(card.getNetToughness());
              dto.basePower = card.getBasePower();
              dto.baseToughness = card.getBaseToughness();
@@ -2073,7 +2249,7 @@ index 713e1ef..9793ba2 100644
          }
          if (card.isInPlay()) {
              if (card.getType().hasSubtype("Saga") && card.hasChapter()) {
-@@ -746,17 +920,47 @@ public final class InteractiveSnapshotExtractor {
+@@ -746,17 +933,47 @@ public final class InteractiveSnapshotExtractor {
          dto.isFaceDown = card.isFaceDown();
          dto.isBestowed = card.isBestowed();
          dto.phasedOut = card.isPhasedOut();
@@ -2122,7 +2298,7 @@ index 713e1ef..9793ba2 100644
          }
          final List<String> attachmentIds = new ArrayList<>();
          for (final Card attachment : card.getAttachedCards()) {
-@@ -802,6 +1006,70 @@ public final class InteractiveSnapshotExtractor {
+@@ -802,6 +1019,72 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -2169,21 +2345,23 @@ index 713e1ef..9793ba2 100644
 +
 +    private static CombatFlags combatFlags(final Card card, final SnapshotRound round) {
 +        try {
++            final CombatStatics statics = round.statics(card.getGame());
 +            return new CombatFlags(
-+                    !CombatUtil.canBlock(card, true),
-+                    cantAttackAnyDefender(card, round.defenders(card.getController())),
-+                    !StaticAbilityMustAttack.entitiesMustAttack(card).isEmpty());
++                    !statics.canBlockNextTurn(card),
++                    cantAttackAnyDefender(card, round.defenders(card.getController()), statics),
++                    statics.mustAttack(card));
 +        } catch (final RuntimeException ignored) {
 +            return CombatFlags.NONE;
 +        }
 +    }
 +
-+    private static boolean cantAttackAnyDefender(final Card card, final FCollectionView<GameEntity> defenders) {
++    private static boolean cantAttackAnyDefender(
++            final Card card, final FCollectionView<GameEntity> defenders, final CombatStatics statics) {
 +        if (defenders.isEmpty()) {
 +            return false;
 +        }
 +        for (final GameEntity defender : defenders) {
-+            if (CombatUtil.canAttackNextTurn(card, defender)) {
++            if (statics.canAttackNextTurn(card, defender)) {
 +                return false;
 +            }
 +        }
@@ -2193,7 +2371,7 @@ index 713e1ef..9793ba2 100644
      private static String normalizedOracle(final Card card) {
          return card.getOracleText().replace("\\n", "\n");
      }
-@@ -1078,12 +1346,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -1078,12 +1361,14 @@ public final class InteractiveSnapshotExtractor {
              stackItem.put("identity", stackIdentity(name, source));
              stackItem.put("text", item.getStackDescription());
              putIfNotBlank(stackItem, "sourceAbilityText", sourceAbilityText(sa));
@@ -2208,7 +2386,7 @@ index 713e1ef..9793ba2 100644
              out.add(stackItem);
              index++;
          }
-@@ -1131,6 +1401,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -1131,6 +1416,7 @@ public final class InteractiveSnapshotExtractor {
          stackItem.put("isDoubleFaced", source.isDoubleFaced() || source.isModal());
          stackItem.put("faceIndex", stackFaceIndex(source, castingAbility));
          stackItem.put("targets", stackTargets(game, castingAbility));
@@ -2216,7 +2394,7 @@ index 713e1ef..9793ba2 100644
          return stackItem;
      }
  
-@@ -1163,6 +1434,25 @@ public final class InteractiveSnapshotExtractor {
+@@ -1163,6 +1449,25 @@ public final class InteractiveSnapshotExtractor {
          }
      }
  
@@ -16040,6 +16218,412 @@ index 0000000..89f73da
 +            }
 +            session.attach(game.getMatch(), game, Set.of(), false);
 +        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/SnapshotSpeedTest.java b/forge-harness/src/test/java/forge/harness/host/SnapshotSpeedTest.java
+new file mode 100644
+index 0000000..12aacb7
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/SnapshotSpeedTest.java
+@@ -0,0 +1,400 @@
++package forge.harness.host;
++
++import com.google.gson.JsonElement;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.StaticData;
++import forge.card.GamePieceType;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameEntity;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.combat.CombatUtil;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.staticability.StaticAbilityMustAttack;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++import forge.util.collect.FCollectionView;
++
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++
++public final class SnapshotSpeedTest {
++    private SnapshotSpeedTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        CHECKS.put("same flags: a mixed board, each viewer and each player's turn", SnapshotSpeedTest::mixedBoardSameFlags);
++        CHECKS.put("same flags: Peacekeeper stops every attack", SnapshotSpeedTest::peacekeeperSameFlags);
++        CHECKS.put("same flags: defenders without and with Rolling Stones", SnapshotSpeedTest::defendersSameFlags);
++        CHECKS.put("same flags: Ensnaring Bridge as the hand changes", SnapshotSpeedTest::ensnaringBridgeFollowsTheHand);
++        CHECKS.put("same flags: a goaded creature", SnapshotSpeedTest::goadedSameFlags);
++        CHECKS.put("same flags: can't block alone, alone and with a partner", SnapshotSpeedTest::cantBlockAloneSameFlags);
++        CHECKS.put("scan: one static scan for a round of 1,000 creatures", SnapshotSpeedTest::oneScanPerRound);
++        CHECKS.put("timing: 1,000 tokens' flags at least 3x faster than Forge's per-creature scans", SnapshotSpeedTest::thousandTokensTiming);
++        CHECKS.put("timing: 3,000 tokens' flags take under 7x the time of 1,000 (linear, not quadratic)", SnapshotSpeedTest::flagsGrowLinearly);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            check(e.getKey(), e.getValue());
++        }
++        System.out.println(failed == 0 ? "PASS SnapshotSpeedTest" : "FAIL SnapshotSpeedTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void expect(final boolean ok, final String why) {
++        if (!ok) {
++            throw new AssertionError(why);
++        }
++    }
++
++    private static void mixedBoardSameFlags() {
++        final Fixture f = new Fixture();
++        f.add("Wall of Wood", f.p0);
++        f.add("Wall of Wood", f.p2);
++        f.add("Rolling Stones", f.p1);
++        f.add("Blazing Archon", f.p1);
++        f.add("Moat", f.p2);
++        f.add("Serra Angel", f.p0);
++        f.add("Grizzly Bears", f.p0);
++        f.add("Ensnaring Bridge", f.p0);
++        f.add("Craw Wurm", f.p1);
++        f.add("Ornithopter", f.p1);
++        f.hand(f.p0, 2);
++        final Card giant = f.add("Hill Giant", f.p2);
++        f.attach("Pacifism", f.p0, giant);
++        f.add("Hulking Goblin", f.p1);
++        f.add("Bloodrock Cyclops", f.p2);
++        f.add("Goblin Rabblemaster", f.p0);
++        f.add("Raging Goblin", f.p0);
++        final Card target = f.add("Llanowar Elves", f.p1);
++        f.attach("Public Enemy", f.p2, target);
++        f.add("Propaganda", f.p2);
++        f.p1.getZone(ZoneType.Graveyard).add(f.card("Peacekeeper", f.p1));
++        f.settle();
++        final Map<String, Integer> seen = f.compareEverywhere();
++        expect(seen.get("cantAttack") > 0 && seen.get("cantBlock") > 0 && seen.get("mustAttack") > 0
++                && seen.get("canAttack") > 0, "the board doesn't test each flag both ways: " + seen);
++    }
++
++    private static void peacekeeperSameFlags() {
++        final Fixture f = new Fixture();
++        f.add("Peacekeeper", f.p1);
++        f.add("Grizzly Bears", f.p0);
++        f.add("Serra Angel", f.p2);
++        final Map<String, Integer> seen = f.compareEverywhere();
++        expect(seen.get("canAttack") == 0, "Peacekeeper let a creature attack: " + seen);
++    }
++
++    private static void defendersSameFlags() {
++        final Fixture f = new Fixture();
++        final Card wall = f.add("Wall of Wood", f.p0);
++        f.add("Grizzly Bears", f.p0);
++        f.compareEverywhere();
++        expect(f.forge(wall)[1], "a Wall of Wood can attack with no Rolling Stones");
++        f.add("Rolling Stones", f.p1);
++        f.compareEverywhere();
++        expect(!f.forge(wall)[1], "a Wall of Wood can't attack beside Rolling Stones");
++    }
++
++    private static void ensnaringBridgeFollowsTheHand() {
++        final Fixture f = new Fixture();
++        f.add("Ensnaring Bridge", f.p0);
++        f.add("Craw Wurm", f.p1);
++        f.add("Grizzly Bears", f.p1);
++        f.add("Ornithopter", f.p2);
++        for (int cards = 0; cards <= 7; cards++) {
++            f.hand(f.p0, cards);
++            f.compareEverywhere();
++        }
++    }
++
++    private static void goadedSameFlags() {
++        final Fixture f = new Fixture();
++        final Card bears = f.add("Grizzly Bears", f.p0);
++        bears.addGoad(f.game.getNextTimestamp(), f.p1);
++        f.add("Blazing Archon", f.p2);
++        f.add("Craw Wurm", f.p1);
++        f.compareEverywhere();
++    }
++
++    private static void cantBlockAloneSameFlags() {
++        final Fixture f = new Fixture();
++        f.add("Jackal Familiar", f.p0);
++        f.compareEverywhere();
++        f.add("Grizzly Bears", f.p0);
++        f.compareEverywhere();
++    }
++
++    private static void oneScanPerRound() throws Exception {
++        final Fixture f = new Fixture();
++        f.tokens(1000);
++        f.add("Moat", f.p1);
++        f.add("Wall of Wood", f.p2);
++        final InteractiveSnapshotExtractor.SnapshotRound round = new InteractiveSnapshotExtractor.SnapshotRound();
++        for (final Card c : f.creatures()) {
++            f.flags(round, c);
++        }
++        expect(round.computedFlags() == f.creatures().size(), "flags computed " + round.computedFlags() + " times for " + f.creatures().size() + " creatures");
++        expect(round.staticScans() == 1, "the statics were scanned " + round.staticScans() + " times in one round");
++    }
++
++    private static void thousandTokensTiming() throws Exception {
++        final Fixture f = new Fixture();
++        f.tokens(1000);
++        f.add("Moat", f.p1);
++        f.add("Ensnaring Bridge", f.p2);
++        f.add("Wall of Wood", f.p2);
++        final List<Card> creatures = f.creatures();
++        for (int warm = 0; warm < 2; warm++) {
++            f.forgeFlags(creatures);
++            f.newFlags(creatures);
++        }
++        long forge = Long.MAX_VALUE;
++        long fast = Long.MAX_VALUE;
++        for (int run = 0; run < 3; run++) {
++            long t = System.nanoTime();
++            f.forgeFlags(creatures);
++            forge = Math.min(forge, System.nanoTime() - t);
++            t = System.nanoTime();
++            f.newFlags(creatures);
++            fast = Math.min(fast, System.nanoTime() - t);
++        }
++        long t = System.nanoTime();
++        f.session.getSnapshotJson(0);
++        final long snapshot = System.nanoTime() - t;
++        System.out.println("timing: " + creatures.size() + " creatures: Forge's per-creature scans " + forge / 1_000_000 + " ms, cached "
++                + fast / 1_000_000 + " ms, one whole snapshot " + snapshot / 1_000_000 + " ms");
++        expect(fast * 3 < forge, "the cached flags took " + fast / 1_000_000 + " ms against Forge's " + forge / 1_000_000 + " ms");
++    }
++
++    private static void flagsGrowLinearly() throws Exception {
++        final long small = flagsTime(1000);
++        final long big = flagsTime(3000);
++        System.out.println("timing: cached flags for 1,000 creatures " + small / 1_000_000 + " ms, for 3,000 " + big / 1_000_000 + " ms");
++        expect(big < small * 7, "3,000 creatures took " + big / 1_000_000 + " ms against " + small / 1_000_000 + " ms for 1,000");
++    }
++
++    private static long flagsTime(final int n) throws Exception {
++        final Fixture f = new Fixture();
++        f.tokens(n);
++        f.add("Moat", f.p1);
++        f.add("Ensnaring Bridge", f.p2);
++        f.add("Wall of Wood", f.p2);
++        final List<Card> creatures = f.creatures();
++        long best = Long.MAX_VALUE;
++        for (int run = 0; run < 5; run++) {
++            final long t = System.nanoTime();
++            f.newFlags(creatures);
++            best = Math.min(best, System.nanoTime() - t);
++        }
++        return best;
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("snapshot-speed-test");
++        final Game game = newGame();
++        final Player p0 = game.getPlayers().get(0);
++        final Player p1 = game.getPlayers().get(1);
++        final Player p2 = game.getPlayers().get(2);
++
++        Fixture() {
++            session.attach(game.getMatch(), game, Set.of(), false);
++        }
++
++        Card add(final String name, final Player p) {
++            final Card card = card(name, p);
++            p.getZone(ZoneType.Battlefield).add(card);
++            settle();
++            return card;
++        }
++
++        void attach(final String name, final Player p, final Card to) {
++            final Card aura = add(name, p);
++            aura.attachToEntity(to, null, true);
++            settle();
++        }
++
++        void hand(final Player p, final int cards) {
++            for (final Card c : new ArrayList<>(p.getCardsIn(ZoneType.Hand))) {
++                p.getZone(ZoneType.Hand).remove(c);
++            }
++            for (int i = 0; i < cards; i++) {
++                p.getZone(ZoneType.Hand).add(card("Forest", p));
++            }
++            settle();
++        }
++
++        void tokens(final int n) {
++            final Player[] owners = {p0, p1, p2};
++            for (int i = 0; i < n; i++) {
++                final Card token = card("Grizzly Bears", owners[i % 3]);
++                token.setGamePieceType(GamePieceType.TOKEN);
++                owners[i % 3].getZone(ZoneType.Battlefield).add(token);
++            }
++            settle();
++        }
++
++        Card card(final String name, final Player p) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            if (paper == null) {
++                throw new AssertionError("no card named " + name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            return card;
++        }
++
++        void settle() {
++            game.getAction().checkStaticAbilities();
++        }
++
++        List<Card> creatures() {
++            final List<Card> out = new ArrayList<>();
++            for (final Card c : game.getCardsIn(ZoneType.Battlefield)) {
++                if (c.isCreature() && !c.isPhasedOut()) {
++                    out.add(c);
++                }
++            }
++            return out;
++        }
++
++        boolean[] forge(final Card c) {
++            final boolean cantBlock = !CombatUtil.canBlock(c, true);
++            final FCollectionView<GameEntity> defenders = CombatUtil.getAllPossibleDefenders(c.getController());
++            boolean cantAttack = !defenders.isEmpty();
++            for (final GameEntity d : defenders) {
++                if (CombatUtil.canAttackNextTurn(c, d)) {
++                    cantAttack = false;
++                    break;
++                }
++            }
++            final boolean mustAttack = !StaticAbilityMustAttack.entitiesMustAttack(c).isEmpty();
++            return new boolean[] {cantBlock, cantAttack, mustAttack};
++        }
++
++        void forgeFlags(final List<Card> cards) {
++            for (final Card c : cards) {
++                forge(c);
++            }
++        }
++
++        void newFlags(final List<Card> cards) throws Exception {
++            final InteractiveSnapshotExtractor.SnapshotRound round = new InteractiveSnapshotExtractor.SnapshotRound();
++            for (final Card c : cards) {
++                flags(round, c);
++            }
++        }
++
++        Object flags(final InteractiveSnapshotExtractor.SnapshotRound round, final Card c) throws Exception {
++            final Method flags = InteractiveSnapshotExtractor.SnapshotRound.class.getDeclaredMethod("flags", Card.class);
++            flags.setAccessible(true);
++            return flags.invoke(round, c);
++        }
++
++        Map<String, Integer> compareEverywhere() {
++            final Map<String, Integer> seen = new LinkedHashMap<>();
++            for (final String k : List.of("cantAttack", "canAttack", "cantBlock", "mustAttack")) {
++                seen.put(k, 0);
++            }
++            for (final Player active : List.of(p0, p1, p2)) {
++                game.getPhaseHandler().devModeSet(PhaseType.MAIN1, active);
++                settle();
++                for (int viewer = 0; viewer < 3; viewer++) {
++                    final JsonObject view = JsonParser.parseString(session.getSnapshotJson(viewer)).getAsJsonObject();
++                    for (final Card c : creatures()) {
++                        final boolean[] want = forge(c);
++                        final JsonObject dto = cardIn(view, c);
++                        final boolean[] got = {flag(dto, "cantBlock"), flag(dto, "cantAttack"), flag(dto, "mustAttack")};
++                        expect(want[0] == got[0] && want[1] == got[1] && want[2] == got[2],
++                                c + " (" + c.getController().getName() + ", " + active.getName() + "'s turn, viewer " + viewer
++                                        + "): Forge says cantBlock " + want[0] + " cantAttack " + want[1] + " mustAttack " + want[2]
++                                        + ", the snapshot " + got[0] + " " + got[1] + " " + got[2]);
++                        seen.merge(want[1] ? "cantAttack" : "canAttack", 1, Integer::sum);
++                        if (want[0]) {
++                            seen.merge("cantBlock", 1, Integer::sum);
++                        }
++                        if (want[2]) {
++                            seen.merge("mustAttack", 1, Integer::sum);
++                        }
++                    }
++                }
++            }
++            return seen;
++        }
++
++        private JsonObject cardIn(final JsonObject view, final Card card) {
++            final String id = SnapshotExtractor.javaCardId(card);
++            for (final JsonElement z : view.getAsJsonArray("zones")) {
++                final JsonObject zo = z.getAsJsonObject();
++                if (!"battlefield".equals(zo.get("zone").getAsString())) {
++                    continue;
++                }
++                for (final JsonElement c : zo.getAsJsonArray("cards")) {
++                    if (id.equals(c.getAsJsonObject().get("id").getAsString())) {
++                        return c.getAsJsonObject();
++                    }
++                }
++            }
++            throw new AssertionError("not on the battlefield in the snapshot: " + card);
++        }
++
++        private Game newGame() {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final Deck deck = new Deck();
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("White", null)));
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Blue", null)));
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Red", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            final Game created = new Game(players, rules, new Match(rules, players, "SnapshotSpeedTest"));
++            created.setAge(GameStage.Play);
++            created.getPhaseHandler().devModeSet(PhaseType.MAIN1, created.getPlayers().get(0));
++            created.getPhaseHandler().onStackResolved();
++            return created;
++        }
++    }
++
++    private static boolean flag(final JsonObject card, final String name) {
++        return card != null && card.has(name) && card.get(name).getAsBoolean();
 +    }
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java b/forge-harness/src/test/java/forge/harness/host/TeamGameTest.java
