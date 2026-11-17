@@ -2158,6 +2158,46 @@ function engineStoreStatic(id, st)
   engineStatic[id] = st
 end
 
+-- Token runs (the bridge's tokenRuns, docs/handoff/token-entries-report.md): tokens in a row of a battlefield that are
+-- the same in everything the table reads come as the first one's entry with gi, the ids of the others ("engine-card-N"
+-- ids in a row as { first N, how many }). They are laid out again as one entry each, copies of the first with their
+-- own id, before anything reads the board, so every board draws as it did; the bridge sends no details for the others,
+-- which take the first one's (the same table: a run is tokens alike in their details). The list itself when it holds
+-- no run.
+function engineExpandRuns(list)
+  if not engineHasRuns(list) then return list end
+  local out = {}
+  for _, c in ipairs(list) do engineExpandRun(c, out) end
+  return out
+end
+function engineHasRuns(list)
+  for _, c in ipairs(list) do if c.gi ~= nil then return true end end
+  return false
+end
+function engineExpandRun(c, out)
+  out[#out + 1] = c
+  local ids = c.gi
+  c.gi = nil
+  for _, v in ipairs(ids or {}) do engineExpandIds(c, v, out) end
+end
+function engineExpandIds(c, v, out)
+  if type(v) ~= "table" then out[#out + 1] = engineCopyCard(c, v) return end
+  for k = 0, (tonumber(v[2]) or 0) - 1 do out[#out + 1] = engineCopyCard(c, "engine-card-" .. tostring(math.floor(v[1] + k))) end
+end
+-- a copy of a run's first entry for another token of it: its own tables (nothing shares a list with the first)
+function engineCopyCard(c, id)
+  local d = engineDeepCopy(c)
+  d.id = id
+  engineStatic[id] = engineStatic[c.id]
+  return d
+end
+function engineDeepCopy(v)
+  if type(v) ~= "table" then return v end
+  local d = {}
+  for k, x in pairs(v) do d[k] = engineDeepCopy(x) end
+  return d
+end
+
 local function mergeStatic(m)
   if m == nil then return end
   -- the restore points the bridge left out because they didn't change (keepRewind): the last board's
@@ -2174,6 +2214,11 @@ local function mergeStatic(m)
   local fresh = {}
   for id, st in pairs(m.cards or {}) do engineStoreStatic(id, st) fresh[id] = true end
   m.cards = nil
+  -- (a run of identical tokens came as one entry: one entry per token again, its others with the first one's details,
+  -- engineExpandRuns)
+  for _, pl in ipairs(m.players or {}) do
+    if pl.battlefield ~= nil then pl.battlefield = engineExpandRuns(pl.battlefield) end
+  end
   for _, pl in ipairs(m.players or {}) do
     -- ("playable" too: cards you may play from exile or a graveyard lay as card backs without it, playtest 2026-10-26;
     -- "revealed", the hand cards shown to everyone: engineRevealStrip; and "ctlHand", a controlled player's hand:
@@ -7833,9 +7878,9 @@ end
 function engineHello(again)
   local m
   if again then
-    m = { again = true, stamp = engineStamp(), keepRewind = true, mode = engineModeSent ~= nil and engineModeSent() or nil }
+    m = { again = true, stamp = engineStamp(), keepRewind = true, tokenRuns = true, mode = engineModeSent ~= nil and engineModeSent() or nil }
   else
-    m = { stamp = engineStamp(), keepRewind = true, mode = engineModeSent ~= nil and engineModeSent() or nil }
+    m = { stamp = engineStamp(), keepRewind = true, tokenRuns = true, mode = engineModeSent ~= nil and engineModeSent() or nil }
   end
   if ENGINE_TABLE_SEATS ~= nil then m.tableSeats = ENGINE_TABLE_SEATS end
   engineSend("hello", m)
