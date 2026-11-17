@@ -686,7 +686,8 @@ Players drag and use the table normally; every move is a request the engine acce
 - [x] Identity cards are never read, moved, stashed or swept: the deck reader skips `Identity` names, the stash skips them, the engine's cleanup only touches `engine:` objects
 - [x] Command-zone slot: engine commander cards go on the command-zone label spots (one per commander), so with one commander the second spot is free for the identity card (with partners, put it beside them)
 - [x] `mtg concede` (asks once more, 15 s) and `mtg winner <colour>` (host: everyone else at the table concedes; AI seats can't, the host then types `mtg reset`). Engine side checked headless: `bash tools/rules-check.sh concede` → conceded, game over, the other player wins
-- [ ] Not possible: "the Leader goes first" (no engine option to choose the starting player); unveil costs and identity powers stay honour-system
+- [x] The Leader goes first (2026-11-17, branch cloud/treachery-bo3): the table's start says who holds the Leader identity card (by its TTS name), the bridge sends that seat as `gameConfig.firstPlayer` (the engine's, docs/handoff/first-player-report.md); the table's own choice and a team mode's first player win over it; `mtg treachery on|off|leader <colour>` (host)
+- [ ] Unveil costs and identity powers stay honour-system
 
 ### Later (decided 2026-10-17): Planechase and dungeons
 - [x] Drive the Eternities Map centre plane and the dungeon room markers (one per player) from the engine; turn off their manual moves and token spawns. See `table-review/notes-variants.md`. The engine changes are being specified 2026-11-05.
