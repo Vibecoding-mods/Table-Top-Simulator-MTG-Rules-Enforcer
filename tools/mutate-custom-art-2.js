@@ -42,7 +42,7 @@ const MUTATIONS = [
   ["ai: a bad link used", B, "    const why = artProblem(l.front);\n    if (why) { a.bad = why; continue; }", "    const why = artProblem(l.front);\n    if (why) { a.bad = why; }"],
   ["table: the second state not read", C, "  local s2 = d.States and (d.States[\"2\"] or d.States[2]) or nil", "  local s2 = nil"],
   ["table: the second state's deck picture not read", C, "      if cd2 ~= nil then f2 = cd2.FaceURL end", "      if cd2 ~= nil then f2 = nil end"],
-  ["table: the chat sends the lower-cased text", C, "      engineSend(\"artset\", { color = pl.color, text = message:sub(restAt) })", "      engineSend(\"artset\", { color = pl.color, text = rest })"],
+  ["table: the chat sends the lower-cased text", C, "      engineSend(\"artset\", { color = pl.color, steam = pl.steam_id, text = message:sub(restAt) })", "      engineSend(\"artset\", { color = pl.color, steam = pl.steam_id, text = rest })"],
 ];
 
 function runTests() {
