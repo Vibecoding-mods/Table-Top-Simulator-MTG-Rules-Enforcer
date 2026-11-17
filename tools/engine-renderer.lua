@@ -81,7 +81,7 @@ local function description(c)
   -- (what it costs now, when the engine says it isn't its printed cost: the cost badge's words, there too for a hand
   -- TTS might draw no badge on, docs/cost-badge-spec.md)
   if c.ec ~= nil then
-    local ch = engineCostChange(c.mc, c.ec)
+    local ch = engineCostChange(c.mc, c.ec, c.em)
     if ch ~= nil then s = s .. (s == "" and "" or "\n") .. "[b]" .. ch.text .. "[/b]" end
   end
   return (s:gsub('"', "'"))
@@ -425,8 +425,9 @@ end
 -- The printed cost mc against the cost now ec: nil when they say the same (or either is missing), else { generic = the
 -- new generic sum or nil when it didn't change, hadGeneric = the printed cost has a generic pip, pips = how many
 -- symbols the printed cost has, chip = "-G" / "+BB" / "-W/U +R" or nil, dir = "less" or "more" (dearer anywhere wins),
--- text = the hover words }. Generic is the {N} symbols only: X, hybrid ({2/W}, {W/U}), Phyrexian and {C} are symbols.
-function engineCostChange(mc, ec)
+-- text = the hover words, with em, the way it is cast from a graveyard or exile, as "by flashback" }. Generic is the
+-- {N} symbols only: X, hybrid ({2/W}, {W/U}), Phyrexian and {C} are symbols.
+function engineCostChange(mc, ec, em)
   if type(mc) ~= "string" or type(ec) ~= "string" or ec == "" or mc == ec then return nil end
   local function split(s)
     local r = { generic = 0, has = false, sym = {}, n = 0 }
@@ -458,7 +459,7 @@ function engineCostChange(mc, ec)
   if not more and not less then return nil end
   out.chip = #chip > 0 and table.concat(chip, " ") or nil
   out.dir = more and "more" or "less"
-  out.text = "Costs " .. ec .. " now (printed " .. (mc ~= "" and mc or "no mana cost") .. ")"
+  out.text = "Costs " .. ec .. " now" .. (type(em) == "string" and em ~= "" and (" by " .. em) or "") .. " (printed " .. (mc ~= "" and mc or "no mana cost") .. ")"
   return out
 end
 -- The cost badge's buttons for card c, in drawing order: { name, label, colour, tooltip, font colour, { x, y, z, w, h,
@@ -473,7 +474,7 @@ function engineCostParts(c)
     local F = BADGE.from
     parts[1] = { "costFrom", "FROM GRAVEYARD", F.bg, "Playable from its owner's graveyard", { 1, 1, 1 }, { x = F.x, y = F.y, z = F.z, w = F.w, h = F.h, fs = F.fs } }
   end
-  local ch = engineCostChange(c.mc, c.ec)
+  local ch = engineCostChange(c.mc, c.ec, c.em)
   if ch == nil then return parts end
   local B = BADGE.cost
   local first = B.x - B.step * (ch.pips - 1) -- (the leftmost pip's centre)
