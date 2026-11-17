@@ -177,7 +177,7 @@ Measured in the sim (`tests/test_table_effects.js`, fengari, fastest of 7, the f
 
 ### What's left
 
-1. **Upload** both bundles (TTS Cloud Manager), put the links in `engineFxBundle.fx` and `.bolt`. The 6 rigs already in the user's save are the old fx link's: the first load with the new link replaces them by itself (see Pool); keep `FX.LEGACY` at the old link.
+1. ~~**Upload** the bundles~~ done (fx3 and bolt2 2026-11-14, the rebuilt sounds 2026-11-17; links in `engineFxBundle`). The 6 rigs already in the user's save are the old fx link's: the first load with the new link replaces them by itself (see Pool); keep `FX.LEGACY` at the old link.
 2. **Live tint check:** does `setColorTint` tint the particles? If yes, `engineFxTint = true` makes the neutral effects serve every colour; if not, the baked ones stay.
 3. **Live animation check:** does the bolt's baked head flight play in TTS? If not, `engineFxBoltMove = true`.
 4. **Object check:** Loaded Objects before and after the 10 rigs (the 78k crash line).

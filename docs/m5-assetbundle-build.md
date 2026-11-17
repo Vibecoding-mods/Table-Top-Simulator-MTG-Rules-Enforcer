@@ -21,12 +21,10 @@ must contain so the table can use them, how to build them, and the two-client te
   The first `mtg-fx.unity3d` (10 effects, 118,140 bytes, sha256 `8e08833c…`, deployed 2026-11-12) was https://steamusercontent-a.akamaihd.net/ugc/17312155686528737831/7C7D27241612C44285FAC94314BB736DD2887FCA/; its rigs in a save are retired on load (`FX.LEGACY`).
 - `engineFxBundle.bolt` (shipped 2026-11-14, `mtg-bolt2.unity3d`, the same empty-mesh rebuild, 52,271 bytes, sha256 `5ea6e6d9cdbd…0574`, matched the same way): https://steamusercontent-a.akamaihd.net/ugc/16460449626220746289/901D08363F140757CCAB54BA2D10909F2546D622/
   Before it: `mtg-bolt.unity3d`, 50,577 bytes, https://steamusercontent-a.akamaihd.net/ugc/12109543125843195804/C6B0053848DA7FCB5E6136B82243D57A66E3B289/ (the big box on ping damage).
-- `engineFxBundle.sounds`: `mtg-sounds.unity3d` **rebuilt 2026-11-17** for today's links (section 4; 1,604,936 bytes,
-  sha256 `fa09e04ddc637c3b74b10253da4a9591e24b6aebfe6833d9077b521a839eb4ca`, index `docs/fx-research/SOUNDS.md`), **not
-  uploaded yet**, so still nil. Once it is shipped, this line reads as the fx line does ("(shipped ...)" after the
-  name, the link at the end of the line): `tests/test_table_effects.js` holds the shipped `engineFxBundle.sounds` to
-  that link, or to nil while the line has none. Even with its link set, the sounds stay the MusicPlayer links (`docs/sounds.md`) until the host
-  sets `engineSoundRoute = "bundle"` (section 4, "Switching").
+- `engineFxBundle.sounds` (shipped 2026-11-17, `mtg-sounds.unity3d` rebuilt that day for the louder links, uploaded as `mtg-sounds2.unity3d`, 1,604,936 bytes, sha256 `fa09e04ddc63…eb4ca`, matched the same way): https://steamusercontent-a.akamaihd.net/ugc/15114084856576246659/1C0EF7B107C80CB8AC97411FC266B54E33CF8B1B/
+  Index `docs/fx-research/SOUNDS.md`. Even with its link set, the sounds stay the MusicPlayer links (`docs/sounds.md`)
+  until the host sets `engineSoundRoute = "bundle"` (section 4, "Switching"). `tests/test_table_effects.js` holds the
+  shipped `engineFxBundle.sounds` to the link at the end of the line above.
 - With a link and none of that object on the table, a game's first board spawns them once (`spawnObjectData`,
   `Custom_Assetbundle`, locked, parked under the table at y −30, x −40…−31, z 30). They stay in the save after that;
   the next games find them by their GM notes. Rigs already in the save are used without a link too. The spawn data
@@ -132,7 +130,7 @@ same), `Duration` = the clip's length; no GameObjects, no Particles. Plus the em
   Since 2026-11-13 also all at once: `engineSoundRoute = "bundle"` plays every link's **key** as a trigger effect name
   (see "Built" below).
 
-### Built (2026-11-13; rebuilt 2026-11-17 from the louder mtg4 files; not uploaded, not heard in TTS)
+### Built (2026-11-13; rebuilt 2026-11-17 from the louder mtg4 files; uploaded 2026-11-17 as mtg-sounds2.unity3d, not heard in TTS yet)
 
 What the build is, and where it differs from the plan above:
 
@@ -191,7 +189,7 @@ fails until the bundle is rebuilt.
   `"music"` again after every load. For check 3 the host sets it by Lua (`tools/tts-exec.sh`); once the check passes, the
   default in the source becomes `"bundle"`.
 - Not automatic until then: route A (the music player) is known to reach everyone, route B isn't yet (check 3).
-- To use it: upload `mtg-sounds.unity3d`, put its link in `engineFxBundle.sounds`, deploy; the first game spawns the
+- Uploaded and linked 2026-11-17; after that deploy the first game spawns the
   sound object (save the table once so it stays). Then check 3 below with `engineSoundRoute = "bundle"`.
 
 ## 5. Shaders, platforms, size
