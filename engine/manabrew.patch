@@ -8856,10 +8856,10 @@ index 0000000..db530a4
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/BigBoardFixesTest.java b/forge-harness/src/test/java/forge/harness/host/BigBoardFixesTest.java
 new file mode 100644
-index 0000000..019aa5b
+index 0000000..2e641a4
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/BigBoardFixesTest.java
-@@ -0,0 +1,720 @@
+@@ -0,0 +1,768 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -8941,6 +8941,10 @@ index 0000000..019aa5b
 +        CHECKS.put("cheap assault: flyers against reach are blocked", BigBoardFixesTest::cheapReach);
 +        CHECKS.put("cheap assault: a 6x120 board lethal by trample and evasion is attacked with everything", BigBoardFixesTest::cheapWideLethal);
 +        CHECKS.put("cheap assault: a 6x120 board that isn't lethal gets no assault", BigBoardFixesTest::cheapWideSafe);
++        CHECKS.put("cheap assault: a blocker that can block any number blocks them all", BigBoardFixesTest::cheapBlockAny);
++        CHECKS.put("cheap assault: a lifelink blocker's gain counts against lethal", BigBoardFixesTest::cheapLifelink);
++        CHECKS.put("cheap assault: a first striker that kills a trampler stops all of it", BigBoardFixesTest::cheapFirstStrike);
++        CHECKS.put("cheap assault: with shared team life the defender's partner blocks too", BigBoardFixesTest::cheapSharedLife);
 +        CHECKS.put("pay: the payment has its own budget, shorter than combat's", BigBoardFixesTest::payBudgetShorter);
 +        CHECKS.put("pay: past the payment budget, within the combat one, the static checks are held", BigBoardFixesTest::payUsesItsOwnBudget);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
@@ -9508,6 +9512,41 @@ index 0000000..019aa5b
 +        expect(v.atBlue < v.mine, "the 120 Hill Giants went all in: " + v.atBlue);
 +    }
 +
++    private static void cheapBlockAny() {
++        safe(cheapVerdict(4, new Object[] {5, "Llanowar Elves"}, new Object[] {1, "Palace Guard"}), "5 Llanowar Elves into a Palace Guard (blocks any number), 4 life");
++        lethal(cheapVerdict(4, new Object[] {5, "Llanowar Elves"}, new Object[] {1, "Hill Giant"}), "5 Llanowar Elves into a Hill Giant, 4 life");
++    }
++
++    private static void cheapLifelink() {
++        safe(cheapVerdict(2, new Object[] {2, "Grizzly Bears"}, new Object[] {1, "Child of Night"}), "2 Grizzly Bears into a Child of Night (lifelink 2), 2 life");
++        lethal(cheapVerdict(2, new Object[] {2, "Grizzly Bears"}, new Object[] {1, "Walking Corpse"}), "2 Grizzly Bears into a Walking Corpse, 2 life");
++    }
++
++    private static void cheapFirstStrike() {
++        safe(cheapVerdict(2, new Object[] {1, "Komodo Rhino"}, new Object[] {1, "Anaba Bodyguard"}), "a Komodo Rhino (5/2 trample) into an Anaba Bodyguard (2/3 first strike), 2 life");
++        lethal(cheapVerdict(2, new Object[] {1, "Komodo Rhino"}, new Object[] {1, "Hill Giant"}), "a Komodo Rhino into a Hill Giant (no first strike), 2 life");
++    }
++
++    private static void cheapSharedLife() {
++        final Fixture f = new Fixture(true, false, "White", "Red", "Yellow", "Blue");
++        f.players.get(2).setLife(9, null);
++        f.players.get(3).setLife(9, null);
++        f.players.get(0).setLife(30, null);
++        for (int n = 0; n < 3; n++) {
++            f.add("Hill Giant", f.white, ZoneType.Battlefield).setSickness(false);
++            f.add("Craw Wurm", f.players.get(3), ZoneType.Battlefield).setSickness(false);
++        }
++        f.settle();
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, f.white, 3);
++        final Combat combat = new Combat(f.white);
++        f.game.getPhaseHandler().setCombat(combat);
++        f.game.AI_TIMEOUT = -1;
++        final long l0 = AiAttackController.getCheapAssaultsLethal(), s0 = AiAttackController.getCheapAssaultsSafe();
++        f.white.getController().declareAttackers(f.white, combat);
++        final long lethal = AiAttackController.getCheapAssaultsLethal() - l0, safe = AiAttackController.getCheapAssaultsSafe() - s0;
++        expect(safe > 0 && lethal == 0, "3 Hill Giants at Yellow (the team's 9 life; 3 Craw Wurms on Yellow's partner Blue): lethal " + lethal + ", not " + safe);
++    }
++
 +    private static void payBudgetShorter() {
 +        final Fixture f = payBoard();
 +        final long pay = f.game.getAIPayTimeoutMs();
@@ -9540,11 +9579,20 @@ index 0000000..019aa5b
 +        }
 +
 +        Fixture(final boolean recording, final String... names) {
++            this(false, recording, names);
++        }
++
++        Fixture(final boolean teams, final boolean recording, final String... names) {
 +            final List<RegisteredPlayer> players = new ArrayList<>();
-+            for (final String name : names) {
-+                players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(name, null)));
++            for (int i = 0; i < names.length; i++) {
++                final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(names[i], null));
++                if (teams) {
++                    rp.setTeamNumber(i < names.length / 2 ? 1 : 2);
++                }
++                players.add(rp);
 +            }
 +            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setSharedTeamLife(teams);
 +            game = new Game(players, rules, new Match(rules, players, "BigBoardFixesTest"));
 +            game.setAge(GameStage.Play);
 +            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0), 3);

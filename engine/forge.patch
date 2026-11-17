@@ -1,5 +1,5 @@
 diff --git a/forge-ai/src/main/java/forge/ai/AiAttackController.java b/forge-ai/src/main/java/forge/ai/AiAttackController.java
-index c3b3b8ab..184fab2e 100644
+index c3b3b8ab..61ce456d 100644
 --- a/forge-ai/src/main/java/forge/ai/AiAttackController.java
 +++ b/forge-ai/src/main/java/forge/ai/AiAttackController.java
 @@ -126,6 +126,18 @@ public class AiAttackController {
@@ -59,7 +59,7 @@ index c3b3b8ab..184fab2e 100644
          // round away slightly so a single land drop doesn't mean players with earlier turn order are predictably attacked
          // grows with game age since by then threat ranges become less narrow
          int threatLimit = Collections.max(threatScores.values()) - 10 - ai.getGame().getPhaseHandler().getTurn();
-@@ -232,6 +265,226 @@ public class AiAttackController {
+@@ -232,6 +265,241 @@ public class AiAttackController {
          return Aggregates.random(threatScores.keySet());
      }
  
@@ -76,44 +76,56 @@ index c3b3b8ab..184fab2e 100644
 +
 +    // The assault past the budget, with no attacker-blocker checks (attackers + blockers, sorted): is what the
 +    // defender's possible blockers can't stop lethal? Each side is read once:
-+    //  - a blocker that can't block (CombatUtil.canBlock) is none; the rest are counted in bins by what limits whom
-+    //    they can block (flying or reach, shadow, horsemanship, colour), and their toughness is sorted;
++    //  - a blocker that can't block (CombatUtil.canBlock, as it is now: the next turn's tapping isn't foreseen) is none;
++    //    one that can block any number blocks as many as there are attackers, an extra block count is capped the same;
++    //    the rest are counted in bins by what limits whom they can block (flying or reach, shadow, horsemanship,
++    //    colour), and their toughness is sorted (with how many blocks each makes);
 +    //  - an attacker none of the bins can block (flying, shadow, horsemanship, protection from every blocker's colour,
 +    //    or "can't be blocked") is unblocked; double strike deals twice; a trampler blocked still deals what is past its
 +    //    blocker's toughness, the toughest blockers taken by the biggest tramplers (the pairing that lets the least
-+    //    through; a menace trampler is held by the two toughest, whoever else they hold); menace takes two blocks;
-+    //    infect counts nothing toward life;
++    //    through; a menace trampler is held by the two toughest), and nothing when a first or double striker there has
++    //    the power to kill it first; menace takes two blocks; infect counts nothing toward life;
 +    //  - the defender's blocks go where they stop the most damage per block (ground blocks to ground attackers first,
 +    //    then flying or reach to any), a menace attacker allowed half a block: that is at least what the defender can
-+    //    stop, so the estimate errs on not attacking. Deathtouch, first strike against the blockers, lifelink and
-+    //    other blocking limits count as none.
++    //    stop;
++    //  - lethal only when that reaches the defender's life plus what every lifelink blocker could gain (its power, twice
++    //    with double strike), so the estimate errs on not attacking. Deathtouch, the attackers' own first strike and
++    //    other blocking limits count as none (each makes the defender look stronger, never weaker).
 +    private boolean cheapAssault() {
 +        if (defendingOpponent == null || defendingOpponent.getLife() <= 0 || defendingOpponent.cantLoseForZeroOrLessLife()) {
 +            return false;
 +        }
 +        final int[] bins = new int[256];
-+        int groundBlocks = 0, airBlocks = 0;
-+        final List<Integer> toughness = new ArrayList<>();
++        final int cap = Math.max(1, this.attackers.size());
++        long groundBlocks = 0, airBlocks = 0, lifeBack = 0;
++        int firstStrikePower = -1;
++        final List<int[]> toughness = new ArrayList<>();
 +        for (Card b : this.blockers) {
 +            if (!CombatUtil.canBlock(b)) {
 +                continue;
 +            }
 +            final boolean air = b.hasKeyword(Keyword.FLYING) || b.hasKeyword(Keyword.REACH);
-+            final int blocks = 1 + b.canBlockAdditional();
++            final int blocks = b.canBlockAny() ? cap : (int) Math.min(cap, 1L + Math.max(0, b.canBlockAdditional()));
 +            if (air) {
 +                airBlocks += blocks;
 +            } else {
 +                groundBlocks += blocks;
 +            }
-+            for (int i = 0; i < blocks; i++) {
-+                toughness.add(Math.max(0, b.getNetToughness()));
++            toughness.add(new int[] {Math.max(0, b.getNetToughness()), blocks});
++            final int power = Math.max(0, b.getNetCombatDamage());
++            final boolean strikesTwice = b.hasKeyword(Keyword.DOUBLE_STRIKE);
++            if (b.hasKeyword(Keyword.LIFELINK)) {
++                lifeBack += (long) power * (strikesTwice ? 2 : 1);
++            }
++            if (strikesTwice || b.hasKeyword(Keyword.FIRST_STRIKE)) {
++                firstStrikePower = Math.max(firstStrikePower, power);
 +            }
 +            bins[blockerBin(air, b.hasKeyword(Keyword.SHADOW), b.hasKeyword(Keyword.HORSEMANSHIP), b.getColor().getColor())]++;
 +        }
 +        final java.util.Set<Card> unblockableHosts = new java.util.HashSet<>();
 +        final List<forge.game.staticability.StaticAbility> unblockableRules = new ArrayList<>();
 +        readUnblockable(unblockableHosts, unblockableRules);
-+        toughness.sort(Collections.reverseOrder());
++        toughness.sort((x, y) -> Integer.compare(y[0], x[0]));
 +        long unblocked = 0;
 +        final List<long[]> ground = new ArrayList<>(), anyBlock = new ArrayList<>(), tramplers = new ArrayList<>();
 +        for (Card a : this.attackers) {
@@ -130,7 +142,7 @@ index c3b3b8ab..184fab2e 100644
 +                continue;
 +            }
 +            final int need = a.hasKeyword(Keyword.MENACE) ? 2 : 1;
-+            final long[] entry = {hit, need, a.hasKeyword(Keyword.FLYING) ? 1 : 0};
++            final long[] entry = {hit, need, a.hasKeyword(Keyword.FLYING) ? 1 : 0, a.getNetToughness()};
 +            if (a.hasKeyword(Keyword.TRAMPLE)) {
 +                tramplers.add(entry);
 +            } else {
@@ -138,27 +150,30 @@ index c3b3b8ab..184fab2e 100644
 +            }
 +        }
 +        tramplers.sort((x, y) -> Long.compare(y[0], x[0]));
-+        int rank = 0;
++        int rankAt = 0, rankUsed = 0;
++        final long topTwo = toughness.isEmpty() ? 0 : toughness.get(0)[0]
++                + (toughness.get(0)[1] > 1 ? toughness.get(0)[0] : toughness.size() > 1 ? toughness.get(1)[0] : 0);
 +        for (long[] t : tramplers) {
 +            long held = 0;
 +            if (t[1] > 1) {
-+                for (int i = 0; i < t[1] && i < toughness.size(); i++) {
-+                    held += toughness.get(i);
++                held = topTwo;
++            } else if (rankAt < toughness.size()) {
++                held = toughness.get(rankAt)[0];
++                if (++rankUsed >= toughness.get(rankAt)[1]) {
++                    rankAt++;
++                    rankUsed = 0;
 +                }
-+            } else {
-+                held = rank < toughness.size() ? toughness.get(rank) : 0;
-+                rank++;
 +            }
-+            final long past = Math.max(0, t[0] - held);
++            final long past = firstStrikePower >= Math.max(1, t[3]) ? 0 : Math.max(0, t[0] - held);
 +            unblocked += past;
 +            (t[2] == 1 ? anyBlock : ground).add(new long[] {t[0] - past, t[1]});
 +        }
 +        final java.util.Comparator<long[]> perBlock = (x, y) -> Long.compare(y[0] * x[1], x[0] * y[1]);
 +        ground.sort(perBlock);
-+        int left = groundBlocks;
++        long left = groundBlocks;
 +        for (long[] g : ground) {
 +            if (left >= g[1]) {
-+                left -= (int) g[1];
++                left -= g[1];
 +            } else if (left > 0) {
 +                left = 0;
 +                anyBlock.add(new long[] {g[0] / 2, 1});
@@ -170,7 +185,7 @@ index c3b3b8ab..184fab2e 100644
 +        left = airBlocks;
 +        for (long[] g : anyBlock) {
 +            if (left >= g[1]) {
-+                left -= (int) g[1];
++                left -= g[1];
 +            } else if (left > 0) {
 +                left = 0;
 +                unblocked += g[0] / 2;
@@ -178,7 +193,7 @@ index c3b3b8ab..184fab2e 100644
 +                unblocked += g[0];
 +            }
 +        }
-+        final boolean lethal = unblocked >= defendingOpponent.getLife();
++        final boolean lethal = unblocked >= (long) defendingOpponent.getLife() + lifeBack;
 +        (lethal ? CHEAP_LETHAL : CHEAP_SAFE).incrementAndGet();
 +        return lethal;
 +    }
@@ -286,7 +301,7 @@ index c3b3b8ab..184fab2e 100644
      public static List<Card> sortAttackers(final List<Card> in) {
          final List<Card> result = new ArrayList<>();
  
-@@ -577,10 +830,15 @@ public class AiAttackController {
+@@ -577,10 +845,15 @@ public class AiAttackController {
          }
      }
  
@@ -302,7 +317,7 @@ index c3b3b8ab..184fab2e 100644
  
          if (ai.isCardInPlay("Beastmaster Ascension") && this.attackers.size() > 1) {
              final CardCollectionView beastions = ai.getCardsIn(ZoneType.Battlefield, "Beastmaster Ascension");
-@@ -634,6 +892,7 @@ public class AiAttackController {
+@@ -634,6 +907,7 @@ public class AiAttackController {
  
          Map<Card, Integer> attackCosts = Maps.newHashMap();
          for (Card attacker : categorizedAttackers) {
@@ -310,7 +325,7 @@ index c3b3b8ab..184fab2e 100644
              Cost tax = CombatUtil.getAttackCost(ai.getGame(), attacker, defendingOpponent);
              if (tax != null && tax.getCostMana().getMana().getCMC() > 0) {
                  // TODO might sort by quotient of dmg/cost for best combination
-@@ -653,6 +912,9 @@ public class AiAttackController {
+@@ -653,6 +927,9 @@ public class AiAttackController {
          // when an attacker gets taxed the best priority to pay for damage is usually: 1. unblockable 2. trample 3. normal
          CardCollection accountedBlockers = new CardCollection(this.blockers);
          while (!categorizedAttackers.isEmpty()) {
@@ -320,7 +335,7 @@ index c3b3b8ab..184fab2e 100644
              Card attacker = categorizedAttackers.get(0);
              int cost = attackCosts.getOrDefault(attacker, 0);
              if (cost > myFreeMana) {
-@@ -663,6 +925,7 @@ public class AiAttackController {
+@@ -663,6 +940,7 @@ public class AiAttackController {
                  attackCosts.remove(attacker);
                  continue;
              }
@@ -328,7 +343,7 @@ index c3b3b8ab..184fab2e 100644
              if (!CombatUtil.canBeBlocked(attacker, accountedBlockers, null)
                      || StaticAbilityAssignCombatDamageAsUnblocked.assignCombatDamageAsUnblocked(attacker)) {
                  unblockedAttackers.add(attacker);
-@@ -681,8 +944,12 @@ public class AiAttackController {
+@@ -681,8 +959,12 @@ public class AiAttackController {
          // TODO need to sort attackers AI shouldn't pay for to the end
  
          for (Card blocker : this.blockers) {
