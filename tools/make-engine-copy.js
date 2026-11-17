@@ -628,7 +628,9 @@ function engineChat(message, pl)
     -- Archenemy for the next games (host): mtg archenemy <colour> / off; mtg schemes random / mtg schemes <name>; <name>
     -- (the bridge checks the colour and the names against Forge's schemes, docs/team-turns-archenemy-plan.md §2.7)
     if not isHost and rest ~= "" then pl.broadcast("[MTG] Only the host can set up Archenemy.") return false end
-    if cmd == "archenemy" then engineSend("archenemy", { color = pl.color, text = rest })
+    if cmd == "archenemy" then
+      engineSend("archenemy", { color = pl.color, text = rest })
+      if engineArchNoted ~= nil then engineArchNoted(rest) engineSetupButtons() end
     else engineSend("schemes", { color = pl.color, text = rest }) end
   elseif cmd == "mode" then
     -- the next games' mode (host): mtg mode standard / mtg mode commander (docs/game-modes-spec.md §3.4); "mtg mode" says it
