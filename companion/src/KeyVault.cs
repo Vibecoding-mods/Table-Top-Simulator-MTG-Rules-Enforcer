@@ -21,6 +21,19 @@ namespace MtgCompanion
             return Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(key), Entropy, DataProtectionScope.CurrentUser));
         }
 
+        // Whether a DPAPI blob was made for the machine rather than the account: Windows' blob starts with its version,
+        // the DPAPI provider's GUID (df9d8cd0-1501-11d1-8c7a-00c04fc297eb), the master key's version and GUID, then
+        // dwFlags at byte 40, where CRYPTPROTECT_LOCAL_MACHINE is 0x4. null: not a Windows DPAPI blob (mono's own format),
+        // so it can't say. (Windows opens either kind with either scope, so a round trip alone can't tell them apart.)
+        static readonly byte[] Provider = { 0xd0, 0x8c, 0x9d, 0xdf, 0x01, 0x15, 0xd1, 0x11, 0x8c, 0x7a, 0x00, 0xc0, 0x4f, 0xc2, 0x97, 0xeb };
+        public static bool? MachineScoped(byte[] blob)
+        {
+            if (blob == null || blob.Length < 44) return null;
+            for (int i = 0; i < Provider.Length; i++) if (blob[4 + i] != Provider[i]) return null;
+            var flags = BitConverter.ToUInt32(blob, 40);
+            return (flags & 0x4) != 0;
+        }
+
         public static string Unprotect(string blob)
         {
             return Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(blob), Entropy, DataProtectionScope.CurrentUser));
