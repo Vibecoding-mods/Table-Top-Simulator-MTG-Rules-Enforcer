@@ -144,7 +144,15 @@ namespace MtgCompanion
             try { real = KeyVault.Protect(Key); } catch (Exception e) { real = "error: " + e.Message; }
             string back = null;
             try { back = KeyVault.Unprotect(real); } catch (Exception e) { back = "error: " + e.Message; }
-            Check("key: DPAPI (ProtectedData, CurrentUser) round trip, the blob never the key", back == Key && !real.Contains(Key), real + " -> " + back);
+            bool? machine = null;
+            try { machine = KeyVault.MachineScoped(Convert.FromBase64String(real)); } catch { machine = null; }
+            Check("key: DPAPI (ProtectedData, CurrentUser) round trip, the blob never the key", back == Key && !real.Contains(Key) && machine != true,
+                real + " -> " + back + (machine == true ? " (a blob for the machine, not this account)" : machine == false ? " (this account's blob)" : " (not a Windows DPAPI blob: scope read from the round trip only)"));
+            // (the scope reader itself, on made-up Windows-shaped blobs)
+            Func<uint, byte[]> shaped = f => { var x = new byte[60]; x[0] = 1; new byte[] { 0xd0, 0x8c, 0x9d, 0xdf, 0x01, 0x15, 0xd1, 0x11, 0x8c, 0x7a, 0x00, 0xc0, 0x4f, 0xc2, 0x97, 0xeb }.CopyTo(x, 4); BitConverter.GetBytes(f).CopyTo(x, 40); return x; };
+            Check("key: the scope reader: an account's blob, a machine's, and a blob that isn't Windows'",
+                KeyVault.MachineScoped(shaped(0)) == false && KeyVault.MachineScoped(shaped(4)) == true && KeyVault.MachineScoped(shaped(0x20000004)) == true
+                && KeyVault.MachineScoped(new byte[60]) == null && KeyVault.MachineScoped(new byte[10]) == null);
             OwnServerWiring(Key);
         }
 
