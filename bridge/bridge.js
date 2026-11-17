@@ -3498,10 +3498,14 @@ function costNow(c, zone, row = false) {
 // - in the seat's playable row only: the half playCost casts, playCostName, "Castable: Memory {5}{U}{U} by aftermath
 //   (printed {4}{U}{U})", and the other ways, playCostOthers, "Other ways to cast it: Ice {1}{U}; {2}{R} by flashback"
 //   (a half named; a permission's and a free cast's way not).
+// - what a way costs besides mana (engine1121-costbadge4: playCostExtra, a way's extra, in Forge's words): the way cast
+//   now, "Escape also costs: exile eight other cards from your graveyard." (Dread Return's flashback reads {0}, its
+//   three sacrificed creatures said here), and each other way's, "{1}{R} by flashback, and pay 3 life"
 function spellCostNotes(c, row) {
   const out = [];
+  const plus = (extra) => (extra ? `, and ${lowerFirst(extra)}` : "");
   for (const s of Array.isArray(c.spellCosts) ? c.spellCosts : []) {
-    if (s && s.cost && s.cost !== s.printed) out.push(`${s.name}: costs ${s.cost} now (printed ${s.printed || "no mana cost"})`);
+    if (s && s.cost && s.cost !== s.printed) out.push(`${s.name}: costs ${s.cost} now (printed ${s.printed || "no mana cost"})${plus(s.extra)}`);
   }
   if (!row || !c.playCost) return out;
   const way = (m) => (m && m !== "may play" && m !== "free" ? playWay(m) : null);
@@ -3509,14 +3513,20 @@ function spellCostNotes(c, row) {
     const w = way(c.playCostMode);
     out.push(`Castable: ${c.playCostName} ${c.playCost}${w ? ` by ${w}` : ""}${c.playCostPrinted && c.playCostPrinted !== c.playCost ? ` (printed ${c.playCostPrinted})` : ""}`);
   }
+  if (c.playCostExtra) {
+    const w = way(c.playCostMode);
+    out.push(`${w ? `${w[0].toUpperCase()}${w.slice(1)} also costs` : "Casting it also costs"}: ${lowerFirst(c.playCostExtra)}.`);
+  }
   const others = (Array.isArray(c.playCostOthers) ? c.playCostOthers : []).filter((s) => s && s.cost).map((s) => {
     const w = way(s.mode);
     const half = c.playCostName || (s.name && s.name !== c.identity?.name) ? `${s.name} ` : "";
-    return `${half}${s.cost}${w ? ` by ${w}` : ""}`;
+    return `${half}${s.cost}${w ? ` by ${w}` : ""}${plus(s.extra)}`;
   });
   if (others.length) out.push(`Other ways to cast it: ${others.join("; ")}`);
   return out;
 }
+// "Pay 3 life" -> "pay 3 life" (Forge's cost words start a sentence; inside one they don't)
+const lowerFirst = (s) => (s ? `${String(s)[0].toLowerCase()}${String(s).slice(1)}` : "");
 // the generic part of a mana cost string, "{3}{U}" -> 3 (none: 0)
 const genericOf = (cost) => Number(/^\{(\d+)\}/.exec(cost || "")?.[1] || 0);
 

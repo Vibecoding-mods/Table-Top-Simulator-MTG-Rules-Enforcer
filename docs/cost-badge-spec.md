@@ -127,7 +127,8 @@ the `mayPlay` cards outside the hand only:
   already a cost zone). No new XML.
 - **Tests:** harness `CostBadgeTest` (14 checks), `tests/test_bridge_cost_badge_2.js` (23, in GATES); break-its
   `tools/mutate-cost-badge-2-engine.js` and `tools/mutate-cost-badge-2.js`.
-- **Not done:** no image, no live game. Non-mana parts of a cost (escape's exiled cards) are not shown.
+- **Not done:** no image, no live game. Non-mana parts of a cost (escape's exiled cards) were not shown (done in
+  phase 4).
 
 #### Follow-ups (2026-11-17, `engine1117-costbadge3`, branch `cloud/followups-1`)
 
@@ -144,6 +145,26 @@ the `mayPlay` cards outside the hand only:
   {4}{U}{U})".
 - **Tests:** `CostBadgeTest` 22; `tests/test_bridge_cost_badge_3.js` (17, in GATES). Break-its
   `tools/mutate-cost-badge-2-engine.js` and `tools/mutate-cost-badge-3.js`. No Lua or XML change.
+
+#### Phase 4 (2026-11-17, `engine1121-costbadge4`, branch `cloud/cost-badge-4`)
+
+- **What a way costs besides mana** is in the hover, in Forge's words (`CostPart.toString()`), joined with ", ":
+  - the way cast now (`playCostExtra`): "Escape also costs: exile eight other cards from your graveyard." A
+    permission or a free cast reads "Casting it also costs: ...". Dread Return's flashback reads {0}; this line says
+    its three sacrificed creatures.
+  - each other way and each half (`SpellCostDto.extra`): "Other ways to cast it: {1}{R} by flashback, and pay 3 life";
+    "Stomp: costs {2}{R} now (printed {1}{R}), and pay 2 life".
+  - The badge itself is still mana only. The public graveyard pile says none of it, as before.
+- **The tie-break for "cheapest":** mana value still decides. Life and cards aren't turned into mana: a player with
+  40 life and one with 3 would weigh them differently, and the hover now says both. On equal mana value:
+  1. the way with fewer non-mana parts wins (a plain cast beats a flashback that also takes 3 life);
+  2. then the one that pays less life;
+  3. then Forge's order, as before.
+- **Tests:** `CostBadgeTest` 29 (7 new, including a unit check of `PlayCost.cheapest`);
+  `tests/test_bridge_cost_badge_4.js` (12, in GATES). Break-its `tools/mutate-cost-badge-4-engine.js` (9 of 9) and
+  `tools/mutate-cost-badge-4.js` (9 of 9). No Lua or XML change.
+- **Not done:** a hand card's additional costs (kicker, a hand spell's sacrifice) aren't said: `effectiveManaCost` is
+  mana only.
 
 ## Cards and cases checklist
 

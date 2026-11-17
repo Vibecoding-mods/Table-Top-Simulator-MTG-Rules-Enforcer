@@ -22,7 +22,7 @@ const MUTATIONS = [
   ["the other ways not said", B, "  if (others.length) out.push(", "  if (false) out.push(", "cheapest: the other way in the hover"],
   ["the other half not named", B, "    const half = c.playCostName || (s.name && s.name !== c.identity?.name) ? `${s.name} ` : \"\";", "    const half = false ? `${s.name} ` : \"\";", "halves: the half cast and the other half"],
   ["the whole card named among the others", B, "    const half = c.playCostName || (s.name && s.name !== c.identity?.name) ? `${s.name} ` : \"\";", "    const half = true ? `${s.name} ` : \"\";", "cheapest: the other way in the hover"],
-  ["an other way's way not said", B, "    return `${half}${s.cost}${w ? ` by ${w}` : \"\"}`;", "    return `${half}${s.cost}`;", "others: a dearer way said with its way"],
+  ["an other way's way not said", B, "    return `${half}${s.cost}${w ? ` by ${w}` : \"\"}${plus(s.extra)}`;", "    return `${half}${s.cost}${plus(s.extra)}`;", "others: a dearer way said with its way"],
   ["a permission said as a way", B, "  const way = (m) => (m && m !== \"may play\" && m !== \"free\" ? playWay(m) : null);", "  const way = (m) => (m ? playWay(m) : null);", "cheapest: the other way in the hover"],
   ["the ways on the public pile", B, "  if (!row || !c.playCost) return out;", "  if (!c.playCost) return out;", "pile: the public graveyard entry has no other ways"],
 ];
