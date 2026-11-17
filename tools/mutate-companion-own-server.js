@@ -6,7 +6,10 @@
 //    (COMPANION_PAGE). The real sources are never written.
 //  - tools/make-friend-package.js: changed in place for the run of tests/test_friend_package.js, then put back and
 //    checked by sha256 (the test requires the file by its path).
-// A mutation whose check doesn't fail is printed as SURVIVED.
+// A mutation whose check doesn't fail is printed as SURVIVED, except where it is marked an equivalent program on this
+// platform (equivalentOn, with why): then EQUIVALENT, with the reason, counted apart.
+// The live relay on this PC's 9443 may answer a mutant that logs in there: the checks that need the fake relay's own
+// login say so (2026-11-17, Windows: "the login made on this PC with a server" showed the same green text).
 //   node tools/mutate-companion-own-server.js [label pattern]
 const fs = require("fs");
 const os = require("os");
@@ -25,7 +28,8 @@ const MUTATIONS = [
   ["the default port 9444", O, "public const int DefaultPort = 9443;", "public const int DefaultPort = 9444;", "selftest: server: host only, the default port 9443, lower case"],
   ["a ws:// host accepted", O, "if (Scheme.IsMatch(host)) return", "if (false) return", "selftest: server: refused (without ws://)"],
   ["a misspelt setting ignored", O, "if (unknown.Count > 0)", "if (false)", "selftest: server: refused (unknown setting \"prot\")"],
-  ["a cut-off server.json taken as an object", O, "if (valid && parsed is Dictionary<string, object> && !text.Trim().EndsWith(\"}\")) valid = false;", "", "selftest: server: refused (isn't valid JSON)"],
+  ["a cut-off server.json taken as an object", O, "if (valid && parsed is Dictionary<string, object> && !text.Trim().EndsWith(\"}\")) valid = false;", "", "selftest: server: refused (isn't valid JSON)",
+    { equivalentOn: "win32", why: ".NET Framework's JavaScriptSerializer itself rejects an object cut off before its \"}\" (mono's takes it for an object), so on Windows the check never changes a result" }],
   ["MTG_SERVER_KEY beats server.json's key", O, "if (r.Server.Key == null && envKey != null && envKey.Trim().Length > 0)", "if (envKey != null && envKey.Trim().Length > 0)", "selftest: server: server.json's key beats MTG_SERVER_KEY"],
   ["--server's other host gets the file's key", O, "bool otherHost = cli != null && fromFile != null && !SameHost(cli[\"host\"], fileHost);", "bool otherHost = false;", "selftest: server: --server for another host never gets the file's key"],
   ["secure ignored", O, "(s.Secure ? \"wss\" : \"ws\")", "\"ws\"", "selftest: server: a port, secure, and Notepad's BOM"],
@@ -92,8 +96,8 @@ for (const [test, env] of [[OWN, {}], [PKG, {}]]) {
   const base = runTest(test, env);
   if (base.length) { console.log(`BASELINE FAILS (${test}): ${base.slice(0, 3).join(" | ")}`); process.exit(1); }
 }
-let survived = 0, caught = 0;
-for (const [label, file, from, to, want] of MUTATIONS) {
+let survived = 0, caught = 0, equivalent = 0;
+for (const [label, file, from, to, want, mark] of MUTATIONS) {
   if (only && !only.test(label)) continue;
   const real = path.join(ROOT, file), src = fs.readFileSync(real, "utf8");
   const n = src.split(from).length - 1;
@@ -117,7 +121,8 @@ for (const [label, file, from, to, want] of MUTATIONS) {
   }
   const named = failed.some((f) => f.startsWith(want));
   if (named) { caught++; console.log(`caught   ${label}: ${want}${failed.length > 1 ? ` (+${failed.length - 1})` : ""}`); }
+  else if (mark && mark.equivalentOn === process.platform && !failed.length) { equivalent++; console.log(`EQUIVALENT ${label} on ${process.platform}: ${mark.why}`); }
   else { survived++; console.log(`SURVIVED ${label}${failed.length ? ` (failed instead: ${failed.slice(0, 2).join(" | ")})` : ""}`); }
 }
-console.log(`${caught} caught, ${survived} survived; the real files unchanged (sha256)`);
+console.log(`${caught} caught, ${survived} survived${equivalent ? `, ${equivalent} equivalent on this platform` : ""}; the real files unchanged (sha256)`);
 process.exit(survived ? 1 : 0);

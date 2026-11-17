@@ -44,6 +44,9 @@ namespace MtgCompanion
                 new[] { "{\"host\":\"a.b\",\"key\":\"  \"}", "\"key\" must be" },
                 new[] { "{\"host\":\"a.b\",\"key\":\"x\",\"secure\":\"yes\"}", "\"secure\" must be true or false" },
                 new[] { "{\"host\": ", "isn't valid JSON" },
+                new[] { "{\"host\":\"a.b\",\"key\":\"x\"", "isn't valid JSON" },
+                new[] { "{\"host\":\"a.b\",\"key\":\"x\",", "isn't valid JSON" },
+                new[] { "{\"host\":\"a.b\",\"key\":\"x\"} junk", "isn't valid JSON" },
                 new[] { "false", "isn't a JSON object" } })
             {
                 var r = OwnServer.SettingOf(bad[0], null, null);
