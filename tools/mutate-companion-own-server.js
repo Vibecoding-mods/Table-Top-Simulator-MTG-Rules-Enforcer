@@ -1,0 +1,119 @@
+// Break-it for the Windows companion's own-server mode (tests/test_companion_own_server.js, tests/test_friend_package.js;
+// companion/src/OwnServer.cs and its wiring, the status page's box, the friend README and the packager's key check).
+// Each mutation changes one rule and needs the check it names to fail:
+//  - companion/src/*.cs and WebPage.cs: the source folder is copied to a temp folder, the copy is changed and built
+//    (build.cmd's csc on Windows, mono's mcs elsewhere), and the test runs that exe (COMPANION_EXE) and page
+//    (COMPANION_PAGE). The real sources are never written.
+//  - tools/make-friend-package.js: changed in place for the run of tests/test_friend_package.js, then put back and
+//    checked by sha256 (the test requires the file by its path).
+// A mutation whose check doesn't fail is printed as SURVIVED.
+//   node tools/mutate-companion-own-server.js [label pattern]
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const crypto = require("crypto");
+const { spawnSync } = require("child_process");
+
+const ROOT = path.join(__dirname, "..");
+const SRC = path.join(ROOT, "companion", "src");
+const WIN = process.platform === "win32";
+const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
+const O = "companion/src/OwnServer.cs", C = "companion/src/Controller.cs", P = "companion/src/Probes.cs", W = "companion/src/WebPage.cs", F = "tools/make-friend-package.js";
+const OWN = "tests/test_companion_own_server.js", PKG = "tests/test_friend_package.js";
+// [label, file, from, to, the check that must fail]: `from` must occur exactly once
+const MUTATIONS = [
+  ["the default port 9444", O, "public const int DefaultPort = 9443;", "public const int DefaultPort = 9444;", "selftest: server: host only, the default port 9443, lower case"],
+  ["a ws:// host accepted", O, "if (Scheme.IsMatch(host)) return", "if (false) return", "selftest: server: refused (without ws://)"],
+  ["a misspelt setting ignored", O, "if (unknown.Count > 0)", "if (false)", "selftest: server: refused (unknown setting \"prot\")"],
+  ["a cut-off server.json taken as an object", O, "if (valid && parsed is Dictionary<string, object> && !text.Trim().EndsWith(\"}\")) valid = false;", "", "selftest: server: refused (isn't valid JSON)"],
+  ["MTG_SERVER_KEY beats server.json's key", O, "if (r.Server.Key == null && envKey != null && envKey.Trim().Length > 0)", "if (envKey != null && envKey.Trim().Length > 0)", "selftest: server: server.json's key beats MTG_SERVER_KEY"],
+  ["--server's other host gets the file's key", O, "bool otherHost = cli != null && fromFile != null && !SameHost(cli[\"host\"], fileHost);", "bool otherHost = false;", "selftest: server: --server for another host never gets the file's key"],
+  ["secure ignored", O, "(s.Secure ? \"wss\" : \"ws\")", "\"ws\"", "selftest: server: a port, secure, and Notepad's BOM"],
+  ["a busy room counted as ours", O, "else if (Logic.Locked(game))\n                        return new Verdict(Light.Green, \"Your server answers", "else if (true)\n                        return new Verdict(Light.Green, \"Your server answers", "a busy room: red, says so"],
+  ["the refused message made generic", O, "refused the connection\" + why + \": nothing listens on port \" + s.Port + \" there.", "refused the connection\" + why + \".", "nothing on the port: red, nothing listens"],
+  ["the key never sent to the bridge", O, "{ \"MTG_KEY\", server.Key }", "{ \"MTG_KEY\", \"\" }", "selftest: bridge: started with the server's relay, key and MTG_REMOTE_ENGINE=1"],
+  ["this computer's engine leaves the server variables", O, "? new Dictionary<string, string> { { \"MTG_RELAY\", \"\" }, { \"MTG_KEY\", \"\" }, { \"MTG_REMOTE_ENGINE\", \"\" } }", "? new Dictionary<string, string>()", "selftest: bridge: this computer's engine empties the three"],
+  ["a bridge too old to say counted as the server's", O, "if (server != null) return !says || relay != Url(server) || !remote;", "if (server != null) return says && relay != Url(server);", "selftest: bridge: one too old to say differs from a server"],
+  ["the page shown the whole key", O, "{ \"keyEnds\", KeyEnds(s.Key) }", "{ \"keyEnds\", s.Key }", "selftest: page: the server, its port, a key is set, its last 2 characters only"],
+  ["a blank key keeps the old one for another host", O, "if (old != null && SameHost(oldHost, d[\"host\"]) && oldKey is string)", "if (old != null && oldKey is string)", "selftest: page: a blank key for another host is refused (the old key isn't sent there)"],
+  ["a name that doesn't resolve not told apart", P, "se != null && (se.SocketErrorCode == SocketError.HostNotFound || se.SocketErrorCode == SocketError.NoData || se.SocketErrorCode == SocketError.TryAgain) ? LoginKind.NotFound", "false ? LoginKind.NotFound", "a name that doesn't resolve: red, isn't known"],
+  ["Docker still asked with a server", C, "case StepDocker: ok = OnServer ? NotHere(StepDocker) : DoDocker(); break;", "case StepDocker: ok = DoDocker(); break;", "selftest: wiring: with a server the start steps ask nothing of Docker: Not needed here"],
+  ["the login made on this PC with a server", C, "var r = s != null && s.Ok ? Probes.RelayLogin(OwnServer.Url(s.Server)", "var r = false ? Probes.RelayLogin(OwnServer.Url(s.Server)", "server answers: green, Your server, the room open"],
+  ["the bridge loop without the engine's variables", C, "            foreach (var kv in EngineEnv()) psi.EnvironmentVariables[kv.Key] = kv.Value;\n", "", "selftest: wiring: the bridge loop gets the server's relay, key and MTG_REMOTE_ENGINE=1"],
+  ["the row keeps its Engine stack name", C, "Rows[StepStack].Name = server != null ? OwnServer.RowName : Names[StepStack];", "Rows[StepStack].Name = Names[StepStack];", "selftest: wiring: server.json makes the Engine stack row Your server"],
+  ["Use this computer leaves server.json", C, "if (text == null) { if (File.Exists(L.ServerFile)) File.Delete(L.ServerFile); }", "if (text == null) { }", "selftest: wiring: Use this computer removes server.json"],
+  ["the box shows the default port", W, "host: Number(s.port) === 9443 ? str(s.host) : at", "host: at", "page: a server: shown open, the address without the default port, the key's last 2 characters only"],
+  ["the box sends a ws:// address", W, "if (/^[a-z][a-z0-9+.-]*:\\/\\//i.test(h)) return { error:", "if (false) return { error:", "page: ws:// refused before sending"],
+  ["the box shown before the companion says its mode", W, "<details id='srvbox' class='card' hidden>", "<details id='srvbox' class='card'>", "page: the Own server box is in the page, hidden until the companion says its mode"],
+  ["the friend README without its own-server section", F, "OPTIONAL: PLAY ON A FRIEND'S ENGINE (OWN SERVER)\n", "OPTIONAL\n", "friend README own server: the section"],
+  ["the friend README without the light", F, "the third light, \"Your server\", says whether the\n   server answers", "the third light says how it is", "friend README own server: the light"],
+  ["a package may hold server.json", F, "return base === \"server.json\" || base === \".env\"", "return base === \".env\"", "secretFiles: server.json, a stack .env and key files"],
+];
+
+// the C# build of a source folder (null: no compiler here)
+const has = (cmd) => spawnSync(WIN ? "where" : "which", [cmd], { stdio: "ignore" }).status === 0;
+function buildFrom(companionDir, out) {
+  if (WIN) {
+    const r = spawnSync("cmd", ["/c", path.join(companionDir, "build.cmd")], { encoding: "utf8", timeout: 300000 });
+    if (r.status !== 0) return `build.cmd: ${r.stdout}${r.stderr}`;
+    fs.copyFileSync(path.join(companionDir, "bin", "MTG Companion.exe"), out);
+    return null;
+  }
+  const refs = ["System", "System.Core", "System.Drawing", "System.Windows.Forms", "System.Management", "System.Web.Extensions", "System.Security", "System.IO.Compression", "System.IO.Compression.FileSystem"];
+  const src = path.join(companionDir, "src");
+  const cs = fs.readdirSync(src).filter((f) => f.endsWith(".cs")).map((f) => path.join(src, f));
+  const r = spawnSync("mcs", ["-nologo", "-target:winexe", "-langversion:5", `-out:${out}`, `-resource:${path.join(companionDir, "release-keys.txt")},release-keys.txt`, ...refs.map((x) => `-r:${x}.dll`), ...cs], { encoding: "utf8", timeout: 300000 });
+  return r.status === 0 ? null : `mcs: ${r.stdout}${r.stderr}`;
+}
+const runTest = (test, env) => {
+  const r = spawnSync(process.execPath, [path.join(ROOT, test)], { encoding: "utf8", timeout: 1200000, maxBuffer: 1 << 26, env: { ...process.env, ...env } });
+  const failed = [];
+  for (const line of String(r.stdout).split("\n")) if (/^FAIL /.test(line)) failed.push(line.slice(5));
+  if (r.status !== 0 && !failed.length) failed.push(`${test} exit ${r.status} ${String(r.stderr).slice(0, 300)}`);
+  return failed;
+};
+
+if (!WIN && !(has("mcs") && has("mono") && has("xvfb-run"))) { console.log("needs a C# compiler: build.cmd on Windows, or mono's mcs, mono and xvfb-run"); process.exit(1); }
+const pattern = process.argv.slice(2).find((a) => !a.startsWith("--"));
+const only = pattern ? new RegExp(pattern, "i") : null;
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "mutate-own-server-"));
+const pristine = Object.fromEntries([...new Set(MUTATIONS.map((m) => m[1]))].map((f) => [f, sha(path.join(ROOT, f))]));
+const checkPristine = () => {
+  for (const [f, h] of Object.entries(pristine)) if (sha(path.join(ROOT, f)) !== h) { console.log(`REAL FILE CHANGED: ${f}`); process.exit(100); }
+};
+process.on("exit", () => { try { fs.rmSync(TMP, { recursive: true, force: true }); } catch {} });
+
+// the tests must pass on the real files first: a test that fails by itself proves nothing
+for (const [test, env] of [[OWN, {}], [PKG, {}]]) {
+  const base = runTest(test, env);
+  if (base.length) { console.log(`BASELINE FAILS (${test}): ${base.slice(0, 3).join(" | ")}`); process.exit(1); }
+}
+let survived = 0, caught = 0;
+for (const [label, file, from, to, want] of MUTATIONS) {
+  if (only && !only.test(label)) continue;
+  const real = path.join(ROOT, file), src = fs.readFileSync(real, "utf8");
+  const n = src.split(from).length - 1;
+  if (n !== 1) { console.log(`NOT APPLIED (${n} matches) ${label}`); survived++; continue; }
+  const mutant = src.replace(from, () => to);
+  let failed;
+  if (file === F) {
+    try { fs.writeFileSync(real, mutant); failed = runTest(PKG, {}); }
+    finally { fs.writeFileSync(real, src); checkPristine(); }
+  } else {
+    // a copy of companion/ with the changed file, built
+    const dir = path.join(TMP, `c${caught + survived}`);
+    fs.cpSync(path.join(ROOT, "companion"), dir, { recursive: true, filter: (p) => !p.includes(`${path.sep}bin`) });
+    fs.writeFileSync(path.join(dir, path.relative(path.join(ROOT, "companion"), real)), mutant);
+    const exe = path.join(dir, "mutant.exe");
+    const why = buildFrom(dir, exe);
+    if (why) { console.log(`DOESN'T BUILD ${label}: ${why.slice(0, 300)}`); survived++; continue; }
+    failed = runTest(OWN, { COMPANION_EXE: exe, COMPANION_PAGE: path.join(dir, "src", "WebPage.cs") });
+    fs.rmSync(dir, { recursive: true, force: true });
+    checkPristine();
+  }
+  const named = failed.some((f) => f.startsWith(want));
+  if (named) { caught++; console.log(`caught   ${label}: ${want}${failed.length > 1 ? ` (+${failed.length - 1})` : ""}`); }
+  else { survived++; console.log(`SURVIVED ${label}${failed.length ? ` (failed instead: ${failed.slice(0, 2).join(" | ")})` : ""}`); }
+}
+console.log(`${caught} caught, ${survived} survived; the real files unchanged (sha256)`);
+process.exit(survived ? 1 : 0);

@@ -7,7 +7,10 @@
 //   MTG Companion.exe --observe            only read and show the lights; changes nothing
 //       [--home DIR] [--saves DIR] [--state DIR] [--dump FILE]   (--dump: write the lights after one pass and exit)
 //       [--no-web] [--web-port N] [--no-browser]   the status page on 127.0.0.1:48790 (WebUi.cs) or the old window
-//   MTG Companion.exe --selftest [--out FILE]   the decision logic against canned inputs; exit code = failures
+//   MTG Companion.exe --server HOST[:PORT]     own-server mode for this run: the engine on another computer (OwnServer.cs);
+//       without it, server.json in the package folder says the same (the status page's Own server box writes it)
+//   MTG Companion.exe --selftest [--out FILE] [--section own-server]   the decision logic against canned inputs; exit
+//       code = failures (--section: one section only)
 //   MTG Companion.exe --bridge-loop --home DIR  (internal) the hidden loop that runs and restarts the bridge
 //   MTG Companion.exe --write-icon FILE         writes the app icon (.ico)
 //   MTG Companion.exe --probe-login URL [KEY]   one relay login, printed (for testing against a fake relay)
@@ -133,7 +136,7 @@ namespace MtgCompanion
             if (args.Contains("--selftest"))
             {
                 var sb = new StringBuilder();
-                int failed = SelfTest.Run(sb);
+                int failed = Arg(args, "--section") != null ? SelfTest.RunSection(sb, Arg(args, "--section")) : SelfTest.Run(sb);
                 Out(sb.ToString(), Arg(args, "--out"));
                 return failed;
             }
@@ -250,6 +253,7 @@ namespace MtgCompanion
             }
 
             Controller.UpdateBase = Updates.TestBaseOk(ub) ? ub : null;
+            Controller.ServerArg = Arg(args, "--server");
             var c = new Controller(layout, observe, savesDir, stateDir, exe);
             c.AutoStart = AutoStart(args);
             c.Recovered = recovered;
