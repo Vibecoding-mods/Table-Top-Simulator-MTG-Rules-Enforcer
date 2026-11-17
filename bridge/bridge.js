@@ -1854,7 +1854,7 @@ class Seat {
             return;
           }
           if (!room) { log(`room ${ROOM} not found`); chat(REMOTE_ENGINE ? `[MTG] Room "${ROOM}" not found on your server (${RELAY}). Start the Forge room there.` : `[MTG] Room "${ROOM}" not found. Is the Docker stack running?`); return; }
-          log(`room ${ROOM} busy (${room.status})`); chat(REMOTE_ENGINE ? "[MTG] Room is busy with another game. The engine runs on your own server: restart the Forge room there (docker compose -f stack/compose.yml restart forge-room), then press Start again." : `[MTG] Room is busy with another game. Type "mtg reset".`); return;
+          log(`room ${ROOM} busy (${room.status})`); chat(REMOTE_ENGINE ? "[MTG] Room is busy with another game. The engine runs on the host's server: restart the room on the host's server (there: docker compose -f stack/compose.yml restart forge-room), then press Start again." : `[MTG] Room is busy with another game. Type "mtg reset".`); return;
         }
         this.roomId = room.room_id;
         game.roomId = room.room_id;
@@ -12571,7 +12571,7 @@ function restartRoom(then) {
   if (REMOTE_ENGINE) {
     // (own server: the Forge room isn't a container here. The start goes on at once: a room that is free starts the
     // game, a busy one says so, and nothing waits for a restart that never comes.)
-    chat(`[MTG] The engine runs on your own server (${RELAY}), so the bridge can't restart its Forge room from here. If a game is stuck there, restart the Forge room on the server: docker compose -f stack/compose.yml restart forge-room`);
+    chat(`[MTG] The engine runs on the host's server (${RELAY}), so the bridge can't restart its Forge room from here. If a game is stuck there, restart the room on the host's server (there: docker compose -f stack/compose.yml restart forge-room).`);
     if (then) guarded("start (own server)", then);
     return;
   }

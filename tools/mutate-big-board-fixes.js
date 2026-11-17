@@ -31,7 +31,7 @@ const MUTATIONS = [
   ["block: chump blocks when not lethal", K, "            if (damage < ai.getLife()) {\n                break;\n            }\n", "", "block: past the deadline an attack that isn't lethal gets no forced blocks"],
   ["checkpoints: the cap not by size", S, "return (int) Math.max(1, Math.min(MAX_CHECKPOINTS, CHECKPOINT_BUDGET_BYTES / perCheckpoint));", "return MAX_CHECKPOINTS;", "checkpoints: the cap falls with the cards in the game"],
   ["checkpoints: bytes per card in thousands", S, "CHECKPOINT_BYTES_PER_CARD = 27 * 1024;", "CHECKPOINT_BYTES_PER_CARD = 27 * 1000;", "checkpoints: the cap falls with the cards in the game"],
-  ["checkpoints: the newest dropped", S, "        while (checkpoints.size() > cap) {\n            checkpoints.removeFirst();", "        while (checkpoints.size() > cap) {\n            checkpoints.removeLast();", "checkpoints: past the cap the oldest go, as before"],
+  ["checkpoints: the newest dropped", S, "                checkpoints.removeFirst();\n            }\n        }", "                checkpoints.removeLast();\n            }\n        }", "checkpoints: past the turns' firsts the oldest turns go"],
   ["checkpoints: the session not capped", S, "        thinCheckpoints(checkpoints, checkpointCap(cardsInZones(game)));\n", "        thinCheckpoints(checkpoints, 1000);\n", "checkpoints: the session keeps no more than the cap"],
 ];
 

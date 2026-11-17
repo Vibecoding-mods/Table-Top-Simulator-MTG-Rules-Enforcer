@@ -184,6 +184,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-17 (no image; built in a cloud session) | `engine1121-ownerdecisions` (no image ids) | On top of `engine1121-costbadge4`. The owner's decisions of 2026-11-17. (1) Forge `PhaseHandler`: the team-block cap's notice reads "<Primary> decides (team leader)" (was "... settles the team's blocks (rule 805.2)"); the bridge reads both. (2) `ManaBrewInteractiveSession.thinCheckpoints`: past the cap, each turn's first restore point stays and the oldest turns' in-between ones go first; only when every one left is a turn's first does the oldest go; the size cap is unchanged. (3) Relay protocol: `CreateRoom.engine_build` and `RoomInfo.engine_build` (optional): the node says its build (`SELF_HOSTED_NODE_ENGINE_BUILD`, set by the image from `engine/build-images.sh`'s tag) and the relay lists it, so an own-server companion can compare it with the table's (`stack/deployed.json` `engineBuild`, recorded by `tools/deploy.js`). `SharedCombatTest`, `BigBoardFixesTest`, `StressCapsTest`, `room::tests` (2 new), networking `a_rooms_engine_build_is_listed`; break-it 10 of 10 | **Relay protocol** (`CreateRoom.engine_build`, `RoomInfo.engine_build`, optional, absent from an older node or relay; every Rust literal: `host.rs`, `room.rs`, `connection.rs`, `networking-tests` support) | outer branch `cloud/owner-decisions-1117`; `engine/manabrew.patch` regenerated (relay protocol, server `room.rs` / `lobby.rs` / `connection.rs`, node `config.rs` / `host.rs` / `Dockerfile`, networking tests; harness `ManaBrewInteractiveSession`, `BigBoardFixesTest`, `StressCapsTest`, `SharedCombatTest`); `engine/forge.patch` regenerated (`PhaseHandler`); `git apply --check` clean on `fd16e2f` / `e7d2b93b` | not deployed | `engine1121-costbadge4` |
 | 2026-11-17 (no image; built in a cloud session) | `engine1121-costbadge4` (no image ids) | On top of `engine1121`. What a way costs besides mana, and the tie-break of the cheapest way. `SpellCostDto.extra` and `CardDto.playCostExtra` (optional): the way's non-mana cost parts in Forge's words (`CostPart.toString()`, joined with ", "), for the way cast now, each other way and each half. `PlayCost.cheapest`: lower mana value, then fewer non-mana parts, then less life, then Forge's order. `CostBadgeTest` 29 checks; break-it 9 of 9 (and the phase 2 break-it, updated for the new comparison, 24 of 24) | **Protocol** (`SpellCostDto.extra`, `CardDto.playCostExtra`, optional; the full `CardDto` literal in `manabrew-agent-interface` `game_view_dto.rs` gains the field) | outer branch `cloud/cost-badge-4`; `engine/manabrew.patch` regenerated (protocol `game/mod.rs`, agent-interface `game_view_dto.rs`; harness `PlayCost`, `InteractiveSnapshotExtractor`, `CostBadgeTest`); `engine/forge.patch` unchanged; `git apply --check` clean on `fd16e2f` / `e7d2b93b` | not deployed | `engine1121` |
 | 2026-11-17 (not built; tested in the cloud on the source tree) | mana-sources: the held check's mana probes shared per call | `ActionSpace.getPossibleActions` now works out the board's mana once per call and reuses it for every ability: each player's mana sources (`MANA_SOURCES`, `BATTLEFIELD_SOURCES`, with only the per-ability checks — mana restrictions, the ability's own host, reserved sacrifices — left per ability), the target-dependent cost statics (`TARGET_COST_STATICS`), and each ability's adjusted mana cost (`PROBED_COSTS`, copied out; skipped while an X or a target is being tried). Forge: `ComputerUtilMana.beginSharedSources`/`endSharedSources` share `groupSourcesByManaColor` per player and `checkPlayable` (copied out), and the new `StaticSourceScope` lets `CostAdjustment`, `StaticAbilityAlternativeCost` and `StaticAbilityManaConvert` walk only the cards that have a static of the mode they look for, in the same order, the host read live; cleared after the stack statics are applied. Without a scope everything runs as before. `ActionSpace.shareManaSources` (default on) switches it all off. HeldPassBench new state, before / after: 161 / 14–19 ms at 500 Clues, 34 / 1.2–2.4 ms at 500 + 500 Treasures, Soldiers unchanged (0.3, 1.7, 2–3.5 ms). New `ManaSourcesTest` (10 checks): the same action list with sharing off and on, with and without the life fallback, on 6 boards, direct memo checks, and the 500-Clue held check under 30 ms. Break-it 12 of 13 caught | No | outer branch `cloud/mana-sources`; `engine/forge.patch` (`ComputerUtilMana`, `CostAdjustment`, `StaticAbilityAlternativeCost`, `StaticAbilityManaConvert`, new `StaticSourceScope`) and `engine/manabrew.patch` (`ActionSpace`, new `ManaSourcesTest`) regenerated | not built | the patches before it |
 | 2026-11-17 (not built; tested as an overlay in `mtg-harness-test:l2-ai`) | big-turns-2 follow-up: a late runaway answer | Every queued action is tagged with the prompt it answers (`answersPrompt`, the session's prompt counter; internal to the harness, not the protocol). When the runaway question times out, its id is kept, and a yes/no tagged with it is dropped, so a click after the engine's 90 s can't answer the next yes/no question. The bridge takes the question down at 90 s (`RUNAWAY_ANSWER_SECONDS`) and tells the player that no answer counts as Keep going. New `BigTurnsTest` check `aLateAnswerToATimedOutQuestionIsDropped` (39); `anAnswerBetweenTimeoutsStartsTheCountOver` now answers the second question, not the timed-out one | No | outer branch `big-turns-2`; `engine/manabrew.patch` (Session) regenerated; branch `big-turns-2` (`cbe0365`, with `cloud/tie-offer`), merged on `engine-1120`: both patches regenerated from a source-level merge in a clean `fd16e2f` / `e7d2b93b` tree (base `82dc867`, no source conflicts), `git apply --check` clean; `ReplacementIndexTest` no longer calls the removed `Game.setRunawayTokensPerEffectCap` and makes its 1,000 and 2,500 timing tokens as piles of at most `Game.UNBOUNDED_TOKENS`, one effect each; `TieOfferTest`, `UnboundedTokensTest` and `HeldPassResponseTest` added to the `harness-tests.sh` defaults | not built | the patches before it |
@@ -371,6 +372,41 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
   Forge's own `getNetPower`; nothing here caps power itself.
 - **Tests:** `AttackTaxLethalTest.aHugeDoubleStrikerStaysAtTheCap` (damage 2^30, not negative); it fails on the
   unfixed file.
+
+### 2026-11-17 engine1121-ownerdecisions: the owner's decisions (built in the cloud, no image)
+- **Problem:** four questions were open (`docs/handoff/open-after-1121.md` §4); the owner decided them on 2026-11-17.
+- **Change:**
+  - **Team-block notice.** At the team-block cap (4 revise rounds), Forge's `PhaseHandler` now tells both defenders
+    "Yellow decides (team leader)". It used to say "Yellow settles the team's blocks (rule 805.2)".
+    - The bridge's `teams.teamBlockNotice` reads both wordings, so an older engine still reads the new way.
+  - **Restore-point thinning.** Past the cap (`checkpointCap`: at most 40, fewer on big boards):
+    - each turn's first restore point stays;
+    - the oldest turns' in-between points go first (`dropOldestInBetween`);
+    - once every point left is a turn's first, the oldest turn goes, as before;
+    - the size cap itself is unchanged.
+  - **The engine build in the room list.**
+    - `CreateRoom` and `RoomInfo` gain an optional `engine_build`.
+    - The node sends `SELF_HOSTED_NODE_ENGINE_BUILD`, which the image sets from `ARG ENGINE_BUILD`
+      (`engine/build-images.sh` passes the tag). The relay keeps it on the room and lists it.
+    - An older node or relay simply leaves it out.
+- **Tests:**
+  - `SharedCombatTest` `cr805.2 thePrimarySettlesTheBlocksAtTheCap`: the new words.
+  - `BigBoardFixesTest`, three checks:
+    - each turn's first stays, and the in-between points go oldest turn first;
+    - past the turns' firsts, the oldest turns go;
+    - a session of 45 points in one turn keeps 1 and 7..45.
+  - `StressCapsTest` `restorePointsAreCappedAt40KeepingTheTurnsFirst`: 60 points in one turn keep 1 and 22..60.
+  - `manabrew-server` `room::tests`: the build in the room list (and none without one), and an older node's
+    `CreateRoom` without the field.
+  - Networking `a_rooms_engine_build_is_listed`: the relay binary, a create and a list.
+  - `tools/mutate-owner-decisions-engine.js <tree>`: 10 of 10 caught by name, restored by sha256.
+  - `tools/mutate-big-board-fixes.js`: its "newest dropped" mutation now breaks the new fallback; 4 of 4 checkpoint
+    mutations caught.
+- **Not covered:**
+  - The node's reading of `SELF_HOSTED_NODE_ENGINE_BUILD`: the networking scenarios that start a real node need the
+    `self-hosted-node` binary with Forge, which isn't built here.
+  - A room restored after a relay restart (`GameStartedSpec`) doesn't carry the build: it reads as unknown, so no
+    warning shows.
 
 ### 2026-11-17 engine1121-costbadge4: what a way costs besides mana, the tie-break (built in the cloud, no image)
 - **Problem:**

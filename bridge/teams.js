@@ -475,11 +475,13 @@ function jointBlockLines(lines, players, colored = true) {
   });
 }
 // A joint block's notice (a no-card revealCards to each defender): a change, "Yellow: Wall of Wood now blocks Hill
-// Giant." / "Blue: Centaur Courser no longer blocks.", said as it is; the cap's "Yellow settles the team's blocks (rule
-// 805.2)", said "Yellow decides (team leader)". { kind: "change" | "settle", line }, or null for any other notice.
+// Giant." / "Blue: Centaur Courser no longer blocks.", said as it is; the cap's "Yellow decides (team leader)" (the
+// owner's wording, 2026-11-17: the engine sends it so from engine1121-ownerdecisions), said as it is. An engine before
+// that sends "Yellow settles the team's blocks (rule 805.2)", said the new way.
+// { kind: "change" | "settle", line }, or null for any other notice.
 function teamBlockNotice(text) {
   const t = String(text || "").trim();
-  const settle = /^(.+?) settles the team's blocks \(rule 805\.2\)\.?$/.exec(t);
+  const settle = /^(.+?) decides \(team leader\)\.?$/.exec(t) || /^(.+?) settles the team's blocks \(rule 805\.2\)\.?$/.exec(t);
   if (settle) return { kind: "settle", line: `${settle[1]} decides (team leader)` };
   if (/^[^:]+: .+ (?:now blocks .+|no longer blocks)\.$/.test(t)) return { kind: "change", line: t };
   return null;

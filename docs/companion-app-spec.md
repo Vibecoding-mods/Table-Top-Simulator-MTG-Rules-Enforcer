@@ -261,28 +261,40 @@ node running another `bridge.js` ("Another MTG bridge is already running"); a no
 A friend's companion can play on the host's engine (relay and Forge room) over the network instead of running Docker:
 the same setting and rules as the Linux/Mac companion (`companion-node`, `docs/handoff/companion-server-report.md`).
 
+- **The owner's decisions (2026-11-17):** Windows keeps own-server mode; the key is encrypted at rest (DPAPI on
+  Windows, the file mode 600 on Linux/Mac); `mtg reset` with a server restarts nothing here and says "restart the room on
+  the host's server"; the companion compares the server's engine build with the table's on connect; no status-page
+  box; Tailscale is the only way we recommend to reach a server.
 - **The setting:** `server.json` in the package folder (home mode: the repo's root), e.g.
-  `{ "host": "mtg.example.org", "port": 9443, "key": "...", "secure": false }`; only `host` and a key are needed.
+  `{ "host": "100.64.0.5", "port": 9443, "key": "..." }` (the host's Tailscale address); only `host` and a key are
+  needed. `"secure": true` (wss://) is still read, but we don't recommend a relay on the internet behind TLS: use
+  Tailscale.
   - `--server HOST[:PORT]` sets it for one run. The key comes from `server.json` (only for the same host, never sent to
     another), else `MTG_SERVER_KEY`, never the package's own key.
-  - The status page's **Own server** box (`POST /api/server`) writes it: **Use this server** (a blank key keeps the saved
-    one for the same host), **Use this computer** (removes it). Refused during a game, in observe mode, and with
-    `--server`. The box is hidden when the status JSON has no `server` part (the Linux/Mac companion).
+  - **The key at rest:** on Windows the companion keeps it encrypted for the Windows account (DPAPI, `ProtectedData`
+    `CurrentUser`, `KeyVault.cs`) as `"keyProtected"`. A plain `"key"` (typed into the file, or from an older companion)
+    is read once and the file saved again encrypted (not in observe mode). Another account or PC can't open it: the light
+    says to put the key in again. On Linux/Mac the file is made mode 600 (`chmod`) when others could read it, and the
+    bridge gets the key through a 600 file (`MTG_KEY_FILE`).
+  - No status-page box (removed 2026-11-17 with `POST /api/server`): the player writes `server.json` or uses `--server`.
   - Refused with its reason (a red light, **Try again**): a scheme in the host, a bad name, a port outside 1-65535, a
     misspelt setting, an empty key, `secure` not true/false, broken JSON, no key.
 - **The lights:**
   - Docker and Engine images: green, "Not needed here: the engine runs on your server (host:port)"; nothing is asked of
     Docker.
   - The third row is named **Your server**: one relay login (`Probes.RelayLogin` to `ws[s]://host:port`, 5 s), then
-    `ListRooms`. Green when room `tts-commander` is open (or in our game). Red, each with **Try again** and the help
+    `ListRooms`. Green when room `tts-commander` is open (or in our game). **Amber** when the room's `engine_build`
+    (the relay's `RoomInfo`, the node's `SELF_HOSTED_NODE_ENGINE_BUILD`, its image's tag) isn't the one this table was
+    deployed with (`stack/deployed.json` `engineBuild`): "Your server runs engine X, but this table was deployed with
+    engine Y", and the start goes on. No warning when either is unknown (an older server or deploy). Red, each with **Try again** and the help
     text: refused the key, refused the connection (nothing listens on the port), the name isn't known
     (`LoginKind.NotFound`), didn't answer, the Forge room isn't open, busy with an earlier game. Not probed during a
     game. The watcher asks again every 60 s.
   - Bridge: started with `MTG_RELAY`, `MTG_KEY` and `MTG_REMOTE_ENGINE=1` (`OwnServer.BridgeEnv`; without a server the
     three are emptied); a bridge whose `/versions` says another relay is amber, **Restart the bridge**.
 - **Stop everything** stops only the bridge: the engine on the server is never stopped from here.
-- **The key** is never logged, shown on the page (only its last 2 characters when it is 8 or longer) or written to the
-  dump. A package never holds a `server.json`, a `.env` or a key file (`make-friend-package.js` `secretFiles`).
+- **`mtg reset`** with a server restarts no container here; the bridge says to restart the room on the host's server.
+- **The key** is never logged, shown on the page or written to the dump. A package never holds a `server.json`, a `.env` or a key file (`make-friend-package.js` `secretFiles`).
 - **Tests:** `--selftest --section own-server` (60 checks), `tests/test_companion_own_server.js` (in the deploy gates:
   the self-test section, the real exe against a fake relay, the page's box), `tests/test_friend_package.js` (the friend
   README's section, `secretFiles`). Break-it: `node tools/mutate-companion-own-server.js`.

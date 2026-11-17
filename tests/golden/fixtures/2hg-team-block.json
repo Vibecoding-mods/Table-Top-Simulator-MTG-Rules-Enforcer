@@ -141,7 +141,7 @@
           "combatAssignments": [], "answer": { "pick": ["engine-card-32|engine-card-29"] },
           "sent": [{ "blockerId": "engine-card-32", "attackerId": "engine-card-29" }] },
         { "notice": { "to": ["player-2", "player-3"], "text": "{Blue}: Hill Giant now blocks Grizzly Bears." } },
-        { "notice": { "to": ["player-2", "player-3"], "text": "{Yellow} settles the team's blocks (rule 805.2)" } }
+        { "notice": { "to": ["player-2", "player-3"], "text": "{Yellow} decides (team leader)" } }
       ]
     },
     "refusal": {

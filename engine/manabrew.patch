@@ -3703,7 +3703,7 @@ index fb82e6d..8ada6fb 100644
              return null;
          }
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..9bfe137 100644
+index 643e5de..c624764 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,33 +6,50 @@ import forge.harness.common.ParityCardMap;
@@ -3757,7 +3757,11 @@ index 643e5de..9bfe137 100644
  import org.apache.commons.lang3.tuple.ImmutablePair;
  import org.apache.commons.lang3.tuple.Pair;
  
-@@ -45,6 +62,7 @@ import java.util.HashSet;
+@@ -42,9 +59,11 @@ import java.io.StringWriter;
+ import java.util.ArrayList;
+ import java.util.Deque;
+ import java.util.HashSet;
++import java.util.Iterator;
  import java.util.List;
  import java.util.LinkedHashMap;
  import java.util.Locale;
@@ -3765,7 +3769,7 @@ index 643e5de..9bfe137 100644
  import java.util.Map;
  import java.util.Objects;
  import java.util.Random;
-@@ -52,6 +70,7 @@ import java.util.Set;
+@@ -52,6 +71,7 @@ import java.util.Set;
  import java.util.TreeSet;
  import java.util.concurrent.BlockingQueue;
  import java.util.concurrent.LinkedBlockingQueue;
@@ -3773,7 +3777,7 @@ index 643e5de..9bfe137 100644
  
  public final class ManaBrewInteractiveSession {
  
-@@ -59,9 +78,12 @@ public final class ManaBrewInteractiveSession {
+@@ -59,9 +79,12 @@ public final class ManaBrewInteractiveSession {
      private Match match;
      private Game game;
      private final BlockingQueue<JsonObject> actions = new LinkedBlockingQueue<>();
@@ -3787,7 +3791,7 @@ index 643e5de..9bfe137 100644
      private volatile boolean closed;
      private volatile Thread gameThread;
      private static volatile InteractiveBridge bridge;
-@@ -70,45 +92,100 @@ public final class ManaBrewInteractiveSession {
+@@ -70,45 +93,100 @@ public final class ManaBrewInteractiveSession {
      private final InteractiveSnapshotExtractor.SecretChoiceVisibility secretChoiceVisibility =
              new InteractiveSnapshotExtractor.SecretChoiceVisibility();
      private static final int CHECKPOINT_TURNS = 3;
@@ -3894,7 +3898,7 @@ index 643e5de..9bfe137 100644
      private enum RestoreVoteStatus { PENDING, APPROVED, DECLINED, UNAVAILABLE }
  
      private static final class RestoreVote {
-@@ -136,6 +213,116 @@ public final class ManaBrewInteractiveSession {
+@@ -136,6 +214,116 @@ public final class ManaBrewInteractiveSession {
          this.game = Objects.requireNonNull(game, "game");
          this.botSeats = Set.copyOf(botSeats);
          this.snapshotRecording = snapshotRecording;
@@ -4011,7 +4015,7 @@ index 643e5de..9bfe137 100644
      }
  
      public String getSessionId() {
-@@ -155,26 +342,26 @@ public final class ManaBrewInteractiveSession {
+@@ -155,26 +343,26 @@ public final class ManaBrewInteractiveSession {
          requireAttached();
          Objects.requireNonNull(rng, "rng");
          if (bridge != null) {
@@ -4052,7 +4056,7 @@ index 643e5de..9bfe137 100644
      public void close() {
          closed = true;
          JsonObject action = new JsonObject();
-@@ -216,9 +403,15 @@ public final class ManaBrewInteractiveSession {
+@@ -216,9 +404,15 @@ public final class ManaBrewInteractiveSession {
  
      public String getSnapshotJson(final int viewer) {
          requireAttached();
@@ -4071,7 +4075,7 @@ index 643e5de..9bfe137 100644
      }
  
      void rememberSecretNumberViewer(final String sourceCardId, final Player viewer) {
-@@ -259,6 +452,7 @@ public final class ManaBrewInteractiveSession {
+@@ -259,6 +453,7 @@ public final class ManaBrewInteractiveSession {
          }
          final JsonObject canonical = JsonParser.parseString(actionJson).getAsJsonObject();
          final JsonObject decoded = ManabrewProtocolAdapter.decodeAction(canonical);
@@ -4079,7 +4083,7 @@ index 643e5de..9bfe137 100644
          actions.offer(decoded);
          // No snapshot here — it would race the game thread this unblocks.
          return "";
-@@ -266,7 +460,7 @@ public final class ManaBrewInteractiveSession {
+@@ -266,7 +461,7 @@ public final class ManaBrewInteractiveSession {
  
      static final String TRIGGER_ORDER_TITLE = "Order triggered abilities";
  
@@ -4088,7 +4092,7 @@ index 643e5de..9bfe137 100644
  
      static final class PriorityChoice {
          private final PriorityActionKind kind;
-@@ -344,6 +538,10 @@ public final class ManaBrewInteractiveSession {
+@@ -344,6 +539,10 @@ public final class ManaBrewInteractiveSession {
              final List<Card> untappableCards
      ) {
          requireAttached();
@@ -4099,7 +4103,7 @@ index 643e5de..9bfe137 100644
          if (!botSeats.contains(playerId)) {
              recordCheckpoint();
          }
-@@ -362,6 +560,11 @@ public final class ManaBrewInteractiveSession {
+@@ -362,6 +561,11 @@ public final class ManaBrewInteractiveSession {
              if (isRestoreDirective(action)) {
                  return new PriorityChoice(PriorityActionKind.RESTORE, null, null, null);
              }
@@ -4111,7 +4115,7 @@ index 643e5de..9bfe137 100644
              try {
                  return interpretPriorityAction(action, actionsForPrompt, untappableCards);
              } catch (IllegalArgumentException | UnsupportedOperationException | NullPointerException invalid) {
-@@ -823,6 +1026,9 @@ public final class ManaBrewInteractiveSession {
+@@ -823,6 +1027,9 @@ public final class ManaBrewInteractiveSession {
                  }
                  return chosen;
              }
@@ -4121,7 +4125,7 @@ index 643e5de..9bfe137 100644
              throw new UnsupportedOperationException("unsupported action kind: " + actionKind);
          }
          return new ArrayList<>();
-@@ -833,7 +1039,13 @@ public final class ManaBrewInteractiveSession {
+@@ -833,7 +1040,13 @@ public final class ManaBrewInteractiveSession {
          final Random rng = forge.util.MyRandom.getRandom();
          final int sides = 20;
          final Map<Player, Integer> openingRolls = new LinkedHashMap<Player, Integer>();
@@ -4136,7 +4140,7 @@ index 643e5de..9bfe137 100644
          Player winner;
          boolean firstRound = true;
          while (true) {
-@@ -881,6 +1093,12 @@ public final class ManaBrewInteractiveSession {
+@@ -881,6 +1094,12 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4149,7 +4153,7 @@ index 643e5de..9bfe137 100644
      boolean awaitMulliganDecision(final int playerId, final int cardsToReturn) {
          requireAttached();
          final List<Card> cards = new ArrayList<Card>(
-@@ -896,6 +1114,7 @@ public final class ManaBrewInteractiveSession {
+@@ -896,6 +1115,7 @@ public final class ManaBrewInteractiveSession {
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
              if ("mulligan_decision".equals(actionKind)) {
@@ -4157,7 +4161,7 @@ index 643e5de..9bfe137 100644
                  return action.has("keep") && action.get("keep").getAsBoolean();
              }
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
-@@ -1004,15 +1223,40 @@ public final class ManaBrewInteractiveSession {
+@@ -1004,15 +1224,40 @@ public final class ManaBrewInteractiveSession {
          return new ArrayList<>();
      }
  
@@ -4199,7 +4203,7 @@ index 643e5de..9bfe137 100644
          while (!closed && !game.isGameOver()) {
              final JsonObject action = takeActionOrNull();
              if (action == null) {
-@@ -1104,14 +1348,31 @@ public final class ManaBrewInteractiveSession {
+@@ -1104,14 +1349,31 @@ public final class ManaBrewInteractiveSession {
              final String description,
              final boolean optionalDecline,
              final String error
@@ -4234,7 +4238,7 @@ index 643e5de..9bfe137 100644
      }
  
      void awaitRevealCards(
-@@ -1188,6 +1449,18 @@ public final class ManaBrewInteractiveSession {
+@@ -1188,6 +1450,18 @@ public final class ManaBrewInteractiveSession {
          return awaitModeChoice(playerId, unweightedOptions(options, allowRepeat), min, max, sourceName, null, null);
      }
  
@@ -4253,7 +4257,7 @@ index 643e5de..9bfe137 100644
      List<Integer> awaitModeChoice(
              final int playerId,
              final List<SelectionOption> options,
-@@ -1196,6 +1469,19 @@ public final class ManaBrewInteractiveSession {
+@@ -1196,6 +1470,19 @@ public final class ManaBrewInteractiveSession {
              final String sourceName,
              final String description,
              final String sourceCardId
@@ -4273,7 +4277,7 @@ index 643e5de..9bfe137 100644
      ) {
          requireAttached();
          if (options.isEmpty() && min > 0) {
-@@ -1207,7 +1493,7 @@ public final class ManaBrewInteractiveSession {
+@@ -1207,7 +1494,7 @@ public final class ManaBrewInteractiveSession {
          final int clampedMax = anyRepeatable ? max : Math.min(max, totalWeight);
          final String title = sourceName != null ? sourceName : "Choose";
          final PromptPresentation presentation =
@@ -4282,7 +4286,7 @@ index 643e5de..9bfe137 100644
          publishAgentPrompt("player-" + playerId, sourceCardId,
                  new ChooseFromSelectionInput(presentation, options, clampedMin, clampedMax));
          while (!closed && !game.isGameOver()) {
-@@ -1762,24 +2048,29 @@ public final class ManaBrewInteractiveSession {
+@@ -1762,24 +2049,29 @@ public final class ManaBrewInteractiveSession {
              final CardCollectionView valid,
              final int min,
              final int max,
@@ -4314,7 +4318,7 @@ index 643e5de..9bfe137 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (chosen.size() >= cappedMin) {
                      break;
-@@ -1821,7 +2112,8 @@ public final class ManaBrewInteractiveSession {
+@@ -1821,7 +2113,8 @@ public final class ManaBrewInteractiveSession {
              final List<Pair<GameEntity, forge.game.GameObject>> candidates,
              final int min,
              final int max,
@@ -4324,7 +4328,7 @@ index 643e5de..9bfe137 100644
      ) {
          final Card source = sa == null ? null : sa.getHostCard();
          final List<TargetRef> candidateRefs = new java.util.ArrayList<>();
-@@ -1834,7 +2126,11 @@ public final class ManaBrewInteractiveSession {
+@@ -1834,7 +2127,11 @@ public final class ManaBrewInteractiveSession {
                  new ChooseBoardTargetsInput(
                          presentation("Sacrifice", null),
                          candidateRefs, true, enumFromWire("sacrifice", TargetingIntent.class),
@@ -4337,7 +4341,7 @@ index 643e5de..9bfe137 100644
      }
  
      Map<GameEntity, Integer> awaitDividedAllocation(
-@@ -1882,6 +2178,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1882,6 +2179,16 @@ public final class ManaBrewInteractiveSession {
              final int min,
              final int max,
              final boolean allowEmpty
@@ -4354,7 +4358,7 @@ index 643e5de..9bfe137 100644
      ) {
          while (!closed && !game.isGameOver()) {
              final JsonObject action;
-@@ -1892,6 +2198,12 @@ public final class ManaBrewInteractiveSession {
+@@ -1892,6 +2199,12 @@ public final class ManaBrewInteractiveSession {
                  return new CardCollection();
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
@@ -4367,7 +4371,7 @@ index 643e5de..9bfe137 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (allowEmpty) {
                      return new CardCollection();
-@@ -1911,10 +2223,10 @@ public final class ManaBrewInteractiveSession {
+@@ -1911,10 +2224,10 @@ public final class ManaBrewInteractiveSession {
                      }
                  }
              }
@@ -4381,7 +4385,7 @@ index 643e5de..9bfe137 100644
                  throw new IllegalArgumentException("selected card count out of range: " + selected.size());
              }
              return selected;
-@@ -1940,17 +2252,33 @@ public final class ManaBrewInteractiveSession {
+@@ -1940,17 +2253,33 @@ public final class ManaBrewInteractiveSession {
  
      private JsonObject takeAction() throws InterruptedException {
          while (true) {
@@ -4416,7 +4420,7 @@ index 643e5de..9bfe137 100644
              if (isRestoreDirective(action)) {
                  if ("request_restore".equals(kind)) {
                      requestRestore(action.get("player").getAsInt(), action.get("checkpointId").getAsInt());
-@@ -1966,6 +2294,28 @@ public final class ManaBrewInteractiveSession {
+@@ -1966,6 +2295,28 @@ public final class ManaBrewInteractiveSession {
                  announceState();
                  continue;
              }
@@ -4445,7 +4449,7 @@ index 643e5de..9bfe137 100644
              if ("set_snapshot_recording".equals(kind)) {
                  if (action.get("player").getAsInt() == InteractiveBridge.HOST_SEAT) {
                      setSnapshotRecording(action.get("enabled").getAsBoolean());
-@@ -1987,6 +2337,17 @@ public final class ManaBrewInteractiveSession {
+@@ -1987,6 +2338,17 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4463,7 +4467,7 @@ index 643e5de..9bfe137 100644
      private static JsonObject syntheticPass() {
          final JsonObject pass = new JsonObject();
          pass.addProperty("kind", "pass");
-@@ -2010,6 +2371,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2010,6 +2372,8 @@ public final class ManaBrewInteractiveSession {
          if (!restoreApproved()) {
              return false;
          }
@@ -4472,7 +4476,7 @@ index 643e5de..9bfe137 100644
          final RestoreVote vote = restoreVote;
          if (!checkpoints.contains(vote.checkpoint)) {
              vote.status = RestoreVoteStatus.UNAVAILABLE;
-@@ -2037,6 +2400,12 @@ public final class ManaBrewInteractiveSession {
+@@ -2037,6 +2401,12 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4485,7 +4489,7 @@ index 643e5de..9bfe137 100644
      private static boolean isRestoreDirective(final JsonObject action) {
          final String kind = action.has("kind") ? action.get("kind").getAsString() : "";
          return "request_restore".equals(kind) || "restore_vote".equals(kind);
-@@ -2067,27 +2436,199 @@ public final class ManaBrewInteractiveSession {
+@@ -2067,30 +2437,217 @@ public final class ManaBrewInteractiveSession {
          if (handler.getTurn() == checkpointTurn && handler.getPhase() == checkpointPhase) {
              return;
          }
@@ -4676,7 +4680,6 @@ index 643e5de..9bfe137 100644
 -            final long finished = System.nanoTime();
 -            synchronized (checkpointTimings) {
 -                checkpointTimings.add(new long[] { copied - started, finished - copied });
--            }
 +    }
 +
 +    static int checkpointCap(final int cards) {
@@ -4690,11 +4693,29 @@ index 643e5de..9bfe137 100644
 +
 +    static void thinCheckpoints(final Deque<Checkpoint> checkpoints, final int cap) {
 +        while (checkpoints.size() > cap) {
-+            checkpoints.removeFirst();
++            if (!dropOldestInBetween(checkpoints)) {
++                checkpoints.removeFirst();
+             }
          }
      }
  
-@@ -2124,6 +2665,10 @@ public final class ManaBrewInteractiveSession {
++    private static boolean dropOldestInBetween(final Deque<Checkpoint> checkpoints) {
++        Checkpoint previous = null;
++        for (final Iterator<Checkpoint> it = checkpoints.iterator(); it.hasNext(); ) {
++            final Checkpoint checkpoint = it.next();
++            if (previous != null && previous.turn == checkpoint.turn) {
++                it.remove();
++                return true;
++            }
++            previous = checkpoint;
++        }
++        return false;
++    }
++
+     private void publishCheckpointViews() {
+         final List<Map<String, Object>> views = new ArrayList<>();
+         for (final Checkpoint checkpoint : checkpoints) {
+@@ -2124,6 +2681,10 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
@@ -4705,7 +4726,7 @@ index 643e5de..9bfe137 100644
          if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
                  || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
              return;
-@@ -2157,11 +2702,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2157,11 +2718,7 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void restore(final Checkpoint target) {
@@ -4718,7 +4739,7 @@ index 643e5de..9bfe137 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2716,431 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2732,431 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -5150,7 +5171,7 @@ index 643e5de..9bfe137 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +3173,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +3189,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -5167,7 +5188,7 @@ index 643e5de..9bfe137 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +3217,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +3233,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -5176,7 +5197,7 @@ index 643e5de..9bfe137 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +3260,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +3276,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -5199,7 +5220,7 @@ index 643e5de..9bfe137 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +3304,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +3320,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -5230,7 +5251,7 @@ index 643e5de..9bfe137 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,24 +3568,176 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,24 +3584,176 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -5265,7 +5286,8 @@ index 643e5de..9bfe137 100644
 -                    defenderId(defender), defender.getName(),
 -                    enumFromWire(defenderKind(defender), AttackTargetKind.class)));
 +            attackTargets.add(attackTarget(defender, commanders));
-+        }
+         }
+-        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets));
 +        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets,
 +                attackRefusals(combat, availableAttackers), attackLimits(combat)));
 +    }
@@ -5367,8 +5389,7 @@ index 643e5de..9bfe137 100644
 +        }
 +        if (attacker.isDetained()) {
 +            return new AttackRefusalDto(cardId, defenderId, "detained", null, null);
-         }
--        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets));
++        }
 +        for (final Card card : game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
 +            for (final StaticAbility stAb : card.getStaticAbilities()) {
 +                if (stAb.checkConditions(StaticAbilityMode.CantAttack)
@@ -5413,7 +5434,7 @@ index 643e5de..9bfe137 100644
      }
  
      private void publishBlockersPrompt(
-@@ -2604,7 +3745,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2604,7 +3761,8 @@ public final class ManaBrewInteractiveSession {
              final List<Card> attackers,
              final List<Card> availableBlockers,
              final Map<Card, List<Card>> validBlockersByAttacker,
@@ -5423,7 +5444,7 @@ index 643e5de..9bfe137 100644
      ) {
          final Player defendingPlayer = game.getRegisteredPlayers().get(playerId);
          final List<BlockableAttackerDto> attackerOptions = new java.util.ArrayList<>();
-@@ -2627,7 +3769,17 @@ public final class ManaBrewInteractiveSession {
+@@ -2627,7 +3785,17 @@ public final class ManaBrewInteractiveSession {
              availableBlockerIds.add(SnapshotExtractor.javaCardId(blocker));
          }
          publishAgentPrompt("player-" + playerId, null,
@@ -5442,7 +5463,7 @@ index 643e5de..9bfe137 100644
      }
  
      private void publishDamageAssignmentOrderPrompt(
-@@ -2918,7 +4070,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2918,7 +4086,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -5452,7 +5473,7 @@ index 643e5de..9bfe137 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +4081,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +4097,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -5478,7 +5499,7 @@ index 643e5de..9bfe137 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +4113,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +4129,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -5489,7 +5510,7 @@ index 643e5de..9bfe137 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +4141,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +4157,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -8924,10 +8945,10 @@ index 0000000..db530a4
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/BigBoardFixesTest.java b/forge-harness/src/test/java/forge/harness/host/BigBoardFixesTest.java
 new file mode 100644
-index 0000000..2f2bb7e
+index 0000000..abee174
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/BigBoardFixesTest.java
-@@ -0,0 +1,360 @@
+@@ -0,0 +1,380 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -8978,7 +8999,8 @@ index 0000000..2f2bb7e
 +        CHECKS.put("actions: no static pass for an in-play land's play ability", BigBoardFixesTest::noPassForInPlayLands);
 +        CHECKS.put("actions: a land in the graveyard still offers its play from there", BigBoardFixesTest::graveyardLandStillPlayable);
 +        CHECKS.put("checkpoints: the cap falls with the cards in the game", BigBoardFixesTest::capBySize);
-+        CHECKS.put("checkpoints: past the cap the oldest go, as before", BigBoardFixesTest::thinDropsOldest);
++        CHECKS.put("checkpoints: past the cap each turn's first stays, the oldest turns' in-between ones go first", BigBoardFixesTest::thinKeepsTurnFirsts);
++        CHECKS.put("checkpoints: past the turns' firsts the oldest turns go", BigBoardFixesTest::thinThenOldestFirsts);
 +        CHECKS.put("checkpoints: the session keeps no more than the cap", BigBoardFixesTest::sessionUsesCap);
 +        CHECKS.put("pay: past the deadline the payment is made with the static checks held, then one pass", BigBoardFixesTest::payPastDeadline);
 +        CHECKS.put("pay: within the deadline every mana ability runs its static pass as before", BigBoardFixesTest::payWithinDeadline);
@@ -9110,18 +9132,34 @@ index 0000000..2f2bb7e
 +        expect(ManaBrewInteractiveSession.checkpointCap(1_000_000) == 1, "a huge game keeps one checkpoint");
 +    }
 +
-+    private static void thinDropsOldest() throws Exception {
++    private static List<Integer> thinned(final int[] turns, final int cap) {
 +        final Deque<ManaBrewInteractiveSession.Checkpoint> deque = new ArrayDeque<>();
-+        final int[] turns = {1, 1, 1, 2, 2, 3, 3, 3};
 +        for (int i = 0; i < turns.length; i++) {
 +            deque.addLast(new ManaBrewInteractiveSession.Checkpoint(i + 1, turns[i], PhaseType.MAIN1, null, null, null));
 +        }
-+        ManaBrewInteractiveSession.thinCheckpoints(deque, 3);
++        ManaBrewInteractiveSession.thinCheckpoints(deque, cap);
 +        final List<Integer> ids = new ArrayList<>();
 +        for (final ManaBrewInteractiveSession.Checkpoint c : deque) {
 +            ids.add(c.id);
 +        }
-+        expect(ids.equals(List.of(6, 7, 8)), "kept " + ids);
++        return ids;
++    }
++
++    private static void thinKeepsTurnFirsts() throws Exception {
++        final int[] turns = {1, 1, 1, 2, 2, 3, 3, 3};
++        expect(thinned(turns, 8).equals(List.of(1, 2, 3, 4, 5, 6, 7, 8)), "under the cap: kept " + thinned(turns, 8));
++        expect(thinned(turns, 6).equals(List.of(1, 4, 5, 6, 7, 8)), "turn 1's in-between ones go first: kept " + thinned(turns, 6));
++        expect(thinned(turns, 5).equals(List.of(1, 4, 6, 7, 8)), "then turn 2's: kept " + thinned(turns, 5));
++        expect(thinned(turns, 4).equals(List.of(1, 4, 6, 8)), "then the newest turn's, oldest first: kept " + thinned(turns, 4));
++        expect(thinned(turns, 3).equals(List.of(1, 4, 6)), "every turn's first is kept while the cap allows: kept " + thinned(turns, 3));
++    }
++
++    private static void thinThenOldestFirsts() throws Exception {
++        final int[] turns = {1, 1, 1, 2, 2, 3, 3, 3};
++        expect(thinned(turns, 2).equals(List.of(4, 6)), "past the turns' firsts the oldest turn goes: kept " + thinned(turns, 2));
++        expect(thinned(turns, 1).equals(List.of(6)), "a cap of one keeps the newest turn's first: kept " + thinned(turns, 1));
++        expect(thinned(new int[] {1, 2, 3, 4}, 2).equals(List.of(3, 4)), "one a turn: the oldest go, kept " + thinned(new int[] {1, 2, 3, 4}, 2));
++        expect(thinned(new int[] {1, 2, 2, 1}, 3).equals(List.of(1, 2, 4)), "only a turn's run counts as its in-between: kept " + thinned(new int[] {1, 2, 2, 1}, 3));
 +    }
 +
 +    private static void sessionUsesCap() throws Exception {
@@ -9143,8 +9181,11 @@ index 0000000..2f2bb7e
 +        final Deque<?> kept = (Deque<?>) deque.get(f.session);
 +        final int cap = ManaBrewInteractiveSession.checkpointCap(f.cardsInGame());
 +        expect(cap == 40 && kept.size() == cap, "kept " + kept.size() + ", cap " + cap);
-+        expect(((ManaBrewInteractiveSession.Checkpoint) kept.peekFirst()).id == 6 && ((ManaBrewInteractiveSession.Checkpoint) kept.peekLast()).id == 45,
-+                "kept " + ((ManaBrewInteractiveSession.Checkpoint) kept.peekFirst()).id + ".." + ((ManaBrewInteractiveSession.Checkpoint) kept.peekLast()).id + ", not the newest 6..45");
++        final List<Integer> ids = new ArrayList<>();
++        for (final Object c : kept) {
++            ids.add(((ManaBrewInteractiveSession.Checkpoint) c).id);
++        }
++        expect(ids.get(0) == 1 && ids.get(1) == 7 && ids.get(39) == 45, "kept " + ids + ", not the turn's first 1 and the newest 7..45");
 +    }
 +
 +    private static Fixture payBoard() {
@@ -16960,7 +17001,7 @@ index 0000000..be14b67
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/SharedCombatTest.java b/forge-harness/src/test/java/forge/harness/host/SharedCombatTest.java
 new file mode 100644
-index 0000000..cb2c91a
+index 0000000..dea9ddd
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/SharedCombatTest.java
 @@ -0,0 +1,783 @@
@@ -17444,7 +17485,7 @@ index 0000000..cb2c91a
 +        expect(!combat.isBlocking(j.x) && new ArrayList<>(combat.getBlockers(j.b)).equals(List.of(j.y)),
 +                "at the cap the block is Wall of Wood on " + combat.getAttackersBlockedBy(j.x) + " and Centaur Courser on " + combat.getAttackersBlockedBy(j.y)
 +                        + ", not the primary Yellow's latest (no block) with Blue's latest (Hill Giant)");
-+        expect(blocks.told.contains("Yellow: Yellow settles the team's blocks (rule 805.2)") && blocks.told.contains("Blue: Yellow settles the team's blocks (rule 805.2)"),
++        expect(blocks.told.contains("Yellow: Yellow decides (team leader)") && blocks.told.contains("Blue: Yellow decides (team leader)"),
 +                "both defenders were not told the primary settles it: " + blocks.told);
 +    }
 +
@@ -20089,7 +20130,7 @@ index 0000000..12aacb7
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/StressCapsTest.java b/forge-harness/src/test/java/forge/harness/host/StressCapsTest.java
 new file mode 100644
-index 0000000..62f3c57
+index 0000000..d36d506
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/StressCapsTest.java
 @@ -0,0 +1,352 @@
@@ -20146,7 +20187,7 @@ index 0000000..62f3c57
 +        });
 +        check("manaXGoesPast99WithABinarySearch", StressCapsTest::manaXGoesPast99WithABinarySearch);
 +        check("theXPromptOffersEveryPayableX", StressCapsTest::theXPromptOffersEveryPayableX);
-+        check("restorePointsAreCappedAt40OldestFirst", StressCapsTest::restorePointsAreCappedAt40OldestFirst);
++        check("restorePointsAreCappedAt40KeepingTheTurnsFirst", StressCapsTest::restorePointsAreCappedAt40KeepingTheTurnsFirst);
 +        check("lifeStopsAtTheCapBothWays", StressCapsTest::lifeStopsAtTheCapBothWays);
 +        check("countersStopAtTheCapWithoutThrowing", StressCapsTest::countersStopAtTheCapWithoutThrowing);
 +        check("twiceAndThriceStopAtTheCap", StressCapsTest::twiceAndThriceStopAtTheCap);
@@ -20205,7 +20246,7 @@ index 0000000..62f3c57
 +        expect(Integer.valueOf(299).equals(chosen[0]), "X came back as " + chosen[0]);
 +    }
 +
-+    private static void restorePointsAreCappedAt40OldestFirst() throws Exception {
++    private static void restorePointsAreCappedAt40KeepingTheTurnsFirst() throws Exception {
 +        final Fixture f = new Fixture(true);
 +        for (final Player p : f.game.getPlayers()) {
 +            f.lands(p, "Forest", 20);
@@ -20235,7 +20276,7 @@ index 0000000..62f3c57
 +            id.setAccessible(true);
 +            ids.add((Integer) id.get(point));
 +        }
-+        expect(ids.get(0) == 21 && ids.get(39) == 60, "the points kept are " + ids.get(0) + ".." + ids.get(39) + ", not the newest 21..60");
++        expect(ids.get(0) == 1 && ids.get(1) == 22 && ids.get(39) == 60, "the points kept are " + ids.get(0) + ", " + ids.get(1) + ".." + ids.get(39) + ", not the turn's first 1 and the newest 22..60");
 +        final String metrics = f.session.drainCheckpointMetrics();
 +        final List<Long> copies = new ArrayList<>();
 +        for (final var pair : JsonParser.parseString(metrics).getAsJsonArray()) {
@@ -23898,10 +23939,20 @@ index a1bcdce..d66cb7f 100644
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 diff --git a/manabrew-rs/crates/manabrew-relay-protocol/src/lib.rs b/manabrew-rs/crates/manabrew-relay-protocol/src/lib.rs
-index 9cac313..95ae2c4 100644
+index 9cac313..c094f63 100644
 --- a/manabrew-rs/crates/manabrew-relay-protocol/src/lib.rs
 +++ b/manabrew-rs/crates/manabrew-relay-protocol/src/lib.rs
-@@ -306,6 +306,8 @@ pub enum ClientMessage {
+@@ -265,6 +265,9 @@ pub enum ClientMessage {
+         reconnect_timeout_s: Option<u32>,
+         #[serde(default)]
+         table_style: Option<String>,
++        /// The engine build the hosting node runs (its image's tag), so a client can tell it from the one it expects.
++        #[serde(default)]
++        engine_build: Option<String>,
+     },
+ 
+     JoinRoom {
+@@ -306,6 +309,8 @@ pub enum ClientMessage {
      StartGame {
          #[serde(default)]
          format: Option<GameFormat>,
@@ -23910,8 +23961,18 @@ index 9cac313..95ae2c4 100644
      },
  
      EndGame {
+@@ -600,6 +605,9 @@ pub struct RoomInfo {
+     pub draft_config: Option<DraftConfig>,
+     #[serde(default, skip_serializing_if = "Option::is_none")]
+     pub sealed_config: Option<SealedConfig>,
++    /// The engine build the hosting node runs (its image's tag); none from a node or relay older than the field.
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub engine_build: Option<String>,
+ }
+ 
+ pub const DEFAULT_RECONNECT_TIMEOUT_S: u32 = 60;
 diff --git a/manabrew-rs/crates/manabrew-server/src/connection.rs b/manabrew-rs/crates/manabrew-server/src/connection.rs
-index 1f6d1c7..fc94465 100644
+index 1f6d1c7..f698ca2 100644
 --- a/manabrew-rs/crates/manabrew-server/src/connection.rs
 +++ b/manabrew-rs/crates/manabrew-server/src/connection.rs
 @@ -173,7 +173,7 @@ fn authorize_game_message(
@@ -23923,7 +23984,23 @@ index 1f6d1c7..fc94465 100644
                      .is_controller(player_id)
                      .then_some(GameMessageSource::RoomRelay),
                  _ => None,
-@@ -1921,9 +1921,9 @@ fn handle_client_message(
+@@ -1587,6 +1587,7 @@ fn handle_client_message(
+             password,
+             reconnect_timeout_s,
+             table_style,
++            engine_build,
+         } => {
+             info!(
+                 "[lobby] '{}' creating room '{}' (max={}, format={:?}, hosted={}, engine={:?}, draft={}, sealed={})",
+@@ -1614,6 +1615,7 @@ fn handle_client_message(
+                 password,
+                 reconnect_timeout_s,
+                 table_style,
++                engine_build,
+             ) {
+                 Ok((info, resume_token)) => {
+                     info!(
+@@ -1921,9 +1923,9 @@ fn handle_client_message(
              }
          }
  
@@ -23936,10 +24013,35 @@ index 1f6d1c7..fc94465 100644
                      info!(
                          "[game] game started in room {} | order: {:?}",
 diff --git a/manabrew-rs/crates/manabrew-server/src/lobby.rs b/manabrew-rs/crates/manabrew-server/src/lobby.rs
-index 8994409..6caef8b 100644
+index 8994409..b42535b 100644
 --- a/manabrew-rs/crates/manabrew-server/src/lobby.rs
 +++ b/manabrew-rs/crates/manabrew-server/src/lobby.rs
-@@ -637,7 +637,7 @@ pub fn set_max_players_sync(
+@@ -33,6 +33,7 @@ pub fn create_room_sync(
+     password: Option<String>,
+     reconnect_timeout_s: Option<u32>,
+     table_style: Option<String>,
++    engine_build: Option<String>,
+ ) -> Result<(RoomInfo, String), ServerError> {
+     if let Some(cfg) = &draft_config {
+         if cfg
+@@ -99,7 +100,7 @@ pub fn create_room_sync(
+     };
+ 
+     let room_id = uuid::Uuid::new_v4().to_string();
+-    let room = Room::new(
++    let mut room = Room::new(
+         room_id.clone(),
+         room_name,
+         protocol_version,
+@@ -118,6 +119,7 @@ pub fn create_room_sync(
+             .clamp(MIN_RECONNECT_TIMEOUT_S, MAX_RECONNECT_TIMEOUT_S),
+         table_style,
+     );
++    room.engine_build = engine_build.filter(|value| !value.is_empty());
+     let info = room.to_room_info();
+     let resume_token = room.resume_token.clone();
+ 
+@@ -637,7 +639,7 @@ pub fn set_max_players_sync(
          }
  
          let floor = (room.players.len() as u8).max(2);
@@ -23948,7 +24050,7 @@ index 8994409..6caef8b 100644
      }
  
      Ok(room_id)
-@@ -647,6 +647,7 @@ pub fn start_game_sync(
+@@ -647,6 +649,7 @@ pub fn start_game_sync(
      state: &Arc<ServerState>,
      player_id: &str,
      format: Option<GameFormat>,
@@ -23956,7 +24058,7 @@ index 8994409..6caef8b 100644
  ) -> Result<StartedGame, ServerError> {
      let room_id = {
          state
-@@ -706,8 +707,18 @@ pub fn start_game_sync(
+@@ -706,8 +709,18 @@ pub fn start_game_sync(
              | GameFormat::Sealed => 20,
              GameFormat::Any => unreachable!("Any resolved to concrete format above"),
          };
@@ -23977,8 +24079,120 @@ index 8994409..6caef8b 100644
          let game_id = uuid::Uuid::new_v4().to_string();
          room.replay = Some(GameReplayCache::new(
              game_id.clone(),
+diff --git a/manabrew-rs/crates/manabrew-server/src/room.rs b/manabrew-rs/crates/manabrew-server/src/room.rs
+index 0da4141..afdefc9 100644
+--- a/manabrew-rs/crates/manabrew-server/src/room.rs
++++ b/manabrew-rs/crates/manabrew-server/src/room.rs
+@@ -49,6 +49,7 @@ pub struct Room {
+     pub sealed_config: Option<SealedConfig>,
+     pub reconnect_timeout_s: u32,
+     pub table_style: Option<String>,
++    pub engine_build: Option<String>,
+     pub replay: Option<GameReplayCache>,
+     pub resume_token: String,
+     pub humanless_since: Option<Instant>,
+@@ -125,6 +126,7 @@ impl Room {
+             sealed_config,
+             reconnect_timeout_s,
+             table_style,
++            engine_build: None,
+             replay: None,
+             resume_token: uuid::Uuid::new_v4().to_string(),
+             humanless_since: None,
+@@ -415,6 +417,7 @@ impl Room {
+             status: self.status.clone(),
+             draft_config: self.draft_config.clone(),
+             sealed_config: self.sealed_config.clone(),
++            engine_build: self.engine_build.clone(),
+         }
+     }
+ }
+@@ -519,6 +522,43 @@ mod tests {
+         )
+     }
+ 
++    #[test]
++    fn the_engine_build_goes_into_the_room_list() {
++        let mut r = room(false);
++        let none = serde_json::to_value(r.to_room_info()).unwrap();
++        assert!(none.get("engine_build").is_none(), "no build, no field: {none}");
++        r.engine_build = Some("engine1121-ownerdecisions".into());
++        let info = serde_json::to_value(r.to_room_info()).unwrap();
++        assert_eq!(info["engine_build"], "engine1121-ownerdecisions");
++    }
++
++    #[test]
++    fn an_older_nodes_create_room_has_no_engine_build() {
++        let mut json = serde_json::to_value(manabrew_relay_protocol::ClientMessage::CreateRoom {
++            room_name: "tts-commander".into(),
++            max_players: 6,
++            format: GameFormat::Commander,
++            protocol_version: manabrew_relay_protocol::PROTOCOL_VERSION,
++            hosted: true,
++            engine: EngineKind::Forge,
++            draft_config: None,
++            sealed_config: None,
++            official_key: None,
++            password: None,
++            reconnect_timeout_s: None,
++            table_style: None,
++            engine_build: Some("engine1121-ownerdecisions".into()),
++        })
++        .unwrap();
++        assert_eq!(json["engine_build"], "engine1121-ownerdecisions");
++        json.as_object_mut().unwrap().remove("engine_build");
++        let old: manabrew_relay_protocol::ClientMessage = serde_json::from_value(json).unwrap();
++        match old {
++            manabrew_relay_protocol::ClientMessage::CreateRoom { engine_build, .. } => assert_eq!(engine_build, None),
++            other => panic!("not a CreateRoom: {other:?}"),
++        }
++    }
++
+     #[test]
+     fn first_user_is_controller_in_hosted_room() {
+         let mut r = room(false);
+diff --git a/manabrew-rs/crates/networking-tests/tests/networking_regression.rs b/manabrew-rs/crates/networking-tests/tests/networking_regression.rs
+index 569349f..a67cf58 100644
+--- a/manabrew-rs/crates/networking-tests/tests/networking_regression.rs
++++ b/manabrew-rs/crates/networking-tests/tests/networking_regression.rs
+@@ -320,6 +320,27 @@ async fn creating_a_room_seats_the_creator() {
+     );
+ }
+ 
++async fn a_rooms_engine_build_is_listed() {
++    scenario(
++        "a node creating its room with the engine build it runs, and one creating a room without one.",
++        "another client lists the rooms.",
++        "the list carries the first room's build as sent and none for the other, so a client can compare it.",
++    );
++    let sim = Sim::spawn_relay_only(9692).await;
++    let mut node = Client::connect(&sim.relay_url, "node").await.unwrap();
++    node.create_room_built("tts-commander", Some("engine1121-ownerdecisions")).await.unwrap();
++    let own = node.wait_own_room().await.unwrap();
++    assert_eq!(own.engine_build.as_deref(), Some("engine1121-ownerdecisions"), "the create response carries the build");
++    let mut older = Client::connect(&sim.relay_url, "older").await.unwrap();
++    older.create_room("older table").await.unwrap();
++    older.wait_own_room().await.unwrap();
++    let rooms = sim.rooms().await;
++    let built = rooms.iter().find(|r| r.room_name == "tts-commander").expect("the node's room is listed");
++    let plain = rooms.iter().find(|r| r.room_name == "older table").expect("the other room is listed");
++    assert_eq!(built.engine_build.as_deref(), Some("engine1121-ownerdecisions"), "the list carries the build");
++    assert_eq!(plain.engine_build, None, "a room created without a build lists none");
++}
++
+ async fn proven_owner_takes_over_its_live_session() {
+     scenario(
+         "a player seated in a room from one device, with a live socket the relay still sees as connected.",
+@@ -820,6 +841,7 @@ fn main() {
+             "creating_a_room_seats_the_creator",
+             creating_a_room_seats_the_creator,
+         ),
++        case("a_rooms_engine_build_is_listed", a_rooms_engine_build_is_listed),
+         case(
+             "proven_owner_takes_over_its_live_session",
+             proven_owner_takes_over_its_live_session,
 diff --git a/manabrew-rs/crates/networking-tests/tests/support/mod.rs b/manabrew-rs/crates/networking-tests/tests/support/mod.rs
-index ed50370..6f54c53 100644
+index ed50370..13f35d4 100644
 --- a/manabrew-rs/crates/networking-tests/tests/support/mod.rs
 +++ b/manabrew-rs/crates/networking-tests/tests/support/mod.rs
 @@ -515,6 +515,7 @@ impl Client {
@@ -23989,6 +24203,69 @@ index ed50370..6f54c53 100644
                              },
                          )
                          .await?;
+@@ -748,6 +749,10 @@ impl Client {
+     }
+ 
+     pub async fn create_room(&mut self, name: &str) -> Result<(), String> {
++        self.create_room_built(name, None).await
++    }
++
++    pub async fn create_room_built(&mut self, name: &str, engine_build: Option<&str>) -> Result<(), String> {
+         send(
+             &mut self.write,
+             &ClientMessage::CreateRoom {
+@@ -763,6 +768,7 @@ impl Client {
+                 password: None,
+                 reconnect_timeout_s: Some(RECONNECT_TIMEOUT_S),
+                 table_style: None,
++                engine_build: engine_build.map(str::to_string),
+             },
+         )
+         .await
+diff --git a/manabrew-rs/crates/self-hosted-node/Dockerfile b/manabrew-rs/crates/self-hosted-node/Dockerfile
+index 1ba3f30..053a971 100644
+--- a/manabrew-rs/crates/self-hosted-node/Dockerfile
++++ b/manabrew-rs/crates/self-hosted-node/Dockerfile
+@@ -210,6 +210,10 @@ COPY public/preset_decks/ /build/public/preset_decks/
+ WORKDIR /build
+ 
+ ENV SELF_HOSTED_NODE_ENGINE_BACKEND=forge
++# The engine build this image is (engine/build-images.sh passes its tag), told to the relay with the room so a
++# companion can compare it with the one its table was deployed with.
++ARG ENGINE_BUILD=
++ENV SELF_HOSTED_NODE_ENGINE_BUILD=${ENGINE_BUILD}
+ # One isolate for every room: the card database is loaded once per node.
+ ENV SELF_HOSTED_NODE_SHARED_ISOLATE=1
+ ENV LD_LIBRARY_PATH=/build/forge-harness/native/build
+diff --git a/manabrew-rs/crates/self-hosted-node/src/config.rs b/manabrew-rs/crates/self-hosted-node/src/config.rs
+index 0a5ba0d..5f89742 100644
+--- a/manabrew-rs/crates/self-hosted-node/src/config.rs
++++ b/manabrew-rs/crates/self-hosted-node/src/config.rs
+@@ -40,6 +40,8 @@ pub struct Config {
+     pub bot_local_answers: bool,
+     pub reconnect_timeout_s: Option<u32>,
+     pub table_style: Option<String>,
++    /// The engine build this node runs (SELF_HOSTED_NODE_ENGINE_BUILD, the image's tag), told to the relay with the room.
++    pub engine_build: Option<String>,
+     pub host_deck: DeckSelection,
+     pub bot_deck: DeckSelection,
+ }
+@@ -149,6 +151,7 @@ impl Config {
+             reconnect_timeout_s: env_first("SELF_HOSTED_NODE_RECONNECT_TIMEOUT_S", "")
+                 .and_then(|value| value.parse().ok()),
+             table_style: None,
++            engine_build: env_first("SELF_HOSTED_NODE_ENGINE_BUILD", "").filter(|value| !value.is_empty()),
+             host_deck: load_deck_selection(&host_deck_id, host_commander),
+             bot_deck: load_deck_selection(&bot_deck_id, bot_commander),
+         }
+@@ -194,6 +197,7 @@ impl Config {
+             bot_local_answers: true,
+             reconnect_timeout_s,
+             table_style,
++            engine_build: None,
+             host_deck: synthetic_deck("forge-host", None),
+             bot_deck: synthetic_deck("forge-bot", None),
+         }
 diff --git a/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs b/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
 index e19dcde..53dc343 100644
 --- a/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
@@ -24322,7 +24599,7 @@ index e19dcde..53dc343 100644
 +    }
  }
 diff --git a/manabrew-rs/crates/self-hosted-node/src/host.rs b/manabrew-rs/crates/self-hosted-node/src/host.rs
-index 7e1ddef..239509c 100644
+index 7e1ddef..11d2e3d 100644
 --- a/manabrew-rs/crates/self-hosted-node/src/host.rs
 +++ b/manabrew-rs/crates/self-hosted-node/src/host.rs
 @@ -183,6 +183,7 @@ struct HostSnapshot {
@@ -24333,7 +24610,15 @@ index 7e1ddef..239509c 100644
  }
  
  type SharedHostSnapshot = Arc<Mutex<HostSnapshot>>;
-@@ -1437,6 +1438,22 @@ async fn handle_state_update(
+@@ -723,6 +724,7 @@ async fn establish_room(
+                 password: config.room_password.clone(),
+                 reconnect_timeout_s: config.reconnect_timeout_s,
+                 table_style: config.table_style.clone(),
++                engine_build: config.engine_build.clone(),
+             })
+             .await?;
+         info!(room_name = %config.room_name, "creating room");
+@@ -1437,6 +1439,22 @@ async fn handle_state_update(
                      info!(observer = %client.username, "received removeBot request");
                      stop_bots(bot_state);
                  }
@@ -24356,7 +24641,7 @@ index 7e1ddef..239509c 100644
                  Some("spawnBot") => {
                      let effective_room_id = requested_room_id.as_deref().unwrap_or(room_id);
                      if effective_room_id == room_id {
-@@ -1534,7 +1551,7 @@ async fn maybe_auto_start_room(
+@@ -1534,7 +1552,7 @@ async fn maybe_auto_start_room(
              "all players ready; auto-starting hosted game"
          );
          client
@@ -24365,7 +24650,7 @@ index 7e1ddef..239509c 100644
              .await?;
      }
      Ok(())
-@@ -1699,9 +1716,16 @@ fn maybe_start_hosted_engine(
+@@ -1699,9 +1717,16 @@ fn maybe_start_hosted_engine(
          .unwrap_or(GameFormat::Any);
      let commander_variant = is_commander_variant(room_format.clone());
      let game_variant = java_game_variant(room_format).to_string();
@@ -24382,7 +24667,7 @@ index 7e1ddef..239509c 100644
              let (remote_prompt_tx, remote_prompt_rx) = std_mpsc::channel::<(usize, AgentMessage)>();
              let mut remote_response_txs = HashMap::new();
              let mut remote_response_rxs = Vec::new();
-@@ -1845,6 +1869,7 @@ fn maybe_start_hosted_engine(
+@@ -1845,6 +1870,7 @@ fn maybe_start_hosted_engine(
                          ai_player_indices,
                          bot_player_indices,
                          starting_life,
@@ -24390,7 +24675,7 @@ index 7e1ddef..239509c 100644
                          remote_prompt_tx,
                          remote_response_rxs,
                          game_over_tx,
-@@ -2178,7 +2203,11 @@ fn route_remote_directive(
+@@ -2178,7 +2204,11 @@ fn route_remote_directive(
      info!(claimed_slot, player_index, ?directive, "routing directive");
      match directive {
          DirectiveInput::Concede => concede_seat(engine_session, player_index),
