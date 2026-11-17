@@ -3534,6 +3534,15 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("token stacks: the engine's board with them attacking draws the same two stacks, on the same objects", v(r, "engine board") === "2:18,2" && v(r, "picked guid on board") === v(r, "picked guid") && v(r, "picked guid") !== "none" && v(r, "hold gone") === "nil",
     `${v(r, "engine board")} ${v(r, "picked guid")} / ${v(r, "picked guid on board")} hold ${v(r, "hold gone")}`);
   ok("token stacks: Pick one by one lays the kind out (the Split box's way)", v(r, "laid out") === "20:1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1", v(r, "laid out"));
+  // (one stack per defending player, docs/big-turns-2-spec.md item 4: the bridge splits a stack 7, 7, 6 among three
+  // players; the engine's board then draws three stacks, three objects, not twenty)
+  {
+    const split = q('local t = engineTable() ' + seatOf("blue") + statics(2201, 2220, "Zombie Token", 2) +
+      'for n = 2201, 2220 do local k = n - 2201 table.insert(blue.battlefield, { s = 1, id = "engine-card-" .. n, ctl = "Blue", atk = true, atkT = (k < 7 and "player-1") or (k < 14 and "player-2") or "player-3" }) end ' +
+      'engineRender(t) __sim.frames(60) return "split"', "split board");
+    const rs = run([split, objs(2201, 2220, "split stacks")]);
+    ok("token stacks: a stack split among three players is drawn as three stacks", !rs.errors.length && v(rs, "split stacks") === "3:6,7,7", `${v(rs, "split stacks")} ${rs.errors.slice(0, 2).join(" | ")}`);
+  }
 
   // Block: six Soldier tokens (2101..2106, Blue) against six attacking Zombie tokens (2111..2116, White). Option for
   // Soldier i blocking Zombie j is (i - 1) * 6 + j.
