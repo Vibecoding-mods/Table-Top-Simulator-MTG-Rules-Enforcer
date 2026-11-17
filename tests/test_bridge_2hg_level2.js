@@ -16,6 +16,7 @@ const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringif
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const run = async (fn) => { const h = harness.load(); try { return await fn(h); } finally { harness.restore(); } };
 const chats = (h, from = 0) => h.effects.slice(from).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text);
+const gameLogHeaders = (h) => h.effects.filter((e) => e.tts?.t === "gamelog").flatMap((e) => e.tts.lines).filter((l) => /^--- /.test(l));
 const tables = (h) => h.effects.filter((e) => e.tts?.t === "table").map((e) => e.tts);
 const shownTo = (h, from, color) => h.effects.slice(from).filter((e) => e.tts?.t === "prompt" && e.tts.color === color).map((e) => e.tts).pop() || null;
 
@@ -154,6 +155,8 @@ const fixBoard = (i) => FIX.record[i].board;
     const firstTable = tables(h).find((m) => m.turn === 1);
     same("board: the table gets the whole active team, the active player first", firstTable?.activeTeam, ["White", "Red"]);
     same("board: the teams say the turns are shared", firstTable?.teams?.turns, "shared");
+    // (the game log's turn header names the team whose turn it is, not just its first seat)
+    same("log: the turn headers name the team (Level 2)", gameLogHeaders(h), ["--- Yellow + Blue's turn 1 ---", "--- White + Red's turn 2 ---"]);
     same("board: turn 2's active team is Yellow + Blue", tables(h).find((m) => m.turn === 2)?.activeTeam, ["Yellow", "Blue"]);
     ok("board: the team life tip and poison limit still work with shared turns", /^Team life: Yellow \+ Blue/.test(tables(h).pop()?.players?.find((p) => p.color === "Blue")?.lifeTip || ""),
       JSON.stringify(tables(h).pop()?.players?.find((p) => p.color === "Blue")?.lifeTip));
@@ -209,6 +212,7 @@ const fixBoard = (i) => FIX.record[i].board;
       if (e.prompt?.promptId === 3) { seats.get("Red").skipTo = { phase: "mine", turn: 0, step: "untap" }; skipChat = h.effects.length; }
       if (i === 9) redLand = h.B.whyNot(seats.get("Red"), "engine-card-8", { anyPriority: true });
     } });
+    same("level 1: the turn headers name the one player", gameLogHeaders(h), ["--- Yellow's turn 1 ---", "--- White's turn 2 ---"]);
     ok("level 1: no activeTeam on the board", tables(h).every((m) => m.activeTeam === undefined && m.teams?.turns === undefined), JSON.stringify(tables(h)[0]?.activeTeam));
     ok("level 1: 'Until my turn' does not end on the partner's turn", !chats(h, skipChat).some((c) => /Skip ended/.test(c)), chats(h, skipChat).join(" | "));
     ok("level 1: the partner's land waits for her own turn", /only be played on your turn/.test(String(redLand)), String(redLand));
