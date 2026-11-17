@@ -4,6 +4,9 @@ Measured 2026-11-17 in a cloud session, on main's engine (the harness jar built 
 patches). Measurement only: no production code changed. The program is `engine/checks/BigBoardCheck.java`, a harness
 check like `SnapshotTimingCheck.java`. Every number below comes from it, and each run's command is given.
 
+Follow-up: recommendations 1, 2, 4 and 5 are built on `cloud/big-board-fixes` (`engine1117-bigboard`), with before and
+after timings in `docs/handoff/big-board-fixes-report.md`.
+
 ## Summary
 
 - **#16, AI decisions on a big board: yes, decisions pass 10 s.** None of them is an AI combat decision, though.
