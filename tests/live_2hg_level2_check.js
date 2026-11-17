@@ -296,7 +296,7 @@ function priority(c, p, g, input) {
       const change = (slot) => S.notices.some((n) => n.slot === slot && teams2hg.teamBlockNotice(n.text)?.kind === "change" && n.text.includes(`${CREATURE.O2} now blocks ${CREATURE.M}`));
       check(change(S.O1) && change(S.O2), `the partner's change is told to both defenders in a no-card notice ("…: ${CREATURE.O2} now blocks ${CREATURE.M}.") (${S.O1} ${change(S.O1)}, ${S.O2} ${change(S.O2)})`);
       const settle = S.notices.filter((n) => teams2hg.teamBlockNotice(n.text)?.kind === "settle");
-      check(!settle.length, `an agreed block needs no settling: no "settles the team's blocks (rule 805.2)" notice (${settle.map((n) => n.text).join(" | ") || "none"})`);
+      check(!settle.length, `an agreed block needs no settling: no "decides (team leader)" notice (${settle.map((n) => n.text).join(" | ") || "none"})`);
       S.state = "t4";
     }
     return pass();

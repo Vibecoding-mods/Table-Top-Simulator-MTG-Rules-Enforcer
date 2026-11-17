@@ -1084,6 +1084,18 @@ function ownServer() {
   check("a server.json problem is the engine light's red, Try again", v.light === Light.Red && v.text.startsWith("Own server: server.json:") && v.fix === Fixes.Retry, v);
   v = L.decideServer(set({ host: "mtg.example.org" }), null, null);
   check("no key: the engine light's red says so", v.light === Light.Red && v.text.includes("no key for your server"), v);
+  // the server's engine build against the table's (the owner's decision 2026-11-17: warn when they differ)
+  const open = { kind: "ok", roomFound: true, roomStatus: "Lobby", ms: 40 };
+  v = L.decideServer(ok, { ...open, engineBuild: "engine1121" }, L.Game.none("no game"), "engine1121");
+  check("engine build: the same as the table's: green", v.light === Light.Green && v.text.includes("is open"), v);
+  v = L.decideServer(ok, { ...open, engineBuild: "engine1120" }, L.Game.none("no game"), "engine1121");
+  check("engine build: another than the table's: amber, names both", v.light === Light.Amber && v.text.includes("engine1120") && v.text.includes("engine1121") && v.text.includes("ask the host"), v);
+  v = L.decideServer(ok, { kind: "ok", roomFound: true, roomStatus: "InGame", engineBuild: "engine1120" }, on, "engine1121");
+  check("engine build: another during our own game: amber too", v.light === Light.Amber, v);
+  v = L.decideServer(ok, { ...open, engineBuild: null }, L.Game.none("no game"), "engine1121");
+  check("engine build: a server too old to say: green, no warning", v.light === Light.Green, v);
+  v = L.decideServer(ok, { ...open, engineBuild: "engine1121" }, L.Game.none("no game"), null);
+  check("engine build: a deploy too old to say: green, no warning", v.light === Light.Green, v);
   const rows = [L.serverNotNeeded(ok.server).light, L.serverNotNeeded(ok.server).light, Light.Green, Light.Grey, Light.Green];
   check("steps 1-2 green with a server (engine up)", L.engineUp(rows), rows);
 

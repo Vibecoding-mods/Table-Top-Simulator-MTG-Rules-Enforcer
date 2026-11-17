@@ -36,7 +36,7 @@ git -C "$src" apply --whitespace=nowarn "$here/manabrew.patch"
 git -C "$src/forge" apply --whitespace=nowarn "$here/forge.patch"
 
 echo "== Building mtg-forge-node:$tag (the long one)"
-docker build -f "$src/manabrew-rs/crates/self-hosted-node/Dockerfile" -t "mtg-forge-node:$tag" "$src"
+docker build -f "$src/manabrew-rs/crates/self-hosted-node/Dockerfile" --build-arg ENGINE_BUILD="$tag" -t "mtg-forge-node:$tag" "$src"
 echo "== Building mtg-relay:$tag"
 docker build -f "$src/manabrew-rs/crates/manabrew-server/Dockerfile" -t "mtg-relay:$tag" "$src"
 echo "== Done: mtg-forge-node:$tag and mtg-relay:$tag"

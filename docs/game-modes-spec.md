@@ -300,8 +300,8 @@ own team game-over, proven in `PlayerRulesTest.aTeamCommanderTeamWinsWhenBothOpp
 - **Combat:** the active team attacks as a group, one combined attack (805.10a-b); each attacker picks which defending
   player or planeswalker it attacks; the defending team blocks as a group, and a defender may block a creature attacking
   **either** defending player (805.10d).
-- **Who decides:** if teammates can't agree, the **primary player** decides: the one in the team's rightmost seat from
-  the team's view (805.2).
+- **Who decides:** if teammates can't agree, the **primary player** decides (805.2). Ours is the team's first seat in
+  turn order (Forge's `GameAction.teamLead`), on every table size (the owner's decision, 2026-11-17).
 - **Resources:** nothing else is shared; teammates may look at each other's hands and talk, but not handle each other's
   cards (810.5).
 - **Changed in the current rules:** 810.7 now says 2HG "uses the combat rules for the shared team turns option ... This
@@ -337,8 +337,8 @@ order is White → Red → Yellow → Blue (`bridge.js:1456-1482`). So the teams
 sit side by side and take their turns in pairs, if the starting player is the first of a team in that order (White or
 Yellow). A start on Red or Blue would give one team a single turn first: the bridge picks only White or Yellow.
 
-**Primary player:** White for the south team and Yellow for the north, if TTS's +x is a seated player's right (Unity's
-axes; not verified on the table).
+**Primary player:** the team's first seat in turn order: White for the south team and Yellow for the north, the
+seats a team's turns start from.
 
 ### 5.3 Engine work for Level 1 (Forge, via `engine/forge.patch`; plan, not verified)
 1. **A rules flag:** `GameRules` gets `sharedTeamLife` (set by the harness from `teamRules`, §4).
@@ -585,8 +585,8 @@ out the second partner's third from the already lowered team total (team 30: 10 
   `sharedTeamTurns`) so Level 1 stays as is. `GameAction.teamLead` is the team's first seat in turn order, i.e. where a team
   turn would start; `PhaseHandler.isStartingTeamsFirstDraw` counts the starting team's first turns, which becomes "the
   team's first turn" once a turn is the team's (805.4b, 103.8b).
-- Harness: questions still go to the player Forge asks (§5.5); the primary player (805.2) is `teamLead`'s mirror image
-  (rightmost seat) and is not computed yet.
+- Harness: questions still go to the player Forge asks (§5.5); the primary player (805.2) is `teamLead` itself, the
+  team's first seat in turn order.
 - Bridge: `teams.teamsProblem`'s side-by-side rule exists only because Level 1 plays the team's turns back to back.
   `gameConfig` would carry the new rule (`teamRules: "sharedTurns"` or a separate field).
 - Table: the phase bar's team tag already names the team on either partner's turn.
@@ -660,7 +660,8 @@ has to be easy to read and easy to do".
   them. A change is picked and sent with Done as before.
 - **Notices (no-card `revealCards`):** "Yellow: Wall of Wood now blocks Hill Giant." and "... no longer blocks." are one
   chat line each to each defender, acknowledged at once, and one game-log line for the team (`tableNotice`). The cap's
-  "Yellow settles the team's blocks (rule 805.2)" reads "Yellow decides (team leader)".
+  "Yellow decides (team leader)" is said as it is (the engine's wording since the owner's decision of 2026-11-17; an
+  older engine's "Yellow settles the team's blocks (rule 805.2)" is said the same way).
 - **Table (`engine-renderer.lua`):** a prompt with `joint` opens the panel (title, the team's block, Agree first in
   green, then the options); the `on` options are picked on arrival (`engineOnPrompt`); the corner's big button is
   **Agree** while the picks are the pre-filled ones (`engineJointUnchanged`) and **Done** once anything changes (taken
@@ -838,7 +839,7 @@ when it un-parks (question 4).
   are called Three-Headed Giant, ...)" So 3HG constructed: **45 life** per team, **20 poison** loses, and every other
   2HG rule (shared turns, combat as a team, losing as a team). Verified by reading.
 - **Seats:** each team on one side. On the 6-player table, south White, Red, Yellow and north Green, Blue, Purple (m6
-  spec §2.1). Primary player: White and Green, if +x is a seated player's right (not verified).
+  spec §2.1). Primary player: each team's first seat in turn order (`teamLead`), as on every table size.
 - **3HG Commander: no official numbers.** Wizards' format page doesn't mention 3HG. Community practice is mixed and old:
   - a 2019 Magic Judges forum answer (apps.magicjudges.org/forum/topic/51629): no official rule for combining 2HG and
     Commander; the playgroup agrees on a life total;

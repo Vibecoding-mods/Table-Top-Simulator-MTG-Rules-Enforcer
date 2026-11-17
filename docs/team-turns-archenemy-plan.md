@@ -126,8 +126,8 @@ Add-on, not part of the ship: **3HG** (spec §8.3): 14 hours on top, but it need
    Level 2, or must it work with an AI partner?
 3. Should `mtg 2hg turns own` stay as a host switch after Level 2 ships?
 4. 3HG: wait for the six-seat table, as the spec says?
-5. Who is the primary player (805.2)? The spec says the rightmost seat from the team's view (White and Yellow by
-   default). It was never checked on the real table. Please look when you test.
+5. Who is the primary player (805.2)? Decided 2026-11-17: the team's first seat in turn order on every table size
+   (`GameAction.teamLead`; White and Yellow on the four-seat table).
 
 ## 2. Feature 2: Archenemy schemes
 

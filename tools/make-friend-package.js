@@ -446,28 +446,29 @@ Still stuck: close the companion, start it again. Then send the files in the "lo
 OPTIONAL: PLAY ON A FRIEND'S ENGINE (OWN SERVER)
 The engine (relay and Forge room) can run on another computer, a friend's who already hosts it. Then this PC needs no
 Docker: the companion connects to that engine over the network, and you still host TTS and the bridge here.
-1. The friend who runs the engine gives you its address (a name or IP address; with :port if its relay isn't on
-   9443) and its key (their MANABREW_SERVER_KEY). On their side: tools/setup-server.sh, or their own companion.
-2. Start "MTG Companion.exe". On its status page, open "Own server", type the address and the key, then press
-   "Use this server". Or write server.json in this folder yourself:
-       { "host": "mtg.example.org", "port": 9443, "key": "the key", "secure": false }
-   ("secure": true when their relay is behind TLS, wss://.) "MTG Companion.exe --server HOST:PORT" sets it for one
-   run (the key then comes from server.json for the same host, or the MTG_SERVER_KEY variable).
+1. Join your friend's Tailscale network (tailscale.com: both computers in the same tailnet). That is the only way we
+   recommend: the engine is never opened to the internet. The friend runs the engine (tools/setup-server.sh binds it
+   to their Tailscale address) and gives you its Tailscale name or address and its key (their MANABREW_SERVER_KEY).
+2. Write server.json in this folder (Notepad is fine):
+       { "host": "their-tailscale-name", "port": 9443, "key": "the key" }
+   ("port" only when their relay isn't on 9443.) "MTG Companion.exe --server HOST:PORT" sets it for one run (the key
+   then comes from server.json for the same host, or the MTG_SERVER_KEY variable). The first time the companion reads
+   the file, it encrypts the key in it for your Windows account (the key is then no longer readable in the file, and
+   only you, on this PC, can use it). On another PC or account, put the key in again the same way.
 3. The lights: Docker and Engine images say "Not needed here", and the third light, "Your server", says whether the
    server answers. Red when it doesn't, with what to check:
    - "refused the connection": nothing listens on that port there (the engine isn't running, or another port);
-   - "didn't answer": the server is off, or its firewall doesn't let this PC reach the port;
-   - "isn't known": the name is misspelt (or use the IP address);
+   - "didn't answer": the server is off, or Tailscale isn't on here or there;
+   - "isn't known": the name is misspelt (or use the Tailscale address);
    - "refused the key": the key isn't the server's;
    - "its Forge room isn't open" or "busy with an earlier game": the friend restarts the relay and the Forge room.
-   Fix it, then press "Try again".
-4. "Use this computer" (or deleting server.json) goes back to the engine in Docker on this PC.
+   Fix it, then press "Try again". Amber when the server runs another engine version than this package's table was
+   made with: games may still work, but ask your friend to update the server (or update this package).
+4. Deleting server.json goes back to the engine in Docker on this PC.
 The key is a password for the engine: it stays in server.json on this PC. Never share that file, post the key in a
-chat or put it in a screenshot. Stop everything stops only the bridge here: the engine on the server is your
-friend's, and the companion never stops it. Switching servers is refused while a game is on.
-Over the open internet the key is sent unencrypted unless the server uses a secure (wss) address: use Tailscale or
-a secure address, not a plain address to a friend's home connection.
-
+chat or put it in a screenshot. Stop everything stops only the bridge here: the engine on the server is your friend's,
+and the companion never stops it. "mtg reset" can't restart that engine either: it says to restart the room on the
+host's server, which your friend does.
 
 PRIVACY
 Everything here listens on your own PC only (127.0.0.1). Nothing is opened to the internet; TTS's own multiplayer is
@@ -702,6 +703,8 @@ async function main() {
 
   const info = {
     bridge, table: made4p.stamp, save: made4p.save, node: deployed.node, relay: deployed.relay,
+    // (the engine build the table was deployed with: an own-server companion compares its server's with it)
+    engineBuild: deployed.engineBuild || null,
     // (what the companion makes the table from: the Workshop item, and the hash of the copy this package was checked
     // with; a host's copy with another hash was updated by its author and may or may not still patch)
     workshop: { id: TABLE.id, url: TABLE.url, sha8: made4p.workshop },
