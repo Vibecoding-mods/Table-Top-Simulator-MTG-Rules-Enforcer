@@ -867,8 +867,10 @@ function onArtSet(m) {
     return chat(`[MTG] ${color}: your ${kind === "token" ? "token pictures" : "back pictures"} are cleared.`, color);
   }
   const link = words.pop();
-  const said = words.join(" ");
+  // (a name is echoed to the table and kept: no chat colour tags, 60 characters, 40 of a kind per player)
+  const said = words.join(" ").replace(/[\[\]]/g, "").slice(0, 60).trim();
   if (!said) return chat(`[MTG] Name the ${kind === "token" ? "token" : "card"} before the link.`, color);
+  if (!list[normName(said)] && Object.keys(list).length >= 40) return chat(`[MTG] That is 40 pictures already: clear some first (mtg art ${kind} clear).`, color);
   const why = artProblem(link);
   if (why) return chat(`[MTG] That picture link can't be used: ${why}.`, color);
   if (kind === "token") {
