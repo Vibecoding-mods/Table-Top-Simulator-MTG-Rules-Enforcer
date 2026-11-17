@@ -4,6 +4,48 @@ Cloud session, 2026-11-17, branch `cloud/cheap-assault`, from `origin/cloud/ai-b
 `engine1117-cheapassault`, on top of `engine1117-aibudgets`. It merges with `cloud/owner-decisions-1117` into
 engine1123. Not built as an image.
 
+## Review fixes (second commit)
+
+The review found four places where the first version could say "lethal" wrongly. Each now has a counterexample check
+in `BigBoardFixesTest`. A mutation that brings the old behaviour back makes that check fail by name.
+
+1. **HIGH: "can block any number" ignored.**
+   - The first version counted a blocker as `1 + canBlockAdditional()` blocks and never read `canBlockAny()`.
+   - Now such a blocker makes as many blocks as there are attackers. An extra-block count is capped the same, and
+     toughness is kept as (toughness, how many blocks) pairs, so no loop runs once per block.
+   - Check: 5 Llanowar Elves into a Palace Guard at 4 life is not lethal. Against a Hill Giant it is.
+2. **HIGH: lifelink and first-strike blockers.**
+   - The defender's threshold is now its life plus what every lifelink blocker could gain: its power, twice with
+     double strike, whether or not it blocks.
+   - A trampler that a first or double striker there has the power to kill lets nothing through. Any such blocker
+     counts, whatever else it blocks, which leans to the defender.
+   - The doc comment no longer says lifelink "errs on not attacking".
+   - Checks:
+     - 2 Grizzly Bears into a Child of Night at 2 life: safe. Into a Walking Corpse: lethal.
+     - A Komodo Rhino (5/2 trample) into an Anaba Bodyguard (2/3 first strike) at 2 life: safe. Into a Hill Giant:
+       lethal.
+3. **MEDIUM: Two-Headed Giant blockers.** This one was already covered on this branch.
+   - `getOpponentCreatures` adds the defender's teammates when life is shared (CR 805.10d, from the 2HG work merged
+     before ai-budgets). The blocker list `cheapAssault` reads includes the partner's creatures.
+   - The new check: 3 Hill Giants at Yellow, the team at 9 life, 3 Craw Wurms on Yellow's partner Blue: safe.
+   - It was green from the start. The mutation that drops the partner from `getOpponentCreatures` turns it red, so
+     the check does test the path.
+4. **LOW: `canBlock(b)` doesn't foresee the next turn.** Noted in the comment.
+
+**Break-its:**
+
+- `tools/mutate-cheap-assault.js`: 24 of 24 (6 new: can-block-any, lifelink twice, first strike twice, the 2HG
+  partner).
+- `tools/mutate-ai-budgets.js`: 20 of 20; its cheap-assault mutations were updated for the new lines.
+- The full harness suite: 46 classes passed.
+
+**ai-budgets' simpler cheapAssault (going out in engine1123)** has gaps 1 and 2: it reads neither `canBlockAny` nor
+lifelink. It has no trample, so the first-strike gap doesn't apply. It doesn't have gap 3, because the same
+`getOpponentCreatures` feeds it.
+
+This branch replaces that method entirely: same name, one implementation, no other caller. So engine1124 covers that
+path, and engine1123's `cheapAssault` should be read as an all-in that can be wrong in those two cases until then.
+
 ## What changed
 
 `AiAttackController.cheapAssault`, the answer `doAssault` gives past the combat deadline, now reads trample, menace,
@@ -44,7 +86,7 @@ bins, O(attackers + blockers).
 
 **Not counted (each errs on not attacking).**
 
-- Deathtouch, first strike against the blockers, lifelink.
+- Deathtouch, and the attackers' own first strike.
 - Fear, intimidate, skulk.
 - Protection from a quality other than colour.
 - "Can't be blocked by" rules with a blocker condition (Juggernaut's Walls), and landwalk.
@@ -53,7 +95,7 @@ bins, O(attackers + blockers).
 
 ## Tests
 
-`BigBoardFixesTest`: 22 → 32 checks, all passing. Each cheap-assault check reads the estimate's counters and the
+`BigBoardFixesTest`: 22 → 36 checks, all passing (32 in the first push). Each cheap-assault check reads the estimate's counters and the
 assault-check counter (zero past the deadline), never timing. Where the estimate says lethal, every attacker must go at
 the defender.
 
@@ -84,7 +126,7 @@ passed.
 
 ## Break-its (each fails by name; files restored by sha256)
 
-- **`node tools/mutate-cheap-assault.js <tree>`: 18 of 18.**
+- **`node tools/mutate-cheap-assault.js <tree>`: 24 of 24** (18 in the first push).
   - Trample: ignored; the toughest blocker held against every trampler; the weakest blockers on the biggest tramplers.
   - Menace: one block; half a block stopping nothing; blocks by damage instead of damage per block.
   - Evasion and protection:
