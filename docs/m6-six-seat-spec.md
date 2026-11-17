@@ -30,8 +30,8 @@ Inputs:
 | 11 | Renderer: per-table data instead of the 4-player tables. **Done 2026-11-16** (`m6-profile`) | 3 | |
 | 12 | Commander damage on the 6-player table (§2.4; §8 chose the 4-player trackers). **Built 2026-11-16** (branch `m6-table`, §2.3.3), not seen on screen | 3 | ~~user's choice A or B~~ |
 | 13 | Background objects out, table buttons placed for six mats. **Built 2026-11-16** (`m6-table`, §2.3.3), not seen on screen | 3 | a TTS session for the screenshots |
-| 14 | Golden recording for the 6-player table | 2 | |
-| 15 | Live: headless 6 seats twice, then host + 5 AI in real TTS, then a game with a friend | 5.5 | user's OK for a new save |
+| 14 | Golden recording for the 6-player table. **Bridge side done 2026-11-17** (branch `cloud/m6-headless`, §6.3.1): the six-seat stream fixture and its golden; the table's golden written, to record where the Workshop tables are | 2 | |
+| 15 | Live: headless 6 seats twice, then host + 5 AI in real TTS, then a game with a friend. **Headless done 2026-11-17 on the harness** (§6.3.1); the real-TTS games wait | 5.5 | user's OK for a new save |
 | | **Total** | **44.5** | |
 
 - Steps 0–6 (16.5 hours with the probe) work on the 4-player table and help it too: four humans drop from 58,530 to about 35,000.
@@ -310,6 +310,42 @@ Reading the results:
 1. Headless: `engine-test.js --seats 6 --turns 12` twice without a node restart (0.5 h).
 2. Real TTS, the 6-player engine save: host + 5 Forge AI, a full game to the end, with the log (3 h with fixes). Check: every AI's cards land on its own mat, the life and commander damage counters, turn order clockwise, Scoop, Undo, the rewind vote.
 3. With a friend: 2 humans + 4 AI, then more humans if they're around (2 h). Each answers a question, opens the Undo list, votes and concedes once.
+
+### 6.3.1 Headless six seats and the golden, as built (2026-11-17, branch `cloud/m6-headless`)
+
+- **Headless games on the harness** (`tools/headless-six.js <engine tree>`). The relay and node images couldn't run in
+  the cloud session (no Docker daemon; the node needs its GraalVM native build). So the games go through the node's own
+  engine entry, `ManaBrewEngineAdapter`, via `engine/checks/HeadlessGameServer.java` (one command per line on stdin).
+  - Each game is White (the host, played with engine-test.js's answers) plus five Forge AI seats, Commander at 40
+    life, on the built-in decks Neheb, Ashling, Ramses, Teval, Hearthhull and Ironsmith.
+  - The run checks each turn's active seat against the seat after the last turn's (players who have lost are skipped,
+    extra turns allowed). It also reports engine errors, and a stall (no new state and no question for 120 s) as stuck
+    priority.
+  - Results on main's engine (`f63de76`'s patches):
+    - two games to turn 15 (the ask): no problem;
+    - two to the end (Purple won on turn 45, Green on turn 56): no problem, with the order skipping the players out;
+    - a third to the end (Green won on turn 51): no problem. A seed doesn't fix the game, because the AI works to
+      time limits. The fixture below is a recording, so the golden doesn't depend on that.
+  - One fix: engine-test.js's end report named the six-seat table's fourth seat Blue and the last two "seat4" /
+    "seat5". It now takes `teams.seatColorsFor(SEATS)`.
+- **The bridge on six seats** (`tools/m6-stream.js`). A recorded game (turns 1–15) goes through a sandboxed bridge as
+  the six-seat table's game, with the table's hello of six seats, White's start with 5 AI, and the relay's lobby and
+  GameStarted. The bridge sends:
+  - the seat order White → AI 1 … AI 5;
+  - the colours White, Red, Yellow, Green, Blue, Purple;
+  - five AI decks: the four built-in ones, cycled as §5 says.
+
+  No errors were logged. In the long game, every card's controller was one of the six colours (25,003 cards in 963
+  boards), and commander damage was keyed by colour.
+- **The golden:**
+  - `tests/golden/fixtures/six-seat-relay.json` is the relay's side: the states, packed as changes, and White's
+    questions.
+  - `tests/golden/fixtures/table-stream-6p.json` is what the bridge sends the table: 334 messages.
+  - `tests/test_bridge_six_golden.js` (in GATES) checks the stream message by message, plus the six-seat facts.
+    Break-it: `tools/mutate-six-golden.js`.
+  - `tests/test_table_golden_six.js` is the table's own golden. It builds the six-seat table as `test_table_six.js`
+    does and replays the stream on the fake TTS. It needs the Workshop tables: without them it says SKIP. Its golden
+    (`tests/golden/table_golden_6p.json`) is recorded with `--record` on a machine that has them; then it joins GATES.
 
 ## 7. Open questions
 
