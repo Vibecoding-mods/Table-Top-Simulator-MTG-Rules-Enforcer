@@ -37,7 +37,7 @@ Archenemy polish, 2HG shared-turn looks, 3HG table). Rollback is engine1119.
 
 **Needs you or other players:**
 - The 6-player save (top priority): your OK to create it, then a look on the real table.
-- A real-table look at: the ∞ badge, attack lines, Archenemy view, cost badges, custom art, Play/Draw, 3HG, token runs, floating mana chips, the tie pop-up.
+- A real-table look at: the ∞ badge (if TTS's button font draws a box, set `ENGINE_INF.ascii = true` in the renderer: every ∞ reads INF), attack lines, Archenemy view, cost badges, custom art, Play/Draw, 3HG, token runs, floating mana chips, the tie pop-up.
 - Multi-human tests: 4 humans, the rewind and manual-fix votes, 2HG shared turns, Treachery with 4 people, a second GIF client.
 - Steam Deck test of the Linux/Mac companion.
 - Uploads (particle bundles, sound bundle), telling the table's author, sound licences.
