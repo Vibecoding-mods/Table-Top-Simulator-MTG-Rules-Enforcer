@@ -22710,10 +22710,10 @@ index 0000000..7db9dd6
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/TokenBatchTest.java b/forge-harness/src/test/java/forge/harness/host/TokenBatchTest.java
 new file mode 100644
-index 0000000..4a97a5e
+index 0000000..0d3cd37
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/TokenBatchTest.java
-@@ -0,0 +1,284 @@
+@@ -0,0 +1,408 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -22769,6 +22769,13 @@ index 0000000..4a97a5e
 +        CHECKS.put("hold: the static checks are not held after the effect", TokenBatchTest::holdReleased);
 +        CHECKS.put("doubler: a doubled effect makes twice the tokens, batched", TokenBatchTest::doubledBatched);
 +        CHECKS.put("sanity: 400 tokens on an anthem board in under 15 s", TokenBatchTest::timingSanity);
++        CHECKS.put("triggers: under a +3/+3 anthem each 1/1 token triggers Elemental Bond and Garruk's Uprising", TokenBatchTest::powerTriggers);
++        CHECKS.put("exception: one thrown mid-batch is the one that comes out, the hold released", TokenBatchTest::exceptionReleases);
++        CHECKS.put("exception: an effect inside a hold, throwing, leaves the hold on", TokenBatchTest::exceptionRestoresHold);
++        CHECKS.put("triggers: Torpor Orb stops every batched token's enter triggers", TokenBatchTest::torporOrb);
++        CHECKS.put("triggers: Hushbringer stops every batched token's enter triggers", TokenBatchTest::hushbringer);
++        CHECKS.put("layers: Humility applies to every batched token", TokenBatchTest::humility);
++        CHECKS.put("not batched: an effect while the static checks are already held", TokenBatchTest::notBatchedInsideAHold);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
 +            check(e.getKey(), e.getValue());
 +        }
@@ -22916,6 +22923,123 @@ index 0000000..4a97a5e
 +        final long b0 = TokenEffectBase.getTokensBatched();
 +        f.make(25, "w_1_1_soldier", "");
 +        expect(tokens(f.white).size() == 50 && TokenEffectBase.getTokensBatched() - b0 == 49, tokens(f.white).size() + " tokens, " + (TokenEffectBase.getTokensBatched() - b0) + " batched");
++    }
++
++    private static int triggersOf(final Fixture f, final String name) throws Exception {
++        f.game.getTriggerHandler().runWaitingTriggers();
++        int n = 0;
++        for (final SpellAbility sa : f.pending()) {
++            n += sa.getHostCard() != null && sa.getHostCard().getName().equals(name) ? 1 : 0;
++        }
++        for (final forge.game.spellability.SpellAbilityStackInstance si : f.game.getStack()) {
++            n += si.getSourceCard() != null && si.getSourceCard().getName().equals(name) ? 1 : 0;
++        }
++        return n;
++    }
++
++    private static void powerTriggers() throws Exception {
++        final Fixture f = new Fixture();
++        for (int i = 0; i < 3; i++) {
++            f.add("Glorious Anthem", f.white);
++        }
++        f.add("Elemental Bond", f.white);
++        f.add("Garruk's Uprising", f.white);
++        f.settle();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(20, "w_1_1_soldier", "");
++        expect(TokenEffectBase.getTokensBatched() - b0 == 19, "batched " + (TokenEffectBase.getTokensBatched() - b0) + " of 19");
++        final int bond = triggersOf(f, "Elemental Bond");
++        final int uprising = triggersOf(f, "Garruk's Uprising");
++        expect(bond == 20 && uprising == 20, "for 20 tokens at 4/4: Elemental Bond " + bond + ", Garruk's Uprising " + uprising);
++    }
++
++    private static void exceptionReleases() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        final int[] n = {0};
++        TokenEffectBase.afterEachTokenForTests = (c) -> {
++            if (++n[0] == 5) {
++                throw new IllegalStateException("boom at token 5");
++            }
++        };
++        String thrown = null;
++        try {
++            f.make(20, "w_1_1_soldier", "");
++        } catch (final IllegalStateException e) {
++            thrown = e.getMessage();
++        } finally {
++            TokenEffectBase.afterEachTokenForTests = null;
++        }
++        expect("boom at token 5".equals(thrown), "the exception that came out: " + thrown);
++        expect(!f.game.getAction().isHoldingStaticAbilities(), "the static checks are still held after the exception");
++        for (final Card c : tokens(f.white)) {
++            expect(c.getNetPower() == 5, "a token made before the exception is " + c.getNetPower() + " power, not 5: no pass after the batch");
++        }
++    }
++
++    private static void exceptionRestoresHold() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        TokenEffectBase.afterEachTokenForTests = (c) -> {
++            throw new IllegalStateException("boom");
++        };
++        f.game.getAction().setHoldCheckingStaticAbilities(true);
++        try {
++            f.make(3, "w_1_1_soldier", "");
++        } catch (final IllegalStateException expected) {
++            expect("boom".equals(expected.getMessage()), "the exception that came out: " + expected.getMessage());
++        } finally {
++            TokenEffectBase.afterEachTokenForTests = null;
++        }
++        final boolean held = f.game.getAction().isHoldingStaticAbilities();
++        f.game.getAction().setHoldCheckingStaticAbilities(false);
++        expect(held, "a hold that was on before the effect was turned off by it");
++    }
++
++    private static void torporOrb() throws Exception {
++        disabledTriggers("Torpor Orb");
++    }
++
++    private static void hushbringer() throws Exception {
++        disabledTriggers("Hushbringer");
++    }
++
++    private static void disabledTriggers(final String stopper) throws Exception {
++        final Fixture f = new Fixture();
++        f.add("Soul Warden", f.white);
++        f.add(stopper, f.blue);
++        f.settle();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(20, "w_1_1_soldier", "");
++        expect(TokenEffectBase.getTokensBatched() - b0 == 19, "batched " + (TokenEffectBase.getTokensBatched() - b0) + " of 19");
++        final int warden = triggersOf(f, "Soul Warden");
++        expect(warden == 0, "under " + stopper + " Soul Warden triggered " + warden + " times for 20 tokens");
++    }
++
++    private static void notBatchedInsideAHold() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.game.getAction().setHoldCheckingStaticAbilities(true);
++        try {
++            f.make(10, "w_1_1_soldier", "");
++        } finally {
++            f.game.getAction().setHoldCheckingStaticAbilities(false);
++        }
++        expect(TokenEffectBase.getTokensBatched() == b0 && tokens(f.white).size() == 10, (TokenEffectBase.getTokensBatched() - b0) + " batched inside a hold, " + tokens(f.white).size() + " made");
++    }
++
++    private static void humility() {
++        final Fixture f = new Fixture();
++        f.add("Humility", f.blue);
++        f.settle();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(20, "w_2_2_knight_vigilance", "");
++        expect(TokenEffectBase.getTokensBatched() - b0 == 19, "batched " + (TokenEffectBase.getTokensBatched() - b0) + " of 19");
++        for (final Card c : tokens(f.white)) {
++            expect(c.getNetPower() == 1 && c.getNetToughness() == 1 && !c.hasKeyword(Keyword.VIGILANCE),
++                    "under Humility a 2/2 vigilance Knight token is " + c.getNetPower() + "/" + c.getNetToughness() + " vigilance " + c.hasKeyword(Keyword.VIGILANCE));
++        }
 +    }
 +
 +    private static void timingSanity() {
