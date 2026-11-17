@@ -168,14 +168,21 @@ function pageChecks() {
   const relay = await fakeRelay();
   try {
     const s = { host: "127.0.0.1", port: relay.port, key: KEY };
+    // (the login this run made, at the fake relay: a companion that logs in elsewhere, such as a live relay on this PC's
+    // 9443 with the package's own key, shows the same green text)
+    const logins = () => relay.seen.filter((m) => m.type === "Authenticate").length;
+    const before = logins();
     let o = await observe(exe, s);
-    ok("server answers: green, Your server, the room open", o.rows[3]?.name === "Your server" && o.rows[3]?.light === "GREEN" && /Your server answers \(127\.0\.0\.1:\d+\): room tts-commander is open/.test(o.rows[3]?.text), o.dump || o.out);
+    ok("server answers: green, Your server, the room open", o.rows[3]?.name === "Your server" && o.rows[3]?.light === "GREEN" && /Your server answers \(127\.0\.0\.1:\d+\): room tts-commander is open/.test(o.rows[3]?.text) && logins() > before,
+      `${logins() - before} logins at the server; ${o.dump || o.out}`);
     ok("server answers: Docker and the images aren't needed here", o.rows[1]?.light === "GREEN" && /Not needed here/.test(o.rows[1]?.text) && o.rows[2]?.light === "GREEN" && /Not needed here/.test(o.rows[2]?.text), JSON.stringify(o.rows));
     ok("server answers: the dump says which engine", /^Engine: your server 127\.0\.0\.1:\d+$/m.test(o.dump), o.dump);
     ok("server answers: the key was sent to the server", relay.seen.some((m) => m.type === "Authenticate" && m.password === KEY));
     ok("the key is never in the dump or the log", !o.dump.includes(KEY) && !o.log.includes(KEY) && !o.out.includes(KEY));
+    const seenBefore = relay.seen.length;
     o = await observe(exe, { ...s, key: "not-the-key-000" });
-    ok("a wrong key: red, refused the key, Try again", o.rows[3]?.light === "RED" && /refused the key/.test(o.rows[3]?.text) && /button: Try again/.test(o.rows[3]?.text), o.rows[3]?.text || o.out);
+    ok("a wrong key: red, refused the key, Try again", o.rows[3]?.light === "RED" && /refused the key/.test(o.rows[3]?.text) && /button: Try again/.test(o.rows[3]?.text)
+      && relay.seen.slice(seenBefore).some((m) => m.type === "Authenticate" && m.password === "not-the-key-000"), o.rows[3]?.text || o.out);
     const nothing = await freePort();
     o = await observe(exe, { ...s, port: nothing });
     ok("nothing on the port: red, nothing listens", o.rows[3]?.light === "RED" && new RegExp(`nothing listens on port ${nothing} there`).test(o.rows[3]?.text), o.rows[3]?.text || o.out);
