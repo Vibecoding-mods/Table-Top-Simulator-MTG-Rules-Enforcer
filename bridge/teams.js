@@ -49,6 +49,10 @@ const SIX_COLORS = ["White", "Red", "Yellow", "Green", "Blue", "Purple"]; // (th
 const THREE_TEAMS = { White: 1, Red: 1, Yellow: 1, Green: 2, Blue: 2, Purple: 2 };
 
 const TEAM_COLORS = ["White", "Red", "Yellow", "Blue"]; // (the table's seats in turn order, bridge.js TABLE_COLORS)
+// The seat colours of a game of n seats in turn order (engine-test.js names its seats by them): the four-seat table's
+// up to four, the six-seat table's from five (its fourth seat is Green, not Blue; a six-seat engine-test report named
+// the last two "seat4" / "seat5", headless six-seat run 2026-11-17)
+const seatColorsFor = (n) => (Number(n) > TEAM_COLORS.length ? SIX_COLORS.slice(0, Math.min(Number(n), SIX_COLORS.length)) : [...TEAM_COLORS]);
 // the default sides: the two seats on each long side of the table, which are next to each other in turn order
 const DEFAULT_TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
 
@@ -480,6 +484,6 @@ function teamBlockNotice(text) {
   if (/^[^:]+: .+ (?:now blocks .+|no longer blocks)\.$/.test(t)) return { kind: "change", line: t };
   return null;
 }
-module.exports = { jointBlock, jointBlockLines, teamBlockNotice, SEAT_HEX, teamTriggerWords, teamRefusalWords, sharesLife, sharesTurns, turnPlayerIds, isTurnOf, turnPartners, turnPartnerOf, turnWhose, teamAttackLines, teamBlockLines, TEAM_COLORS, DEFAULT_TEAMS, TEAM_MODES, JUGG_DEFAULTS, setupOf, teamModeOf, teamModeProblem, juggOf, juggLife, juggTeams, juggPerks, juggWords,
+module.exports = { seatColorsFor, jointBlock, jointBlockLines, teamBlockNotice, SEAT_HEX, teamTriggerWords, teamRefusalWords, sharesLife, sharesTurns, turnPlayerIds, isTurnOf, turnPartners, turnPartnerOf, turnWhose, teamAttackLines, teamBlockLines, TEAM_COLORS, DEFAULT_TEAMS, TEAM_MODES, JUGG_DEFAULTS, setupOf, teamModeOf, teamModeProblem, juggOf, juggLife, juggTeams, juggPerks, juggWords,
   setupWords, teamsOf, teamWords, sides, teamsProblem, gameConfig, boardTeams, teamOf, withTeamDamage, teamsField, teamLifeTip,
   poisonLabel, teamWinWords, ARCH_DEFAULTS, ARCH_SCHEMES, ARCH_COPIES, archOf, archLife, schemeDeckProblem, archWords, SIX_COLORS, THREE_TEAMS };
