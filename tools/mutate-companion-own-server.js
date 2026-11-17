@@ -43,6 +43,7 @@ const MUTATIONS = [
   ["the row keeps its Engine stack name", C, "Rows[StepStack].Name = server != null ? OwnServer.RowName : Names[StepStack];", "Rows[StepStack].Name = Names[StepStack];", "selftest: wiring: server.json makes the Engine stack row Your server"],
   // the key at rest (DPAPI)
   ["a plain key not saved again encrypted", C, "if (resave != null && !Observe)", "if (false)", "selftest: wiring: the plain key in server.json is saved again encrypted for this account"],
+  ["an encryption failure not logged", C, "if (protectError != null && !Observe) Log.Write(", "if (false) Log.Write(", "selftest: wiring: encryption failing is logged once (no key), the file kept, the server still used"],
   ["observe mode writes the encrypted file", C, "if (resave != null && !Observe)", "if (resave != null)", "selftest: wiring: observe mode leaves a plain key as it is (nothing written)"],
   ["the plain key kept beside the encrypted one", O, "                        stored[KeyVault.Field] = blob;\n", "                        stored[KeyVault.Field] = blob; stored[\"key\"] = plain;\n", "selftest: key: and the file is saved again with it encrypted, never plain"],
   ["a typed key loses to the old encrypted one", O, "if (plain is string && ((string)plain).Trim().Length > 0)", "if (sealedKey == null && plain is string && ((string)plain).Trim().Length > 0)", "selftest: key: a key typed beside an encrypted one wins, and replaces it encrypted"],

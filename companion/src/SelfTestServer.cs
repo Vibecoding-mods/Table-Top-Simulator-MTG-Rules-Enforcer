@@ -187,6 +187,17 @@ namespace MtgCompanion
                 File.WriteAllText(l.ServerFile, "{\"host\":\"mtg.example.org\",\"key\":\"" + key + "\"}");
                 var watcher = new Controller(l, true, Path.Combine(tmp, "saves"), Path.Combine(tmp, "state"), "x.exe");
                 Check("wiring: observe mode leaves a plain key as it is (nothing written)", watcher.Server != null && watcher.Server.Ok && Probes.ReadText(l.ServerFile).Contains(key));
+                var realProtect = Controller.KeyProtect;
+                try
+                {
+                    Controller.KeyProtect = k => { throw new System.Security.Cryptography.CryptographicException("DPAPI unavailable"); };
+                    var failing = new Controller(l, false, Path.Combine(tmp, "saves"), Path.Combine(tmp, "state"), "x.exe");
+                    var said = Probes.ReadText(Log.File) ?? "";
+                    Check("wiring: encryption failing is logged once (no key), the file kept, the server still used",
+                        said.Contains("the key couldn't be encrypted for this Windows account (CryptographicException: DPAPI unavailable)") && !said.Contains(key)
+                        && Probes.ReadText(l.ServerFile).Contains(key) && failing.Server != null && failing.Server.Ok, Logic.Clip(said, 300));
+                }
+                finally { Controller.KeyProtect = realProtect; }
                 File.Delete(l.ServerFile);
                 var local = new Controller(l, true, Path.Combine(tmp, "saves"), Path.Combine(tmp, "state"), "x.exe");
                 psi = local.BridgeLoopInfo();

@@ -99,7 +99,7 @@ The importer's script is in the Workshop save, so this needs the save. `mtg art 
 |---|---|
 | 805.2's primary player: **decided 2026-11-17**, the team's first seat in turn order on every table size (spec says so now). | l2-tests |
 | The team-block notice: **decided**, "Yellow decides (team leader)", sent so by the engine. | team-block |
-| Checkpoint thinning: **decided**, keep each turn's first and drop the oldest turns' in-between ones first; the size cap stays. | big-board-fixes |
+| Checkpoint thinning: **decided**, drop the oldest turns' in-between points first, then the oldest turn's first, the current turn's last (never its newest, never a pending vote's point); the size cap stays. | big-board-fixes |
 | Companion own-server mode, **decided**: (1) Windows keeps `server.json`; (2) the key encrypted with DPAPI on Windows, the file mode 600 on Linux/Mac; (3) with a server, `mtg reset` skips the local Docker restart and says "restart the room on the host's server"; (4) the companion compares the server's engine version with the table's on connect and warns; (5) no status-page box; (6) Tailscale only. | companion-server |
 
 ## Done later by this session (not open)

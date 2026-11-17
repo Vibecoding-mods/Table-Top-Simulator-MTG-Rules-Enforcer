@@ -6,6 +6,49 @@ Cloud session, 2026-11-17, branch `cloud/owner-decisions-1117`.
 - **Engine tag:** `engine1121-ownerdecisions`, on top of `engine1121-costbadge4`. Not built as an image, not deployed.
 - **The questions:** `docs/handoff/open-after-1121.md` §4. That table now says what was decided.
 
+## Review fixes (second commit)
+
+The review of the first push found two problems; both are fixed on this branch.
+
+1. **HIGH: the engine-version warning compared image tags.**
+   - `engine/build-images.sh` defaults the tag to `exile`, and `tools/setup-server.sh` calls it with no tag. So a
+     host's server said "exile" while the owner's table said `engine1122`: an amber light on every connect. Two
+     default builds both said "exile", so a real difference never showed.
+   - Now the build id is a hash of the two pins and the two patches, carriage returns removed:
+     `engine/engine-build-id.sh`, and its JS twin `tools/engine-build-id.js` (the test checks they agree).
+   - `build-images.sh` passes that id as `ENGINE_BUILD`, never the tag. `tools/deploy.js` records the tree's id, and
+     refuses to record when the running node reports another. The tag is only the image's name now.
+   - `tests/test_engine_build_record.js` (18 checks):
+     - the same patches under another tag give the same id, so no warning;
+     - one byte of a patch, or another pin, gives another id, so the warning;
+     - a CRLF checkout gives the same id;
+     - swapped patches give another id.
+   - `tools/mutate-engine-build-record.js`: 12 of 12.
+2. **MEDIUM: the thinning could drop the newest restore point** (turns 1, 2, 3, 3 at a cap of 3 lost id 4).
+   - Now `thinVictim` takes, in order:
+     1. the in-between points of the oldest older turn;
+     2. the oldest turn's first;
+     3. only when the current turn is the only one left, its oldest in-between point, never its newest.
+   - A pending rewind vote's point is never thinned.
+   - `restore` does nothing for a point no longer kept, so it can't empty the deque. (`restoreIfApproved` already
+     marked such a vote unavailable.)
+   - Tests:
+     - `BigBoardFixesTest`: the review's case, every cap from 8 down to 1, and the vote's point kept;
+     - `StressCapsTest` `aPendingRewindVotesPointIsNeverThinned`: a real session, a vote on the turn's second point,
+       60 more points.
+   - Break-its: `tools/mutate-owner-decisions-engine.js` 12 of 12; `tools/mutate-big-board-fixes.js` 4 of 4.
+
+Also from the review:
+
+- **The Windows status page's Own server box was removed.** The owner chose no boxes. A friend writes `server.json`,
+  or uses `--server`. The box and its `POST /api/server` are gone from the Windows companion, so anyone who used the
+  box sets the server that way now.
+- **When DPAPI encryption throws,** the companion now logs one line, without the key: "server.json: the key couldn't
+  be encrypted for this Windows account (<error>); server.json stays as it is". The file is kept and the server still
+  used.
+  - The self-test makes encryption throw through `Controller.KeyProtect` (67 of 67 now).
+  - A new mutation for it is caught.
+
 ## 1. Team-block cap notice: "Yellow decides (team leader)"
 
 - **Engine:** Forge `PhaseHandler` (`engine/forge.patch`) now tells both defenders "<Primary> decides (team leader)"
@@ -32,10 +75,9 @@ Cloud session, 2026-11-17, branch `cloud/owner-decisions-1117`.
 
 ## 2. Restore-point thinning keeps each turn's first
 
-- **`ManaBrewInteractiveSession.thinCheckpoints`:** past the cap, each turn's first restore point stays.
-  - The oldest turns' in-between points go first (`dropOldestInBetween`).
-  - Only when every point left is a turn's first does the oldest turn go.
-  - The size cap (`checkpointCap`, at most 40) is unchanged.
+- **`ManaBrewInteractiveSession.thinCheckpoints`:** as fixed after the review (above). Past the cap, the oldest older
+  turn's in-between points go first, then the oldest turn's first. The current turn's points go only when it is alone,
+  and never its newest. A pending vote's point is kept. The size cap (`checkpointCap`, at most 40) is unchanged.
 - **Tests:**
   - `BigBoardFixesTest`:
     - three checks over turns 1,1,1,2,2,3,3,3 at caps 8 down to 1, a one-a-turn list, and a turn's run;
@@ -89,7 +131,8 @@ field.
 - **Engine side:**
   - `CreateRoom.engine_build` and `RoomInfo.engine_build` (optional).
   - The node sends `SELF_HOSTED_NODE_ENGINE_BUILD`, which its image sets from `ARG ENGINE_BUILD`
-    (`engine/build-images.sh` passes its tag). The relay lists it.
+    (`engine/build-images.sh` passes the engine build id, a hash of the pins and the patches: see Review fixes). The
+    relay lists it.
   - Every Rust literal and destructure was updated: `host.rs`, `room.rs`, `lobby.rs`, `connection.rs`, and the
     `networking-tests` support code.
 - **Deploy side:**
@@ -126,7 +169,7 @@ HOW-TO-PLAY's Own server section, `docs/companion-app-spec.md` §5.8 and `docs/s
 **Tests**
 
 - **Windows companion:**
-  - `--selftest --section own-server`: 66 of 66 (was 60). New: the key at rest (8 checks, one a real DPAPI round trip
+  - `--selftest --section own-server`: 67 of 67 (was 60; 66 in the first push). New: the key at rest (8 checks, one a real DPAPI round trip
     under mono), the build comparison (5), and the wiring:
     - a plain key saved encrypted;
     - the encrypted file opening to the same key;
@@ -140,7 +183,7 @@ HOW-TO-PLAY's Own server section, `docs/companion-app-spec.md` §5.8 and `docs/s
   - `tests/test_companion_server.js` 45 of 45 (2 new: the real companion amber and green against a fake relay's
     build).
 - **Shared tests:**
-  - `tests/test_engine_build_record.js` (new, in GATES): 11 of 11.
+  - `tests/test_engine_build_record.js` (new, in GATES): 18 of 18.
   - `tests/test_friend_package.js`: 124 of 124 (6 new README checks: Tailscale only, the encrypted key, the version
     warning, `mtg reset`, no box, no TLS advice).
   - `test_companion_page` 242 of 242.
@@ -152,7 +195,7 @@ HOW-TO-PLAY's Own server section, `docs/companion-app-spec.md` §5.8 and `docs/s
 
 **Break-its (each fails by name; restored by sha256)**
 
-- **`tools/mutate-companion-own-server.js`: 37 of 37.**
+- **`tools/mutate-companion-own-server.js`: 38 of 38** (37 in the first push, plus the encryption-failure log).
   - 8 new for the key at rest:
     - a plain key not re-saved;
     - observe mode writing;
@@ -171,12 +214,12 @@ HOW-TO-PLAY's Own server section, `docs/companion-app-spec.md` §5.8 and `docs/s
 - **`companion-node/breakit.js`: 52 of 52.** The busy-room text was updated; 2 new for the build comparison.
 - **`tests/test_companion_server.js --breakit`: 34 of 34.** 3 new: the room's build not read, the table's build not
   passed, the reset words.
-- **`tools/mutate-engine-build-record.js` (new): 6 of 6.**
+- **`tools/mutate-engine-build-record.js` (new): 12 of 12** (6 in the first push).
   - A first run missed two:
     - "a Docker error not noticed": the test's fake gave no output, so it couldn't tell. The test now has Docker print
       a build and still fail.
     - "Windows line ends kept": the mutation changes nothing (`trim()` already strips `\r`), so it was dropped.
-- **`tools/mutate-owner-decisions-engine.js <tree>` (new): 10 of 10.**
+- **`tools/mutate-owner-decisions-engine.js <tree>` (new): 12 of 12.**
 
 ## Patches
 
