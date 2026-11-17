@@ -561,7 +561,8 @@ function noteFirstPlayer(m) {
 // with the next game's start as gameConfig.firstPlayer (matchFirst). The score goes in the log and chat after each game
 // and under each life total (playerMarks: MATCH 1–0, GAME 2). The extras (cloud/bo3-extras):
 // - game 1's first player is a roll of two d20 (again on a tie), said in chat and the log and shown on the table's banner
-//   (the board's matchRoll); the roll's winner goes first (matchRollFirst);
+//   (the board's matchRoll); the roll's winner chooses to play or draw, the start waiting for a person's answer (an AI
+//   plays; matchRollFirst, holdStartForRoll);
 // - the phase bar's "GAME 2 OF 3" (the board's match, matchGameWords);
 // - sideboarding between games: each human player whose deck has a sideboard is asked Keep deck / Swap cards / Reset to
 //   registered on the same panel; a swap takes cards out of the main deck, then brings sideboard cards in, checked here
@@ -580,19 +581,59 @@ const matchNew = () => match.pair !== matchPair() || match.games === 0;
 // a d20 (Math.random: the tests give it their rolls)
 const matchDie = () => 1 + Math.floor(Math.random() * 20);
 let matchRollSeq = 0;
-// Game 1's first player, by a roll (once a game): the human seats first, then the others, two d20 again on a tie
+// Game 1's first player, by a roll (once a game): the human seats first, then the others, two d20 again on a tie. The
+// roll's winner chooses to play or draw (§3.6): an AI winner plays; a person is asked when the room is ready, and the
+// start waits for the answer (matchRollWaits, holdStartForRoll), so until then the roll names nobody first (null).
+const ROLL_CHOICE_SECONDS = 30;
 function matchRollFirst() {
   if (!matchGame() || !matchNew()) return null;
   if (game.matchRoll) return game.matchRoll.first;
   const order = [...game.seatColors].sort((x, y) => (game.seats.has(y) ? 1 : 0) - (game.seats.has(x) ? 1 : 0));
   let r;
   do r = order.map(matchDie); while (r[0] === r[1]);
-  const first = r[0] > r[1] ? order[0] : order[1];
+  const winner = r[0] > r[1] ? order[0] : order[1];
+  const person = game.seats.has(winner);
   const said = `${matchName(order[0])} ${r[0]}, ${matchName(order[1])} ${r[1]}`;
-  game.matchRoll = { first, seq: ++matchRollSeq, text: `${String(matchName(first)).toUpperCase()} WINS THE ROLL (${Math.max(...r)}–${Math.min(...r)})` };
-  chat(`[MTG] Game 1: a roll for who goes first: ${said}. ${matchName(first)} goes first.`);
-  gameLogLine(`Roll for game 1: ${said}: ${matchName(first)} goes first`);
-  return first;
+  game.matchRoll = { winner, first: person ? null : winner, high: Math.max(...r), low: Math.min(...r), seq: ++matchRollSeq,
+    text: `${String(matchName(winner)).toUpperCase()} WINS THE ROLL (${Math.max(...r)}–${Math.min(...r)})` };
+  chat(`[MTG] Game 1: a roll for who goes first: ${said}. ${person ? `${matchName(winner)} wins the roll and chooses to play or draw.` : `${matchName(winner)} goes first.`}`);
+  gameLogLine(`Roll for game 1: ${said}: ${matchName(winner)} ${person ? "wins the roll" : "goes first"}`);
+  return game.matchRoll.first;
+}
+// the start waits for the roll's winner: game 1 of a match, nothing else names the first player (firstColorOf's order),
+// and a person won the roll and hasn't chosen
+function matchRollWaits() {
+  if (!game || game.tableFirst || game.leader || matchFirst()) return false;
+  return matchRollFirst() === null && !!game.matchRoll;
+}
+// ask the roll's winner, and keep the start (send) until they answer, or ROLL_CHOICE_SECONDS pass: then they play
+function holdStartForRoll(send) {
+  const roll = game.matchRoll;
+  roll.held = send;
+  matchAsk(roll.winner, { title: `Game 1: you won the roll (${roll.high}–${roll.low}). Play or draw?`,
+    text: `Play: you go first in game 1. Draw: ${matchName(matchOther(roll.winner))} goes first, and you draw on your first turn. You play if you don't choose within ${ROLL_CHOICE_SECONDS} seconds.`,
+    options: [{ id: "__play", label: "Play" }, { id: "__draw", label: "Draw" }] });
+  const g = game;
+  setTimeout(() => {
+    if (game !== g || roll.first != null) return;
+    chat(`[MTG] ${matchName(roll.winner)} didn't choose within ${ROLL_CHOICE_SECONDS} seconds: ${matchName(roll.winner)} plays (goes first in game 1).`);
+    rollChoice(true, true);
+  }, ROLL_CHOICE_SECONDS * 1000);
+}
+// the roll's winner's play or draw: game 1's first player, and the held start goes out
+function rollChoice(play, timedOut = false) {
+  const roll = game?.matchRoll;
+  if (!roll || roll.first != null) return;
+  roll.first = play ? roll.winner : matchOther(roll.winner);
+  matchClose(roll.winner);
+  if (!timedOut) {
+    const line = `${matchName(roll.winner)} chooses to ${play ? "play" : "draw"}: ${matchName(roll.first)} goes first in game 1`;
+    chat(`[MTG] ${line}.`);
+    gameLogLine(line);
+  }
+  const send = roll.held;
+  roll.held = null;
+  if (send) send();
 }
 // the phase bar's words: "GAME 2 OF 3", "GAME 4 OF 5" once draws make it longer
 function matchGameWords() {
@@ -793,6 +834,11 @@ function onMatchAnswer(color, choice) {
   if (!game) return;
   const picks = asList(choice).map(String);
   const pick = picks[0];
+  // (game 1's roll: its winner's play or draw, while the start waits for it)
+  if (game.matchRoll?.held && game.matchRoll.winner === color) {
+    if (pick === "__play" || pick === "__draw") rollChoice(pick === "__play");
+    return;
+  }
   if (match.confirm[color]) {
     const back = match.confirm[color];
     delete match.confirm[color];
@@ -2359,15 +2405,20 @@ function onRoomUpdate(seat, room) {
   const ready = room.players.filter((p) => p.ready && p.connected).length;
   if (!game.startSent && formatOk && room.status === "Lobby" && ready >= game.total) {
     game.startSent = true;
-    const order = clockwiseOrder(room);
-    game.startOrder = order;
-    // (a team mode's teams, or who goes first: sent first, which the node keeps for the game it starts next, host.rs
-    // gameConfig; startConfig)
-    const config = startConfig();
-    if (config) controllerOf(room, seats).send({ type: "BroadcastState", state: {
-      kind: "roomRelay", protocol: "self-hosted-node", version: 1, messageId: `tts-${Date.now()}-teams`, roomId: seat.roomId,
-      payload: config } });
-    controllerOf(room, seats).send({ type: "StartGame", format: MODES[game.mode || "commander"].format, seat_order: order });
+    const send = () => {
+      const order = clockwiseOrder(room);
+      game.startOrder = order;
+      // (a team mode's teams, or who goes first: sent first, which the node keeps for the game it starts next, host.rs
+      // gameConfig; startConfig)
+      const config = startConfig();
+      if (config) controllerOf(room, seats).send({ type: "BroadcastState", state: {
+        kind: "roomRelay", protocol: "self-hosted-node", version: 1, messageId: `tts-${Date.now()}-teams`, roomId: seat.roomId,
+        payload: config } });
+      controllerOf(room, seats).send({ type: "StartGame", format: MODES[game.mode || "commander"].format, seat_order: order });
+    };
+    // (best of three's game 1: the roll's winner chooses to play or draw first, holdStartForRoll)
+    if (matchRollWaits()) holdStartForRoll(send);
+    else send();
   }
 }
 
