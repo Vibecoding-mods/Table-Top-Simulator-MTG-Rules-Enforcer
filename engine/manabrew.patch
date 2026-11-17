@@ -7572,10 +7572,10 @@ index 0000000..a62cb8d
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ArchenemyTest.java b/forge-harness/src/test/java/forge/harness/host/ArchenemyTest.java
 new file mode 100644
-index 0000000..34bbd74
+index 0000000..6f98d93
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/ArchenemyTest.java
-@@ -0,0 +1,466 @@
+@@ -0,0 +1,503 @@
 +package forge.harness.host;
 +
 +import forge.ai.LobbyPlayerAi;
@@ -7630,6 +7630,8 @@ index 0000000..34bbd74
 +        check("aSchemeIsSetInMotionAtTheArchenemysFirstMainPhase", ArchenemyTest::aSchemeIsSetInMotionAtTheArchenemysFirstMainPhase);
 +        check("aNonOngoingSchemeReturnsToTheBottom", ArchenemyTest::aNonOngoingSchemeReturnsToTheBottom);
 +        check("anOngoingSchemeStaysUntilAbandoned", ArchenemyTest::anOngoingSchemeStaysUntilAbandoned);
++        check("cr904_10 aSchemeStaysWhileAnotherSchemesTriggerIsOnTheStack", ArchenemyTest::aSchemeStaysWhileAnotherSchemesTriggerIsOnTheStack);
++        check("cr904_10 aSchemeStaysWhileAnotherSchemesTriggerWaits", ArchenemyTest::aSchemeStaysWhileAnotherSchemesTriggerWaits);
 +        check("anArchenemyWithEverySchemeInMotionStaysTheArchenemy", ArchenemyTest::anArchenemyWithEverySchemeInMotionStaysTheArchenemy);
 +        check("aStartWithNoArchenemyIsRefused", ArchenemyTest::aStartWithNoArchenemyIsRefused);
 +        check("aStartWithTwoArchenemiesIsRefused", ArchenemyTest::aStartWithTwoArchenemiesIsRefused);
@@ -7692,6 +7694,41 @@ index 0000000..34bbd74
 +        expect(names(f.white.getCardsIn(ZoneType.SchemeDeck)).equals(List.of(ROOTS, SKYWARD)),
 +                "after it resolved, the scheme deck is " + names(f.white.getCardsIn(ZoneType.SchemeDeck)) + ", not " + SKYWARD + " on the bottom");
 +        expect(f.white.getCardsIn(ZoneType.Command).stream().noneMatch(Card::isScheme), "a scheme stayed in the command zone");
++    }
++
++    private static void aSchemeStaysWhileAnotherSchemesTriggerIsOnTheStack() throws Exception {
++        final Fixture f = new Fixture(SKYWARD, ROOTS);
++        f.order(SKYWARD, ROOTS);
++        f.white.setSchemeInMotion(null);
++        f.game.getStack().addAllTriggeredAbilitiesToStack();
++        expect(f.game.getStack().size() == 1, "after " + SKYWARD + " the stack holds " + f.game.getStack().size() + ", not its trigger");
++        f.white.setSchemeInMotion(null);
++        f.game.getStack().addAllTriggeredAbilitiesToStack();
++        expect(f.game.getStack().size() == 2, "after " + ROOTS + " the stack holds " + f.game.getStack().size() + ", not both triggers");
++        f.game.getStack().resolveStack();
++        f.game.getAction().checkStateEffects(true);
++        expect(f.commandScheme(ROOTS) != null && f.commandScheme(SKYWARD) != null,
++                "with " + SKYWARD + "'s trigger still on the stack, the command zone is " + names(f.white.getCardsIn(ZoneType.Command))
++                        + " and the scheme deck " + names(f.white.getCardsIn(ZoneType.SchemeDeck)) + "; both schemes stay face up until no scheme's trigger waits");
++        f.settle();
++        expect(f.white.getCardsIn(ZoneType.Command).stream().noneMatch(Card::isScheme), "a scheme stayed after every trigger resolved: " + names(f.white.getCardsIn(ZoneType.Command)));
++        expect(f.white.getCardsIn(ZoneType.SchemeDeck).size() == 2, "the scheme deck is " + names(f.white.getCardsIn(ZoneType.SchemeDeck)));
++    }
++
++    private static void aSchemeStaysWhileAnotherSchemesTriggerWaits() throws Exception {
++        final Fixture f = new Fixture(SKYWARD, ROOTS);
++        f.order(SKYWARD, ROOTS);
++        f.white.setSchemeInMotion(null);
++        f.game.getStack().addAllTriggeredAbilitiesToStack();
++        f.game.getStack().resolveStack();
++        f.white.setSchemeInMotion(null);
++        expect(f.game.getStack().hasSimultaneousStackEntries(), ROOTS + "'s trigger isn't waiting to be put on the stack");
++        f.game.getAction().checkStateEffects(true);
++        expect(f.commandScheme(SKYWARD) != null,
++                "with " + ROOTS + "'s trigger waiting, " + SKYWARD + " left the command zone: command " + names(f.white.getCardsIn(ZoneType.Command))
++                        + ", scheme deck " + names(f.white.getCardsIn(ZoneType.SchemeDeck)));
++        f.settle();
++        expect(f.white.getCardsIn(ZoneType.Command).stream().noneMatch(Card::isScheme), "a scheme stayed after every trigger resolved: " + names(f.white.getCardsIn(ZoneType.Command)));
 +    }
 +
 +    private static void anOngoingSchemeStaysUntilAbandoned() throws Exception {
