@@ -191,7 +191,7 @@ Alternative engine path: set `GameType.Archenemy` in `variants` and pass `player
   deck with ongoing schemes), `getZone(SchemeDeck).size() == 0` and the Archenemy stops setting schemes in motion.
   Forge's normal flow shuffles abandoned schemes back, so it is rare, but a 20-card test deck with many ongoing
   schemes could hit it. Fix is a small Forge change: remember the Archenemy flag on the player. Test it.
-- **Scheme card images.** Scheme cards are oversized landscape-ish cards. Image source, aspect ratio, and the card
+- **Scheme card images.** Scheme cards are oversized cards, upright (portrait), not landscape as planes are (step 10, done). Image source, aspect ratio, and the card
   back for the scheme deck need checking. The table already draws planes at 1.5 scale (`engine-renderer.lua:596`), so
   there is a pattern, but images for schemes are not in `bridge/forge-cards.json` (I did not check; the plane list had to
   be built separately by a tool).
@@ -230,7 +230,7 @@ Alternative engine path: set `GameType.Archenemy` in `variants` and pass `player
 | 7 | Build the image (new tag), run the whole suite, deploy later with section 3's order. | As in 1.5 steps 1, 2. | n/a | 3 |
 | 8 | Bridge: `archenemy` in `TEAM_MODES` (Commander or Standard per answer 1), `mtg mode archenemy`, `mtg archenemy <colour>`, `mtg schemes random [N] | <name>; ...` (a `forge-schemes.json` from a tool like the plane list), a scheme deck check, `gameConfig` entry for the Archenemy (40 life, `goesFirst`, team 1), game-over words, the board's `archenemy` block, scheme prompts. Goldens and mutants in `tools/mutate-team-modes.js` style. | `test_bridge_golden`, new `test_bridge_archenemy.js`. | Mutation script. | 10 |
 | 9 | Table: scheme in motion at the centre (large, turned to the Archenemy), ongoing row near the Archenemy's mat, scheme deck pile with a count, "SET IN MOTION: <name>" banner, button on the setup tile. Screenshot after every UI edit. | `test_table_archenemy.js` on the fake TTS, then real TTS shots. | Mutation script. | 12 |
-| 10 | Card images for schemes (source, size, back). | A card shows on the table. | n/a | 3 |
+| 10 | Card images for schemes (source, size, back). **Done 2026-11-17 (`cloud/table-polish`):** source, the bridge's Scryfall lookup by name (`cachedImage`, as any card); size, the oversized card's (about 8.9 x 12.7 cm, upright, not landscape: scale 1.4 for the scheme set in motion, the ongoing row and the deck stand-in, `engineZoneScale`); back, still the table's normal card back on the deck stand-in. | `tests/test_table_archenemy_view.js` (the shape, the spacing at that size). | `tools/mutate-table-polish.js`. | 3 |
 | 11 | Live game: host + 3 AI, Archenemy deck, play 10 turns. Then with friends. | Game logs, no stuck prompt. | n/a | 5 |
 
 **Total: about 60 hours** (range 45 to 60 hours). Steps 1 to 4 are about 20 hours and give a headless engine. Steps 8 to 10
