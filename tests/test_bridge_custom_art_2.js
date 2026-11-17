@@ -178,7 +178,7 @@ const run = async (opts, fn) => { const h = harness.load(opts); try { return awa
     same("table: a card in a deck, its second state's picture from the deck", q(`return info({ Nickname = "Delver of Secrets", CardID = 100, States = { ["2"] = { Nickname = "Insectile Aberration", CardID = 200 } } },
       { [1] = { FaceURL = "F", BackURL = "B" }, [2] = { FaceURL = "F2", BackURL = "B" } })`), "Delver of Secrets|F|B|Insectile Aberration|F2");
   }
-  ok("table: mtg art token and back go to the bridge, from any player", /rest:sub\(1, 5\) == "token" or rest:sub\(1, 4\) == "back"[\s\S]{0,200}engineSend\("artset", \{ color = pl\.color, text = message:sub\(restAt\) \}\)/.test(COPY), "make-engine-copy.js engineChat");
+  ok("table: mtg art token and back go to the bridge, from any player", /rest:sub\(1, 5\) == "token" or rest:sub\(1, 4\) == "back"[\s\S]{0,200}engineSend\("artset", \{ color = pl\.color, steam = pl\.steam_id, text = message:sub\(restAt\) \}\)/.test(COPY), "make-engine-copy.js engineChat");
 
   console.log(`${failed ? "FAIL" : "PASS"} test_bridge_custom_art_2: ${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
