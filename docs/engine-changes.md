@@ -184,6 +184,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-17 (no image; built in a cloud session) | `engine1117-snapspeed` (no image ids) | On top of `engine1117-3hg`: the snapshot's combat flags (`cantBlock`, `cantAttack`, `mustAttack`) no longer rescan every card's statics for each creature. New harness class `CombatStatics` collects the active `CantAttack`, `CanAttackDefender`, `CantBlock` and `MustAttack` statics once per snapshot round (`SnapshotRound`, shared by the viewers of one wait) and runs Forge's own `apply*` checks on that list. A goaded creature and a "can't block alone" creature still go through Forge's `CombatUtil`. The output is byte-identical (the whole snapshot JSON at 1,000, 3,000 and 10,000 tokens). One viewer's snapshot: 102 → 42 ms at 1,000 tokens, 987 → 114 ms at 3,000, 13.4 s → 0.30 s at 10,000. `SnapshotSpeedTest` 9 checks, break-it 12 of 12 | no | outer branch `cloud/snapshot-speed` (engine/manabrew.patch only; forge.patch unchanged) | not deployed | `engine1117-3hg` |
 | 2026-11-16 (no image; built in a cloud session) | `engine1117-3hg` (no image ids) | main's engine + Three-Headed Giant: a revise round's title names the partner who changed the team's block (a team of three); `ThreeHeadedGiantTest` | Node only (no protocol change) | outer branch `cloud/three-headed-giant` | not deployed | main's engine |
 | 2026-11-16 (not built; harness jar built in a cloud session) | Archenemy plumbing (on top of the 2026-11-16 patches) | A player's scheme list reaches Forge: the node copies a deck's `schemes` section (as it does `planes`) or a `gameConfig.players[].schemes` name list into `players[].schemes`; the harness resolves each name to a Forge scheme (refusing any other card), applies `GameType.Archenemy` when any player has one, and gives the deck through the new `RegisteredPlayer.setSchemes`, so life stays what the request says (the 80/40 house rule goes through `startingLife`). Forge: `Player.isArchenemy` stays true once a scheme deck was dealt, even with every scheme in motion (plan §2.4), and `setSchemeInMotion` does nothing on an empty scheme deck instead of reading past it. `ArchenemyTest` 5 checks and 2 node unit tests, each with a break-it | Node only (new optional `players[].schemes` and `gameConfig.players[].schemes`; relay unchanged) | outer branch `cloud/archenemy-engine`, merged on `archenemy-merge` after the AI team attack and relay seat cap rows: both patches regenerated from a source-level merge in a clean `fd16e2f` / `e7d2b93b` tree (main and the branch each applied and committed, then merged with git; no conflicts in the Java, Rust or Forge sources), `git apply --check` clean; `ArchenemyTest` added to the `harness-tests.sh` defaults | not deployed | the patches before it |
 | 2026-11-16 (not built yet) | engine1117-cap + AI team attack | On top of engine1117-cap + rewind draw count, in the same patches. The Forge attack AI now counts every creature the defending team can block with: with shared team life a defender's partner may block a creature attacking the defender (CR 805.10d, already in `CombatUtil.canBlock`), but `AiAttackController.getOpponentCreatures` listed only the chosen defender's creatures, so an AI sent a Grizzly Bears at a defender with no blockers into the partner's untapped Hill Giant. It now lists both partners' possible blockers when the game has shared team life (Level 1 and Level 2 2HG); free-for-all is unchanged. New harness test `SharedTurnsPlayTest` (5 checks): a rewind after the partner declared keeps the team's attack and drops a team extra turn taken after the point; a rewind to the partner's priority passes as a team; two AI partners attack together; the AI attacker counts the defending partner's blockers; a full AI-vs-AI 2HG Level 2 game (4 Forge AI, white flyers against green) plays to the end with one team winning, team turns alternating and both partners attacking in most combats. The rewind and team-attack checks passed before any change. Without the AI fix `anAiAttackerCountsTheDefendingPartnersBlockers` fails. `engine/checks/harness-tests.sh` now runs `SharedTurnsTest`, `SharedTurnsDevTest`, `SharedCombatTest` and `SharedTurnsPlayTest` by default | no | outer repo engine/forge.patch (forge-ai AiAttackController.java), engine/manabrew.patch (SharedTurnsPlayTest.java) | not yet | engine1116-teams3 |
@@ -262,6 +263,39 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-17 engine1117-snapspeed: combat flags from one static scan per snapshot (built in the cloud, no image)
+- **Problem:** on big boards most of each snapshot's time went to `InteractiveSnapshotExtractor.combatFlags`. Forge's
+  `CombatUtil.canBlock`, `canAttackNextTurn` (for each possible defender) and `StaticAbilityMustAttack.entitiesMustAttack`
+  each walk every static ability of every card in the static zones, for every creature. That is quadratic in the board
+  size.
+- **Change:**
+  - `forge-harness/.../host/CombatStatics.java` (new) walks the static zones once. It keeps the statics whose
+    `checkMode` is `CantAttack`, `CanAttackDefender`, `CantBlock` or `MustAttack` and whose `checkConditions()` holds.
+  - It then answers each creature with Forge's own per-ability checks (`applyCantAttackAbility`,
+    `applyCanAttackDefenderAbility`, `applyCantBlockAbility`, and the `MustAttack` loop with its CR 506.2 turn rule).
+    The keyword and detained checks keep Forge's order.
+  - A defender's `CantAttack` keyword static is answered from the cached `CanAttackDefender` list, since Forge's own
+    `canAttackDefender` would rescan.
+  - A goaded attacker and a "can't block alone" blocker fall back to Forge's `CombatUtil`.
+  - `SnapshotRound` holds one `CombatStatics` and builds it on first use. The flags were already cached per card in the
+    round.
+- **Tests:**
+  - `SnapshotSpeedTest`, 9 checks. It compares every creature's three flags in the snapshot with Forge's own functions,
+    for each viewer and on each player's turn. The boards cover:
+    - a mixed board: two Walls, Rolling Stones, Blazing Archon, Moat, Ensnaring Bridge, Pacifism, Hulking Goblin,
+      Bloodrock Cyclops, Goblin Rabblemaster, Public Enemy, Propaganda, and a Peacekeeper in a graveyard;
+    - Peacekeeper;
+    - defenders without and then with Rolling Stones;
+    - Ensnaring Bridge as the hand goes from 0 to 7 cards;
+    - a goaded creature;
+    - can't block alone, alone and then with a partner.
+  - Further checks: one static scan for a round of 1,000 creatures; the cached flags at least 3x faster than Forge's
+    per-creature scans at 1,000 tokens (about 5 ms against 105 ms here); and 3,000 creatures taking under 7x the time of
+    1,000.
+  - `CardStateFlagsTest` and the whole harness suite (29 classes) pass.
+  - Break-it: `node tools/mutate-snapshot-speed.js <tree>`, 12 of 12 caught by name.
+- **Not done:** no image, no live game.
 
 ### 2026-11-16 engine1117-3hg: Three-Headed Giant checks and the revise title (built in the cloud, no image)
 - **Checked:** the team code takes three members as it is: shared life and poison mirror to all three
