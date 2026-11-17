@@ -962,6 +962,49 @@ function engineArchNoted(text)
   if t == "off" then ENGINE_ARCH_SETUP = nil return end
   for _, c in ipairs(ENGINE_ARCH_SEATS) do if string.lower(c) == t then ENGINE_ARCH_SETUP = c end end
 end
+-- Treachery (PLAN.md M4.6): the Leader goes first. The identity cards' TTS names carry their role ("Identity — Leader",
+-- table-review/notes-variants.md), so the start message says who holds the Leader's card: in a seat's hand, else the
+-- one lying nearest that seat's playmat (its command zone). nil when the table holds no identity card (no Treachery
+-- game); { leader = nil } when none is the Leader's. Names only, plain finds; the cards themselves are never touched.
+function engineTreacheryLeader()
+  local found = { any = false, leader = nil }
+  for _, o in ipairs(getObjects()) do engineIdentityNote(o, found) end
+  if not found.any then return nil end
+  return { leader = found.leader }
+end
+function engineIdentityNote(o, found)
+  if o.type ~= "Card" then return end
+  local name = tostring(o.getName())
+  if name:find("Identity \226\128\148", 1, true) == nil then return end -- ("Identity ", an em dash: not Identity Crisis)
+  found.any = true
+  if name:find("Leader", 1, true) == nil then return end
+  local seat = engineIdentitySeat(o)
+  -- (two Leader cards at different seats: nobody is the Leader; the host names one)
+  if found.leader == nil and not found.twice then found.leader = seat
+  elseif found.leader ~= seat then found.leader, found.twice = nil, true end
+end
+function engineIdentitySeat(o)
+  for _, c in ipairs(TABLE_PROFILE.seats or {}) do
+    if Player[c] ~= nil and engineHoldsCard(Player[c], o) then return c end
+  end
+  local best, bestD = nil, nil
+  local p = o.getPosition()
+  for _, c in ipairs(TABLE_PROFILE.seats or {}) do best, bestD = engineNearerMat(c, p, best, bestD) end
+  return best
+end
+function engineHoldsCard(pl, o)
+  local ok, held = pcall(function() return pl.getHandObjects() end)
+  for _, h in ipairs((ok and held) or {}) do if h == o then return true end end
+  return false
+end
+function engineNearerMat(c, p, best, bestD)
+  local mat = data[c] and data[c].playmat
+  if mat == nil then return best, bestD end
+  local m = mat.getPosition()
+  local d = (m.x - p.x) ^ 2 + (m.z - p.z) ^ 2
+  if bestD == nil or d < bestD then return c, d end
+  return best, bestD
+end
 -- A partner's hand (810.5): the bridge sends it as teamHand with the seated partner who sees it, teamBy. Look-only
 -- stand-ins, team:<partner>:<id>, in that partner's second hand zone, which only they see; dragged out they snap back
 -- (zone "partner", onObjectDrop's last case). Their own hand keeps the real cards.

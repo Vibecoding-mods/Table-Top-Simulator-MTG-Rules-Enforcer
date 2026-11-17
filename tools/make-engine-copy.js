@@ -419,6 +419,8 @@ function engineStartGame(pl, rest, cleared)
   if ENGINE_TABLE_SEATS ~= nil then start.tableSeats = ENGINE_TABLE_SEATS end
   -- (the seated players' Steam IDs: the bridge keeps a forced tie's accomplishment by them)
   if engineSteamIds ~= nil then start.steam = engineSteamIds(seats) end
+  -- (Treachery: who holds the Leader's identity card, who then goes first; nothing without identity cards)
+  if engineTreacheryLeader ~= nil then start.treachery = engineTreacheryLeader() end
   engineSend("start", start)
 end
 
@@ -624,6 +626,14 @@ function engineChat(message, pl)
     if not isHost then pl.broadcast("[MTG] Only the host can set up Planechase.") return false end
     if cmd == "planechase" then engineSend("planechase", { color = pl.color, on = rest ~= "off" })
     else engineSend("planes", { color = pl.color, text = rest }) end
+  elseif cmd == "match" then
+    -- best of three in Standard (host): mtg match bo3 / bo1; mtg match says the setting and the score
+    if not isHost and rest ~= "" then pl.broadcast("[MTG] Only the host can set best of three.") return false end
+    engineSend("match", { color = pl.color, text = rest })
+  elseif cmd == "treachery" then
+    -- Treachery's Leader goes first (host): mtg treachery on / off / leader <colour>; mtg treachery says the setting
+    if not isHost and rest ~= "" then pl.broadcast("[MTG] Only the host can change who goes first in Treachery.") return false end
+    engineSend("treachery", { color = pl.color, text = rest })
   elseif cmd == "archenemy" or cmd == "schemes" then
     -- Archenemy for the next games (host): mtg archenemy <colour> / off; mtg schemes random / mtg schemes <name>; <name>
     -- (the bridge checks the colour and the names against Forge's schemes, docs/team-turns-archenemy-plan.md §2.7)
@@ -693,6 +703,8 @@ function engineChat(message, pl)
       " mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off",
       " mtg hand <card>, <card> ... (debug tools on, against the AI) - your next game's starting hand, the rest dealt from your deck; mtg hand off",
       " mtg planechase on|off (host) - Planechase in the next games; mtg planes random [N] / mtg planes <name>; <name> - the planar decks",
+      " mtg match bo3|bo1 (host) - best of three in Standard 1v1: the loser of each game chooses play or draw; mtg match says the score",
+      " mtg treachery on|off|leader <colour> (host) - Treachery: the Leader goes first (found from the table's identity cards, or named)",
       " mtg archenemy <colour>|off (host) - Archenemy in the next games: that seat (a player or an AI) against everyone else; mtg schemes random / mtg schemes <name>; <name> - the scheme deck (20 or more, 2 of each at most)",
       " mtg art token <token name> <link> - your picture for your tokens of that name; mtg art back <card> <link> - your two-faced card's back; mtg art token / back clear",
       " mtg art off|on (host) - the players' own card pictures (1 Sol Ring #https://... in the deck list) or the normal ones, for everyone",
