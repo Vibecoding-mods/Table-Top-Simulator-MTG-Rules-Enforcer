@@ -257,6 +257,36 @@ node running another `bridge.js` ("Another MTG bridge is already running"); a no
   (`Logic.StartFrom` `Logic.cs:173-177`). Origin: on the 2026-11-10 fresh install the engine timed out at step 3, Start the
   bridge ran 5-6, and the table save (4) was never installed.
 
+### 5.8 Own-server mode (2026-11-17; `OwnServer.cs`)
+A friend's companion can play on the host's engine (relay and Forge room) over the network instead of running Docker:
+the same setting and rules as the Linux/Mac companion (`companion-node`, `docs/handoff/companion-server-report.md`).
+
+- **The setting:** `server.json` in the package folder (home mode: the repo's root), e.g.
+  `{ "host": "mtg.example.org", "port": 9443, "key": "...", "secure": false }`; only `host` and a key are needed.
+  - `--server HOST[:PORT]` sets it for one run. The key comes from `server.json` (only for the same host, never sent to
+    another), else `MTG_SERVER_KEY`, never the package's own key.
+  - The status page's **Own server** box (`POST /api/server`) writes it: **Use this server** (a blank key keeps the saved
+    one for the same host), **Use this computer** (removes it). Refused during a game, in observe mode, and with
+    `--server`. The box is hidden when the status JSON has no `server` part (the Linux/Mac companion).
+  - Refused with its reason (a red light, **Try again**): a scheme in the host, a bad name, a port outside 1-65535, a
+    misspelt setting, an empty key, `secure` not true/false, broken JSON, no key.
+- **The lights:**
+  - Docker and Engine images: green, "Not needed here: the engine runs on your server (host:port)"; nothing is asked of
+    Docker.
+  - The third row is named **Your server**: one relay login (`Probes.RelayLogin` to `ws[s]://host:port`, 5 s), then
+    `ListRooms`. Green when room `tts-commander` is open (or in our game). Red, each with **Try again** and the help
+    text: refused the key, refused the connection (nothing listens on the port), the name isn't known
+    (`LoginKind.NotFound`), didn't answer, the Forge room isn't open, busy with an earlier game. Not probed during a
+    game. The watcher asks again every 60 s.
+  - Bridge: started with `MTG_RELAY`, `MTG_KEY` and `MTG_REMOTE_ENGINE=1` (`OwnServer.BridgeEnv`; without a server the
+    three are emptied); a bridge whose `/versions` says another relay is amber, **Restart the bridge**.
+- **Stop everything** stops only the bridge: the engine on the server is never stopped from here.
+- **The key** is never logged, shown on the page (only its last 2 characters when it is 8 or longer) or written to the
+  dump. A package never holds a `server.json`, a `.env` or a key file (`make-friend-package.js` `secretFiles`).
+- **Tests:** `--selftest --section own-server` (60 checks), `tests/test_companion_own_server.js` (in the deploy gates:
+  the self-test section, the real exe against a fake relay, the page's box), `tests/test_friend_package.js` (the friend
+  README's section, `secretFiles`). Break-it: `node tools/mutate-companion-own-server.js`.
+
 ## 6. The game lock
 
 `Logic.DecideGame` (`Logic.cs:191-215`) turns the bridge's `GET /state` (5 s) and the age of the bridge's resume file into one of
@@ -620,7 +650,7 @@ the Linux/Mac companion (`companion-node`, merged d0dba68). Items 9-11 are not e
 4. **"Ask the table"** (a single `/exec` of `engineStamp()`), reading `Player.log`, and reading the table save's stamp on disk.
 5. **Bug-report zip**, notifications beyond the red-light balloon, "Start with Windows", a settings dialog, `startOnLaunch` and the
    other config-file fields of the old design: there is no config file; behaviour is fixed in code.
-6. **Own-server mode** and **Cloud mode** for the companion. `docs/cloud-aws-spec.md` §8 budgets 8-12 h for Start / Stop / Status /
+6. **Own-server mode** (built 2026-11-17, §5.8) and **Cloud mode** for the companion. `docs/cloud-aws-spec.md` §8 budgets 8-12 h for Start / Stop / Status /
    Open DCV / cost readout with SigV4-signed AWS calls and an IAM key stored with DPAPI. Not started, and AWS hosting is paused
    (no AWS account yet).
 7. **Mac and Linux.** The user decided cross-platform on 2026-11-06, then "scripts plus a browser page" later that day; neither was
