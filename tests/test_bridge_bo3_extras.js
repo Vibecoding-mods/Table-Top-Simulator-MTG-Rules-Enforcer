@@ -147,6 +147,8 @@ const on = async (h) => { h.B._gameMode.mode = "standard"; await say(h, "bo3"); 
     n = h.effects.length;
     await choose(h, inIds);
     ok("swap: done, said: what went out and in, the counts", chats(h, n).some((c) => /^\[MTG\] Blue sideboarded for game 2: out Opt ×2; in Negate ×2 \(main deck 60, sideboard 15\)\.$/.test(c)), chats(h, n).join(" | "));
+    ok("swap: the table hears only that Blue is done, no cards and no counts (a sideboard is hidden)", (() => { const pub = h.effects.slice(n).filter((e) => e.tts?.t === "chat" && !e.tts.color).map((e) => e.tts.text); return pub.some((c) => /^\[MTG\] Blue is done sideboarding for game 2\.$/.test(c)) && !pub.some((c) => /Opt|Negate|main deck|sideboard 1/.test(c)); })(), JSON.stringify(h.effects.slice(n).filter((e) => e.tts?.t === "chat").map((e) => [e.tts.color, e.tts.text])));
+    ok("swap: Blue alone is told the detail", h.effects.slice(n).some((e) => e.tts?.t === "chat" && e.tts.color === "Blue" && /out Opt ×2; in Negate ×2/.test(e.tts.text)));
     same("swap: nobody waited for any more", h.B._matchWaiting(), null);
     // game 2 starts with the swapped deck
     seat = newGame(h);
@@ -268,6 +270,34 @@ const on = async (h) => { h.B._gameMode.mode = "standard"; await say(h, "bo3"); 
     let n = h.effects.length;
     await say(h, "concede");
     ok("concede: no match on, says so", chats(h, n).some((c) => /no best-of-three match/i.test(c)), chats(h, n).join(" | "));
+  });
+
+  // New game while Blue sideboards keeps the game (the question can still be answered); mtg reset gives the sideboarding up
+  await run(async (h) => {
+    await on(h);
+    const seat = newGame(h);
+    h.B._startConfig(); joins(h, seat);
+    await ends(h, seat, { winner: "player-0" });
+    await choose(h, "__play");
+    let n = h.effects.length;
+    h.B.onTTS({ t: "start", color: "Blue", seats: ["Blue"], bots: 1, autoReset: true, fromTable: true });
+    await h.flush();
+    ok("start while sideboarding: refused, says who", chats(h, n).some((c) => /^\[MTG\] Not started: Blue is still sideboarding for game 2/.test(c)), chats(h, n).join(" | "));
+    ok("start while sideboarding: the game is kept, so the question can be answered", h.B._getGame() != null);
+    n = h.effects.length;
+    await choose(h, "__sb_keep");
+    ok("start while sideboarding: Keep deck is taken", h.B._matchWaiting() == null, h.B._matchWaiting());
+  });
+  await run(async (h) => {
+    await on(h);
+    const seat = newGame(h);
+    h.B._startConfig(); joins(h, seat);
+    await ends(h, seat, { winner: "player-0" });
+    await choose(h, "__play");
+    ok("reset: Blue is waited for", h.B._matchWaiting() != null);
+    h.B.onTTS({ t: "reset", color: "Blue" });
+    await h.flush();
+    ok("reset: gives the sideboarding up, nobody is waited for", h.B._matchWaiting() == null, h.B._matchWaiting());
   });
 
   console.log(failed ? `FAILED: ${failed} of ${failed + passed}` : `PASSED: ${passed} checks`);
