@@ -639,6 +639,12 @@ function engineChat(message, pl)
   elseif cmd == "art" then
     -- the players' own card pictures (a deck line "1 Sol Ring #https://..."), on or off for everyone (host):
     -- mtg art off / mtg art on (the bridge's customArt, docs/custom-art-spec.md)
+    -- (and anyone's own: mtg art token <name> <link> for their tokens, mtg art back <card> <link> for a two-faced card's
+    -- back; the bridge's onArtSet checks the link)
+    if rest:sub(1, 5) == "token" or rest:sub(1, 4) == "back" then
+      engineSend("artset", { color = pl.color, text = message:sub(restAt) }) -- (as typed: a link keeps its capitals)
+      return false
+    end
     if not isHost then pl.broadcast("[MTG] Only the host can switch custom card art (everyone sees the same pictures).") return false end
     if rest == "on" or rest == "off" then engineSend("art", { color = pl.color, on = rest == "on" })
     else pl.broadcast("[MTG] Use:  mtg art off  (everyone sees the normal card pictures) or  mtg art on  (the pictures players linked in their deck lists)") end
@@ -686,6 +692,7 @@ function engineChat(message, pl)
       " mtg hand <card>, <card> ... (debug tools on, against the AI) - your next game's starting hand, the rest dealt from your deck; mtg hand off",
       " mtg planechase on|off (host) - Planechase in the next games; mtg planes random [N] / mtg planes <name>; <name> - the planar decks",
       " mtg archenemy <colour>|off (host) - Archenemy in the next games: that seat (a player or an AI) against everyone else; mtg schemes random / mtg schemes <name>; <name> - the scheme deck (20 or more, 2 of each at most)",
+      " mtg art token <token name> <link> - your picture for your tokens of that name; mtg art back <card> <link> - your two-faced card's back; mtg art token / back clear",
       " mtg art off|on (host) - the players' own card pictures (1 Sol Ring #https://... in the deck list) or the normal ones, for everyone",
       " mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)",
       " mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)",
@@ -723,7 +730,18 @@ local function cardInfo(d, deckImages)
     local cd = deckImages[key] or deckImages[tostring(key)]
     if cd ~= nil then face, back = cd.FaceURL, cd.BackURL end
   end
-  return { n = cardName(d.Nickname), f = face, b = back }
+  -- (a two-faced card's second state, the importer's back face: its name and picture, docs/custom-art-spec.md "DFC")
+  local s2 = d.States and (d.States["2"] or d.States[2]) or nil
+  local n2, f2 = nil, nil
+  if s2 ~= nil then
+    n2 = cardName(s2.Nickname)
+    for _, cd in pairs(s2.CustomDeck or {}) do f2 = cd.FaceURL break end
+    if f2 == nil and deckImages ~= nil and s2.CardID ~= nil then
+      local cd2 = deckImages[math.floor(s2.CardID / 100)] or deckImages[tostring(math.floor(s2.CardID / 100))]
+      if cd2 ~= nil then f2 = cd2.FaceURL end
+    end
+  end
+  return { n = cardName(d.Nickname), f = face, b = back, n2 = n2, f2 = f2 }
 end
 
 
