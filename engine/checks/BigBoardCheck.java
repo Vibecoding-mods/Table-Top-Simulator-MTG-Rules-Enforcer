@@ -340,6 +340,11 @@ public final class BigBoardCheck {
         if (what.equals("actions")) {
             ActionSpace.getPossibleActions(act, true, true);
         }
+        final Combat combat = new Combat(act);
+        if (what.equals("attack")) {
+            act.getGame().getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, act, 5);
+            act.getGame().getPhaseHandler().setCombat(combat);
+        }
         final Thread main = Thread.currentThread();
         final Map<String, Integer> incl = new java.util.HashMap<>();
         final Map<String, Integer> self = new java.util.HashMap<>();
@@ -376,13 +381,15 @@ public final class BigBoardCheck {
         final long t0 = System.nanoTime();
         if (what.equals("actions")) {
             ActionSpace.getPossibleActions(act, true, true);
+        } else if (what.equals("attack")) {
+            act.getController().declareAttackers(act, combat);
         } else {
             ComputerUtilMana.payManaCost(sa.getPayCosts(), act, sa, false);
         }
         final double took = ms(t0);
         sampler.interrupt();
         System.out.println("sample " + what + " perSeat=" + perSeat + " ms=" + took + " samples=" + n[0]);
-        incl.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(12)
+        incl.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(25)
                 .forEach(e -> System.out.println("  incl " + e.getValue() + " " + e.getKey()));
         self.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(5)
                 .forEach(e -> System.out.println("  self " + e.getValue() + " " + e.getKey()));
