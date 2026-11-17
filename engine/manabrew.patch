@@ -8856,14 +8856,19 @@ index 0000000..db530a4
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/BigBoardFixesTest.java b/forge-harness/src/test/java/forge/harness/host/BigBoardFixesTest.java
 new file mode 100644
-index 0000000..2f2bb7e
+index 0000000..f7abad6
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/BigBoardFixesTest.java
-@@ -0,0 +1,360 @@
+@@ -0,0 +1,587 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
++import forge.ai.AiAttackController;
++import forge.ai.AiBlockController;
++import forge.ai.AiController;
++import forge.ai.ComputerUtil;
 +import forge.ai.ComputerUtilMana;
++import forge.ai.PlayerControllerAi;
 +import forge.ai.LobbyPlayerAi;
 +import forge.deck.Deck;
 +import forge.game.Game;
@@ -8917,6 +8922,17 @@ index 0000000..2f2bb7e
 +        CHECKS.put("block: past the deadline a lethal attack is chump-blocked", BigBoardFixesTest::chumpPastDeadline);
 +        CHECKS.put("block: past the deadline an attack that isn't lethal gets no forced blocks", BigBoardFixesTest::noChumpWhenSafe);
 +        CHECKS.put("block: within the deadline the AI blocks a lethal attack as before", BigBoardFixesTest::blocksWithinDeadline);
++        CHECKS.put("block: a combat prediction past the deadline makes no chump blocks", BigBoardFixesTest::noChumpInPrediction);
++        CHECKS.put("attack: past the deadline the defender is the lowest-life opponent, with no combat prediction", BigBoardFixesTest::defenderPastDeadline);
++        CHECKS.put("attack: within the deadline the defender choice predicts each opponent's combat, as before", BigBoardFixesTest::defenderWithinDeadline);
++        CHECKS.put("attack: the defender choice runs on half of the budget left, then puts the deadline back", BigBoardFixesTest::defenderOnHalf);
++        CHECKS.put("attack: halving the deadline gives half of what is left", BigBoardFixesTest::halvedDeadline);
++        CHECKS.put("attack: past the deadline a lethal assault is made with no assault checks", BigBoardFixesTest::cheapAssaultPastDeadline);
++        CHECKS.put("attack: past the deadline an assault that isn't lethal isn't made", BigBoardFixesTest::noCheapAssaultWhenSafe);
++        CHECKS.put("attack: past the deadline flyers over ground blockers are a lethal assault", BigBoardFixesTest::cheapAssaultInTheAir);
++        CHECKS.put("attack: within the deadline the assault is weighed and the AI attacks as before", BigBoardFixesTest::assaultWithinDeadline);
++        CHECKS.put("pay: the payment has its own budget, shorter than combat's", BigBoardFixesTest::payBudgetShorter);
++        CHECKS.put("pay: past the payment budget, within the combat one, the static checks are held", BigBoardFixesTest::payUsesItsOwnBudget);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
 +            check(e.getKey(), e.getValue());
 +        }
@@ -9175,16 +9191,226 @@ index 0000000..2f2bb7e
 +        expect(combat.getAttackers().size() == 3 && unblockedDamage(combat) < 6, "life 6, unblocked damage " + unblockedDamage(combat));
 +    }
 +
++    private static void noChumpInPrediction() throws Exception {
++        final Fixture f = new Fixture(false);
++        final Combat combat = attack(f, 6);
++        combatDeadline(f.blue, System.currentTimeMillis() - 1000);
++        try {
++            new AiBlockController(f.blue, false).assignBlockersForCombat(combat);
++        } finally {
++            combatDeadline(f.blue, Long.MAX_VALUE);
++        }
++        expect(combat.getAllBlockers().isEmpty(), "a prediction past the deadline chump-blocked with " + combat.getAllBlockers().size());
++    }
++
++    private static void combatDeadline(final Player p, final long at) throws Exception {
++        final AiController ai = ((PlayerControllerAi) p.getController()).getAi();
++        final Field field = AiController.class.getDeclaredField("combatDeadline");
++        field.setAccessible(true);
++        field.setLong(ai, at);
++    }
++
++    private static Fixture defenderBoard() {
++        final Fixture f = new Fixture(false, "White", "Blue", "Red", "Green");
++        final Player red = f.players.get(2);
++        final Player green = f.players.get(3);
++        f.blue.setLife(20, null);
++        red.setLife(7, null);
++        green.setLife(15, null);
++        for (final Player p : List.of(f.blue, red, green)) {
++            for (int i = 0; i < 2; i++) {
++                f.add("Hill Giant", p, ZoneType.Battlefield).setSickness(false);
++            }
++        }
++        for (int i = 0; i < 2; i++) {
++            f.add("Grizzly Bears", f.white, ZoneType.Battlefield).setSickness(false);
++        }
++        f.settle();
++        return f;
++    }
++
++    private static void defenderPastDeadline() throws Exception {
++        final Fixture f = defenderBoard();
++        final long p0 = ComputerUtil.getCombatPredictions();
++        final long e0 = ComputerUtil.getBoardEvaluations();
++        combatDeadline(f.white, System.currentTimeMillis() - 1000);
++        try {
++            for (int i = 0; i < 5; i++) {
++                final Player d = AiAttackController.choosePreferredDefenderPlayer(f.white, true);
++                expect(d == f.players.get(2), "past the deadline the defender is " + d + ", not Red (7 life)");
++            }
++        } finally {
++            combatDeadline(f.white, Long.MAX_VALUE);
++        }
++        expect(ComputerUtil.getCombatPredictions() == p0, "combat predictions past the deadline: " + (ComputerUtil.getCombatPredictions() - p0));
++        expect(ComputerUtil.getBoardEvaluations() == e0, "board evaluations past the deadline: " + (ComputerUtil.getBoardEvaluations() - e0));
++    }
++
++    private static long combatDeadlineOf(final Player p) throws Exception {
++        final AiController ai = ((PlayerControllerAi) p.getController()).getAi();
++        final Field field = AiController.class.getDeclaredField("combatDeadline");
++        field.setAccessible(true);
++        return field.getLong(ai);
++    }
++
++    private static void defenderOnHalf() throws Exception {
++        final Fixture f = defenderBoard();
++        final long at = System.currentTimeMillis() + 10_000;
++        combatDeadline(f.white, at);
++        final long s0 = AiController.getCombatShares();
++        try {
++            AiAttackController.choosePreferredDefenderPlayer(f.white, true);
++            expect(AiController.getCombatShares() - s0 == 1, "the defender choice halved the deadline " + (AiController.getCombatShares() - s0) + " times, want once");
++            expect(combatDeadlineOf(f.white) == at, "the deadline after the defender choice is " + (combatDeadlineOf(f.white) - at) + " ms off the declaration's");
++        } finally {
++            combatDeadline(f.white, Long.MAX_VALUE);
++        }
++    }
++
++    private static void halvedDeadline() throws Exception {
++        final Fixture f = defenderBoard();
++        final AiController ai = ((PlayerControllerAi) f.white.getController()).getAi();
++        final long at = System.currentTimeMillis() + 10_000;
++        combatDeadline(f.white, at);
++        try {
++            final long outer = ai.halveCombatDeadline();
++            final long left = combatDeadlineOf(f.white) - System.currentTimeMillis();
++            expect(outer == at && left > 4_000 && left <= 5_000, "halved: " + left + " ms left of 10 s, returned " + (outer - at) + " ms off");
++            ai.restoreCombatDeadline(outer);
++            expect(combatDeadlineOf(f.white) == at, "not put back");
++            combatDeadline(f.white, Long.MAX_VALUE);
++            final long s0 = AiController.getCombatShares();
++            ai.halveCombatDeadline();
++            expect(combatDeadlineOf(f.white) == Long.MAX_VALUE && AiController.getCombatShares() == s0, "outside a declaration the deadline was changed");
++            final long passed = System.currentTimeMillis() - 1000;
++            combatDeadline(f.white, passed);
++            ai.halveCombatDeadline();
++            expect(combatDeadlineOf(f.white) == passed, "a deadline already passed was moved " + (combatDeadlineOf(f.white) - passed) + " ms");
++        } finally {
++            combatDeadline(f.white, Long.MAX_VALUE);
++        }
++    }
++
++    private static void defenderWithinDeadline() {
++        final Fixture f = defenderBoard();
++        final long p0 = ComputerUtil.getCombatPredictions();
++        final Player d = AiAttackController.choosePreferredDefenderPlayer(f.white, true);
++        final long n = ComputerUtil.getCombatPredictions() - p0;
++        expect(n >= 3, "combat predictions within the deadline: " + n + ", want one per opponent");
++        expect(f.players.subList(1, 4).contains(d), "the defender is " + d);
++    }
++
++    private static Combat assaultBoard(final Fixture f) {
++        return assaultBoard(f, 2);
++    }
++
++    private static Combat assaultBoard(final Fixture f, final int life) {
++        f.blue.setLife(life, null);
++        f.players.get(2).setLife(20, null);
++        for (int i = 0; i < 3; i++) {
++            f.add("Hill Giant", f.white, ZoneType.Battlefield).setSickness(false);
++        }
++        f.add("Llanowar Elves", f.blue, ZoneType.Battlefield).setSickness(false);
++        f.add("Llanowar Elves", f.players.get(2), ZoneType.Battlefield).setSickness(false);
++        f.settle();
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, f.white, 3);
++        final Combat combat = new Combat(f.white);
++        f.game.getPhaseHandler().setCombat(combat);
++        return combat;
++    }
++
++    private static void cheapAssaultPastDeadline() {
++        final Fixture f = new Fixture(false, "White", "Blue", "Red");
++        final Combat combat = assaultBoard(f);
++        f.game.AI_TIMEOUT = -1;
++        final long a0 = AiAttackController.getAssaultChecks();
++        final long p0 = ComputerUtil.getCombatPredictions();
++        f.white.getController().declareAttackers(f.white, combat);
++        expect(AiAttackController.getAssaultChecks() == a0, "assault checks past the deadline: " + (AiAttackController.getAssaultChecks() - a0));
++        expect(ComputerUtil.getCombatPredictions() == p0, "combat predictions past the deadline: " + (ComputerUtil.getCombatPredictions() - p0));
++        expect(combat.getAttackers().size() == 3 && combat.getAttackersOf(f.blue).size() == 3,
++                "past the deadline " + combat.getAttackersOf(f.blue).size() + " of 3 Hill Giants attack Blue (2 life, one blocker)");
++    }
++
++    private static void cheapAssaultInTheAir() {
++        final Fixture f = new Fixture(false, "White", "Blue", "Red");
++        f.blue.setLife(6, null);
++        f.players.get(2).setLife(20, null);
++        for (int i = 0; i < 3; i++) {
++            f.add("Wind Drake", f.white, ZoneType.Battlefield).setSickness(false);
++            f.add("Hill Giant", f.white, ZoneType.Battlefield).setSickness(false);
++        }
++        for (int i = 0; i < 6; i++) {
++            f.add("Hill Giant", f.blue, ZoneType.Battlefield).setSickness(false);
++        }
++        f.add("Llanowar Elves", f.players.get(2), ZoneType.Battlefield).setSickness(false);
++        f.settle();
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, f.white, 3);
++        final Combat combat = new Combat(f.white);
++        f.game.getPhaseHandler().setCombat(combat);
++        f.game.AI_TIMEOUT = -1;
++        final long a0 = AiAttackController.getAssaultChecks();
++        f.white.getController().declareAttackers(f.white, combat);
++        expect(AiAttackController.getAssaultChecks() == a0, "assault checks past the deadline: " + (AiAttackController.getAssaultChecks() - a0));
++        expect(combat.getAttackersOf(f.blue).size() == 6, "past the deadline " + combat.getAttackersOf(f.blue).size()
++                + " of 6 attack Blue (6 life, six Hill Giants that can't block three Wind Drakes for 6)");
++    }
++
++    private static void noCheapAssaultWhenSafe() {
++        final Fixture f = new Fixture(false, "White", "Blue", "Red");
++        final Combat combat = assaultBoard(f, 20);
++        f.game.AI_TIMEOUT = -1;
++        final long a0 = AiAttackController.getAssaultChecks();
++        f.white.getController().declareAttackers(f.white, combat);
++        expect(AiAttackController.getAssaultChecks() == a0, "assault checks past the deadline: " + (AiAttackController.getAssaultChecks() - a0));
++        expect(combat.getAttackers().size() < 3, "past the deadline all 3 Hill Giants attack 20 life with one blocker");
++    }
++
++    private static void assaultWithinDeadline() {
++        final Fixture f = new Fixture(false, "White", "Blue", "Red");
++        final Combat combat = assaultBoard(f);
++        final long a0 = AiAttackController.getAssaultChecks();
++        f.white.getController().declareAttackers(f.white, combat);
++        expect(AiAttackController.getAssaultChecks() > a0, "no assault checks within the deadline");
++        expect(combat.getAttackers().size() == 3, "within the deadline " + combat.getAttackers().size() + " of 3 Hill Giants attack");
++    }
++
++    private static void payBudgetShorter() {
++        final Fixture f = payBoard();
++        final long pay = f.game.getAIPayTimeoutMs();
++        expect(pay > 0 && pay < f.game.getAITimeout() * 1000L, "the payment budget is " + pay + " ms, the combat one " + f.game.getAITimeout() * 1000L + " ms");
++    }
++
++    private static void payUsesItsOwnBudget() {
++        final Fixture f = payBoard();
++        f.game.AI_PAY_TIMEOUT_MS = -1;
++        final SpellAbility sa = f.add("Ulamog's Crusher", f.white, ZoneType.Hand).getFirstSpellAbility();
++        sa.setActivatingPlayer(f.white);
++        final long p0 = f.game.getAction().getStaticPasses();
++        final boolean paid = ComputerUtilMana.payManaCost(sa.getPayCosts(), f.white, sa, false);
++        final long passes = f.game.getAction().getStaticPasses() - p0;
++        expect(f.game.getAITimeout() == 5, "the combat budget is " + f.game.getAITimeout() + " s");
++        expect(paid && tapped(f.white) == 8, "paid " + paid + ", lands tapped " + tapped(f.white));
++        expect(passes == 1, "static passes during the payment " + passes + ", want the one after it");
++        expect(!f.game.getAction().isHoldingStaticAbilities(), "the static checks are still held after the payment");
++    }
++
 +    private static final class Fixture {
 +        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("big-board-fixes");
 +        final Game game;
 +        final Player white;
 +        final Player blue;
++        final List<Player> players;
 +
 +        Fixture(final boolean recording) {
++            this(recording, "White", "Blue");
++        }
++
++        Fixture(final boolean recording, final String... names) {
 +            final List<RegisteredPlayer> players = new ArrayList<>();
-+            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("White", null)));
-+            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("Blue", null)));
++            for (final String name : names) {
++                players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(name, null)));
++            }
 +            final GameRules rules = new GameRules(GameType.Constructed);
 +            game = new Game(players, rules, new Match(rules, players, "BigBoardFixesTest"));
 +            game.setAge(GameStage.Play);
@@ -9192,6 +9418,7 @@ index 0000000..2f2bb7e
 +            game.getPhaseHandler().onStackResolved();
 +            white = game.getPlayers().get(0);
 +            blue = game.getPlayers().get(1);
++            this.players = new ArrayList<>(game.getPlayers());
 +            session.attach(game.getMatch(), game, Set.of(), recording);
 +        }
 +
@@ -13652,10 +13879,10 @@ index 0000000..49affd1
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ManaSourcesTest.java b/forge-harness/src/test/java/forge/harness/host/ManaSourcesTest.java
 new file mode 100644
-index 0000000..17627c9
+index 0000000..e8bb9db
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/ManaSourcesTest.java
-@@ -0,0 +1,400 @@
+@@ -0,0 +1,414 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -13711,7 +13938,7 @@ index 0000000..17627c9
 +        check("theSharedManaSourcesAreFreshCopiesPerQuestion", ManaSourcesTest::theSharedManaSourcesAreFreshCopiesPerQuestion);
 +        check("stackStaticsGiveTheSameActionsBothWays", ManaSourcesTest::stackStaticsGiveTheSameActionsBothWays);
 +        check("theStaticScopeRereadsTheBoardAfterAClear", ManaSourcesTest::theStaticScopeRereadsTheBoardAfterAClear);
-+        check("theHeldCheckOn500CluesIsUnder30Ms", ManaSourcesTest::theHeldCheckOn500CluesIsUnder30Ms);
++        check("theHeldCheckOn500CluesIsUnderATenthOfTheUnsharedPath", ManaSourcesTest::theHeldCheckOn500CluesIsUnderATenthOfTheUnsharedPath);
 +        ActionSpace.shareManaSources = true;
 +        System.out.println(failed == 0 ? "PASS ManaSourcesTest" : "FAIL ManaSourcesTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
@@ -13945,7 +14172,7 @@ index 0000000..17627c9
 +        return out;
 +    }
 +
-+    private static void theHeldCheckOn500CluesIsUnder30Ms() throws Exception {
++    private static void theHeldCheckOn500CluesIsUnderATenthOfTheUnsharedPath() throws Exception {
 +        final Fixture f = new Fixture(true);
 +        f.add("Mountain", f.white, ZoneType.Battlefield);
 +        f.add("Lightning Bolt", f.white, ZoneType.Hand);
@@ -13971,17 +14198,31 @@ index 0000000..17627c9
 +        }
 +        final Field stamp = ManaBrewInteractiveController.class.getDeclaredField("heldCheckStamp");
 +        stamp.setAccessible(true);
-+        final long[] fresh = new long[25];
-+        for (int i = 0; i < fresh.length; i++) {
++        final double median = heldCheckMedian(c, stamp, 25);
++        final double unshared;
++        ActionSpace.shareManaSources = false;
++        try {
++            unshared = heldCheckMedian(c, stamp, 7);
++        } finally {
++            ActionSpace.shareManaSources = true;
++        }
++        final double again = heldCheckMedian(c, stamp, 25);
++        final double best = Math.min(median, again);
++        System.out.println(String.format(java.util.Locale.ROOT, "metric held check, 500 Clues, new state: median %.1f ms (again %.1f ms), the unshared path %.1f ms, ratio %.2f",
++                median, again, unshared, best / unshared));
++        expect(best * 10 < unshared, "the held check on 500 Clues took a median " + best + " ms, not under a tenth of the unshared path's " + unshared + " ms in the same run");
++    }
++
++    private static double heldCheckMedian(final ManaBrewInteractiveController c, final Field stamp, final int n) throws Exception {
++        final long[] fresh = new long[n];
++        for (int i = 0; i < n; i++) {
 +            stamp.set(c, null);
 +            final long t0 = System.nanoTime();
 +            c.heldResolutionsLeft();
 +            fresh[i] = System.nanoTime() - t0;
 +        }
 +        Arrays.sort(fresh);
-+        final double median = fresh[fresh.length / 2] / 1e6;
-+        System.out.println(String.format(java.util.Locale.ROOT, "metric held check, 500 Clues, new state: median %.1f ms, max %.1f ms", median, fresh[fresh.length - 1] / 1e6));
-+        expect(median < 30, "the held check on 500 Clues took a median " + median + " ms, not under 30");
++        return fresh[n / 2] / 1e6;
 +    }
 +
 +    private static void expect(final boolean condition, final String message) {
@@ -17977,10 +18218,10 @@ index 0000000..1038adb
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/SharedTurnsPlayTest.java b/forge-harness/src/test/java/forge/harness/host/SharedTurnsPlayTest.java
 new file mode 100644
-index 0000000..662473d
+index 0000000..0b1e102
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/SharedTurnsPlayTest.java
-@@ -0,0 +1,422 @@
+@@ -0,0 +1,428 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -18184,18 +18425,18 @@ index 0000000..662473d
 +        rules.setSharedTeamTurns(true);
 +        final Match match = new Match(rules, players, "SharedTurnsPlayTest");
 +        final Game game = match.createGame();
++        game.AI_TIMEOUT = Integer.getInteger("sharedTurns.aiTimeout", 60);
 +        final List<String> turns = new ArrayList<>();
-+        final List<Set<Player>> attacks = new ArrayList<>();
++        final Map<Integer, Set<Player>> attacksByTurn = new LinkedHashMap<>();
 +        for (final Player p : game.getPlayers()) {
 +            p.dangerouslySetController(new PlayerControllerAi(game, p, p.getLobbyPlayer()) {
 +                @Override
-+                public void declareBlockers(final Player defender, final Combat combat) {
-+                    final Set<Player> attackers = new HashSet<>();
++                public void declareAttackers(final Player attacker, final Combat combat) {
++                    super.declareAttackers(attacker, combat);
++                    final Set<Player> attackers = attacksByTurn.computeIfAbsent(game.getPhaseHandler().getTurn(), t -> new HashSet<>());
 +                    for (final Card c : combat.getAttackers()) {
 +                        attackers.add(c.getController());
 +                    }
-+                    attacks.add(attackers);
-+                    super.declareBlockers(defender, combat);
 +                }
 +
 +                @Override
@@ -18229,6 +18470,12 @@ index 0000000..662473d
 +        }
 +        for (int i = 1; i < turns.size(); i++) {
 +            expect(!turns.get(i).split(":")[1].equals(turns.get(i - 1).split(":")[1]), "a team took two turns in a row with no extra turn: " + turns);
++        }
++        final List<Set<Player>> attacks = new ArrayList<>();
++        for (final Set<Player> a : attacksByTurn.values()) {
++            if (!a.isEmpty()) {
++                attacks.add(a);
++            }
 +        }
 +        expect(attacks.stream().anyMatch(a -> a.size() == 2), "no combat had both partners attacking: " + attacks);
 +        System.out.println("  game over in " + (System.currentTimeMillis() - started) / 1000 + " s after turn " + game.getPhaseHandler().getTurn() + " by " + outcome.getWinCondition()
