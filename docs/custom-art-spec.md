@@ -1,7 +1,8 @@
 # Custom card art, player-made (spec, item 16)
 
 Status: written 2026-11-11. Plain-cards slice BUILT IN SOURCE 2026-11-12 (bridge + table chat command), not deployed,
-not seen live. DFC backs, game-made tokens and the AI's decks are not built. Source item:
+not seen live. DFC backs, game-made tokens and the AI's decks built in source 2026-11-17 (bridge and table chat; the
+Card Importer itself is not changed, see below). Source item:
 docs/next-features-2026-11-09.md, item 16.
 
 ## Built: the plain-cards slice (2026-11-12)
@@ -36,6 +37,47 @@ docs/next-features-2026-11-09.md, item 16.
   tokens made by the game, the AI's decks (an AI given a table deck from an empty seat shows that deck's pictures,
   custom ones included, as before). A Steam Cloud link (steamusercontent, no file extension) is refused by the
   extension rule; ask the user whether to allow that host.
+
+## Built: DFC backs, tokens, the AI's decks (2026-11-17, branch cloud/custom-art-2)
+
+- **DFC backs, both faces:**
+  - `mtg ready` now reads a card's second state (make-engine-copy.js `cardInfo`: `n2`, `f2`, from the card or from the
+    deck's `CustomDeck`).
+  - The bridge (`checkDeck`, `otherFace`, `addOtherFace`) keeps that face on the front's picture entry (`face2`,
+    `custom2` for a player's link, checked by `artProblem`). It also files that face under the back face's name. Forge's
+    index gives the whole card's name for a face, so the face keeps its own name there.
+  - `tableCard` then uses it as the card's back (`b`) and its hand's other side (`o2`), ahead of Scryfall's.
+  - A transformed card (its engine name the back face's) shows that face, with the front as its back.
+  - A deck that gives a back but no name for it (a pasted list) is found through Scryfall's face names (`imagesFor`'s
+    last step).
+  - "mtg ready" says "Delver of Secrets: your back picture (Insectile Aberration)", or that the back link was not used
+    and why.
+- **`mtg art back <card> <link>`** (anyone, for the cards they own): the Card Importer still drops a DFC's back when
+  its front has a link, and its own second `#link` is not built, since its script lives only in the Workshop save. So
+  this gives a back in the meantime, on every copy the player owns, and the transformed face. `mtg art back` lists
+  them; `mtg art back clear` takes them away.
+- **Tokens made by the game: `mtg art token <token name> <link>`** (anyone): the player's own tokens of that name
+  wear it. Not another player's, not a non-token card of that name. `mtg art token` lists them; `clear` takes them
+  away. Token copies of a deck card already wore the deck's picture.
+- **The AI's decks:**
+  - A deck list pasted for an AI seat (`setAiSeat` from the companion page) keeps its `#https://...` links: one per
+    name, the first line's; a second link is the card's back. `deckListArt` reads them (`parseDeckList` fills an object it is given; its own result is as it was), and
+    `aiDeckImages` checks the links.
+  - The AI seat's message says "Card art: your pictures on 2 cards; Shock: the picture link was not used (...)".
+  - `gamePictures` gives the AI's colour those pictures.
+  - An AI given a table deck from an empty seat wore that deck's pictures already.
+  - The built-in AI decks have no player art.
+- **The same rules everywhere:** every link passes `artProblem`, and a bad one falls back to the normal picture with a
+  chat line. The host's `mtg art off` puts all of them away: the deck's backs, `mtg art token|back` and the AI's.
+- **The chat:** `mtg art token|back ...` goes to the bridge as typed (`artset`, the link keeping its capitals; the
+  chat's own `rest` is lower-cased). No new screen XML.
+- **Tests:** tests/test_bridge_custom_art_2.js (46 checks, in GATES; break-it `tools/mutate-custom-art-2.js`, 28 of 28
+  by name).
+- **Not built:**
+  - the Card Importer's second `#link`, its DFC state kept with a link, and its own link checks (its script is in the
+    Workshop save, not in this repository);
+  - player art kept over a bridge restart (the `mtg art token|back` pictures are kept while the bridge runs);
+  - a token picture for an AI seat.
 
 ## Decisions (the user, 2026-11-11)
 
