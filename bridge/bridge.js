@@ -1398,10 +1398,11 @@ class Seat {
   //   attempt's "isn't legal", batch 1 review 2026-11-12): attackData, attackRefused, lastAttack;
   // - a repeated yes/no's "×N" still answering (offerRepeat): repeatAnswer;
   // - a loop's "Repeat ×N": the one under way, this turn's answers it repeats, the pass offered (loopStep): loop,
-  //   loopLog, loopOffer; another seat's loop passed on (loopQuietOn): loopQuiet.
+  //   loopLog, loopOffer; another seat's loop passed on (loopQuietOn): loopQuiet;
+  // - copies' "Keep targets for all ×N" still answering (offerKeepTargets): keepTargets.
   static FOLLOW_UPS = ["endTurnAt", "resolveStack", "queuedPlay", "attachTo", "targetPicks", "cardsDone", "unless", "autoPayCard",
     "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack", "attackData", "attackRefused", "lastAttack", "repeatAnswer",
-    "loop", "loopLog", "loopOffer", "loopQuiet"];
+    "loop", "loopLog", "loopOffer", "loopQuiet", "keepTargets"];
   // resume: { username, slot, roomId } of a seat saved before the bridge stopped (resumeGame): it logs in again under
   // the same name as a reconnect (AuthResult below), so the relay hands back its seat and RequestResync the game
   constructor(color, deckId, resume = null) {
@@ -2054,6 +2055,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   if (dbgPlanes) chat(`[MTG] Debug "${dbgPlanes.name}": Planechase on for this game, with its ${pool.names.length} planes and phenomena.`);
   // (the planes' pictures from now, before any is turned up: a plane is in no table deck, and its first look was a card back)
   for (const n of pool?.names || []) cachedImage(n);
+  saveLargest(); // (a game started over the last one: the last one's largest state is kept first)
   game = { seats: new Map(), bots, total, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false, fromTable, setupAt: Date.now(), pendingPlays: [],
     friendly: friendlyCount(friendly), mode,
     teams: teams || null, // (a team mode: sent to the engine as gameConfig before StartGame, onRoomUpdate)
@@ -6531,6 +6533,7 @@ function sendTable() {
 }
 
 function resetGame(reason) {
+  saveLargest();
   if (game) { game.closing = true; for (const s of allSeats()) s.close(); }
   clearResume(); // (a reset game is never rejoined)
   if (game) for (const seat of game.seats.values()) stopTimer(seat, true);
@@ -6706,7 +6709,35 @@ function notePrinted(gv) {
   }
 }
 // What the bridge records from each board the engine sends, before it is drawn
-function noteBoard(gv) { noteOuts(gv); notePrinted(gv); harmlessVotes(gv); }
+function noteBoard(gv) { noteOuts(gv); notePrinted(gv); harmlessVotes(gv); noteLargest(gv); }
+// ── Each game's largest state (stress catalog G): the board with the most cards and stack items any seat was sent,
+// with its battlefield, stack and biggest hand, its turn and when. GET /stats "largest" is this game's so far, "games"
+// the last LARGEST_GAMES games' (oldest first), and the log says it once as each game ends (saveLargest).
+const LARGEST_GAMES = 20;
+function noteLargest(gv) {
+  if (!game || !gv) return;
+  let cards = 0, battlefield = 0, hand = 0;
+  for (const z of gv.zones || []) {
+    // (a library comes as its count only)
+    const n = Array.isArray(z.cards) && z.cards.length ? z.cards.length : Number(z.count) || 0;
+    cards += n;
+    if (z.zone === "battlefield") battlefield += n;
+    if (z.zone === "hand") hand = Math.max(hand, n);
+  }
+  const stack = (gv.stack || []).length;
+  if (cards + stack <= (game.largest?.size ?? -1)) return;
+  game.largest = { size: cards + stack, cards, battlefield, stack, hand, turn: gv.turn ?? null, at: new Date().toISOString() };
+  ttsStats.largest = game.largest;
+}
+// The game ends (a reset, or a new game over it): its largest state into GET /stats "games" and the log, once
+function saveLargest() {
+  if (!game?.largest || game.largestSaved) return;
+  game.largestSaved = true;
+  const l = game.largest;
+  ttsStats.games = [...(ttsStats.games || []).slice(-(LARGEST_GAMES - 1)), { startedAt: new Date(game.setupAt || Date.now()).toISOString(), ...l }];
+  ttsStats.largest = null;
+  log(`stats: this game's largest state: ${l.size} (${l.cards} cards, ${l.battlefield} on the battlefield, ${l.stack} on the stack, the biggest hand ${l.hand}) on turn ${l.turn ?? "?"}`);
+}
 // The card types seen face up, by card id and by name, from every seat's view (sendTable): Forge's stack item carries
 // no types, and the table's instant and sorcery sounds need them (isSpellOfType). Not the battlefield, where effects change types
 // (an animated land) and no instant ever is; not tokens or copies by name (defensive: outside the battlefield neither
@@ -6902,6 +6933,7 @@ function trackMarks(p, pub, at = {}) {
 // EFFECT_MARKS, one "+n MORE EFFECTS" box whose hover lists the rest. As one string per effect ("label\ttip", so two
 // boards compare by value); [] from an engine that sends none.
 const EFFECT_MARKS = 3;
+const EFFECT_HOVER = 20; // (the "+N MORE EFFECTS" hover's texts, then "... and N more": stress catalog E, was FEW_NAMES)
 const EFFECT_DURATIONS = { UntilYourNextTurn: "until your next turn", UntilYourNextUpkeep: "until your next upkeep",
   UntilEndOfCombat: "this combat", UntilTheEndOfYourNextTurn: "until the end of your next turn", UntilHostLeavesPlay: "while its source stays" };
 // (hidden information, as delayedOf: an effect whose source card is face down or out of the public zones in the view
@@ -6925,9 +6957,10 @@ function effectMarks(p, pub) {
   const all = (Array.isArray(p.effects) ? p.effects : []).filter((e) => e && (e.name || e.text)).map((e) => effectMark(e, shown));
   if (all.length <= EFFECT_MARKS + 1) return all;
   const rest = all.slice(EFFECT_MARKS);
-  // (the hover lists FEW_NAMES of them, then "... and N more": 47 effects' texts ran off the screen, stress catalog #15)
+  // (the hover lists EFFECT_HOVER of them, then "... and N more": 47 effects' texts ran off the screen, stress catalog
+  // #15; 20 of them, E)
   const tips = rest.map((m) => m.split("\t")[1]).filter(Boolean);
-  return [...all.slice(0, EFFECT_MARKS), `+${rest.length} MORE EFFECTS\t${tips.slice(0, FEW_NAMES).join("\n")}${tips.length > FEW_NAMES ? `\n... and ${tips.length - FEW_NAMES} more` : ""}`];
+  return [...all.slice(0, EFFECT_MARKS), `+${rest.length} MORE EFFECTS\t${tips.slice(0, EFFECT_HOVER).join("\n")}${tips.length > EFFECT_HOVER ? `\n... and ${tips.length - EFFECT_HOVER} more` : ""}`];
 }
 // The spells cast this turn, for the active player (engine1112 PlayerDto.spellsCastThisTurn and GameViewDto.stormCount,
 // each sent only above 0, E6): "SPELLS THIS TURN: 2 (STORM 3)", the storm count being every player's spells. In a
@@ -8360,6 +8393,9 @@ function orderSteps(title, hint, items, done, chosen = []) {
 
 // Combat damage: auto (lethal to each blocker in order, the rest to the last one or the player with trample) or
 // one number per assignee. assignees: [{ id, label, lethal }]; the last one always takes what is left.
+// (one pick at most DAMAGE_PICK_MAX: an attacker with 2^30 power offered a picker that long; what is left after the
+// others still goes to the last one, so all of it is assigned: stress catalog F)
+const DAMAGE_PICK_MAX = 999999;
 function damageSteps(totalDamage, assignees, done, given = [], left = totalDamage) {
   const i = given.length;
   if (i >= assignees.length - 1 || left <= 0) {
@@ -8369,12 +8405,12 @@ function damageSteps(totalDamage, assignees, done, given = [], left = totalDamag
   }
   const a = assignees[i];
   const ui = {
-    title: `Damage to ${a.label} (${left} left)`, mode: "number", min: 0, max: left, kind: "number",
+    title: `Damage to ${a.label} (${left} left)`, mode: "number", min: 0, max: Math.min(left, DAMAGE_PICK_MAX), kind: "number",
     ...(a.img ? { show: [{ n: a.label, img: a.img }] } : {}),
     text: `Lethal for it: ${a.lethal}. Whatever is left after the others goes to ${assignees[assignees.length - 1].label}.`,
   };
   const toOutput = (v) => {
-    const dmg = Math.max(0, Math.min(left, Number(v[0]) || 0));
+    const dmg = Math.max(0, Math.min(left, DAMAGE_PICK_MAX, Number(v[0]) || 0));
     const step = damageSteps(totalDamage, assignees, done, [...given, { assigneeId: a.id, damage: dmg }], left - dmg);
     return step.auto ?? next(step.ui, step.toOutput);
   };
@@ -8384,6 +8420,12 @@ function damageSteps(totalDamage, assignees, done, given = [], left = totalDamag
 const ZONE_LABEL = { libraryTop: "Top of library", libraryBottom: "Bottom of library", graveyard: "Graveyard", exile: "Exile", hand: "Hand" };
 
 // Scry / surveil and similar: each card gets a destination, then the cards left on top are put in order.
+// (past SCRY_QUICK_AT cards the first question offers them all at once, "All on top", "All on the bottom (N)": a scry
+// 20 asked 20 times, stress catalog C)
+const SCRY_QUICK_AT = 5;
+const SCRY_ALL = "__allin:";
+const scryAllLabel = (z, n) => (z === "libraryTop" ? "All on top" : `All ${{ libraryBottom: "on the bottom", graveyard: "into the graveyard", exile: "into exile", hand: "into your hand" }[z] || `into ${ZONE_LABEL[z] || z}`} (${n})`);
+const scryAllOptions = (zones, n) => (n > SCRY_QUICK_AT ? zones.map((z) => ({ id: `${SCRY_ALL}${z}`, label: scryAllLabel(z, n) })) : []);
 function scryPlaceSteps(cards, zones, label, done, placed = {}) {
   const c = cards[Object.keys(placed).length];
   if (!c) {
@@ -8400,11 +8442,12 @@ function scryPlaceSteps(cards, zones, label, done, placed = {}) {
   const ui = {
     title: `Where does ${label(c)} go?`, mode: "single", kind: "place",
     text: `Card ${Object.keys(placed).length + 1} of ${cards.length}`,
-    options: zones.map((z) => ({ id: z, label: ZONE_LABEL[z] || z })),
+    options: [...zones.map((z) => ({ id: z, label: ZONE_LABEL[z] || z })), ...(Object.keys(placed).length ? [] : scryAllOptions(zones, cards.length))],
     show: [{ n: label(c), img: imgOf(c) }], // the card in question, shown in the table's card row
   };
   const toOutput = (a) => {
-    const step = scryPlaceSteps(cards, zones, label, done, { ...placed, [c.id]: a[0] });
+    const all = String(a[0]).startsWith(SCRY_ALL) ? String(a[0]).slice(SCRY_ALL.length) : null;
+    const step = scryPlaceSteps(cards, zones, label, done, all ? Object.fromEntries(cards.map((x) => [x.id, all])) : { ...placed, [c.id]: a[0] });
     return step.auto ?? next(step.ui, step.toOutput);
   };
   return { ui, toOutput };
@@ -9058,6 +9101,107 @@ function offerRepeat(seat, prompt, gv, ui, toOutput, forP) {
     });
   };
 }
+// ── All, None, All of a name: a pick-many question's quick buttons (stress catalog B). A question that lets any number
+// of its options be picked, none to all, gets "All (N)" and "None"; past QUICK_NAMES_AT options, "All <name> (k)"
+// for each name that k options share (a board of 120 Goblin tokens) when k of them may be picked. The table answers a
+// quick button by itself (engine-renderer.lua: a "__" option in a multi question); onAnswer turns it into the picks it
+// stands for (quickPicked) before the count and option checks, so the engine gets ordinary picks. Not for a question
+// with quick buttons of its own (attackers), blockers (each a pair: "All" isn't a block), a scry's layout, or fewer
+// than QUICK_MIN options.
+const QUICK_NAMES_AT = 100;
+const QUICK_MIN = 3; // (fewer options than this: picking them is as quick, and "up to 2 targets" keeps its Done)
+const QUICK_ALL = "__pickall", QUICK_NONE = "__picknone", QUICK_NAME = "__pickname:";
+// An option's name as runs of the same name share it: without the words that tell it apart ("#3", "2/2", "(token)")
+const pickName = (label) => String(label ?? "").replace(/ #\d+$/, "").replace(/ \((?:token|face down)\)$/, "").replace(/ \d+\/\d+$/, "").replace(/ \((?:token|face down)\)$/, "");
+function addQuickPicks(ui) {
+  if (ui?.mode !== "multi" || !Array.isArray(ui.options) || ui.scry || ui.quick) return;
+  if (ui.options.some((o) => String(o.id).startsWith("__"))) return;
+  const real = ui.options, n = real.length, min = Number(ui.min ?? 0), max = Number(ui.max ?? n);
+  if (n < QUICK_MIN) return;
+  const quick = [];
+  // (only when every choice is allowed, any number from none to all: "up to one target" keeps its Done)
+  if (min === 0 && max >= n) quick.push({ id: QUICK_ALL, label: `All (${n})` }, { id: QUICK_NONE, label: "None" });
+  if (n > QUICK_NAMES_AT) {
+    const runs = new Map();
+    for (const o of real) { const k = pickName(o.label); runs.set(k, (runs.get(k) || 0) + 1); }
+    for (const [name, k] of [...runs].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]))) {
+      if (k >= 2 && k < n && k >= min && k <= max) quick.push({ id: `${QUICK_NAME}${name}`, label: `All ${name} (${k})` });
+    }
+  }
+  if (!quick.length) return;
+  ui.options = [...quick, ...real];
+  ui.quick = true;
+}
+// The picks a quick button stands for (addQuickPicks), null for any other option
+function quickPicked(ui, id) {
+  const real = (ui.options || []).filter((o) => !String(o.id).startsWith("__"));
+  if (id === QUICK_ALL) return real.map((o) => String(o.id));
+  if (id === QUICK_NONE) return [];
+  if (id.startsWith(QUICK_NAME)) { const name = id.slice(QUICK_NAME.length); return real.filter((o) => pickName(o.label) === name).map((o) => String(o.id)); }
+  return null;
+}
+// ── "Keep targets for all ×N": copies asked one at a time (stress catalog A). Storm, Thousand-Year Storm and the like
+// make several copies of one spell, and Forge asks "You may choose new targets for the copy" once for each, as a target
+// question with no card (the copy's). The first one asks first "Keep targets for all ×N" / "Choose each": keeping
+// answers this copy and the next ones with the copied spell's own targets, unseen; "Choose each" asks this one's
+// targets as usual, and the next ones too. N is the storm count less the spell itself and the copies already made
+// (a storm spell), else unknown ("for all copies", while the copies keep coming). It stops, and the rest are asked as
+// usual, when a copy's targets differ from the first one's (or aren't offered), when any other question comes, at a
+// priority, or a new step. One chat line says what was kept (keepEnd).
+//   seat.keepTargets: { name: the copied spell's name, keep: the answer's ids, left: copies still to answer (null:
+//     unknown), done, turn, step }
+// What keeping a copy's targets answers: the copied spell's targets (the stack item the copy is named by) as this
+// question offers them (a spell by its card's id, "card|<sourceId>", or as itself), when there are as many as it takes.
+// { name, keep (null when they can't all be given), n (copies still to come with this one, null when unknown), many }
+function copyKeepOf(copy, input, gv, slot, minLeft, maxLeft) {
+  const offered = new Set((input.candidates || []).map((c) => `${c.kind}|${c.id}`));
+  const keep = [];
+  for (const t of copy.targets || []) {
+    const s = t.kind === "spell" ? (gv.stack || []).find((x) => x.id === t.id) : null;
+    const id = [`${t.kind}|${t.id}`, s ? `card|${s.sourceId}` : null, s ? `spell|${s.id}` : null].find((v) => v && offered.has(v));
+    if (!id) { keep.length = 0; break; }
+    keep.push(id);
+  }
+  const fits = keep.length >= Math.max(1, minLeft) && keep.length <= maxLeft;
+  const name = copy.identity?.name || "";
+  const text = String(copy.sourceAbilityText || copy.text || "");
+  // (the spell and its copies so far: spells of its name, not its storm trigger)
+  const alike = (gv.stack || []).filter((x) => x.controllerId === slot && x.identity?.name === name && !isAbilityOnStack(x, gv)).length;
+  const storm = /(?:^|\n)Storm\b/.test(text) && Number(gv.stormCount) > 1 ? Math.max(0, Number(gv.stormCount) - alike) : null;
+  const top = (gv.stack || [])[(gv.stack || []).length - 1];
+  const many = storm != null ? storm >= 2 : /\bcopy it for each\b|\bcopies of (?:it|that spell) for each\b/i.test(String(top?.sourceAbilityText || top?.text || ""));
+  return { name, keep: fits ? keep : null, n: storm, many };
+}
+// This copy's question is the run's next one: the same spell's copy, the same targets offered, the same turn and step
+function keepFits(kt, ck, gv) {
+  return ck.name === kt.name && ck.keep != null && ck.keep.join() === kt.keep.join() && gv.turn === kt.turn && gv.step === kt.step;
+}
+// The run ends: one chat line ("You kept the targets of 3 copies of Flusterstorm."), with why it stopped when copies
+// were still to come and something else came first.
+function keepEnd(seat, why = "") {
+  const kt = seat.keepTargets;
+  if (!kt) return;
+  seat.keepTargets = null;
+  const early = kt.left > 0 && why;
+  chat(`[MTG] You kept the targets of ${kt.done === 1 ? "1 copy" : `${kt.done} copies`} of ${kt.name}.${early ? ` Stopped early (${why}): the rest are asked as usual.` : ""}`, seat.color);
+}
+// The first copy of several asks "Keep targets for all ×N" / "Choose each" before its own target question; returns
+// the { ui, toOutput } to ask (the target question's own when there is nothing to offer)
+function offerKeepTargets(seat, gv, ui, toOutput, ck) {
+  if (!ck || !ck.keep || !ck.many) return { ui, toOutput };
+  const targetUi = ui, targetOut = toOutput;
+  const all = ck.n != null ? `Keep targets for all ×${ck.n}` : "Keep targets for all copies";
+  const ask = { title: `${ck.n != null ? `${ck.n} copies` : "Copies"} of ${ck.name}: keep their targets?`, mode: "single", min: 1, max: 1,
+    text: `Each copy may choose new targets. "${all}" keeps ${ck.name}'s targets for this copy and the next ones; "Choose each" asks each copy's targets.`,
+    options: [{ id: "__keepall", label: all }, { id: "__each", label: "Choose each" }] };
+  return { ui: ask, toOutput: (a) => {
+    if (a[0] !== "__keepall") return next(targetUi, targetOut);
+    const left = ck.n != null ? ck.n - 1 : null;
+    seat.keepTargets = { name: ck.name, keep: ck.keep, left, done: 1, turn: gv.turn, step: gv.step };
+    if (left === 0) keepEnd(seat);
+    return targetOut(ck.keep);
+  } };
+}
 // ── "Repeat ×N", the shortcut for an optional loop (CR 732.2; docs/stress-catalog.md #2, the user 2026-11-16). The
 // player plays one pass of a loop by hand (Kiki-Jiki + Zealous Conscripts, a sacrifice-outlet loop) and comes back to a
 // priority with the same board as at its start (loopSig). That priority then offers "Repeat ×N" (and "mtg repeat <n>"
@@ -9450,6 +9594,8 @@ function onPrompt(seat, prompt) {
   const title = input.presentation?.title || { chooseFromSelection: "Choose", chooseCards: "Choose", chooseBoardTargets: "Choose a target", chooseNumber: "Choose a number", chooseColor: "Choose a color", chooseBoolean: "Yes or no?", revealCards: "Revealed", reorder: "Put these in order" }[type] || type;
   let ui;
   let toOutput;
+  // (a copy's new target: what keeping its targets answers, see offerKeepTargets)
+  let copyKeep = null;
   if (type !== "payManaCost") { seat.autoPayFailedFor = null; seat.smartPay = null; }
   if (type !== "chooseBoolean") seat.cardsDone = null; // (only the question right after counts)
   // the cost being paid, for a "Choose a color" from a source tapped while paying (Command Tower)
@@ -9511,6 +9657,7 @@ function onPrompt(seat, prompt) {
       }
       // a repeated yes/no answered "×N" (offerRepeat): the seat's own priority passes while only its triggers are on the
       // stack; a priority for a player it controls (Mindslaver) is never passed unseen, it ends the run
+      if (seat.keepTargets) keepEnd(seat, "you have priority");
       if (seat.repeatAnswer) {
         const why = forP ? `you have priority for ${nameOf(forP)}` : repeatStops(seat.repeatAnswer, gv);
         if (why === null) { seat.respond(prompt.promptId, type, { type: "pass" }); return; }
@@ -9877,12 +10024,17 @@ function onPrompt(seat, prompt) {
       // (the real engine sent Flare with no targets, only its text "Copy Lightning Bolt (162).": the spell that text names,
       // real table 2026-11-05)
       const copies = (s) => newest && s !== newest && s.identity?.name && String(newest.text || "").replace(/ \(\d+\)/g, "").includes(`Copy ${s.identity.name}`);
-      const copy = newest && ((newest.targets || []).filter((t) => t.kind === "spell").map((t) => (gv.stack || []).find((s) => s.id === t.id)).find(Boolean)
+      // (the spell it targets only when it may copy a target spell, Twincast's, or its words aren't known: a storm copy of
+      // Flusterstorm on Chart a Course read "Copy of Chart a Course", stress catalog A)
+      const newestText = newest ? String(newest.sourceAbilityText || newest.text || "") : "";
+      const copiesTarget = newest && (!newestText || /\bcopy target\b/i.test(newestText));
+      const copy = newest && ((copiesTarget ? newest.targets || [] : []).filter((t) => t.kind === "spell").map((t) => (gv.stack || []).find((s) => s.id === t.id)).find(Boolean)
         || (gv.stack || []).find(copies) || newest);
       // (or by the effect on the stack that makes it, "Eternal Dominion (5)'s Effect": epic's upkeep copy read "Choose a player
       // to search their library", no card named, hp-23 gap)
       const effectOf = !src && !copy && (gv.stack || []).map((s) => String(s.identity?.name || "").match(/^(.+?)(?: \(\d+\))?'s Effect$/)?.[1]).find(Boolean);
       const unnamed = copy ? `Copy of ${copy.identity?.name}` : effectOf;
+      if (copy && !src) copyKeep = copyKeepOf(copy, input, gv, seat.slot, minLeft, maxLeft);
       const baseTitle = targetTitle(title, src, minLeft, maxLeft, noun);
       const firstTitle = unnamed ? `${unnamed}: ${baseTitle.replace(/^C/, "c")}` : baseTitle;
       ui = { title: firstTitle,
@@ -10985,7 +11137,9 @@ function onPrompt(seat, prompt) {
         ...(moveZone === "libraryBottom" ? { dest: "library" } : {}),
         kind: "cards", scry: { move: moveZone, keep: keepZone },
         text: `They are in your second hand zone. Drag a card onto your library to keep it on top (the last one dragged ends up on top)${moveZone === "graveyard" ? ", onto your graveyard to put it there" : "; click one (or right-click > Bottom) to put it on the bottom"}. Then Done.`,
-        options: input.cards.map((c) => ({ id: c.id, label: label(c), img: imgOf(c) })) };
+        // (past SCRY_QUICK_AT cards, "All on top" and "All on the bottom (N)" first: quick buttons, no cards of their own,
+        // engine-renderer.lua engineScryCard)
+        options: [...scryAllOptions([keepZone, moveZone], input.cards.length), ...input.cards.map((c) => ({ id: c.id, label: label(c), img: imgOf(c) }))] };
       // (a scry, said to the table: how many went to the bottom, not which; Preordain's left no line, hp-26)
       const sayScry = (n) => { if (game && /^scry\b/i.test(String(title))) gameLogLine(`${seat.color} scries ${input.cards.length}: ${n ? `${countWords(n, n, "card")} on the bottom` : "all on top"}`); };
       toOutput = (a) => {
@@ -10998,8 +11152,10 @@ function onPrompt(seat, prompt) {
           sayScry(moved.length);
           return done(input.zones.map((z) => (z === moveZone ? moved : z === keepZone ? top : [])));
         }
-        const moved = input.cards.filter((c) => a.includes(c.id));
-        const kept = input.cards.filter((c) => !a.includes(c.id));
+        // (All on top / All on the bottom (N): every card kept or every card moved, scryAllOptions)
+        const allIn = String(a[0]).startsWith(SCRY_ALL) ? String(a[0]).slice(SCRY_ALL.length) : null;
+        const moved = input.cards.filter((c) => (allIn ? allIn === moveZone : a.includes(c.id)));
+        const kept = input.cards.filter((c) => !moved.includes(c));
         sayScry(moved.length);
         const build =(keptIds) => done(input.zones.map((z) => (z === moveZone ? moved.map((c) => c.id) : z === keepZone ? keptIds : [])));
         if (keepZone !== "libraryTop" || kept.length <= 1) return build(kept.map((c) => c.id));
@@ -11463,6 +11619,7 @@ function onPrompt(seat, prompt) {
     const quick = ui.options.filter((o) => String(o.id).startsWith("__"));
     ui.options = [...quick, ...ui.options.filter((o) => !String(o.id).startsWith("__")).sort((x, y) => String(x.label ?? "").localeCompare(String(y.label ?? ""), undefined, { numeric: true }))];
   }
+  if (type !== "chooseBlockers" && type !== "chooseAttackers") addQuickPicks(ui);
   // a repeated yes/no answered "×N": this question is its next one, answered alike unseen; any other question shown to
   // the player ends it first (offerRepeat, repeatFits)
   const rep = seat.repeatAnswer;
@@ -11474,6 +11631,17 @@ function onPrompt(seat, prompt) {
   }
   if (rep) repeatEnd(seat, type === "chooseBoolean" && prompt.sourceCard?.id === rep.src ? repeatStops(rep, gv) || "the question changed" : "another question came first");
   toOutput = offerRepeat(seat, prompt, gv, ui, toOutput, forP);
+  // copies' targets kept "×N": this copy's question is the run's next one, answered unseen with the same targets; a copy
+  // whose targets differ, or any other question, ends it first (offerKeepTargets)
+  const kt = seat.keepTargets;
+  if (kt && copyKeep && keepFits(kt, copyKeep, gv)) {
+    kt.done++; if (kt.left != null) kt.left--;
+    seat.respond(prompt.promptId, type, toOutput(kt.keep));
+    if (kt.left === 0) keepEnd(seat);
+    return;
+  }
+  if (kt) keepEnd(seat, copyKeep && copyKeep.name === kt.name ? "the copies' targets differ" : "another question came first");
+  ({ ui, toOutput } = offerKeepTargets(seat, gv, ui, toOutput, copyKeep));
   // Test mode (start with autoplay: true): the bridge answers every prompt itself with the first choice and TTS gets
   // nothing, so TTS's frame rate can be measured while only Forge is busy (the CPU-contention test).
   if (game?.autoplay) {
@@ -12059,6 +12227,11 @@ function onAnswer(color, promptId, choice) {
   // a scry the table showed in the hand zone answers with its whole layout ("__tts", "top:<id>", "move:<id>"): not
   // option ids, so the count and id checks below don't apply; the scry's own reader keeps only this question's cards
   const ttsScry = ui?.scry && picks[0] === "__tts";
+  // (All, None, All of a name: the picks they stand for, checked as picks, quickPicked)
+  if (ui?.quick && picks.length === 1) {
+    const quick = quickPicked(ui, String(picks[0]));
+    if (quick) picks.splice(0, 1, ...quick);
+  }
   if (!ttsScry && ui?.mode === "multi" && picks[0] !== "__cancel" && (picks.length < ui.min || picks.length > ui.max)) {
     chat(`[MTG] Choose ${ui.min === ui.max ? ui.min : `${ui.min}-${ui.max}`} (you chose ${picks.length}).`, color);
     showPrompt(seat); // (with its step: a sub-question or a step re-sent without it read as the question under it)
@@ -13862,7 +14035,7 @@ if (require.main === module) {
     _engineSetting: () => ({ RELAY, KEY, REMOTE_ENGINE }), _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, setPickedHand, splitHandText, handOps, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _loopMap: loopMap, _loopCands: loopCands, _loopSig: loopSig, _customArt: customArt, artProblem, isCustomArt,
-    fixOps, phaseNumber, fxFacts, gameEndWords, mutateWords, fewNames, NUMBER_PICK_MAX, FEW_NAMES, _effectMarks: effectMarks,
+    fixOps, phaseNumber, fxFacts, gameEndWords, mutateWords, fewNames, NUMBER_PICK_MAX, FEW_NAMES, _effectMarks: effectMarks, DAMAGE_PICK_MAX, _ttsStats: ttsStats, _saveLargest: saveLargest, _noteBoard: noteBoard,
     standardProblems, modeWords, loadPreset, STANDARD_DECKS, _gameMode: gameMode,
     onGifMessage, onGifKey, _gifs: gifs, _gifFavs: gifFavs, // GIF frames
   };
