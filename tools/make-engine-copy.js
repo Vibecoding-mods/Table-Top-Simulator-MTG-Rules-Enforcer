@@ -642,7 +642,7 @@ function engineChat(message, pl)
     -- (and anyone's own: mtg art token <name> <link> for their tokens, mtg art back <card> <link> for a two-faced card's
     -- back; the bridge's onArtSet checks the link)
     if rest:sub(1, 5) == "token" or rest:sub(1, 4) == "back" then
-      engineSend("artset", { color = pl.color, text = message:sub(restAt) }) -- (as typed: a link keeps its capitals)
+      engineSend("artset", { color = pl.color, steam = pl.steam_id, text = message:sub(restAt) }) -- (as typed: a link keeps its capitals)
       return false
     end
     if not isHost then pl.broadcast("[MTG] Only the host can switch custom card art (everyone sees the same pictures).") return false end

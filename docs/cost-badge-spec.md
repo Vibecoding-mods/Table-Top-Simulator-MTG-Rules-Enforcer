@@ -127,8 +127,23 @@ the `mayPlay` cards outside the hand only:
   already a cost zone). No new XML.
 - **Tests:** harness `CostBadgeTest` (14 checks), `tests/test_bridge_cost_badge_2.js` (23, in GATES); break-its
   `tools/mutate-cost-badge-2-engine.js` and `tools/mutate-cost-badge-2.js`.
-- **Not done:** no image, no live game. A card with two ways from one zone shows the first Forge lists. A split or
-  adventure card's second half is not priced. Non-mana parts of a cost (escape's exiled cards) are not shown.
+- **Not done:** no image, no live game. Non-mana parts of a cost (escape's exiled cards) are not shown.
+
+#### Follow-ups (2026-11-17, `engine1117-costbadge3`, branch `cloud/followups-1`)
+
+- **Split and adventure halves:**
+  - A split card in hand has no badge. Phase 1 compared its first half with the whole card's cost and always showed
+    it cheaper. The hover says each half whose cost changed ("Fire: costs {2}{R} now (printed {1}{R})"), from
+    `spellCosts`.
+  - An adventure card keeps its creature's badge, and the hover says the adventure ("Stomp: costs {2}{R} now (printed
+    {1}{R})").
+- **The cheapest way:** from a graveyard or exile, `playCost` is the cheapest of every way to cast the card there. The
+  rest are in the hover: "Other ways to cast it: Ice {1}{U}; {2}{R} by flashback".
+- **A half cast from there** (an aftermath half, a permission on a split card) has no badge, because the picture has a
+  cost for each half and the badge sits on one. Its hover says "Castable: Memory {5}{U}{U} by aftermath (printed
+  {4}{U}{U})".
+- **Tests:** `CostBadgeTest` 22; `tests/test_bridge_cost_badge_3.js` (17, in GATES). Break-its
+  `tools/mutate-cost-badge-2-engine.js` and `tools/mutate-cost-badge-3.js`. No Lua or XML change.
 
 ## Cards and cases checklist
 
