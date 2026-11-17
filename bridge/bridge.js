@@ -88,6 +88,13 @@ function seenFromTable(sid, q) {
 const ZONE_KEYS = ["hand", "battlefield", "graveyard", "exile", "command", "playable", "revealed", "ctlHand"];
 // A reveal's pictures (the table pages through them, 7 at a time): 7 left out Animist's Awakening's 8th, 2026-10-30
 const REVEAL_PICTURES = 40;
+// The most a number picker offers (docs/stress-catalog.md #1): Forge's "no limit" (2147483647) and any max above it
+// stop here; a real X (Torment of Hailfire with 40 mana, Toxic Deluge with 30 life) is offered in full up to it
+const NUMBER_PICK_MAX = 999;
+// How many names a list in a log line, the effects hover or a chat line names before "... and N more" (#11)
+const FEW_NAMES = 8;
+// "A, B, C" up to n names, else the first n then " ... and N more"
+const fewNames = (list, n = FEW_NAMES) => (list.length > n ? `${list.slice(0, n).join(", ")} ... and ${list.length - n} more` : list.join(", "));
 // How long a clash's log line waits for the other human seats to be shown the same clash (each acknowledges in turn,
 // so one player's slow OK delays the next one's question): see the clash in onPrompt
 const CLASH_SAME_MS = 120000;
@@ -1270,7 +1277,7 @@ class Seat {
         const picked = (raw.input.cards || []).filter((c) => (output?.chosenCardIds || []).includes(c.id) && c.identity?.name);
         const how = String(raw.sourceAbilityText || src.text || "");
         if (picked.length) {
-          gameLogLine(`${nameOf(this.slot)} chooses ${picked.map((c) => c.identity.name).join(", ")} (${src.identity.name})`);
+          gameLogLine(`${nameOf(this.slot)} chooses ${fewNames(picked.map((c) => c.identity.name))} (${src.identity.name})`);
           // (kept for the turn it was chosen in: "this turn", every such shield's words)
           const turn = this.board?.state?.gameView?.turn;
           const kind = /\bthat damage is dealt to that source's controller instead\b/i.test(how) ? "redirect"
@@ -3772,8 +3779,9 @@ function sacrificeWords(m, was) {
     || (m?.cause === "Sacrifice" && m.causeName && m.causeName !== was.name ? ` (${m.causeName})` : "");
 }
 // (many cards by count: Cut Your Losses's 46 read as one name after another, hp-16)
-const byCount = (names) => [...names.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(", ");
-const listOf = (names) => (names.length > 6 ? byCount(names) : names.join(", "));
+// (cut to FEW_NAMES after the counting: a Living Death's 40 names read "... and 32 more", stress catalog #11)
+const byCount = (names) => fewNames([...names.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)));
+const listOf = (names) => (names.length > 6 ? byCount(names) : fewNames(names));
 // (the same, keeping the order: only a run of one card next to itself counted, for cards whose order is told)
 // The trigger lines of one board, each line alike said once and counted (the owner, 2026-11-15: "if 20 pop up at once,
 // cut it down to 2"): 18 Soul Wardens' "Soul Warden's ability triggers (Blue): you gain 1 life" read
@@ -3783,8 +3791,8 @@ function countedTriggers(lines) {
   const counts = lines.reduce((m, l) => m.set(l, (m.get(l) || 0) + 1), new Map());
   return [...counts].map(([l, k]) => (k < 2 ? l : / triggers \(/.test(l) ? l.replace(" triggers (", ` triggers ×${k} (`) : `${l} ×${k}`));
 }
-const byRuns = (names) => names.reduce((runs, n) => (runs.at(-1)?.[0] === n ? runs.at(-1)[1]++ : runs.push([n, 1]), runs), []).map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(", ");
-const listInOrder = (names) => (names.length > 6 ? byRuns(names) : names.join(", "));
+const byRuns = (names) => fewNames(names.reduce((runs, n) => (runs.at(-1)?.[0] === n ? runs.at(-1)[1]++ : runs.push([n, 1]), runs), []).map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)));
+const listInOrder = (names) => (names.length > 6 ? byRuns(names) : fewNames(names));
 // each kind's line, for the cards one player had moved that way at once (w: who, k: the kind and what it names)
 const LIBRARY_WORDS = {
   mill: (w, names) => `${w} mills ${names.length > 6 ? `${names.length} cards: ${listOf(names)}` : listOf(names)}`,
@@ -3797,7 +3805,7 @@ const LIBRARY_WORDS = {
 // take every card exiled that way at once, in one line where the first was: Uro's escape cost read five "is exiled"
 // (hp-09), Avatar's Wrath nine (hp-18), Benthic Infiltrator's ingest one per card (hp-21).
 const EXILE_WORDS = {
-  graveyard: (w, names, k) => `${names.join(", ")} ${names.length === 1 ? "is" : "are"} exiled from ${w}'s graveyard${k.label}`,
+  graveyard: (w, names, k) => `${fewNames(names)} ${names.length === 1 ? "is" : "are"} exiled from ${w}'s graveyard${k.label}`,
   battlefield: (w, names, k) => `${names.length === 1 ? `${names[0]} is` : `${byCount(names)} are`} exiled${k.label || ""}`,
   library: (w, names, k) => `${byCount(names)} ${names.length === 1 ? "is" : "are"} exiled from ${w}'s library${k.label || ""}`,
   haunt: (w, names, k) => `${names[0]} is exiled haunting ${k.card}`,
@@ -3820,8 +3828,8 @@ const DETAIN_TARGET = /\bdetains? (?:up to (?:one|two|three|four|\d+) )?target\b
 const HAND_WORDS = {
   draw: (w, n) => `${w} draws ${countWords(n, n, "card")}`,
   put: (w, n, k) => `${w} puts ${countWords(n, n, "card")} from their library into their hand${k.explore != null ? ` (${k.explore} explores)` : ""}`,
-  putNamed: (w, names) => `${w} puts ${names.join(", ")} into their hand`,
-  discard: (w, names) => `${w} discards ${names.join(", ")}`,
+  putNamed: (w, names) => `${w} puts ${fewNames(names)} into their hand`,
+  discard: (w, names) => `${w} discards ${fewNames(names)}`,
 };
 // What a text-changing spell changed, ": old → new": Forge's own "Elf (was Goblin)" note when it writes one, else the
 // words gone and the words new (a few each; more, and only that it changed is said). Word by word read "Goblins →
@@ -5466,7 +5474,7 @@ function logEvents(prev, cur, pub, facts = null) {
     const at = cur.cards[a];
     const tokens = at.token || bs.some((b) => cur.cards[b].token);
     // (no token in it: the line as it always read, "Wall of Air, Coral Barrier block Herald of Hoofbeats")
-    const subject = tokens ? tokensCounted(bs.map((b) => tokenWords(cur.cards[b].name, cur.cards[b].token)), true) : bs.map((b) => cur.cards[b].name).join(", ");
+    const subject = tokens ? tokensCounted(bs.map((b) => tokenWords(cur.cards[b].name, cur.cards[b].token)), true) : fewNames(bs.map((b) => cur.cards[b].name));
     const line = `${subject} ${bs.length > 1 ? "block" : "blocks"} ${at.token ? tokensCounted([tokenWords(at.name, true)], true) : at.name}`;
     const key = at.token ? `${subject}|${at.name}` : `${line}|${a}`;
     const was = blockLines.get(key);
@@ -5544,7 +5552,7 @@ function logEvents(prev, cur, pub, facts = null) {
     if (s.sids.some((x) => curSids.has(x)) || !/\btaps? an untapped\b/i.test(s.text || "")) continue;
     const by = {};
     for (const [id, c] of Object.entries(cur.cards)) if (c.zone === "battlefield" && c.tapped && prev.cards[id]?.zone === "battlefield" && !prev.cards[id].tapped) (by[c.ctl] ||= []).push(c.name);
-    for (const [ctl, names] of Object.entries(by)) out.push(`${who(ctl)} taps ${names.join(", ")} (${s.name})`);
+    for (const [ctl, names] of Object.entries(by)) out.push(`${who(ctl)} taps ${fewNames(names)} (${s.name})`);
   }
   const tapLines = tapNews(prev, cur, resolved);
   out.push(...phased, ...tapLines);
@@ -5669,7 +5677,7 @@ function flashNews(prev, cur, pub) {
   for (const q of quick) {
     const where = { graveyard: "went to the graveyard", exile: "was exiled", command: "went back to the command zone", hand: "went back to the hand", library: "went into the library" }[q.to] || "left";
     const step = /cleanup/i.test(pub.step || "") ? " at cleanup" : "";
-    const with_ = along.length ? `, together with ${along.join(", ")}` : "";
+    const with_ = along.length ? `, together with ${fewNames(along)}` : "";
     chat(`[MTG] ${q.name} (${nameOf(q.ctl) || q.ctl}) was on the battlefield only a moment: it ${where}${step}${with_}. See the log.`);
   }
 }
@@ -6483,7 +6491,9 @@ function effectMarks(p, pub) {
   const all = (Array.isArray(p.effects) ? p.effects : []).filter((e) => e && (e.name || e.text)).map((e) => effectMark(e, shown));
   if (all.length <= EFFECT_MARKS + 1) return all;
   const rest = all.slice(EFFECT_MARKS);
-  return [...all.slice(0, EFFECT_MARKS), `+${rest.length} MORE EFFECTS\t${rest.map((m) => m.split("\t")[1]).filter(Boolean).join("\n")}`];
+  // (the hover lists FEW_NAMES of them, then "... and N more": 47 effects' texts ran off the screen, stress catalog #15)
+  const tips = rest.map((m) => m.split("\t")[1]).filter(Boolean);
+  return [...all.slice(0, EFFECT_MARKS), `+${rest.length} MORE EFFECTS\t${tips.slice(0, FEW_NAMES).join("\n")}${tips.length > FEW_NAMES ? `\n... and ${tips.length - FEW_NAMES} more` : ""}`];
 }
 // The spells cast this turn, for the active player (engine1112 PlayerDto.spellsCastThisTurn and GameViewDto.stormCount,
 // each sent only above 0, E6): "SPELLS THIS TURN: 2 (STORM 3)", the storm count being every player's spells. In a
@@ -9285,7 +9295,7 @@ function onPrompt(seat, prompt) {
         const kinReveal = /^Reveal cards to other players\?$/i.test(title) && /^Kinship —/i.test(String(prompt.sourceAbilityText || ""))
           && shown?.src === src && shown.names?.length && Date.now() - shown.at < 60000 ? shown.names : null;
         toOutput = (a) => {
-          if (a[0] === "yes" && kinReveal && game) gameLogLine(`${seat.color} reveals ${kinReveal.join(", ")} (${src})`);
+          if (a[0] === "yes" && kinReveal && game) gameLogLine(`${seat.color} reveals ${fewNames(kinReveal)} (${src})`);
           if (a[0] === "yes" && castsOwn) seat.note("start", prompt.sourceCard.id, src);
           // (a miracle cast says so, as a flashback does: "White casts Reforge the Soul" said nothing of it, hp-15 gap)
           // (and a reveal's free cast by its keyword: Surging Dementia's ripple cast of its namesake read "White copies
@@ -9471,7 +9481,7 @@ function onPrompt(seat, prompt) {
         if (a[0] === "__cancel") return { type: "cancel" };
         if (game && src && bottomOf) gameLogLine(a.length ? `${seat.color} puts ${countWords(a.length, a.length, "card")} on the bottom of ${whose} library (${src})`
           : `${seat.color} leaves ${input.cards.length === 1 ? "the card" : "the cards"} on top of ${whose} library (${src})`);
-        if (game && src && encoding && a.length) holdLogLine(`${seat.color} encodes ${src} onto ${a.map((id) => input.cards.find((c) => c.id === id)?.identity?.name).filter(Boolean).join(", ")}`);
+        if (game && src && encoding && a.length) holdLogLine(`${seat.color} encodes ${src} onto ${fewNames(a.map((id) => input.cards.find((c) => c.id === id)?.identity?.name).filter(Boolean))}`);
         seat.unless = src && fromHand ? { src, ids: [...a], n: a.length, k: 0 } : null;
         // (cards picked from your library: the one into your hand next was put there, not drawn, marked as the pick is
         // made; the look's mark had run out when the pick took longer, Growing Rites' Mangara "White draws a card", hp-03 #2)
@@ -9483,17 +9493,17 @@ function onPrompt(seat, prompt) {
         const onTop = fromLibrary && game && effectText.match(/\b(?:(reveal (?:it|that card|them|those cards)),? )?(?:then )?(shuffles?,? and |shuffles? (?:your|their) library,? (?:and |then ))?puts? (?:it|th(?:at|e) card|them|those cards) on top\b/i);
         if (onTop) {
           const names = a.map((id) => input.cards.find((c) => c.id === id)?.identity?.name || id);
-          gameLogLine(`${seat.color} ${onTop[1] ? `reveals ${names.join(", ")}, ` : ""}${onTop[2] ? "shuffles and " : ""}puts ${onTop[1] ? (a.length > 1 ? "them" : "it") : countWords(a.length, a.length, "card")} on top of their library`);
+          gameLogLine(`${seat.color} ${onTop[1] ? `reveals ${fewNames(names)}, ` : ""}${onTop[2] ? "shuffles and " : ""}puts ${onTop[1] ? (a.length > 1 ? "them" : "it") : countWords(a.length, a.length, "card")} on top of their library`);
         } else if (fromLibrary) seat.note("search", seat.slot);
         // (and cards from your hand on top: the hand's drop beside the library's rise was not said, Brainstorm, hp-26)
         if (a.length && input.cards.every((c) => c.zone === "hand") && /\bput [^.]*?\bfrom your hand on top of your library\b/i.test(effectText)) sayPutOnTop(seat, a.length);
         // (a card revealed to pay a cost is shown to the table: Foreboding Ruins's Mountain was in no log, rebuilt hand test #2;
         // Forge says "Reveal for cost" in the question's description, the title only in our cases, re-test)
         const shown = a.map((id) => input.cards.find((c) => c.id === id)?.identity?.name).filter(Boolean);
-        if (shown.length && game && [title, desc].some((t) => /^Reveal for cost$/i.test(String(t || "")))) holdLogLine(`${seat.color} reveals ${shown.join(", ")}${src ? ` (${src})` : ""}`);
+        if (shown.length && game && [title, desc].some((t) => /^Reveal for cost$/i.test(String(t || "")))) holdLogLine(`${seat.color} reveals ${fewNames(shown)}${src ? ` (${src})` : ""}`);
         // (a search that reveals what it finds shows it to the table: Ash Barrens' basic landcycling read only "puts a card
         // from their library into their hand", mechanic run hp-03 2026-11-05)
-        else if (fromLibrary && !onTop && shown.length && game && /\breveal (?:it|that card|them|those cards|the chosen cards?)\b/i.test(effectText)) holdLogLine(`${seat.color} reveals ${shown.join(", ")}${src ? ` (${src})` : ""}`);
+        else if (fromLibrary && !onTop && shown.length && game && /\breveal (?:it|that card|them|those cards|the chosen cards?)\b/i.test(effectText)) holdLogLine(`${seat.color} reveals ${fewNames(shown)}${src ? ` (${src})` : ""}`);
         seat.cardsDone = a.length < input.max ? { src, at: prompt.promptId } : null; // (see "Cancel Search?" in chooseBoolean)
         // (then which of them goes on top; Forge puts them on top one by one, so its last ends on top)
         if (handToTop && a.length > 1) {
@@ -9586,7 +9596,8 @@ function onPrompt(seat, prompt) {
       break;
     case "chooseNumber": {
       // "pay for Offspring? {2}" as a number from 0 to 1 is a yes/no; "choose Amount for Multikicker: {2}" says how many
-      // times; a limit of 2147483647 (Forge's "no limit") made Max useless, so the picker stops at 20
+      // times; a limit of 2147483647 (Forge's "no limit") made Max useless, so the picker stops at NUMBER_PICK_MAX (it
+      // stopped at 20, which also cut a real X of 21 or more: stress catalog #1)
       const pay = String(title).match(/^pay for (.+?)\? (.+)$/i);
       const times = String(title).match(/^choose Amount for (.+?): (\{.+\})$/i);
       if (input.min === 0 && input.max === 1 && pay) {
@@ -9604,7 +9615,7 @@ function onPrompt(seat, prompt) {
           : { title: `Use ${pay[1]}?`, text: `It costs: ${pay[2][0].toLowerCase()}${pay[2].slice(1).replace(/\.?$/, ".")}`, mode: "single", kind: "yesno", options: [{ id: "1", label: "Yes" }, { id: "0", label: "No" }] };
       } else {
         ui = { title: times ? `${src ? `${src}: ` : ""}pay ${times[2]} how many times? (${times[1]})` : /^Choose a (?:value|number) for /i.test(title) && src ? `${src}: choose ${/\bX\b/.test(String(prompt.sourceAbilityText || prompt.sourceCard?.text || "")) ? "X" : "a number"}` : title,
-          mode: "number", min: input.min, max: Math.min(input.max, Math.max(input.min, 20)) };
+          mode: "number", min: input.min, max: Math.min(input.max, Math.max(input.min, NUMBER_PICK_MAX)) };
         // (a 0-to-1 number whose title is a question is a yes/no: Harmonize's "Tap creature?" was a number picker, hp-19)
         if (input.min === 0 && input.max === 1 && /\?$/.test(String(title)))
           ui = { title: src ? `${src}: ${title[0].toLowerCase()}${title.slice(1)}` : title, mode: "single", kind: "yesno", options: [{ id: "1", label: "Yes" }, { id: "0", label: "No" }] };
@@ -9623,6 +9634,12 @@ function onPrompt(seat, prompt) {
         if (src && /^Choose power of creature to tap$/i.test(title)) {
           ui.title = `${src}: harmonize: tap a creature of how much power, to pay that much less?`;
           ui.text = ui.note = "0: tap none.";
+        }
+        // (clipped: say so, as a bigger number can't be picked here)
+        if (ui.mode === "number" && ui.max < input.max) {
+          const said = `${ui.max} is the most the table offers.`;
+          ui.text = ui.text ? `${ui.text} ${said}` : said;
+          ui.note = ui.note ? `${ui.note} ${said}` : said;
         }
       }
       toOutput = (a) => ({ type: "numberDecision", chosenNumber: Number(a[0]) });
@@ -12661,7 +12678,7 @@ if (require.main === module) {
     _engineSetting: () => ({ RELAY, KEY, REMOTE_ENGINE }), _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, setPickedHand, splitHandText, handOps, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _customArt: customArt, artProblem, isCustomArt,
-    fixOps, phaseNumber, fxFacts, gameEndWords, mutateWords,
+    fixOps, phaseNumber, fxFacts, gameEndWords, mutateWords, fewNames, NUMBER_PICK_MAX, FEW_NAMES, _effectMarks: effectMarks,
     standardProblems, modeWords, loadPreset, STANDARD_DECKS, _gameMode: gameMode,
     onGifMessage, onGifKey, _gifs: gifs, _gifFavs: gifFavs, // GIF frames
   };
