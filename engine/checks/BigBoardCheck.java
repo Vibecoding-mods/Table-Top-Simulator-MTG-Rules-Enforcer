@@ -63,6 +63,7 @@ public final class BigBoardCheck {
             return null;
         });
         final String mode = args.length > 0 ? args[0] : "decisions";
+        forge.game.replacement.ReplacementHandler.lookaheadPerRun = Boolean.parseBoolean(System.getProperty("bb.perRun", "true"));
         final Pool pool = pool();
         System.out.println("pool creatures=" + pool.creatures.size() + " lands=" + pool.lands.size() + " others=" + pool.others.size());
         if (mode.equals("decisions")) {
@@ -194,6 +195,7 @@ public final class BigBoardCheck {
                 regs.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(names[i], null)));
             }
             final GameRules rules = new GameRules(GameType.Constructed);
+            rules.setRenderAbilityText(Boolean.getBoolean("bb.render"));
             rules.setSimTimeout(120);
             rules.setRenderAbilityText(false);
             game = new Game(regs, rules, new Match(rules, regs, "BigBoardCheck"));

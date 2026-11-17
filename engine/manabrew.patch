@@ -20535,6 +20535,294 @@ index 0000000..12aacb7
 +        return card != null && card.has(name) && card.get(name).getAsBoolean();
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/StaticPassTest.java b/forge-harness/src/test/java/forge/harness/host/StaticPassTest.java
+new file mode 100644
+index 0000000..da25a25
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/StaticPassTest.java
+@@ -0,0 +1,282 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.card.CounterEnumType;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.replacement.ReplacementHandler;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++import forge.util.MyRandom;
++
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Random;
++import java.util.TreeMap;
++
++public final class StaticPassTest {
++    private StaticPassTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        CHECKS.put("passes: a card entering the battlefield runs 4 static passes, not 12", StaticPassTest::enteringPasses);
++        CHECKS.put("same: Clone under Authority of the Consuls, Grumgully, Doubling Season, Rest in Peace and Leyline of the Void", StaticPassTest::replacementHeavy);
++        CHECKS.put("same: anthems and a lord on entering creatures", StaticPassTest::anthems);
++        CHECKS.put("same: Humility then Opalescence (the layer 7 dependency)", StaticPassTest::humilityOpalescence);
++        CHECKS.put("same: Urborg entering under Blood Moon", StaticPassTest::bloodMoonUrborg);
++        CHECKS.put("same: Painter's Servant's color as it enters", StaticPassTest::paintersServant);
++        CHECKS.put("same: cards with their own enters-tapped, enters-with-counters, riot and control replacements", StaticPassTest::ownReplacements);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            check(e.getKey(), e.getValue());
++        }
++        System.out.println(failed == 0 ? "PASS StaticPassTest" : "FAIL StaticPassTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private interface Scenario {
++        void play(Fixture f);
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void expect(final boolean ok, final String why) {
++        if (!ok) {
++            throw new AssertionError(why);
++        }
++    }
++
++    private static String outcome(final Scenario scenario, final boolean perRun) {
++        final boolean was = ReplacementHandler.lookaheadPerRun;
++        final Random rng = MyRandom.getRandom();
++        ReplacementHandler.lookaheadPerRun = perRun;
++        MyRandom.setRandom(new Random(1122));
++        try {
++            final Fixture f = new Fixture();
++            scenario.play(f);
++            f.settle();
++            return f.describe();
++        } finally {
++            ReplacementHandler.lookaheadPerRun = was;
++            MyRandom.setRandom(rng);
++        }
++    }
++
++    private static String same(final Scenario scenario) {
++        final String before = outcome(scenario, false);
++        final String after = outcome(scenario, true);
++        expect(before.equals(after), "a lookahead for each layer gave\n  " + before + "\none for the run gave\n  " + after);
++        return after;
++    }
++
++    private static void enteringPasses() {
++        final long[] passes = new long[2];
++        for (final boolean perRun : new boolean[] {false, true}) {
++            final boolean was = ReplacementHandler.lookaheadPerRun;
++            ReplacementHandler.lookaheadPerRun = perRun;
++            try {
++                final Fixture f = new Fixture();
++                final Card bears = f.add("Grizzly Bears", f.white, ZoneType.Hand);
++                final long p0 = f.game.getAction().getStaticPasses();
++                f.game.getAction().moveToPlay(bears, null, null);
++                passes[perRun ? 1 : 0] = f.game.getAction().getStaticPasses() - p0;
++            } finally {
++                ReplacementHandler.lookaheadPerRun = was;
++            }
++        }
++        expect(passes[0] == 12 && passes[1] == 4, "static passes for one creature entering: " + passes[0] + " with a lookahead per layer, " + passes[1] + " with one per run");
++    }
++
++    private static void replacementHeavy() {
++        final String got = same((f) -> {
++            f.add("Doubling Season", f.white, ZoneType.Battlefield);
++            f.add("Rest in Peace", f.white, ZoneType.Battlefield);
++            f.add("Grumgully, the Generous", f.white, ZoneType.Battlefield);
++            f.add("Authority of the Consuls", f.blue, ZoneType.Battlefield);
++            f.add("Leyline of the Void", f.blue, ZoneType.Battlefield);
++            f.add("Serra Angel", f.blue, ZoneType.Battlefield);
++            f.settle();
++            f.game.getAction().moveToPlay(f.add("Clone", f.white, ZoneType.Hand), null, null);
++            f.game.getAction().moveToPlay(f.add("Hill Giant", f.white, ZoneType.Hand), null, null);
++            f.settle();
++            f.add("Essence of the Wild", f.white, ZoneType.Battlefield);
++            f.settle();
++            f.game.getAction().moveToPlay(f.add("Grizzly Bears", f.white, ZoneType.Hand), null, null);
++            f.settle();
++            f.game.getAction().moveToGraveyard(f.add("Llanowar Elves", f.white, ZoneType.Hand), null, null);
++        });
++        expect(got.contains("Clone 2/2 [Creature Shapeshifter] tapped +1/+1x2") && got.contains("Hill Giant 5/5 [Creature Giant] tapped +1/+1x2"),
++                "the Clone (its copy declined) or the Hill Giant isn't tapped with two counters (Grumgully's, doubled): " + got);
++        expect(got.split("Essence of the Wild 8/8 \\[Creature Avatar\\] tapped \\+1/\\+1x2", -1).length == 2,
++                "the Grizzly Bears didn't enter as a tapped copy of Essence of the Wild with two counters (the copy first, then the counters): " + got);
++        expect(got.contains("White exile: Llanowar Elves") && !got.contains("graveyard: Llanowar Elves"), "Rest in Peace didn't exile the Elves: " + got);
++    }
++
++    private static void anthems() {
++        final String got = same((f) -> {
++            f.add("Glorious Anthem", f.white, ZoneType.Battlefield);
++            f.add("Field Marshal", f.white, ZoneType.Battlefield);
++            f.settle();
++            for (final String name : new String[] {"Savannah Lions", "Youthful Knight", "Grizzly Bears"}) {
++                f.game.getAction().moveToPlay(f.add(name, f.white, ZoneType.Hand), null, null);
++            }
++        });
++        expect(got.contains("Grizzly Bears 3/3"), "Grizzly Bears under Glorious Anthem: " + got);
++    }
++
++    private static void humilityOpalescence() {
++        same((f) -> {
++            f.game.getAction().moveToPlay(f.add("Humility", f.white, ZoneType.Hand), null, null);
++            f.settle();
++            f.game.getAction().moveToPlay(f.add("Opalescence", f.white, ZoneType.Hand), null, null);
++            f.settle();
++            f.game.getAction().moveToPlay(f.add("Serra Angel", f.blue, ZoneType.Hand), null, null);
++        });
++    }
++
++    private static void bloodMoonUrborg() {
++        final String got = same((f) -> {
++            f.add("Blood Moon", f.blue, ZoneType.Battlefield);
++            f.settle();
++            f.game.getAction().moveToPlay(f.add("Urborg, Tomb of Yawgmoth", f.white, ZoneType.Hand), null, null);
++            f.game.getAction().moveToPlay(f.add("Forest", f.white, ZoneType.Hand), null, null);
++        });
++        expect(got.contains("Urborg, Tomb of Yawgmoth [Land Mountain]") && got.contains("Forest [Land Forest]"),
++                "Urborg isn't only a Mountain under Blood Moon, or the Forest got Swamp: " + got);
++    }
++
++    private static void paintersServant() {
++        same((f) -> {
++            f.game.getAction().moveToPlay(f.add("Painter's Servant", f.white, ZoneType.Hand), null, null);
++            f.settle();
++            f.game.getAction().moveToPlay(f.add("Grizzly Bears", f.white, ZoneType.Hand), null, null);
++        });
++    }
++
++    private static void ownReplacements() {
++        final String got = same((f) -> {
++            f.game.getAction().moveToPlay(f.add("Scavenging Ooze", f.white, ZoneType.Hand), null, null);
++            f.game.getAction().moveToPlay(f.add("Gingerbrute", f.white, ZoneType.Hand), null, null);
++            f.game.getAction().moveToPlay(f.add("Thriving Grove", f.white, ZoneType.Hand), null, null);
++            f.game.getAction().moveToPlay(f.add("Walking Ballista", f.white, ZoneType.Hand), null, null);
++            f.game.getAction().moveToPlay(f.add("Gruul Spellbreaker", f.white, ZoneType.Hand), null, null);
++            f.add("Forest", f.white, ZoneType.Hand);
++            f.game.getAction().moveToPlay(f.add("Mox Diamond", f.white, ZoneType.Hand), null, null);
++            f.game.getAction().moveToPlay(f.add("Xantcha, Sleeper Agent", f.white, ZoneType.Hand), null, null);
++        });
++        expect(got.contains("Thriving Grove [Land] tapped"), "Thriving Grove didn't enter tapped: " + got);
++        expect(got.substring(got.indexOf("Blue battlefield:")).startsWith("Blue battlefield: Xantcha, Sleeper Agent"),
++                "Xantcha didn't enter under the opponent's control (its own replacement moves it, AbilityKey.ReplacementEffect): " + got);
++    }
++
++    private static final class Fixture {
++        final Game game;
++        final Player white;
++        final Player blue;
++
++        Fixture() {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("White", null)));
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("Blue", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setRenderAbilityText(false);
++            game = new Game(players, rules, new Match(rules, players, "StaticPassTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0), 3);
++            game.getPhaseHandler().onStackResolved();
++            white = game.getPlayers().get(0);
++            blue = game.getPlayers().get(1);
++        }
++
++        Card add(final String name, final Player p, final ZoneType zone) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            if (paper == null) {
++                throw new AssertionError("no card named " + name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            p.getZone(zone).add(card);
++            return card;
++        }
++
++        void settle() {
++            game.getAction().checkStaticAbilities();
++            game.getAction().checkStateEffects(true);
++        }
++
++        String describe() {
++            final StringBuilder out = new StringBuilder();
++            for (final Player p : game.getPlayers()) {
++                for (final ZoneType zone : new ZoneType[] {ZoneType.Battlefield, ZoneType.Graveyard, ZoneType.Exile}) {
++                    final List<String> cards = new ArrayList<>();
++                    for (final Card c : p.getCardsIn(zone)) {
++                        final StringBuilder d = new StringBuilder(c.getName());
++                        if (c.isCreature()) {
++                            d.append(' ').append(c.getNetPower()).append('/').append(c.getNetToughness());
++                        }
++                        d.append(" [").append(String.join(" ", c.getType().getCoreTypes().stream().map(Object::toString).toList()));
++                        for (final String sub : c.getType().getSubtypes()) {
++                            d.append(' ').append(sub);
++                        }
++                        d.append(']');
++                        if (c.isTapped()) {
++                            d.append(" tapped");
++                        }
++                        final Map<String, Integer> counters = new TreeMap<>();
++                        for (final forge.game.card.CounterType type : c.getCounters().elementSet()) {
++                            counters.put(type.toString(), c.getCounters().count(type));
++                        }
++                        if (c.getCounters(CounterEnumType.P1P1) > 0) {
++                            counters.remove("P1P1");
++                            d.append(" +1/+1x").append(c.getCounters(CounterEnumType.P1P1));
++                        }
++                        counters.forEach((type, n) -> d.append(' ').append(type).append('x').append(n));
++                        d.append(" colors ").append(c.getColor());
++                        d.append(" abilities ").append(c.getSpellAbilities().size()).append('/').append(c.getStaticAbilities().size()).append('/').append(c.getTriggers().size());
++                        cards.add(d.toString());
++                    }
++                    out.append(p.getName()).append(' ').append(zone.name().toLowerCase()).append(": ").append(String.join(", ", cards)).append(" | ");
++                }
++            }
++            return out.toString();
++        }
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/StressCapsTest.java b/forge-harness/src/test/java/forge/harness/host/StressCapsTest.java
 new file mode 100644
 index 0000000..62f3c57

@@ -38,8 +38,25 @@ public final class TokenBench {
             return null;
         });
         final boolean doubler = args.length < 1 || !args[0].equals("nodoubler");
+        forge.game.replacement.ReplacementHandler.lookaheadPerRun = Boolean.parseBoolean(System.getProperty("tb.perRun", "true"));
         final String mode = args.length > 1 ? args[1] : "sizes";
-        if (mode.equals("hot")) {
+        if (mode.equals("pass")) {
+            for (final boolean render : new boolean[] {true, false}) {
+                final Board b = new Board(doubler);
+                b.game.getRules().setRenderAbilityText(render);
+                for (final String pile : new String[] {"w_1_1_soldier", "w_1_1_spirit_flying", "w_1_1_human", "w_2_2_knight"}) {
+                    b.make(500, pile);
+                    final long p0 = b.game.getAction().getStaticPasses();
+                    final long t0 = System.nanoTime();
+                    for (int i = 0; i < 5; i++) {
+                        b.game.getAction().checkStaticAbilities();
+                    }
+                    final double ms = (System.nanoTime() - t0) / 1e6 / 5;
+                    System.out.println(String.format(Locale.ROOT, "pass render %s on %d permanents: %.0f ms per static pass (%d passes)", render,
+                            b.game.getCardsIn(ZoneType.Battlefield).size(), ms, b.game.getAction().getStaticPasses() - p0));
+                }
+            }
+        } else if (mode.equals("hot")) {
             final Board b = new Board(doubler);
             b.make(500, "w_1_1_soldier");
             b.make(500, "w_1_1_spirit_flying");
@@ -133,6 +150,7 @@ public final class TokenBench {
             players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("White", null)));
             players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("Blue", null)));
             final GameRules rules = new GameRules(GameType.Constructed);
+            rules.setRenderAbilityText(Boolean.getBoolean("tb.render"));
             game = new Game(players, rules, new Match(rules, players, "TokenBench"));
             game.setAge(GameStage.Play);
             game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0), 3);
