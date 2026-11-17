@@ -35,7 +35,7 @@ const MUTATIONS = [
   ["answer: the panel's buttons ignored", B, "      if (m.promptId === LOOP_QUIET_PROMPT) {", "      if (false) {"],
   ["answer: a stale press keeps the panel", B, "pick === \"__quietstop\" && loopQuietOff(seat))) loopQuietShow(seat);", "pick === \"__quietstop\" && loopQuietOff(seat))) {}"],
   ["mtg stop: leaves it on", B, "      if (loopQuietOff(seat)) { chat(", "      if (false) { chat("],
-  ["end: the others not told", B, "if (s !== seat) loopQuietShow(s); // (its loopQuietLive", "if (false) loopQuietShow(s); // (its loopQuietLive"],
+  ["end: the others not told", B, "if (s !== seat) loopQuietShow(s); // (loopQuietLive drops", "if (false) loopQuietShow(s); // (loopQuietLive drops"],
   ["show: never at the start", B, "  if (game) for (const s of game.seats.values()) if (s !== seat) loopQuietShow(s);\n}", "\n}"],
   ["show: sent again unchanged", B, "  if (key === (seat.quietShown ?? null)) return;", ""],
   ["show: over a question", B, "  if (seat.prompt || seat.loop) return;\n  const q = loopQuietLive(seat)", "  if (seat.loop) return;\n  const q = loopQuietLive(seat)"],
