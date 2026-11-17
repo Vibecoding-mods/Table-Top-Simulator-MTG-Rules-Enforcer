@@ -530,6 +530,8 @@ namespace MtgCompanion
                         return new HttpResp(res.Known ? 200 : 400, J.Write(res.ToJson()));
                     case "/api/tools":
                         return Tools(r);
+                    case "/api/server":
+                        return ServerPost(r);
                     default:
                         return Refuse(404, "not-found", "Nothing here.");
                 }
@@ -701,7 +703,39 @@ namespace MtgCompanion
                     } },
                 { "log", new Dictionary<string, object> { { "file", Log.File }, { "lines", LogTail(60) } } },
                 { "update", UpdateSection(c.Update, c.L.Friend, c.Observe) },
+                { "server", ServerSection() },
             };
+        }
+
+        // ── own server (OwnServer.cs): the Own server box. Never the key: only whether one is set and its last 2 characters.
+
+        Dictionary<string, object> ServerSection()
+        {
+            var d = OwnServer.View(c.Server);
+            d["fixed"] = Controller.ServerArg != null; // (--server for this run: the box can't change it)
+            d["file"] = c.L.ServerFile;
+            return d;
+        }
+
+        // POST /api/server { host: "name[:port]", key, secure } -> server.json written and checked again;
+        // { local: true } -> server.json removed (this computer's engine). The answer is { ok, message }.
+        HttpResp ServerPost(HttpReq r)
+        {
+            if (r.Method != "POST") return Refuse(405, "method", "POST only.");
+            if (!JsonType(r.Header("Content-Type"))) return Refuse(415, "content-type", "Send application/json.");
+            var body = J.Parse(r.Body) as Dictionary<string, object>;
+            if (body == null) return Refuse(400, "bad-body", "Send {\"host\": \"...\", \"key\": \"...\"} or {\"local\": true}.");
+            string text = null, problem = null;
+            bool local = J.Bool(body, "local");
+            if (!local)
+            {
+                text = OwnServer.FileFromBox(J.Str(body, "host"), J.Str(body, "key"), J.Bool(body, "secure"), Probes.ReadText(c.L.ServerFile), out problem);
+                if (text == null) return new HttpResp(200, J.Write(new Dictionary<string, object> { { "ok", false }, { "message", problem } }));
+            }
+            var refused = c.SetServer(text);
+            Log.Write("status page: own server " + (local ? "off" : "set") + (refused != null ? ": refused: " + Logic.Clip(refused, 120) : ""));
+            return new HttpResp(200, J.Write(new Dictionary<string, object> { { "ok", refused == null },
+                { "message", refused ?? (local ? "This computer's engine: the lights check it again." : "Saved: the lights check your server now.") } }));
         }
 
         // ───────────────────────────── the update section ─────────────────────────────

@@ -175,6 +175,23 @@ const save = '{\r\n  "SaveName": "Mock MTGA 4 player",\r\n  "GameMode": "MTG",\r
     ok(`friend README: ${name}`, re.test(t));
 }
 
+// the friend README: own-server mode (companion/src/OwnServer.cs), and no key ever in a package
+{
+  const t = pack.readmeText({ nodeVersion: "v0", bridge: "b", table: "t", built: "2026-11-17" });
+  for (const [name, re] of [["the section", /^OPTIONAL: PLAY ON A FRIEND'S ENGINE \(OWN SERVER\)$/m], ["no Docker on this PC", /this PC needs no\s+Docker/],
+    ["the status page's box", /open "Own server", type the address and the key, then press\s+"Use this server"/], ["server.json's shape", /\{ "host": "mtg\.example\.org", "port": 9443, "key": "the key", "secure": false \}/],
+    ["--server for one run", /--server HOST:PORT/], ["the light", /the third light, "Your server", says whether the\s+server answers/],
+    ["each red light", /refused the connection[\s\S]*didn't answer[\s\S]*isn't known[\s\S]*refused the key[\s\S]*busy with an earlier game/], ["back to this computer", /"Use this computer" \(or deleting server\.json\)/],
+    ["keep the key private", /Never share that file, post the key in a\s+chat/], ["the server is never stopped", /the companion never stops it/]])
+    ok(`friend README own server: ${name}`, re.test(t));
+  // (no one's real address or key: the only IP address is this PC's own, the only host the example one)
+  const ips = (t.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) || []).filter((ip) => ip !== "127.0.0.1");
+  ok("friend README own server: no address but 127.0.0.1 and the example host, no key value", !ips.length && !/MANABREW_SERVER_KEY=\S/.test(t), ips.join(", "));
+  same("secretFiles: server.json, a stack .env and key files", pack.secretFiles([{ rel: "server.json" }, { rel: "stack/.env" }, { rel: "x/release-key.pem" }, { rel: "bridge/bridge.js" }, { rel: "stack/compose.yml" }, { rel: "LICENSES/SOURCE.txt" }]),
+    ["server.json", "stack/.env", "x/release-key.pem"]);
+  same("secretFiles: a package's own files hold none", pack.secretFiles([{ rel: "MTG Companion.exe" }, { rel: "version.json" }, { rel: "stack/deployed.json" }, { rel: "README-FRIEND.txt" }, { rel: "LICENSES/source/companion/OwnServer.cs" }]), []);
+}
+
 // the compose file
 {
   const y = pack.composeYaml();
@@ -303,6 +320,7 @@ function builtZip(zip) {
     const entries = pack.packageEntries(root);
     const unread = names.filter((n) => n.startsWith(`${top}/images/`) && !n.endsWith("/")).map((n) => ({ rel: n.slice(top.length + 1) }));
     same(`${tag}: no copy of a Workshop table in it (by name or content)`, pack.tableCopies([...entries, ...unread]), []);
+    same(`${tag}: no file that holds a key (server.json, .env, a key file)`, pack.secretFiles([...entries, ...unread]), []);
     // byte for byte: this PC's Workshop copies and the table made from the 4-player one
     const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
     const known = {};
