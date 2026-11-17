@@ -175,6 +175,11 @@ anyone into your server's games.
   with **Stop**. Every other player still gets priority each pass and may respond. It stops at once, and the chat says
   why, when a question differs from your pass, a card or target is gone, someone plays something, the step changes or
   the game ends; Stop or `mtg stop` ends it too.
+  While someone else repeats a loop, your panel offers **No responses for this loop (Blue repeating ×1000)** (also the
+  third button in your priority). Press it and your priority passes are answered for you for the rest of that loop; your
+  own triggers still go on the stack and their questions are still asked. It ends when the loop ends or stops or the
+  step changes. **Stop** on your panel (or `mtg stop`) turns it off at once and asks your next priority, so you can
+  still respond and stop the loop.
 - **Long lists** (a creature type, a big search): the last button says **More...** and shows the next page; the
   search box narrows the list.
 - **Cancel a cost:** while you choose what to sacrifice, discard, exile or tap to pay for something, **Cancel** (the
