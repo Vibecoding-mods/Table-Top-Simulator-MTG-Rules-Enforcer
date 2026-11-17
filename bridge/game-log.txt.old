@@ -1,0 +1,1187 @@
+[14:43:59] === Game: White, AI 1 ===
+[14:43:59] White draws 7 cards
+[14:43:59] AI 1 draws 7 cards
+[14:43:59] --- AI 1's turn 1 ---
+[14:44:00] AI 1 plays Yavimaya Coast
+[14:44:02] --- White's turn 1 ---
+[14:44:02] White puts Swamp ×10, Mountain ×10 onto the battlefield
+[14:44:02] Hero of Bladehold enters the battlefield (White)
+[14:44:02] Grizzly Bears enters the battlefield (White)
+[14:44:02] Prodigal Pyromancer enters the battlefield (White)
+[14:44:02] Llanowar Elves enters the battlefield (White)
+[14:44:02] Jace Beleren enters the battlefield (AI 1)
+[14:44:02] Hill Giant enters the battlefield (AI 1)
+[14:44:02] Craw Wurm enters the battlefield (AI 1)
+[14:44:02] White's debug setup "live-r2": White gets Swamp (battlefield) ×10; White gets Mountain (battlefield) ×10; White's dealt hand: to the bottom of the library ×7; White gets Hero of Bladehold (battlefield); White gets Grizzly Bears (battlefield); White gets Prodigal Pyromancer (battlefield); White gets Llanowar Elves (battlefield); White gets Thought Scour (hand); White gets Lightning Bolt (hand); White gets Giant Growth (hand); White gets Glimpse the Unthinkable (hand); White gets mana until the end of the turn: 20 {W}, 20 {U}, 20 {B}, 20 {R}, 20 {G}, 20 {C}; AI 1 gets Jace Beleren (battlefield); AI 1 gets Hill Giant (battlefield); AI 1 gets Craw Wurm (battlefield)
+[14:46:11] White draws a card
+[14:49:13] White casts Thought Scour targeting White
+[14:49:13] White draws a card
+[14:49:13] White mills War-Spike Changeling, Scorching Dragonfire
+[14:51:47] White casts Glimpse the Unthinkable targeting White
+[14:51:48] White mills 10 cards: Universal Automaton, Early Winter, Cliffgate, Anaba Shaman, Swamp ×2, Fire-Belly Changeling, Choking Sands, Moonglove Extractor, Ominous Asylum
+[14:52:10] White's debug setup "live-r2b": White gets Thought Scour (hand)
+[14:52:31] White casts Thought Scour targeting White
+[14:52:32] White draws a card
+[14:52:32] White mills Pharika's Libation, Ruinous Minotaur
+[14:54:04] White attacks Jace Beleren (AI 1) with Hero of Bladehold
+[14:54:45] Hero of Bladehold's battle cry triggers (White)
+[14:54:45] Hero of Bladehold's ability triggers (White)
+[14:54:46] White creates a Soldier token
+[14:54:57] White attacks Jace Beleren (AI 1) with Soldier token
+[14:54:57] White creates a Soldier token
+[14:55:08] White attacks Jace Beleren (AI 1) with Soldier token
+[14:55:09] Craw Wurm blocks Hero of Bladehold
+[14:55:09] Hill Giant blocks Soldier Token
+[14:55:09] Hero of Bladehold dies
+[14:55:09] Soldier token dies
+[14:56:57] --- AI 1's turn 2 ---
+[14:57:36] AI 1 draws a card
+[14:57:46] AI 1 plays Forest
+[14:57:47] AI 1 attacks with Hill Giant, Craw Wurm
+[14:58:28] Grizzly Bears blocks Hill Giant
+[14:59:09] White casts Giant Growth targeting Grizzly Bears
+[14:59:26] Hill Giant dies
+[14:59:26] White: 40 -> 34 life (-6, combat damage from Craw Wurm)
+[14:59:27] AI 1 activates Jace Beleren's -1 targeting AI 1
+[14:59:27] Jace Beleren goes to the graveyard
+[15:04:50] === Game: White, AI 1, AI 2 ===
+[15:04:50] White draws 7 cards
+[15:04:50] AI 1 draws 7 cards
+[15:04:50] AI 2 draws 7 cards
+[15:05:20] --- AI 1's turn 1 ---
+[15:05:20] AI 1 draws a card
+[15:05:21] AI 1 plays Command Tower
+[15:05:26] --- AI 2's turn 1 ---
+[15:05:27] AI 2 draws a card
+[15:05:31] AI 2 discards Island
+[15:05:31] --- White's turn 1 ---
+[15:05:32] White draws a card
+[15:05:52] White plays Mountain
+[15:05:54] --- AI 1's turn 2 ---
+[15:05:54] AI 1 draws a card
+[15:05:54] AI 1 plays Corrupted Crossroads
+[15:05:58] --- AI 2's turn 2 ---
+[15:05:58] AI 2 draws a card
+[15:06:03] AI 2 discards Island
+[15:06:03] --- White's turn 2 ---
+[15:06:04] White draws a card
+[15:06:14] --- Rewound to White's turn (upkeep) ---
+[15:06:14] White draws a card
+[15:06:44] White's debug tool "put Lightning Bolt into White's hand": White gets Lightning Bolt (hand)
+[17:58:09] === Game: White, AI 1 ===
+[17:58:09] White draws 7 cards
+[17:58:09] AI 1 draws 7 cards
+[17:59:22] --- AI 1's turn 1 ---
+[17:59:22] AI 1 plays Mountain
+[17:59:23] AI 1 casts Flamekin Harbinger
+[17:59:23] Flamekin Harbinger enters the battlefield (AI 1)
+[17:59:23] Flamekin Harbinger's ability triggers (AI 1)
+[17:59:23] White looked at a card (AI 1's library)
+[17:59:55] --- White's turn 1 ---
+[17:59:55] White draws a card
+[18:00:17] White plays Mountain
+[18:00:18] --- AI 1's turn 2 ---
+[18:00:18] AI 1 draws a card
+[18:00:18] AI 1 plays Forest
+[18:00:18] AI 1 attacks with Flamekin Harbinger
+[18:00:18] White: 40 -> 39 life (-1, combat damage from Flamekin Harbinger)
+[18:00:18] AI 1 casts Flamebraider
+[18:00:18] Flamebraider enters the battlefield (AI 1)
+[18:00:18] --- White's turn 2 ---
+[18:00:18] White draws a card
+[18:01:01] Hero of Bladehold enters the battlefield (White)
+[18:01:01] Grizzly Bears enters the battlefield (White)
+[18:01:01] Prodigal Pyromancer enters the battlefield (White)
+[18:01:01] Llanowar Elves enters the battlefield (White)
+[18:01:01] Jace Beleren enters the battlefield (AI 1)
+[18:01:01] Hill Giant enters the battlefield (AI 1)
+[18:01:01] Craw Wurm enters the battlefield (AI 1)
+[18:01:01] White's debug setup "live-r2": White gets Hero of Bladehold (battlefield); White gets Grizzly Bears (battlefield); White gets Prodigal Pyromancer (battlefield); White gets Llanowar Elves (battlefield); White gets Thought Scour (hand); White gets Lightning Bolt (hand); White gets Giant Growth (hand); White gets Glimpse the Unthinkable (hand); White gets mana until the end of the turn: 20 {W}, 20 {U}, 20 {B}, 20 {R}, 20 {G}, 20 {C}; AI 1 gets Jace Beleren (battlefield); AI 1 gets Hill Giant (battlefield); AI 1 gets Craw Wurm (battlefield)
+[18:02:16] White attacks Jace Beleren (AI 1) with Hero of Bladehold
+[18:02:45] Hero of Bladehold's battle cry triggers (White)
+[18:02:45] Hero of Bladehold's ability triggers (White)
+[18:02:45] White creates a Soldier token
+[18:03:06] White attacks Jace Beleren (AI 1) with Soldier token
+[18:03:06] White creates a Soldier token
+[18:03:11] White attacks Jace Beleren (AI 1) with Soldier token
+[18:03:11] Craw Wurm blocks Hero of Bladehold
+[18:03:11] Hill Giant blocks Soldier Token
+[18:05:42] White casts Giant Growth targeting Hero of Bladehold
+[21:36:14] === Game: White, AI 1 ===
+[21:36:14] White draws 7 cards
+[21:36:14] AI 1 draws 6 cards
+[21:36:17] --- AI 1's turn 1 ---
+[21:36:18] AI 1 plays Sunken Hollow
+[21:36:19] --- White's turn 1 ---
+[21:36:20] White puts Swamp ×10, Mountain ×10 onto the battlefield
+[21:36:20] Hero of Bladehold enters the battlefield (White)
+[21:36:20] Grizzly Bears enters the battlefield (White)
+[21:36:20] Prodigal Pyromancer enters the battlefield (White)
+[21:36:20] Llanowar Elves enters the battlefield (White)
+[21:36:20] Jace Beleren enters the battlefield (AI 1)
+[21:36:20] Hill Giant enters the battlefield (AI 1)
+[21:36:20] Craw Wurm enters the battlefield (AI 1)
+[21:36:20] White's debug setup "live-r3": White gets Swamp (battlefield) ×10; White gets Mountain (battlefield) ×10; White's dealt hand: to the bottom of the library ×7; White gets Hero of Bladehold (battlefield); White gets Grizzly Bears (battlefield); White gets Prodigal Pyromancer (battlefield); White gets Llanowar Elves (battlefield); White gets Thought Scour (hand); White gets Lightning Bolt (hand); White gets Counterspell (hand); White gets Giant Growth (hand); White gets Glimpse the Unthinkable (hand); White gets mana until the end of the turn: 20 {W}, 20 {U}, 20 {B}, 20 {R}, 20 {G}, 20 {C}; AI 1 gets Jace Beleren (battlefield); AI 1 gets Hill Giant (battlefield); AI 1 gets Craw Wurm (battlefield)
+[21:44:50] White draws a card
+[21:46:35] White casts Thought Scour targeting White
+[21:46:35] White draws a card
+[21:46:35] White mills Call for Blood, Minotaur Warrior
+[21:47:24] White casts Glimpse the Unthinkable targeting AI 1
+[21:47:25] AI 1 mills 10 cards: Temur Battlecrier, Path of Ancestry, Radiant Summit, Reliquary Tower, Beza, the Bounding Spring, Eclipsed Flamekin, Burnt Offering, Leyline Immersion, Flamebraider, Mountain
+[21:47:52] White casts Lightning Bolt targeting Hill Giant
+[21:47:52] Lightning Bolt deals 3 damage to Hill Giant
+[21:47:52] Hill Giant dies
+[21:49:05] White attacks Jace Beleren (AI 1) with Hero of Bladehold
+[21:49:21] Hero of Bladehold's battle cry triggers (White)
+[21:49:21] Hero of Bladehold's ability triggers (White)
+[21:49:22] White creates a Soldier token
+[21:49:57] White attacks Jace Beleren (AI 1) with Soldier token
+[21:49:57] White creates a Soldier token
+[21:50:15] White attacks with Soldier token
+[21:50:15] Craw Wurm blocks Hero of Bladehold
+[21:51:06] White casts Giant Growth targeting Hero of Bladehold
+[21:51:54] White casts Counterspell targeting Giant Growth
+[21:52:08] Giant Growth is countered by Counterspell
+[21:53:40] Hero of Bladehold dies
+[21:53:40] AI 1: 40 -> 38 life (-2, combat damage from Soldier token)
+[21:54:05] --- AI 1's turn 2 ---
+[21:56:29] AI 1 draws a card
+[21:56:40] AI 1 plays Mountain
+[21:56:41] AI 1 attacks with Craw Wurm
+[21:57:57] Grizzly Bears blocks Craw Wurm
+[21:58:27] Grizzly Bears dies
+[21:58:27] AI 1 casts Fury
+[21:58:27] Sneak Attack is exiled
+[21:59:20] Fury enters the battlefield (AI 1)
+[21:59:20] Fury's ability triggers (AI 1)
+[21:59:20] Fury's evoke triggers (AI 1)
+[21:59:53] Fury is sacrificed
+[22:00:16] AI 1 activates Jace Beleren's +2 (loyalty 1 -> 3)
+[22:00:16] Prodigal Pyromancer dies
+[22:00:16] Llanowar Elves dies
+[22:00:16] Soldier token dies
+[22:00:16] Soldier token dies
+[22:00:40] AI 1 draws a card
+[22:00:40] White draws a card
+[22:01:05] --- White's turn 2 ---
+[22:01:27] Game over: White conceded. AI 1 wins
+[04:05:51] === Game: White, AI 1 ===
+[04:05:51] AI 1 plays Swamp
+[04:05:51] AI 1 casts Typhoid Rats
+[04:05:52] Typhoid Rats enters the battlefield (AI 1)
+[04:05:52] --- White's turn 1 ---
+[04:05:52] White puts Island ×7, Swamp ×7, Mountain ×6 onto the battlefield
+[04:05:52] Hero of Bladehold enters the battlefield (White)
+[04:05:52] Syr Konrad, the Grim enters the battlefield (White)
+[04:05:52] White creates 6 Soldier tokens
+[04:05:52] AI 1 puts Island, Island, Island, Island onto the battlefield
+[04:05:52] Thalia, Guardian of Thraben enters the battlefield (AI 1)
+[04:05:52] Propaganda enters the battlefield (AI 1)
+[04:05:52] Sphere of Safety enters the battlefield (AI 1)
+[04:05:52] Crawlspace enters the battlefield (AI 1)
+[04:05:52] Grizzly Bears enters the battlefield (AI 1)
+[04:05:52] Hill Giant enters the battlefield (AI 1)
+[04:05:52] White's debug setup "live-b1-a": White gets Island (battlefield) ×7; White gets Swamp (battlefield) ×7; White gets Mountain (battlefield) ×6; White's dealt hand: to the bottom of the library ×7; White gets Hero of Bladehold (battlefield); White gets Syr Konrad, the Grim (battlefield); White gets Time Walk (hand) ×2; White gets Lightning Bolt (hand); White gets Shock (hand); White gets Valki, God of Lies (hand); White gets Murder (hand); White gets Opt (hand); White gets Grizzly Bears (library); White gets Hill Giant (library); White gets Opt (library); White gets a 1/1 white soldier token ×6; White gets mana until the end of the turn: 30 {W}, 30 {U}, 30 {B}, 30 {R}, 30 {G}, 30 {C}; AI 1 gets Island (battlefield) ×4; AI 1 gets Thalia, Guardian of Thraben (battlefield); AI 1 gets Propaganda (battlefield); AI 1 gets Sphere of Safety (battlefield); AI 1 gets Crawlspace (battlefield); AI 1 gets Grizzly Bears (battlefield); AI 1 gets Hill Giant (battlefield); AI 1 gets Counterspell (hand)
+[04:06:40] White draws a card
+[04:07:11] White casts Tibalt, Cosmic Impostor
+[04:07:26] AI 1 casts Counterspell
+[04:07:38] Syr Konrad, the Grim's ability triggers (White)
+[04:07:38] AI 1: 40 -> 39 life (-1, damage from Syr Konrad, the Grim)
+[04:14:21] White attacks AI 1 with Hero of Bladehold, Soldier token
+[04:14:45] Hero of Bladehold's battle cry triggers (White)
+[04:14:45] Hero of Bladehold's ability triggers (White)
+[04:14:45] White creates 2 Soldier tokens, tapped and attacking
+[04:14:45] Thalia, Guardian of Thraben blocks a Soldier token
+[04:14:45] Hill Giant blocks a Soldier token
+[04:15:22] Soldier token dies
+[04:15:22] Syr Konrad, the Grim's ability triggers (White)
+[04:15:22] AI 1: 39 -> 38 life (-1, damage from Syr Konrad, the Grim)
+[04:15:22] Soldier token dies
+[04:15:22] AI 1: 38 -> 33 life (-5, combat damage from Hero of Bladehold; combat damage from Soldier token)
+[04:15:22] Syr Konrad, the Grim's ability triggers (White)
+[04:15:22] AI 1: 33 -> 32 life (-1, damage from Syr Konrad, the Grim)
+[04:15:32] White casts Mairsil, the Pretender
+[04:15:40] Mairsil, the Pretender enters the battlefield (White)
+[04:15:40] Mairsil, the Pretender's ability triggers (White)
+[04:16:04] White casts Murder targeting Mairsil, the Pretender
+[04:16:13] Mairsil, the Pretender dies
+[04:16:24] Mairsil, the Pretender returns to the command zone
+[04:16:24] Syr Konrad, the Grim's ability triggers (White)
+[04:16:24] Syr Konrad, the Grim's ability triggers (White)
+[04:16:24] AI 1: 32 -> 31 life (-1, damage from Syr Konrad, the Grim)
+[04:16:24] AI 1: 31 -> 30 life (-1, damage from Syr Konrad, the Grim)
+[04:18:18] White casts Time Walk
+[04:18:23] White will take an extra turn (1 coming)
+[04:18:56] White mills Hill Giant
+[04:18:56] Syr Konrad, the Grim's ability triggers (White)
+[04:18:56] White's debug tool "mill 1 card from White's library": White mills 1 card
+[04:18:56] AI 1: 30 -> 29 life (-1, damage from Syr Konrad, the Grim)
+[04:19:08] White draws a card
+[04:19:08] White's debug tool "make White draw 1 card": White draws 1 card
+[04:19:57] AI 1 puts Island, Island, Island onto the battlefield
+[04:19:57] Jace Beleren enters the battlefield (AI 1)
+[04:19:57] White's debug setup "live-b1-b": White gets Fury (hand); AI 1 gets Island (battlefield) ×3; AI 1 gets Jace Beleren (battlefield); AI 1 gets Counterspell (hand)
+[04:21:21] White casts Fury (evoke)
+[04:21:21] White exiles Shock from their hand to cast Fury (evoke)
+[04:21:31] AI 1 casts Counterspell
+[04:21:45] Fury is countered by Counterspell
+[04:21:45] Syr Konrad, the Grim's ability triggers (White)
+[04:21:45] AI 1: 29 -> 28 life (-1, damage from Syr Konrad, the Grim)
+[04:22:53] --- White's turn 2 (extra turn) ---
+[04:22:56] White draws a card
+[04:23:15] White attacks AI 1 with Hero of Bladehold
+[04:23:32] Hero of Bladehold's battle cry triggers (White)
+[04:23:32] Hero of Bladehold's ability triggers (White)
+[04:23:33] White creates a Soldier token
+[04:24:20] White attacks Jace Beleren (AI 1) with Soldier token
+[04:24:20] White creates a Soldier token
+[04:24:26] White attacks AI 1 with Soldier token
+[04:24:26] Hill Giant blocks a Soldier token
+[04:24:26] Thalia, Guardian of Thraben blocks a Soldier token
+[04:24:39] Soldier token dies
+[04:24:39] Syr Konrad, the Grim's ability triggers (White)
+[04:24:39] AI 1: 28 -> 27 life (-1, damage from Syr Konrad, the Grim)
+[04:24:39] Soldier token dies
+[04:24:39] AI 1: 27 -> 24 life (-3, combat damage from Hero of Bladehold)
+[04:24:39] Syr Konrad, the Grim's ability triggers (White)
+[04:24:39] AI 1: 24 -> 23 life (-1, damage from Syr Konrad, the Grim)
+[04:24:46] --- AI 1's turn 2 ---
+[04:24:50] AI 1 draws a card
+[04:24:53] AI 1 plays Breeding Pool
+[04:24:53] AI 1 activates Jace Beleren's -1 (loyalty 3 -> 2) targeting AI 1
+[04:24:57] AI 1 draws a card
+[04:24:57] AI 1 casts Gravedigger
+[04:25:00] Gravedigger enters the battlefield (AI 1)
+[04:25:00] AI 1 casts Merfolk Looter
+[04:25:04] Merfolk Looter enters the battlefield (AI 1)
+[04:25:07] --- White's turn 3 ---
+[04:25:11] White draws a card
+[04:26:52] --- AI 1's turn 3 ---
+[04:26:55] AI 1 draws a card
+[04:26:59] AI 1 activates Jace Beleren's -1 (loyalty 2 -> 1) targeting AI 1
+[04:27:02] AI 1 draws a card
+[04:27:02] AI 1 plays Island
+[04:27:02] AI 1 uses Merfolk Looter's ability
+[04:27:06] AI 1 puts a card from their library into their hand
+[04:27:06] AI 1 discards Volcanic Island
+[04:27:09] --- White's turn 4 ---
+[04:27:13] White draws a card
+[04:27:42] Ghalta, Primal Hunger is put into AI 1's graveyard
+[04:27:42] Ghalta, Primal Hunger enters the battlefield (AI 1)
+[04:27:42] White's debug setup "live-b1-c": AI 1 gets Ghalta, Primal Hunger (battlefield) ×2
+[04:27:50] AI 1: 23 -> 22 life (-1)
+[04:28:09] White discards Swamp
+[04:28:09] --- AI 1's turn 4 ---
+[04:28:10] AI 1 draws a card
+[04:28:14] AI 1 plays Swamp
+[04:28:14] AI 1 attacks White with Ghalta, Primal Hunger
+[04:29:21] 2 Soldier tokens block Ghalta, Primal Hunger
+[04:30:25] Soldier token dies
+[04:30:25] Soldier token dies
+[04:30:25] White: 40 -> 30 life (-10)
+[04:30:26] Syr Konrad, the Grim's ability triggers (White)
+[04:30:26] Syr Konrad, the Grim's ability triggers (White)
+[04:30:26] AI 1: 22 -> 21 life (-1, damage from Syr Konrad, the Grim)
+[04:30:26] AI 1: 21 -> 20 life (-1, damage from Syr Konrad, the Grim)
+[04:30:26] AI 1 activates Jace Beleren's -1 targeting AI 1
+[04:30:26] Jace Beleren goes to the graveyard
+[04:30:29] AI 1 draws a card
+[04:30:29] AI 1 uses Merfolk Looter's ability
+[04:30:33] AI 1 draws a card
+[04:30:33] AI 1 discards Glorious Anthem
+[04:30:33] AI 1 casts Llanowar Elves
+[04:30:37] Llanowar Elves enters the battlefield (AI 1)
+[04:30:40] --- White's turn 5 ---
+[04:30:44] White draws a card
+[11:18:59] === Game: White, AI 1 ===
+[11:18:59] --- AI 1's turn 1 ---
+[11:18:59] AI 1 planeswalks to TARDIS Bay
+[11:19:00] AI 1 plays Mountain
+[11:19:00] --- White's turn 1 ---
+[11:22:08] White draws a card
+[11:23:01] White puts Island ×7, Swamp ×7, Mountain ×6 onto the battlefield
+[11:23:01] AI 1 puts Island, Island, Island, Island onto the battlefield
+[11:23:01] Thalia, Guardian of Thraben enters the battlefield (AI 1)
+[11:23:01] White ventures into Goblin Lair (Lost Mine of Phandelver)
+[11:23:01] White's debug setup "live-b2-b": White gets Island (battlefield) ×7; White gets Swamp (battlefield) ×7; White gets Mountain (battlefield) ×6; White gets Valki, God of Lies (hand); White gets Lightning Bolt (hand); White gets Murder (hand); White gets Opt (hand); White gets Nadaar, Selfless Paladin (hand); White gets Grizzly Bears (hand); White gets mana until the end of the turn: 30 {W}, 30 {U}, 30 {B}, 30 {R}, 30 {G}, 30 {C}; White is in Lost Mine of Phandelver, room Goblin Lair; AI 1 gets Island (battlefield) ×4; AI 1 gets Thalia, Guardian of Thraben (battlefield); AI 1 gets Counterspell (hand) ×2
+[11:25:20] White casts Tibalt, Cosmic Impostor
+[11:25:20] Tibalt, Cosmic Impostor's cascade triggers (White)
+[11:25:44] White exiles from the top of their library (Tibalt, Cosmic Impostor): Xander's Lounge, Mountain, Arcane Denial
+[11:26:31] Tibalt, Cosmic Impostor enters the battlefield (White)
+[11:26:50] White casts Lightning Bolt targeting Thalia, Guardian of Thraben
+[11:27:02] Lightning Bolt deals 3 damage to Thalia, Guardian of Thraben
+[11:27:02] Thalia, Guardian of Thraben dies
+[11:27:22] Thalia, Guardian of Thraben enters the battlefield (AI 1)
+[11:27:22] White's debug setup "live-b2-c": White gets Counterspell (hand) ×2; White gets Valki, God of Lies (hand); White gets Opt (hand); AI 1 gets Thalia, Guardian of Thraben (battlefield)
+[11:27:33] White casts Opt
+[11:27:51] White casts Counterspell targeting Opt
+[11:27:56] Opt is countered by Counterspell
+[11:28:10] White casts Tibalt, Cosmic Impostor
+[11:28:27] White casts Counterspell targeting Tibalt, Cosmic Impostor
+[11:28:31] Valki, God of Lies is countered by Counterspell
+[11:29:07] White casts Mairsil, the Pretender
+[11:29:15] Mairsil, the Pretender enters the battlefield (White)
+[11:29:15] Mairsil, the Pretender's ability triggers (White)
+[11:29:40] White casts Murder targeting Mairsil, the Pretender
+[11:29:45] Mairsil, the Pretender dies
+[11:29:57] Mairsil, the Pretender returns to the command zone
+[11:30:48] White casts Nadaar, Selfless Paladin
+[11:30:57] Nadaar, Selfless Paladin enters the battlefield (White)
+[11:30:57] Nadaar, Selfless Paladin's ability triggers (White)
+[11:31:08] White ventures into Dark Pool (Lost Mine of Phandelver)
+[11:31:08] White: 40 -> 41 life (+1)
+[11:31:08] AI 1: 40 -> 39 life (-1)
+[11:31:48] White's debug setup "live-b2-d": White gets Veteran Dungeoneer (hand) ×3
+[11:31:55] White casts Veteran Dungeoneer
+[11:32:00] Veteran Dungeoneer enters the battlefield (White)
+[11:32:00] Veteran Dungeoneer's ability triggers (White)
+[11:32:00] White ventures into Temple of Dumathoin (Lost Mine of Phandelver)
+[11:32:00] White draws a card
+[11:32:00] White completes Lost Mine of Phandelver (1 dungeon completed)
+[11:32:26] White casts Veteran Dungeoneer
+[11:32:30] Veteran Dungeoneer enters the battlefield (White)
+[11:32:30] Veteran Dungeoneer's ability triggers (White)
+[11:32:42] White ventures into Trapped Entry (Tomb of Annihilation)
+[11:32:42] White: 41 -> 40 life (-1)
+[11:32:42] AI 1: 39 -> 38 life (-1)
+[11:32:54] White takes the initiative
+[11:32:54] White's debug setup "live-b2-init": White takes the initiative
+[11:33:58] White's debug setup "live-b2-e": White gets Seasoned Dungeoneer (hand)
+[11:34:05] White casts Seasoned Dungeoneer
+[11:34:09] Seasoned Dungeoneer enters the battlefield (White)
+[11:34:09] Seasoned Dungeoneer's ability triggers (White)
+[11:34:09] The Initiative's ability triggers (White)
+[11:34:29] White ventures into Veils of Fear (Tomb of Annihilation)
+[11:34:43] AI 1 discards Plains
+[11:34:43] White: 40 -> 38 life (-2)
+[12:23:42] === Game: White, AI 1 ===
+[12:23:42] Free mulligans this game: 2 each.
+[12:23:44] White draws 7 cards
+[12:23:44] AI 1 draws 7 cards
+[12:24:08] Friendly mulligans are over: normal rules from here.
+[12:24:08] --- AI 1's turn 1 ---
+[12:24:08] AI 1 plays Island
+[12:24:10] --- White's turn 1 ---
+[12:24:10] White draws a card
+[12:24:14] White plays Island
+[12:24:15] --- AI 1's turn 2 ---
+[12:24:15] AI 1 draws a card
+[12:24:15] AI 1 plays Mountain
+[12:24:18] --- White's turn 2 ---
+[12:24:19] White draws a card
+[12:24:23] White plays Sulfur Falls
+[12:24:27] White casts Young Pyromancer
+[12:24:27] Young Pyromancer enters the battlefield (White)
+[12:24:27] --- AI 1's turn 3 ---
+[12:24:27] AI 1 draws a card
+[12:24:27] AI 1 plays Island
+[12:24:28] --- White's turn 3 ---
+[12:24:28] White draws a card
+[12:24:57] White plays Mountain
+[12:25:10] White casts Frantic Search
+[12:25:10] Young Pyromancer's ability triggers (White)
+[12:25:10] White creates an Elemental token
+[12:25:10] White draws 2 cards
+[12:25:51] White discards Fateful Absence, Sink into Stupor
+[12:25:56] White attacks AI 1 with Young Pyromancer
+[12:25:56] AI 1: 40 -> 38 life (-2, combat damage from Young Pyromancer)
+[12:25:56] --- AI 1's turn 4 ---
+[12:25:56] AI 1 draws a card
+[12:25:56] AI 1 plays Island
+[12:25:57] --- White's turn 4 ---
+[12:26:00] White draws a card
+[12:26:09] White plays Glacial Fortress
+[12:26:19] White casts Kykar, Wind's Fury
+[12:26:19] Kykar, Wind's Fury enters the battlefield (White)
+[12:26:21] White attacks AI 1 with Young Pyromancer, Elemental token
+[12:26:21] AI 1: 38 -> 35 life (-3, combat damage from Young Pyromancer; combat damage from Elemental token)
+[12:26:22] --- AI 1's turn 5 ---
+[12:26:22] AI 1 draws a card
+[12:26:22] AI 1 plays Island
+[12:26:22] --- White's turn 5 ---
+[12:26:26] White draws a card
+[12:26:36] White plays Raugrin Triome
+[12:26:43] White casts Tocasia's Welcome
+[12:26:43] Kykar, Wind's Fury's ability triggers (White)
+[12:26:43] White creates a Spirit token
+[12:26:43] Tocasia's Welcome enters the battlefield (White)
+[12:26:48] White attacks AI 1 with Young Pyromancer, Elemental token, Kykar, Wind's Fury
+[12:26:48] AI 1: 35 -> 29 life (-6, combat damage from Young Pyromancer; combat damage from Elemental token; combat damage from Kykar, Wind's Fury)
+[12:26:48] --- AI 1's turn 6 ---
+[12:26:48] AI 1 draws a card
+[12:26:48] AI 1 plays Island
+[12:26:49] --- White's turn 6 ---
+[12:26:57] White draws a card
+[12:27:02] White attacks AI 1 with Young Pyromancer, Elemental token, Kykar, Wind's Fury, Spirit token
+[12:27:03] AI 1: 29 -> 22 life (-7, combat damage from Young Pyromancer; combat damage from Elemental token; combat damage from Kykar, Wind's Fury; combat damage from Spirit token)
+[12:27:08] White plays Command Tower
+[12:27:13] White casts Mondrak, Glory Dominus
+[12:27:13] Mondrak, Glory Dominus enters the battlefield (White)
+[12:27:29] Spirit token is sacrificed for mana (Kykar, Wind's Fury)
+[12:27:30] White casts Idyllic Tutor
+[12:27:31] Kykar, Wind's Fury's ability triggers (White)
+[12:27:31] Young Pyromancer's ability triggers (White)
+[12:27:31] White creates 2 Elemental tokens
+[12:27:31] Tocasia's Welcome's ability triggers (White)
+[12:27:32] White draws a card
+[12:27:33] White creates 2 Spirit tokens
+[12:27:41] White puts a card from their library into their hand
+[12:27:41] White reveals Arcane Bombardment (Idyllic Tutor)
+[12:27:51] --- AI 1's turn 7 ---
+[12:27:52] AI 1 draws a card
+[12:27:54] AI 1 plays Island
+[12:27:55] --- White's turn 7 ---
+[12:28:04] White draws a card
+[12:28:16] White casts Talisman of Creativity
+[12:28:16] Kykar, Wind's Fury's ability triggers (White)
+[12:28:19] White creates 2 Spirit tokens
+[12:28:19] Tocasia's Welcome's ability triggers (White)
+[12:28:20] White draws a card
+[12:28:20] Talisman of Creativity enters the battlefield (White)
+[12:28:23] White plays Island
+[12:28:26] White casts Arcane Bombardment
+[12:28:26] Kykar, Wind's Fury's ability triggers (White)
+[12:28:27] White creates 2 Spirit tokens
+[12:28:27] Arcane Bombardment enters the battlefield (White)
+[12:28:32] White attacks AI 1 with Young Pyromancer, 3 Elemental tokens, Kykar, Wind's Fury, Mondrak, Glory Dominus, 2 Spirit tokens
+[12:28:33] AI 1: 22 -> 8 life (-14, combat damage from Young Pyromancer; combat damage from Elemental token ×3; combat damage from Kykar, Wind's Fury; combat damage from Mondrak, Glory Dominus; combat damage from Spirit token ×2)
+[12:28:43] --- AI 1's turn 8 ---
+[12:28:45] AI 1 draws a card
+[12:28:46] AI 1 plays Mountain
+[12:28:49] --- White's turn 8 ---
+[12:28:54] White draws a card
+[12:29:21] White plays Mountain
+[12:29:46] White casts Swords to Plowshares targeting Elemental token
+[12:29:48] Arcane Bombardment's ability triggers (White)
+[12:29:48] Kykar, Wind's Fury's ability triggers (White)
+[12:29:48] Young Pyromancer's ability triggers (White)
+[12:29:50] White creates 2 Elemental tokens
+[12:29:50] Tocasia's Welcome's ability triggers (White)
+[12:29:51] White draws a card
+[12:29:51] White creates 2 Spirit tokens
+[12:29:52] Idyllic Tutor is exiled from White's graveyard with Arcane Bombardment
+[12:29:53] White uses Idyllic Tutor token's ability
+[12:29:55] Kykar, Wind's Fury's ability triggers (White)
+[12:29:55] Young Pyromancer's ability triggers (White)
+[12:29:56] White creates 2 Elemental tokens
+[12:29:56] White creates 2 Spirit tokens
+[12:31:08] White puts a card from their library into their hand
+[12:31:08] White reveals Whirlwind of Thought (Idyllic Tutor)
+[12:31:08] Elemental token is exiled
+[12:31:08] White: 40 -> 41 life (+1)
+[12:31:24] White casts Whirlwind of Thought
+[12:31:24] Kykar, Wind's Fury's ability triggers (White)
+[12:31:30] White creates 2 Spirit tokens
+[12:31:30] Whirlwind of Thought enters the battlefield (White)
+[12:31:45] --- AI 1's turn 9 ---
+[12:31:53] AI 1 draws a card
+[12:31:55] AI 1 plays Island
+[12:31:56] --- White's turn 9 ---
+[12:31:57] White draws a card
+[12:32:02] White plays Training Center
+[12:32:13] White casts Blue Sun's Twilight targeting Elemental token
+[12:32:14] Whirlwind of Thought's ability triggers (White)
+[12:32:14] Arcane Bombardment's ability triggers (White)
+[12:32:14] Kykar, Wind's Fury's ability triggers (White)
+[12:32:14] Young Pyromancer's ability triggers (White)
+[12:32:16] White creates 2 Elemental tokens
+[12:32:16] Tocasia's Welcome's ability triggers (White)
+[12:32:17] White draws a card
+[12:32:17] White creates 2 Spirit tokens
+[12:32:17] Swords to Plowshares is exiled from White's graveyard with Arcane Bombardment
+[12:32:22] White draws a card
+[12:32:44] White casts Drogskol Captain
+[12:32:44] Drogskol Captain enters the battlefield (White)
+[12:33:04] --- AI 1's turn 10 ---
+[12:33:05] AI 1 draws a card
+[12:33:06] AI 1 plays Plains
+[12:33:11] --- White's turn 10 ---
+[12:33:14] White draws a card
+[12:34:15] White casts Wear targeting Talisman of Creativity
+[12:34:23] Whirlwind of Thought's ability triggers (White)
+[12:34:23] Arcane Bombardment's ability triggers (White)
+[12:34:23] Kykar, Wind's Fury's ability triggers (White)
+[12:34:23] Young Pyromancer's ability triggers (White)
+[12:34:32] White creates 2 Elemental tokens
+[12:34:32] Tocasia's Welcome's ability triggers (White)
+[12:34:38] White draws a card
+[12:34:49] White creates 2 Spirit tokens
+[12:34:50] Blue Sun's Twilight is exiled from White's graveyard with Arcane Bombardment
+[12:34:55] White draws a card
+[12:34:57] Talisman of Creativity is destroyed
+[12:35:17] White plays Plains
+[12:35:19] White casts Impact Tremors
+[12:35:20] Whirlwind of Thought's ability triggers (White)
+[12:35:20] Kykar, Wind's Fury's ability triggers (White)
+[12:35:21] White creates 2 Spirit tokens
+[12:35:22] White draws a card
+[12:35:22] Impact Tremors enters the battlefield (White)
+[12:35:28] --- AI 1's turn 11 ---
+[12:35:29] AI 1 draws a card
+[12:35:29] AI 1 plays Mountain
+[12:35:30] --- White's turn 11 ---
+[12:35:39] White draws a card
+[12:35:45] White plays Mountain
+[12:35:51] White casts Reflect Damage
+[12:35:58] Whirlwind of Thought's ability triggers (White)
+[12:35:58] Kykar, Wind's Fury's ability triggers (White)
+[12:35:58] Young Pyromancer's ability triggers (White)
+[12:35:58] Arcane Bombardment's ability triggers (White)
+[12:35:58] Fateful Absence is exiled from White's graveyard with Arcane Bombardment
+[12:36:24] White uses Idyllic Tutor token's ability
+[12:36:34] White uses Swords to Plowshares token's ability targeting Elemental token
+[12:36:41] White uses Fateful Absence token's ability targeting Elemental token
+[12:36:48] White uses Blue Sun's Twilight token's ability targeting Elemental token
+[12:36:51] Whirlwind of Thought's ability triggers (White)
+[12:36:51] Whirlwind of Thought's ability triggers (White)
+[12:36:51] Whirlwind of Thought's ability triggers (White)
+[12:36:51] Whirlwind of Thought's ability triggers (White)
+[12:36:51] Kykar, Wind's Fury's ability triggers (White)
+[12:36:51] Kykar, Wind's Fury's ability triggers (White)
+[12:36:51] Kykar, Wind's Fury's ability triggers (White)
+[12:36:51] Kykar, Wind's Fury's ability triggers (White)
+[12:36:51] Young Pyromancer's ability triggers (White)
+[12:36:51] Young Pyromancer's ability triggers (White)
+[12:36:51] Young Pyromancer's ability triggers (White)
+[12:36:51] Young Pyromancer's ability triggers (White)
+[12:36:54] White creates 2 Elemental tokens
+[12:36:57] Tocasia's Welcome's ability triggers (White)
+[12:36:57] Impact Tremors' ability triggers (White)
+[12:36:57] Impact Tremors' ability triggers (White)
+[12:37:01] AI 1: 8 -> 7 life (-1, damage from Impact Tremors)
+[12:37:01] AI 1: 7 -> 6 life (-1, damage from Impact Tremors)
+[12:37:01] White draws a card
+[12:37:02] White creates 2 Spirit tokens
+[12:37:02] Impact Tremors' ability triggers (White)
+[12:37:02] Impact Tremors' ability triggers (White)
+[12:37:02] AI 1: 6 -> 5 life (-1, damage from Impact Tremors)
+[12:37:03] AI 1: 5 -> 4 life (-1, damage from Impact Tremors)
+[12:37:03] White draws a card
+[12:37:03] White creates 2 Elemental tokens
+[12:37:03] Impact Tremors' ability triggers (White)
+[12:37:03] Impact Tremors' ability triggers (White)
+[12:37:04] AI 1: 4 -> 3 life (-1, damage from Impact Tremors)
+[12:37:04] AI 1: 3 -> 2 life (-1, damage from Impact Tremors)
+[12:37:04] White creates 2 Spirit tokens
+[12:37:04] Impact Tremors' ability triggers (White)
+[12:37:04] Impact Tremors' ability triggers (White)
+[12:37:05] AI 1: 2 -> 1 life (-1, damage from Impact Tremors)
+[12:37:06] Game over: AI 1 is at 0 life. White wins
+[12:37:06] AI 1: 1 -> 0 life (-1, damage from Impact Tremors)
+[12:38:22] === Game: White, AI 1 ===
+[12:38:22] Free mulligans this game: 2 each.
+[12:38:23] White draws 7 cards
+[12:38:23] AI 1 draws 7 cards
+[12:57:57] White took a free mulligan (1 of 2).
+[12:58:11] Friendly mulligans are over: normal rules from here.
+[12:58:11] --- White's turn 1 ---
+[12:58:21] White plays Spirebluff Canal
+[12:58:22] --- AI 1's turn 1 ---
+[12:58:22] AI 1 draws a card
+[12:58:22] AI 1 plays Mountain
+[12:58:22] --- White's turn 2 ---
+[12:58:23] White draws a card
+[12:58:27] White plays Plains
+[12:58:34] White casts Fellwar Stone
+[12:58:34] Fellwar Stone enters the battlefield (White)
+[12:58:34] --- AI 1's turn 2 ---
+[12:58:34] AI 1 draws a card
+[12:58:34] AI 1 plays Island
+[12:58:36] --- White's turn 3 ---
+[12:58:36] White draws a card
+[12:58:49] White plays Shivan Reef
+[12:58:59] White casts Drogskol Captain
+[12:58:59] Drogskol Captain enters the battlefield (White)
+[12:59:00] --- AI 1's turn 3 ---
+[12:59:00] AI 1 draws a card
+[12:59:00] AI 1 plays Plains
+[12:59:01] --- White's turn 4 ---
+[12:59:01] White draws a card
+[12:59:07] White plays Plains
+[12:59:13] White: 40 -> 39 life (-1, damage from Shivan Reef)
+[12:59:13] White casts Kykar, Wind's Fury
+[12:59:14] Kykar, Wind's Fury enters the battlefield (White)
+[12:59:17] --- AI 1's turn 4 ---
+[12:59:17] AI 1 draws a card
+[12:59:18] AI 1 plays Plains
+[12:59:18] --- White's turn 5 ---
+[12:59:19] White draws a card
+[12:59:20] White plays Island
+[12:59:54] White casts Ghostly Prison
+[12:59:54] Kykar, Wind's Fury's ability triggers (White)
+[12:59:55] White creates a Spirit token
+[12:59:55] Ghostly Prison enters the battlefield (White)
+[13:00:00] White casts Propaganda
+[13:00:00] Kykar, Wind's Fury's ability triggers (White)
+[13:00:00] White creates a Spirit token
+[13:00:01] Propaganda enters the battlefield (White)
+[13:00:03] White attacks AI 1 with Drogskol Captain, Kykar, Wind's Fury
+[13:00:04] AI 1: 40 -> 35 life (-5, combat damage from Drogskol Captain; combat damage from Kykar, Wind's Fury)
+[13:00:04] --- AI 1's turn 5 ---
+[13:00:04] AI 1 draws a card
+[13:00:04] AI 1 plays Island
+[13:00:05] --- White's turn 6 ---
+[13:00:05] White draws a card
+[13:00:07] White plays Glacial Fortress
+[13:00:12] White casts Jin-Gitaxias, Progress Tyrant
+[13:00:12] Jin-Gitaxias, Progress Tyrant enters the battlefield (White)
+[13:00:14] White attacks AI 1 with Drogskol Captain, Kykar, Wind's Fury, 2 Spirit tokens
+[13:00:14] AI 1: 35 -> 26 life (-9, combat damage from Drogskol Captain; combat damage from Kykar, Wind's Fury; combat damage from Spirit token ×2)
+[13:00:15] --- AI 1's turn 6 ---
+[13:00:15] AI 1 draws a card
+[13:00:16] AI 1 plays Plains
+[13:00:16] --- White's turn 7 ---
+[13:00:17] White draws a card
+[13:00:26] White casts Idyllic Tutor
+[13:00:28] Jin-Gitaxias, Progress Tyrant's ability triggers (White)
+[13:00:28] Kykar, Wind's Fury's ability triggers (White)
+[13:00:35] White creates a Spirit token
+[13:00:36] White copies Idyllic Tutor
+[13:00:55] White puts a card from their library into their hand
+[13:00:55] White reveals Whirlwind of Thought (Idyllic Tutor)
+[13:01:18] White puts a card from their library into their hand
+[13:01:18] White reveals Kindred Discovery (Idyllic Tutor)
+[13:01:36] White: 39 -> 38 life (-1)
+[13:01:40] Spirit token is sacrificed for mana (Kykar, Wind's Fury)
+[13:01:40] White casts Whirlwind of Thought
+[13:01:40] Kykar, Wind's Fury's ability triggers (White)
+[13:01:44] White creates a Spirit token
+[13:01:44] Whirlwind of Thought enters the battlefield (White)
+[13:01:52] White attacks AI 1 with Drogskol Captain, Kykar, Wind's Fury, 2 Spirit tokens, Jin-Gitaxias, Progress Tyrant
+[13:01:53] AI 1: 26 -> 12 life (-14, combat damage from Drogskol Captain; combat damage from Kykar, Wind's Fury; combat damage from Spirit token ×2; combat damage from Jin-Gitaxias, Progress Tyrant)
+[13:01:56] --- AI 1's turn 7 ---
+[13:01:56] AI 1 draws a card
+[13:01:56] AI 1 plays Plains
+[13:01:57] --- White's turn 8 ---
+[13:01:59] White draws a card
+[13:02:10] White casts Kindred Discovery
+[13:02:12] Whirlwind of Thought's ability triggers (White)
+[13:02:12] Kykar, Wind's Fury's ability triggers (White)
+[13:02:14] White creates a Spirit token
+[13:02:16] White draws a card
+[13:02:26] Kindred Discovery enters the battlefield (White)
+[13:02:34] --- Rewound to White's turn (main phase) ---
+[13:02:41] White casts Kindred Discovery
+[13:02:45] Whirlwind of Thought's ability triggers (White)
+[13:02:45] Kykar, Wind's Fury's ability triggers (White)
+[13:02:48] White creates a Spirit token
+[13:02:48] White draws a card
+[13:02:58] Kindred Discovery enters the battlefield (White)
+[13:03:22] White: 38 -> 37 life (-1)
+[13:03:22] White casts Expressive Iteration
+[13:03:27] Whirlwind of Thought's ability triggers (White)
+[13:03:27] Kykar, Wind's Fury's ability triggers (White)
+[13:03:27] Jin-Gitaxias, Progress Tyrant's ability triggers (White)
+[13:03:27] White copies Expressive Iteration
+[13:03:45] White looked at 2 cards (their library)
+[13:03:45] White puts a card from their library into their hand
+[13:04:03] White puts a card on the bottom of their library (Expressive Iteration)
+[13:04:05] Blue Sun's Twilight is exiled from White's library
+[13:04:05] White creates a Spirit token
+[13:04:05] Kindred Discovery's ability triggers (White)
+[13:04:05] White draws a card
+[13:04:06] White draws a card
+[13:04:36] White looked at 2 cards (their library)
+[13:04:36] White puts a card from their library into their hand
+[13:04:45] White puts a card on the bottom of their library (Expressive Iteration)
+[13:04:45] Galvanic Iteration is exiled from White's library with Expressive Iteration
+[13:04:53] --- AI 1's turn 8 ---
+[13:04:53] AI 1 draws a card
+[13:04:53] AI 1 plays Island
+[13:04:56] --- White's turn 9 ---
+[13:05:00] White draws a card
+[13:05:08] White plays Island
+[13:05:41] White: 37 -> 36 life (-1, damage from Shivan Reef)
+[13:05:41] White casts Burn Down the House
+[13:05:44] Whirlwind of Thought's ability triggers (White)
+[13:05:44] Jin-Gitaxias, Progress Tyrant's ability triggers (White)
+[13:05:44] Kykar, Wind's Fury's ability triggers (White)
+[13:05:47] White creates a Spirit token
+[13:05:47] Kindred Discovery's ability triggers (White)
+[13:05:49] White draws a card
+[13:05:49] White copies Burn Down the House
+[13:05:52] White creates 3 Devil tokens
+[13:05:53] White draws a card
+[13:05:53] White creates 3 Devil tokens
+[13:06:10] Spirit token is sacrificed for mana (Kykar, Wind's Fury)
+[13:06:10] White casts Mondrak, Glory Dominus
+[13:06:10] Mondrak, Glory Dominus enters the battlefield (White)
+[13:06:24] --- AI 1's turn 9 ---
+[13:06:24] AI 1 draws a card
+[13:06:25] AI 1 plays Mountain
+[13:06:26] --- White's turn 10 ---
+[13:06:28] White draws a card
+[13:06:31] White plays Mountain
+[13:06:42] White casts Mystic Remora
+[13:06:44] Whirlwind of Thought's ability triggers (White)
+[13:06:44] Kykar, Wind's Fury's ability triggers (White)
+[13:06:46] White creates 2 Spirit tokens
+[13:06:47] Kindred Discovery's ability triggers (White)
+[13:06:47] Kindred Discovery's ability triggers (White)
+[13:06:50] White draws a card
+[13:06:51] White draws 2 cards (in place of "White draws a card")
+[13:06:52] White draws a card
+[13:06:53] Mystic Remora enters the battlefield (White)
+[13:07:19] White casts Veyran, Voice of Duality
+[13:07:23] White casts Enlightened Tutor
+[13:07:25] Whirlwind of Thought's ability triggers (White)
+[13:07:25] Jin-Gitaxias, Progress Tyrant's ability triggers (White)
+[13:07:25] Kykar, Wind's Fury's ability triggers (White)
+[13:07:26] White creates 2 Spirit tokens
+[13:07:26] Kindred Discovery's ability triggers (White)
+[13:07:26] Kindred Discovery's ability triggers (White)
+[13:07:27] White draws a card
+[13:07:30] White draws 2 cards (in place of "White draws a card")
+[13:07:31] White copies Enlightened Tutor
+[13:07:35] White reveals Arcane Bombardment, shuffles and puts it on top of their library
+[13:07:39] White draws a card
+[13:08:15] White reveals Sol Ring, shuffles and puts it on top of their library
+[13:08:26] Veyran, Voice of Duality enters the battlefield (White)
+[13:09:00] White casts Intangible Virtue
+[13:09:01] Whirlwind of Thought's ability triggers (White)
+[13:09:01] Kykar, Wind's Fury's ability triggers (White)
+[13:09:06] White creates 2 Spirit tokens
+[13:09:06] Kindred Discovery's ability triggers (White)
+[13:09:06] Kindred Discovery's ability triggers (White)
+[13:09:09] White draws a card
+[13:09:14] White draws 2 cards (in place of "White draws a card")
+[13:09:18] White draws a card
+[13:09:20] Intangible Virtue enters the battlefield (White)
+[13:09:40] White casts Sol Ring
+[13:09:41] Whirlwind of Thought's ability triggers (White)
+[13:09:41] Kykar, Wind's Fury's ability triggers (White)
+[13:09:43] White creates 2 Spirit tokens
+[13:09:43] Kindred Discovery's ability triggers (White)
+[13:09:43] Kindred Discovery's ability triggers (White)
+[13:09:46] White draws a card
+[13:09:50] White draws 2 cards (in place of "White draws a card")
+[13:09:51] White draws a card
+[13:09:51] Sol Ring enters the battlefield (White)
+[13:10:56] White discards Impact Tremors, Izzet Signet, Mind Stone, Rhystic Study, Steam Vents, Warleader's Call
+[13:10:56] --- AI 1's turn 10 ---
+[13:10:56] AI 1 draws a card
+[13:10:56] AI 1 plays Island
+[13:10:58] --- White's turn 11 ---
+[13:10:58] Mystic Remora's cumulative upkeep: pay {1} for each age counter on it, or it is sacrificed
+[13:11:02] Mystic Remora gets an age counter (1 in all)
+[13:11:11] White draws a card
+[13:11:21] White: 36 -> 35 life (-1, damage from Shivan Reef)
+[13:11:22] White casts Arcane Bombardment
+[13:11:23] Whirlwind of Thought's ability triggers (White)
+[13:11:23] Kykar, Wind's Fury's ability triggers (White)
+[13:11:28] White creates 2 Spirit tokens
+[13:11:28] Kindred Discovery's ability triggers (White)
+[13:11:28] Kindred Discovery's ability triggers (White)
+[13:11:42] White draws a card
+[13:11:43] White draws 2 cards (in place of "White draws a card")
+[13:11:44] White draws a card
+[13:11:45] Arcane Bombardment enters the battlefield (White)
+[13:11:48] White plays Seachrome Coast
+[13:11:53] White casts Merchant Scroll
+[13:11:58] Arcane Bombardment's ability triggers (White)
+[13:11:58] Arcane Bombardment's ability triggers (White)
+[13:11:58] Whirlwind of Thought's ability triggers (White)
+[13:11:58] Whirlwind of Thought's ability triggers (White)
+[13:11:58] Jin-Gitaxias, Progress Tyrant's ability triggers (White)
+[13:11:58] Kykar, Wind's Fury's ability triggers (White)
+[13:11:58] Kykar, Wind's Fury's ability triggers (White)
+[13:11:58] Veyran, Voice of Duality's magecraft triggers (White)
+[13:11:58] Veyran, Voice of Duality's magecraft triggers (White)
+[13:12:01] White creates 2 Spirit tokens
+[13:12:01] Kindred Discovery's ability triggers (White)
+[13:12:01] Kindred Discovery's ability triggers (White)
+[13:12:04] White draws a card
+[13:12:05] White draws 2 cards (in place of "White draws a card")
+[13:12:05] White creates 2 Spirit tokens
+[13:12:06] Kindred Discovery's ability triggers (White)
+[13:12:06] Kindred Discovery's ability triggers (White)
+[13:12:12] White draws a card
+[13:12:12] White draws 2 cards (in place of "White draws a card")
+[13:12:12] Veyran, Voice of Duality's magecraft triggers (White)
+[13:12:12] Veyran, Voice of Duality's magecraft triggers (White)
+[13:12:12] White copies Merchant Scroll
+[13:12:16] White looked at 52 cards (their library)
+[13:12:52] White puts a card from their library into their hand
+[13:12:52] White reveals Brainstorm (Merchant Scroll)
+[13:12:52] White draws a card
+[13:12:52] White draws 2 cards (in place of "White draws a card")
+[13:12:53] Idyllic Tutor is exiled from White's graveyard with Arcane Bombardment
+[13:12:55] White uses Idyllic Tutor token's ability
+[13:12:58] Veyran, Voice of Duality's magecraft triggers (White)
+[13:12:58] Veyran, Voice of Duality's magecraft triggers (White)
+[13:12:58] Whirlwind of Thought's ability triggers (White)
+[13:12:58] Whirlwind of Thought's ability triggers (White)
+[13:12:58] Kykar, Wind's Fury's ability triggers (White)
+[13:12:58] Kykar, Wind's Fury's ability triggers (White)
+[13:13:00] White creates 2 Spirit tokens
+[13:13:00] Kindred Discovery's ability triggers (White)
+[13:13:00] Kindred Discovery's ability triggers (White)
+[13:13:02] White draws a card
+[13:13:02] White draws 2 cards (in place of "White draws a card")
+[13:13:02] White creates 2 Spirit tokens
+[13:13:02] Kindred Discovery's ability triggers (White)
+[13:13:02] Kindred Discovery's ability triggers (White)
+[13:13:03] White draws a card
+[13:13:03] White draws 2 cards (in place of "White draws a card")
+[13:13:04] White draws a card
+[13:13:04] White draws 2 cards (in place of "White draws a card")
+[13:13:08] Enlightened Tutor is exiled from White's graveyard with Arcane Bombardment
+[13:13:23] White looked at 43 cards (their library)
+[13:13:29] White puts a card from their library into their hand
+[13:13:29] White reveals Counterspell (Merchant Scroll)
+[13:15:10] White discards Akroma's Will, Alchemist's Gambit, Arcane Denial, Big Score, Clever Concealment, Counterspell, Fateful Absence, Island, Mountain, Mystic Monastery, Path to Exile, Plains, Slip Out the Back, Talisman of Progress, The Wandering Emperor
+[13:15:10] --- AI 1's turn 11 ---
+[13:15:10] AI 1 draws a card
+[13:15:10] AI 1 plays Mountain
+[13:15:12] --- White's turn 12 ---
+[13:15:12] Mystic Remora's cumulative upkeep: pay {1} for each age counter on it, or it is sacrificed
+[13:15:19] Mystic Remora gets an age counter (2 in all)
+[13:15:28] White casts Brainstorm
+[13:15:31] Arcane Bombardment's ability triggers (White)
+[13:15:31] Arcane Bombardment's ability triggers (White)
+[13:15:31] Whirlwind of Thought's ability triggers (White)
+[13:15:31] Whirlwind of Thought's ability triggers (White)
+[13:15:31] Jin-Gitaxias, Progress Tyrant's ability triggers (White)
+[13:15:31] Kykar, Wind's Fury's ability triggers (White)
+[13:15:31] Kykar, Wind's Fury's ability triggers (White)
+[13:15:31] Veyran, Voice of Duality's magecraft triggers (White)
+[13:15:31] Veyran, Voice of Duality's magecraft triggers (White)
+[13:15:33] White creates 2 Spirit tokens
+[13:15:33] Kindred Discovery's ability triggers (White)
+[13:15:33] Kindred Discovery's ability triggers (White)
+[13:15:36] White draws a card
+[13:15:36] White draws 2 cards (in place of "White draws a card")
+[13:15:36] White creates 2 Spirit tokens
+[13:15:36] Kindred Discovery's ability triggers (White)
+[13:15:36] Kindred Discovery's ability triggers (White)
+[13:15:37] White draws a card
+[13:15:37] White draws 2 cards (in place of "White draws a card")
+[13:15:38] Veyran, Voice of Duality's magecraft triggers (White)
+[13:15:38] Veyran, Voice of Duality's magecraft triggers (White)
+[13:15:38] White copies Brainstorm
+[13:15:39] White draws 3 cards
+[13:16:05] White puts 2 cards from their hand on top of their library
+[13:16:08] White draws a card
+[13:16:09] White draws 2 cards (in place of "White draws a card")
+[13:16:09] Alchemist's Gambit is exiled from White's graveyard with Arcane Bombardment
+[13:16:15] Akroma's Will is exiled from White's graveyard with Arcane Bombardment
+[13:16:18] White draws 3 cards
+[13:16:26] White puts 2 cards from their hand on top of their library
+[13:16:36] White draws a card
+[13:16:51] White plays Sacred Foundry
+[13:16:51] White: 35 -> 33 life (-2)
+[13:16:58] White casts Temporal Mastery
+[13:17:00] Whirlwind of Thought's ability triggers (White)
+[13:17:00] Whirlwind of Thought's ability triggers (White)
+[13:17:00] Kykar, Wind's Fury's ability triggers (White)
+[13:17:00] Kykar, Wind's Fury's ability triggers (White)
+[13:17:00] Veyran, Voice of Duality's magecraft triggers (White)
+[13:17:00] Veyran, Voice of Duality's magecraft triggers (White)
+[13:17:29] Spirit token is sacrificed for mana (Kykar, Wind's Fury)
+[13:17:29] White casts Reverberate targeting Temporal Mastery
+[13:17:31] Whirlwind of Thought's ability triggers (White)
+[13:17:31] Whirlwind of Thought's ability triggers (White)
+[13:17:31] Kykar, Wind's Fury's ability triggers (White)
+[13:17:31] Kykar, Wind's Fury's ability triggers (White)
+[13:17:31] Veyran, Voice of Duality's magecraft triggers (White)
+[13:17:31] Veyran, Voice of Duality's magecraft triggers (White)
+[13:17:32] White creates 2 Spirit tokens
+[13:17:32] Kindred Discovery's ability triggers (White)
+[13:17:32] Kindred Discovery's ability triggers (White)
+[13:17:32] White draws a card
+[13:17:33] White draws 2 cards (in place of "White draws a card")
+[13:17:33] White creates 2 Spirit tokens
+[13:17:34] Kindred Discovery's ability triggers (White)
+[13:17:34] Kindred Discovery's ability triggers (White)
+[13:17:34] White draws a card
+[13:17:35] White draws 2 cards (in place of "White draws a card")
+[13:17:35] White draws a card
+[13:17:35] White draws 2 cards (in place of "White draws a card")
+[13:17:35] Veyran, Voice of Duality's magecraft triggers (White)
+[13:17:35] Veyran, Voice of Duality's magecraft triggers (White)
+[13:17:35] White copies Temporal Mastery
+[13:17:36] White will take an extra turn (1 coming)
+[13:17:37] White creates 2 Spirit tokens
+[13:17:37] Kindred Discovery's ability triggers (White)
+[13:17:37] Kindred Discovery's ability triggers (White)
+[13:17:38] White draws a card
+[13:17:38] White draws 2 cards (in place of "White draws a card")
+[13:17:38] White creates 2 Spirit tokens
+[13:17:39] Kindred Discovery's ability triggers (White)
+[13:17:39] Kindred Discovery's ability triggers (White)
+[13:17:39] White draws a card
+[13:17:39] White draws 2 cards (in place of "White draws a card")
+[13:17:40] White draws a card
+[13:17:41] White draws 2 cards (in place of "White draws a card")
+[13:17:53] Temporal Mastery is exiled
+[13:17:53] White will take an extra turn (2 coming)
+[13:19:14] White discards Arcane Signet, Archmage Emeritus, Boros Charm, Clifftop Retreat, Firebrand Archer, Flawless Maneuver, Floodfarm Verge, Hallowed Fountain, Inspiring Vantage, Island, Karn's Bastion, Mountain, Raugrin Triome, Sink into Stupor, Skullclamp, Swords to Plowshares, Training Center
+[13:19:14] --- White's turn 13 (extra turn) ---
+[13:19:14] Mystic Remora's cumulative upkeep: pay {1} for each age counter on it, or it is sacrificed
+[13:19:24] Mystic Remora gets an age counter (3 in all)
+[13:19:27] Mystic Remora is sacrificed
+[13:19:38] White casts Frantic Search
+[13:19:48] Arcane Bombardment's ability triggers (White)
+[13:19:48] Arcane Bombardment's ability triggers (White)
+[13:19:48] Whirlwind of Thought's ability triggers (White)
+[13:19:48] Whirlwind of Thought's ability triggers (White)
+[13:19:48] Jin-Gitaxias, Progress Tyrant's ability triggers (White)
+[13:19:48] Kykar, Wind's Fury's ability triggers (White)
+[13:19:48] Kykar, Wind's Fury's ability triggers (White)
+[13:19:48] Veyran, Voice of Duality's magecraft triggers (White)
+[13:19:48] Veyran, Voice of Duality's magecraft triggers (White)
+[13:19:54] White creates 2 Spirit tokens
+[13:19:54] Kindred Discovery's ability triggers (White)
+[13:19:54] Kindred Discovery's ability triggers (White)
+[13:19:57] White draws a card
+[13:19:57] White draws 2 cards (in place of "White draws a card")
+[13:19:57] White creates 2 Spirit tokens
+[13:19:58] Kindred Discovery's ability triggers (White)
+[13:19:58] Kindred Discovery's ability triggers (White)
+[13:20:07] White draws a card
+[13:20:07] White draws 2 cards (in place of "White draws a card")
+[13:20:08] Veyran, Voice of Duality's magecraft triggers (White)
+[13:20:08] Veyran, Voice of Duality's magecraft triggers (White)
+[13:20:08] White copies Frantic Search
+[13:20:11] White draws 2 cards
+[13:20:38] White discards Island, Solve the Equation
+[13:20:41] White draws a card
+[13:20:42] White draws 2 cards (in place of "White draws a card")
+[13:20:42] Slip Out the Back is exiled from White's graveyard with Arcane Bombardment
+[13:20:54] Boros Charm is exiled from White's graveyard with Arcane Bombardment
+[13:20:57] White draws 2 cards
+[13:21:30] White discards Anointed Procession, Sulfur Falls
+[13:21:37] White draws a card
+[13:21:44] White plays Command Tower
+[13:21:54] White casts Third Path Iconoclast
+[13:21:59] Third Path Iconoclast enters the battlefield (White)
+[13:22:09] White: 33 -> 32 life (-1, damage from Shivan Reef)
+[13:22:09] White casts Young Pyromancer
+[13:22:13] Young Pyromancer enters the battlefield (White)
+[13:22:21] White casts Monastery Mentor
+[13:22:23] Monastery Mentor enters the battlefield (White)
+[13:22:42] White discards Battlefield Forge, Riverpyre Verge
+[13:22:42] --- White's turn 14 (extra turn) ---
+[13:22:45] White draws a card
+[13:22:54] White plays Reliquary Tower
+[13:23:08] White casts Reflect Damage
+[13:23:10] Monastery Mentor's prowess triggers (White)
+[13:23:10] Monastery Mentor's prowess triggers (White)
+[13:23:10] Monastery Mentor's ability triggers (White)
+[13:23:10] Monastery Mentor's ability triggers (White)
+[13:23:10] Young Pyromancer's ability triggers (White)
+[13:23:10] Young Pyromancer's ability triggers (White)
+[13:23:10] Third Path Iconoclast's ability triggers (White)
+[13:23:10] Third Path Iconoclast's ability triggers (White)
+[13:23:10] Arcane Bombardment's ability triggers (White)
+[13:23:10] Arcane Bombardment's ability triggers (White)
+[13:23:10] Whirlwind of Thought's ability triggers (White)
+[13:23:10] Whirlwind of Thought's ability triggers (White)
+[13:23:10] Jin-Gitaxias, Progress Tyrant's ability triggers (White)
+[13:23:10] Kykar, Wind's Fury's ability triggers (White)
+[13:23:10] Kykar, Wind's Fury's ability triggers (White)
+[13:23:10] Veyran, Voice of Duality's magecraft triggers (White)
+[13:23:10] Veyran, Voice of Duality's magecraft triggers (White)
+[13:23:14] White creates 2 Spirit tokens
+[13:23:14] Kindred Discovery's ability triggers (White)
+[13:23:14] Kindred Discovery's ability triggers (White)
+[13:23:17] White draws a card
+[13:23:17] White draws 2 cards (in place of "White draws a card")
+[13:23:18] White creates 2 Spirit tokens
+[13:23:18] Kindred Discovery's ability triggers (White)
+[13:23:18] Kindred Discovery's ability triggers (White)
+[13:23:20] White draws a card
+[13:23:20] White draws 2 cards (in place of "White draws a card")
+[13:23:21] Veyran, Voice of Duality's magecraft triggers (White)
+[13:23:21] Veyran, Voice of Duality's magecraft triggers (White)
+[13:23:21] White copies Reflect Damage
+[13:23:29] White chooses Devil Token (Reflect Damage)
+[13:23:31] White draws a card
+[13:23:32] White draws 2 cards (in place of "White draws a card")
+[13:23:32] Merchant Scroll is exiled from White's graveyard with Arcane Bombardment
+[13:23:49] Counterspell is exiled from White's graveyard with Arcane Bombardment
+[13:23:54] White creates 2 Soldier tokens
+[13:23:55] White creates 2 Soldier tokens
+[13:23:56] White creates 2 Elemental tokens
+[13:23:57] White creates 2 Elemental tokens
+[13:23:57] White creates 2 Monk tokens
+[13:23:58] White creates 2 Monk tokens
+[13:24:03] White chooses Devil Token (Reflect Damage)
+[13:24:23] White: 32 -> 31 life (-1, damage from Shivan Reef)
+[13:24:25] White casts Time Warp targeting White
+[13:24:30] Monk token's prowess triggers (White)
+[13:24:30] Monk token's prowess triggers (White)
+[13:24:30] Monk token's prowess triggers (White)
+[13:24:30] Monk token's prowess triggers (White)
+[13:24:30] Monk token's prowess triggers (White)
+[13:24:30] Monk token's prowess triggers (White)
+[13:24:30] Monk token's prowess triggers (White)
+[13:24:30] Monk token's prowess triggers (White)
+[13:24:30] Monastery Mentor's prowess triggers (White)
+[13:24:30] Monastery Mentor's prowess triggers (White)
+[13:24:30] Monastery Mentor's ability triggers (White)
+[13:24:30] Monastery Mentor's ability triggers (White)
+[13:24:30] Young Pyromancer's ability triggers (White)
+[13:24:30] Young Pyromancer's ability triggers (White)
+[13:24:30] Third Path Iconoclast's ability triggers (White)
+[13:24:30] Third Path Iconoclast's ability triggers (White)
+[13:24:30] Whirlwind of Thought's ability triggers (White)
+[13:24:30] Whirlwind of Thought's ability triggers (White)
+[13:24:30] Kykar, Wind's Fury's ability triggers (White)
+[13:24:30] Kykar, Wind's Fury's ability triggers (White)
+[13:24:30] Veyran, Voice of Duality's magecraft triggers (White)
+[13:24:30] Veyran, Voice of Duality's magecraft triggers (White)
+[13:24:36] White creates 2 Spirit tokens
+[13:24:36] Kindred Discovery's ability triggers (White)
+[13:24:36] Kindred Discovery's ability triggers (White)
+[13:24:39] White draws a card
+[13:24:39] White draws 2 cards (in place of "White draws a card")
+[13:24:40] White creates 2 Spirit tokens
+[13:24:40] Kindred Discovery's ability triggers (White)
+[13:24:40] Kindred Discovery's ability triggers (White)
+[13:24:42] White draws a card
+[13:24:45] Game over: AI 1 wins
+[00:56:19] === Game: White, AI 1 ===
+[00:56:19] White draws 7 cards
+[00:56:19] AI 1 draws 7 cards
+[00:56:19] --- White's turn 1 ---
+[00:56:20] White puts Island ×7, Swamp ×7, Mountain ×6 onto the battlefield
+[00:56:20] Monastery Swiftspear enters the battlefield (White)
+[00:56:20] Monastery Swiftspear enters the battlefield (White)
+[00:56:20] Monastery Swiftspear enters the battlefield (White)
+[00:56:20] Monastery Swiftspear enters the battlefield (White)
+[00:56:20] Jace Beleren enters the battlefield (White)
+[00:56:20] Thalia, Guardian of Thraben enters the battlefield (AI 1)
+[00:56:20] Grizzly Bears enters the battlefield (AI 1)
+[00:56:20] White ventures into Goblin Lair (Lost Mine of Phandelver)
+[00:56:20] White's debug setup "tut-a": White gets Island (battlefield) ×7; White gets Swamp (battlefield) ×7; White gets Mountain (battlefield) ×6; White's dealt hand: to the bottom of the library ×7; White gets Monastery Swiftspear (battlefield) ×4; White gets Jace Beleren (battlefield); White gets Lightning Bolt (hand) ×2; White gets Opt (hand); White gets Counterspell (hand); White gets Chaos Warp (hand); White gets mana until the end of the turn: 10 {W}, 10 {U}, 10 {B}, 10 {R}, 10 {G}, 10 {C}; White is in Lost Mine of Phandelver, room Goblin Lair; AI 1 gets Thalia, Guardian of Thraben (battlefield); AI 1 gets Grizzly Bears (battlefield)
+[01:13:24] White casts Lightning Bolt targeting AI 1
+[01:13:25] Monastery Swiftspear's prowess triggers (White)
+[01:13:25] Monastery Swiftspear's prowess triggers (White)
+[01:13:25] Monastery Swiftspear's prowess triggers (White)
+[01:13:25] Monastery Swiftspear's prowess triggers (White)
+[01:13:49] AI 1: 40 -> 37 life (-3, damage from Lightning Bolt)
+[01:13:59] White casts Opt
+[01:13:59] Monastery Swiftspear's prowess triggers (White)
+[01:13:59] Monastery Swiftspear's prowess triggers (White)
+[01:13:59] Monastery Swiftspear's prowess triggers (White)
+[01:13:59] Monastery Swiftspear's prowess triggers (White)
+[01:15:07] White casts Counterspell targeting Opt
+[01:15:07] Monastery Swiftspear's prowess triggers (White)
+[01:15:07] Monastery Swiftspear's prowess triggers (White)
+[01:15:07] Monastery Swiftspear's prowess triggers (White)
+[01:15:07] Monastery Swiftspear's prowess triggers (White)
+[01:15:17] Opt is countered by Counterspell
+[01:17:51] Grizzly Bears enters the battlefield (AI 1)
+[01:17:51] Hill Giant enters the battlefield (AI 1)
+[01:17:51] Craw Wurm enters the battlefield (AI 1)
+[01:17:51] White's debug setup "tut-marks": White gets Palace Jailer (hand); White gets Claim the Precious (hand) ×2; White gets Burnout Bashtronaut (hand); White gets Lightning Bolt (hand); White gets Time Walk (hand); White gets mana until the end of the turn: 20 {W}, 20 {U}, 20 {B}, 20 {R}, 20 {G}, 20 {C}; AI 1 gets Grizzly Bears (battlefield); AI 1 gets Hill Giant (battlefield); AI 1 gets Craw Wurm (battlefield)
+[01:18:11] White casts Palace Jailer
+[01:18:26] Palace Jailer enters the battlefield (White)
+[01:18:49] Palace Jailer's ability triggers (White): exile target creature an opponent controls until an opponent becomes the monarch
+[01:18:49] Palace Jailer's ability triggers (White): you become the monarch
+[01:18:49] White becomes the monarch (Palace Jailer)
+[01:18:49] Craw Wurm is exiled with Palace Jailer
+[01:19:30] White casts Claim the Precious targeting Hill Giant
+[01:19:30] Monastery Swiftspear's prowess triggers (White)
+[01:19:30] Monastery Swiftspear's prowess triggers (White)
+[01:19:30] Monastery Swiftspear's prowess triggers (White)
+[01:19:30] Monastery Swiftspear's prowess triggers (White)
+[01:19:41] Hill Giant is destroyed by Claim the Precious
+[01:19:41] White is tempted by the Ring (1)
+[01:21:16] White casts Claim the Precious targeting Grizzly Bears
+[01:21:16] Monastery Swiftspear's prowess triggers (White)
+[01:21:16] Monastery Swiftspear's prowess triggers (White)
+[01:21:16] Monastery Swiftspear's prowess triggers (White)
+[01:21:16] Monastery Swiftspear's prowess triggers (White)
+[01:21:21] Grizzly Bears is destroyed by Claim the Precious
+[01:21:21] White is tempted by the Ring (2): Ring-bearer Monastery Swiftspear
+[01:21:45] White casts Burnout Bashtronaut
+[01:21:52] Burnout Bashtronaut enters the battlefield (White)
+[01:21:52] White starts their engines (speed 1)
+[01:22:15] White casts Lightning Bolt targeting AI 1
+[01:22:16] Monastery Swiftspear's prowess triggers (White)
+[01:22:16] Monastery Swiftspear's prowess triggers (White)
+[01:22:16] Monastery Swiftspear's prowess triggers (White)
+[01:22:16] Monastery Swiftspear's prowess triggers (White)
+[01:22:23] AI 1: 37 -> 34 life (-3, damage from Lightning Bolt)
+[01:22:23] Start Your Engines!'s ability triggers (White): if your speed is less than 4, your speed increases by 1
+[01:22:23] White's speed goes up to 2
+[01:22:37] White casts Time Walk
+[01:22:37] Monastery Swiftspear's prowess triggers (White)
+[01:22:37] Monastery Swiftspear's prowess triggers (White)
+[01:22:37] Monastery Swiftspear's prowess triggers (White)
+[01:22:37] Monastery Swiftspear's prowess triggers (White)
+[01:22:46] White will take an extra turn (1 coming)
+[01:23:14] The Monarch's ability triggers (White): draw a card
+[01:23:14] White draws a card
+[01:23:15] --- White's turn 2 (extra turn) ---
+[01:23:23] White draws a card
+[04:42:14] === Game: White, AI 1 ===
+[04:42:14] --- AI 1's turn 1 ---
+[04:42:14] AI 1 plays Plains
+[04:42:14] --- White's turn 1 ---
+[04:42:14] White puts Island ×7, Swamp ×7, Mountain ×6 onto the battlefield
+[04:42:14] Jace, the Mind Sculptor enters the battlefield (White)
+[04:42:14] Grizzly Bears enters the battlefield (White)
+[04:42:14] White creates 3 Treasure tokens
+[04:42:14] Hill Giant enters the battlefield (AI 1)
+[04:42:14] White's debug setup "live-1113": White gets Island (battlefield) ×7; White gets Swamp (battlefield) ×7; White gets Mountain (battlefield) ×6; White's dealt hand: to the bottom of the library ×7; White gets Jace, the Mind Sculptor (battlefield); White gets Grizzly Bears (battlefield); White gets Big Score (hand); White gets Inspiration (hand); White gets Rift Bolt (hand); White gets Claim the Precious (hand); White gets Saw It Coming (hand); White gets Opt (hand); White gets a treasure token ×3; White gets mana until the end of the turn: 30 {W}, 30 {U}, 30 {B}, 30 {R}, 30 {G}, 30 {C}; AI 1 gets Hill Giant (battlefield)
+[04:43:06] Treasure token is sacrificed for mana
+[04:43:09] Treasure token ×2 are sacrificed for mana (in place of "Treasure token is sacrificed for mana")
+[04:43:12] Treasure token ×3 are sacrificed for mana (in place of "Treasure token ×2 are sacrificed for mana")
+[04:43:27] White casts Big Score
+[04:43:27] White discards Opt (to pay for Big Score)
+[04:43:32] White draws 2 cards
+[04:43:32] White creates 2 Treasure tokens
+[04:44:07] White draws a card
+[04:44:47] White suspends Rift Bolt
+[04:44:47] Rift Bolt is exiled suspended with 1 time counter: White may cast it without paying its mana cost when the last is removed
+[04:44:55] White foretells a card
+[04:44:55] A face-down card is exiled
+[04:45:10] White casts Claim the Precious targeting Hill Giant
+[04:45:12] Hill Giant is destroyed by Claim the Precious
+[04:45:12] White is tempted by the Ring (1): Ring-bearer Grizzly Bears
+[04:46:09] --- AI 1's turn 2 ---
+[04:46:13] AI 1 draws a card
+[04:46:16] AI 1 plays Plains
+[04:46:20] --- White's turn 2 ---
+[04:46:20] Rift Bolt's ability triggers (White): if this card is suspended, remove a time counter from it
+[04:46:38] Rift Bolt: last time counter removed
+[04:46:38] Rift Bolt's ability triggers (White): if it's exiled, you may play it without paying its mana cost if able
+[04:47:16] White casts Rift Bolt targeting AI 1
+[04:47:19] AI 1: 40 -> 37 life (-3, damage from Rift Bolt)
+[05:25:57] === Game: White, AI 1 ===
+[05:25:57] AI 1 plays Plains
+[05:25:57] --- White's turn 1 ---
+[05:25:58] White puts Island ×7, Swamp ×7, Mountain ×6 onto the battlefield
+[05:25:58] Grizzly Bears enters the battlefield (White)
+[05:25:58] Hill Giant enters the battlefield (AI 1)
+[05:25:58] White's debug setup "live-1113b": White gets Island (battlefield) ×7; White gets Swamp (battlefield) ×7; White gets Mountain (battlefield) ×6; White's dealt hand: to the bottom of the library ×7; White gets Grizzly Bears (battlefield); White gets Rift Bolt (hand); White gets mana until the end of the turn: 5 {W}, 5 {U}, 5 {B}, 5 {R}, 5 {G}, 5 {C}; AI 1 gets Hill Giant (battlefield)
+[05:25:58] White draws a card
+[05:26:02] White suspends Rift Bolt
+[05:26:02] Rift Bolt is exiled suspended with 1 time counter: White may cast it without paying its mana cost when the last is removed
+[05:26:10] --- AI 1's turn 2 ---
+[05:26:10] AI 1 draws a card
+[05:26:10] AI 1 plays Plains
+[05:26:10] --- White's turn 2 ---
+[05:26:10] Rift Bolt: last time counter removed
+[05:26:10] Rift Bolt's ability triggers (White): if it's exiled, you may play it without paying its mana cost if able
+[05:27:09] White casts Rift Bolt from suspend without paying its mana cost targeting AI 1
+[05:27:09] AI 1: 40 -> 37 life (-3, damage from Rift Bolt)
+[05:27:09] White draws a card
+[13:49:51] === Game: White, AI 1 ===
+[13:49:51] Free mulligans this game: 2 each.
+[13:49:53] White draws 7 cards
+[13:49:53] AI 1 draws 7 cards
+[13:50:56] Friendly mulligans are over: normal rules from here.
+[13:50:56] --- AI 1's turn 1 ---
+[13:50:56] AI 1 plays Plains
+[13:50:57] --- White's turn 1 ---
+[13:50:57] White draws a card
+[13:51:15] White discards Mountain
+[13:51:15] --- AI 1's turn 2 ---
+[13:51:15] AI 1 draws a card
+[13:51:17] AI 1 plays Smoldering Marsh
+[13:51:19] --- White's turn 2 ---
+[13:51:19] White draws a card

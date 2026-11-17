@@ -1,0 +1,132 @@
+<title>What's on the Table</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700&family=Source+Sans+3:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column; each group is a "zone" headed by a mana pip, like the five colours on the table's mats */
+:root {
+  --bg: #f6f4ef; --panel: #ffffff; --fg: #23211d; --muted: #6a645a; --line: #e2ddd2; --accent: #8a5a12;
+  --w: #e9dfb8; --u: #8fb8de; --b: #9b8f8a; --r: #e08c6c; --g: #8cbf8a; --soon: #efe8d6;
+  --display: "Alegreya SC", Georgia, "Times New Roman", serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #17161a; --panel: #201f24; --fg: #ece8df; --muted: #a39d92; --line: #34323a; --accent: #e0b25c;
+  --w: #d8cc9c; --u: #6f9cc8; --b: #7d7470; --r: #c9734f; --g: #6fa56d; --soon: #2a2730; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #17161a; --panel: #201f24; --fg: #ece8df; --muted: #a39d92; --line: #34323a; --accent: #e0b25c;
+  --w: #d8cc9c; --u: #6f9cc8; --b: #7d7470; --r: #c9734f; --g: #6fa56d; --soon: #2a2730; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); }
+.wrap { max-width: 760px; margin: 0 auto; padding-block: 40px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.eyebrow { font: 600 .8rem/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0 0 10px; }
+h1 { font: 700 2.3rem/1.1 var(--display); margin: 0 0 10px; text-wrap: balance; letter-spacing: .01em; }
+.lede { color: var(--muted); margin: 0 0 8px; max-width: 62ch; }
+.pips { display: flex; gap: 6px; margin: 18px 0 30px; }
+.pip { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--line); }
+section { margin-top: 30px; }
+h2 { display: flex; align-items: center; gap: 10px; font: 700 1.3rem/1.2 var(--display); margin: 0 0 10px; text-wrap: balance; }
+h2 .pip { width: 14px; height: 14px; flex: none; }
+ul { margin: 0; padding-left: 1.1em; display: grid; gap: 7px; }
+li { max-width: 66ch; }
+li b { font-weight: 600; }
+code { font-size: .92em; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.soon { margin-top: 36px; background: var(--soon); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
+.soon h2 { margin-bottom: 6px; }
+.soon p { margin: 0 0 10px; color: var(--muted); }
+.foot { margin-top: 32px; color: var(--muted); font-size: .92rem; max-width: 66ch; }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">New since November 9, 2026</p>
+  <h1>What's on the Table</h1>
+  <p class="lede">Everything players can see or use that was added to our rules-enforced Commander table in Tabletop Simulator from November 9 to November 13. The Forge rules engine runs the game: you play with the table as usual, and it knows the rules, asks the questions and moves the cards.</p>
+  <div class="pips" aria-hidden="true"><span class="pip" style="background:var(--w)"></span><span class="pip" style="background:var(--u)"></span><span class="pip" style="background:var(--b)"></span><span class="pip" style="background:var(--r)"></span><span class="pip" style="background:var(--g)"></span></div>
+
+  <section>
+    <h2><span class="pip" style="background:var(--w)"></span>New ways to play</h2>
+    <ul>
+      <li><b>Planechase</b>: planes sit in the middle of the table, with the planar die (first roll free, then {1}, {2}…).</li>
+      <li><b>Dungeons</b>: venture into a dungeon and the current room shows in its own box.</li>
+      <li><b>AI seats by colour</b>: pick which seats the Forge AI takes and which deck each one plays.</li>
+      <li><b>Free mulligans button</b> on the table's rim: one shared setting (None, 1 or 2) anyone can change. Anyone seated can also turn the engine on and start the game.</li>
+      <li><b>Your own card art</b>: put a picture link after a card in your deck list (<code>1 Sol Ring #https://…png</code>) and every copy wears it for everyone. Steam Cloud links work too. The host can turn it off with <code>mtg art off</code>.</li>
+      <li><b>Foreign-language printings</b> in your deck list now resolve to the English card.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="pip" style="background:var(--u)"></span>Playing your cards</h2>
+    <ul>
+      <li><b>Double-faced cards</b> (Valki // Tibalt and friends): see the other side and cast from the side shown.</li>
+      <li><b>Token stacks the Arena way</b>: five or more identical tokens become one card with an ×N label; Split lays them out when you need just some.</li>
+      <li><b>Cost badge</b>: when a spell costs more or less than printed (tax, reducers), a counter over its mana cost shows the real price.</li>
+      <li><b>Play-from row</b>: cards you may play from exile or your graveyard (flashback, foretell, adventure…) wait in a glowing row beside your hand.</li>
+      <li><b>Lands snap</b> into your mat's mana box; any other card stays exactly where you drop it.</li>
+      <li><b>Planeswalkers by click</b>: activate loyalty abilities from the card, with the [+2] / [−3] costs read right.</li>
+      <li><b>Green glow</b> on your permanents that have an ability you can use right now (only you see it).</li>
+      <li><b>Big stacks</b>: "Resolve all" through your own triggers, or "Resolve N×" for a pile of the same trigger.</li>
+      <li><b>A refused play says why</b>: the rule, the zone, a missing target or the mana you're short.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="pip" style="background:var(--b)"></span>Combat</h2>
+    <ul>
+      <li><b>Clearer combat</b>: attackers and blockers in each player's colour, with tabs and block confirmations.</li>
+      <li><b>Attack reminders</b>: attack taxes per defender (Propaganda, Ghostly Prison), who can't attack and why, and "attack whom?" when there's a choice.</li>
+      <li><b>A refused attack names the limit</b> it broke (for example "no more than 2 creatures can attack AI 1").</li>
+      <li>The attacker gets priority after blockers when there's something to do.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="pip" style="background:var(--r)"></span>Reading the game</h2>
+    <ul>
+      <li><b>Status pieces</b>: the Monarch's crown, Initiative, City's Blessing, the Ring, and Day // Night.</li>
+      <li><b>Player marks</b> as small boxes under your life heart (poison, energy, experience…).</li>
+      <li><b>EXTRA TURN</b> badge beside your life (2×, 3× when they stack).</li>
+      <li><b>A clearer game log</b>: what caused each death or life change, a short version of each ability, and names only when the engine is sure.</li>
+      <li><b>More on the board</b>: your own face-down cards, what a card exiled, foretell and suspend counts, partner commander damage, extra combat phases, skipped turns, opponents' floating mana.</li>
+      <li><b>New engine panel</b>: one dock of tabs in the table's colours, and an ability panel that matches the engine.</li>
+      <li><b>Game over</b>: a VICTORY or DEFEAT banner, then who won.</li>
+      <li><b>Scoop</b> now shows up in games against the AI too.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="pip" style="background:var(--g)"></span>Look and sound</h2>
+    <ul>
+      <li><b>Particle effects</b>: deaths break apart in place, a board wipe sends a wave in the spell's colour, exiled cards collapse into light, and damage spells fly a bolt to their target. <code>mtg fx on / low / off</code> (host).</li>
+      <li><b>Table sounds</b> for deaths, board wipes, exile, damage, big hits, life gain, instants and sorceries (when they resolve), counterspells, and Treasure made and spent. Several at once stack into one bigger sound.</li>
+      <li>A <b>COUNTERED</b> pop-up when your spell is countered.</li>
+      <li>A new background with the floor pulled closer.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="pip" style="background:var(--w)"></span>For the host</h2>
+    <ul>
+      <li><b>MTG Companion</b>: one double-click starts Docker, the engine, the bridge and TTS, with a status page in your browser. Every button explains itself on hover.</li>
+      <li>It heals itself after Docker or WSL restarts and trims old logs every two weeks. Self-updates from GitHub are built and switch on once the project is shared.</li>
+      <li>A Linux / macOS version of the companion (waiting on its first Steam Deck test).</li>
+      <li>Illustrated guides for the companion and the table.</li>
+    </ul>
+  </section>
+
+  <div class="soon">
+    <h2>Being built now</h2>
+    <p>Not on the table yet: built or in progress, still to be tested.</p>
+    <ul>
+      <li><b>Planechase polish</b>: chaos triggers labelled, "leaves the game" lines, clearer planeswalk questions.</li>
+      <li><b>GIF frames</b>: a small frame on your mat that plays a GIF you search for.</li>
+      <li><b>Every kind of two-sided card</b>: transform, meld, flip, split, adventure and more.</li>
+      <li><b>Standard mode</b>: 60-card decks at 20 life.</li>
+      <li><b>Two-Headed Giant</b>: 2v2 with shared life and a shared turn.</li>
+      <li><b>Pick your starting hand</b> when testing against the AI.</li>
+    </ul>
+  </div>
+
+  <p class="foot">Some of these are brand new and haven't been through many real games yet, so tell the host if something looks off. Only the host runs the engine; everyone else just needs Tabletop Simulator.</p>
+</div>

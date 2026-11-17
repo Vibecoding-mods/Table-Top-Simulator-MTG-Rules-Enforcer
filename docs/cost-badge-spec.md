@@ -1,6 +1,6 @@
 # Cost-change counter on cards (spec, item 13)
 
-Status: written 2026-11-11. Phase 1 built the same day, in source only (bridge `costNow`, table `engineCostChange` / `engineCostParts`, self-check `map:cost`; tests in tests/test_bridge_claims.js "cost data" and tests/test_table_claims.js "cost compare" / "cost badge"). Not yet seen on the real table: Step 0 (the field on a real board), the hand-button question and the badge's place (`BADGE.cost` are estimates) are the live checks. Phase 2 not started. Source item: docs/next-features-2026-11-09.md, item 13.
+Status: written 2026-11-11. Phase 1 built the same day, in source only (bridge `costNow`, table `engineCostChange` / `engineCostParts`, self-check `map:cost`; tests in tests/test_bridge_claims.js "cost data" and tests/test_table_claims.js "cost compare" / "cost badge"). Not yet seen on the real table: Step 0 (the field on a real board), the hand-button question and the badge's place (`BADGE.cost` are estimates) are the live checks. Phase 2 built 2026-11-17 in a cloud session, engine and bridge/table, in source only (engine `engine1117-costbadge2`, no image; see Step 5). Source item: docs/next-features-2026-11-09.md, item 13.
 
 Built differently from the plan below: there is nothing to fall back on for a hand card, whose hover text and badge stay as printed.
 
@@ -93,20 +93,64 @@ Correction from the live check of 2026-11-12 (bug C): `effectiveManaCost` does N
 - The cost can also change inside a turn without a visible board (a "this turn" effect that ends). It still arrives on the next board because the harness recomputes it for every snapshot.
 - Cost of computing: the harness runs `CostAdjustment` for every hand card on every snapshot, for each seat. About 7-15 cards x 4 seats. Not measured. Check with the engine timing log before and after (it is one of the risks).
 
-### Step 5: graveyard and exile (phase 2, needs an engine change)
+### Step 5: graveyard and exile (phase 2, built 2026-11-17)
 
-- Cards you may cast from the graveyard or exile are the `playable` row (bridge.js `playableOf`, line 1393), built from zones passed with `castable = false`.
-- A harness change is needed: compute the cost for the mode the card is actually castable in. A flashback card's first spell ability is its normal cast, so its effective cost would be wrong. Per mode, use the cast action's spell ability (`ActionSpace` knows it; the doc says `cast{... mode ...}`).
-- Carry the cost on the action or on the card for the `mayPlay` ones only.
-- This is an engine change: new `engine/manabrew.patch`, new node image tag (not `:exile`), one Docker build at a time. The coordinator deploys.
-- Until then, graveyard/exile cards show no badge. State that in the hover.
+The plan was the cast action's spell ability for the mode the card is castable in. Built as a field on the card, for
+the `mayPlay` cards outside the hand only:
+
+- **Engine (`engine1117-costbadge2`, docs/engine-changes.md):** `CardDto` gains `playCost`, `playCostMode` and
+  `playCostPrinted` (all optional). The harness's new `PlayCost` sets them for a card its seat may play from a graveyard,
+  exile or the library's top, from that seat's own view only:
+  - a permission to cast (Kess, Dissident Mage; "you may cast from exile"): the card's own spell, mode `may play`;
+    a free cast (`PayManaCost.NO`), `{0}` and mode `free`; an alternative mana cost the permission names, that cost;
+  - otherwise the first alternative cost Forge offers from that zone (`GameActionUtil.getAlternativeCosts`): flashback,
+    escape, disturb, harmonize and so on by their spell's zone restriction, foretold and plotted in exile. The mode is
+    Forge's `AlternativeCost` name in lower case (`flashback`, `escape`, `foretold`, `plotted`);
+  - a foretold card is face down: its face's spells and printed cost are read (`playCostPrinted`), since Forge's
+    `manaCost` there is the face-down one's;
+  - the cost has Forge's increases and reductions (below) and reads `{0}` when nothing is left.
+- **Phase 1 finding, fixed with it:** `effectiveManaCost` never showed a reduction. `CostAdjustment.adjust(Cost, ...)`
+  applies only `RaiseCost` statics and the commander tax; reductions, `SetCost` (Trinisphere) and the rest are in the
+  `ManaCostBeingPaid` form. Both fields now take the raised cost through
+  `CostAdjustment.adjust(ManaCostBeingPaid, sa, viewer, new CardCollection(), true, false)`. A spell whose reduction is a
+  choice (assist, delve, convoke, improvise, waterbend, `TapCreaturesForMana`, offering, emerge) keeps the raised cost
+  only: those paths call the controller's choosers, which could ask a question during a snapshot. Goblin Electromancer
+  on a hand spell and Helm of Awakening taking Sol Ring to `{0}` now show (`CostBadgeTest`).
+- **Bridge (`costNow`):** a card in the seat's playable row takes `playCost` as `ec`, against `playCostPrinted` or its
+  printed cost as `mc`, with `em`, the way it is cast in words (`flashback`, `escape`, `foretell`, `plot`; none for a
+  permission or a free cast), when the engine sent no `effectiveManaCost` and the two costs differ. The public
+  graveyard and exile piles never carry it. A face-down card in the row (a foretold card) gets no badge fields, as
+  before (its buttons might show to the other players); its hover text says "Costs {1}{U} now by foretell (printed
+  {1}{U}{U})" instead (`cardNotes`).
+- **Table:** `engineCostChange(mc, ec, em)` adds "by <way>" to the hover words ("Costs {2}{R} now by flashback (printed
+  {R})"); `description` and the badge's tooltip pass `c.em`. The badge itself is phase 1's (the playable row was
+  already a cost zone). No new XML.
+- **Tests:** harness `CostBadgeTest` (14 checks), `tests/test_bridge_cost_badge_2.js` (23, in GATES); break-its
+  `tools/mutate-cost-badge-2-engine.js` and `tools/mutate-cost-badge-2.js`.
+- **Not done:** no image, no live game. Non-mana parts of a cost (escape's exiled cards) are not shown.
+
+#### Follow-ups (2026-11-17, `engine1117-costbadge3`, branch `cloud/followups-1`)
+
+- **Split and adventure halves:**
+  - A split card in hand has no badge. Phase 1 compared its first half with the whole card's cost and always showed
+    it cheaper. The hover says each half whose cost changed ("Fire: costs {2}{R} now (printed {1}{R})"), from
+    `spellCosts`.
+  - An adventure card keeps its creature's badge, and the hover says the adventure ("Stomp: costs {2}{R} now (printed
+    {1}{R})").
+- **The cheapest way:** from a graveyard or exile, `playCost` is the cheapest of every way to cast the card there. The
+  rest are in the hover: "Other ways to cast it: Ice {1}{U}; {2}{R} by flashback".
+- **A half cast from there** (an aftermath half, a permission on a split card) has no badge, because the picture has a
+  cost for each half and the badge sits on one. Its hover says "Castable: Memory {5}{U}{U} by aftermath (printed
+  {4}{U}{U})".
+- **Tests:** `CostBadgeTest` 22; `tests/test_bridge_cost_badge_3.js` (17, in GATES). Break-its
+  `tools/mutate-cost-badge-2-engine.js` and `tools/mutate-cost-badge-3.js`. No Lua or XML change.
 
 ## Cards and cases checklist
 
 - Cards in hand: phase 1.
 - Commander in the command zone: phase 1. Commander tax is part of `effectiveManaCost`.
 - Commander cast from hand (after a bounce to hand): in hand, `effectiveManaCost` is computed the same way; tax applies if Forge applies it there. Check on the real board.
-- Cast from graveyard/exile: phase 2.
+- Cast from graveyard/exile: phase 2 (Step 5): flashback, escape, foretell, plot, a permission to cast.
 - Goblin Electromancer ({1} less for instants and sorceries): generic drops by one. Badge shows the new generic sum.
 - Emerald Medallion ({G} less for green spells): colour chip. Forge's reduction takes a coloured shard off only if the card has one; if the spell has none, the reduction is generic-only or nothing.
 - Thalia (+{1} for noncreature spells): badge shows the increase.
@@ -131,8 +175,8 @@ Correction from the live check of 2026-11-12 (bug C): `effectiveManaCost` does N
 ## Risks
 
 - Unverified: the field arriving on a real board (Step 0).
-- The harness calls `CostAdjustment.adjust(..., false)` from snapshot extraction. The harness doc warns that these paths can reach choosers (convoke, delve, offering). It says the choosers are silent outside real payment, but the snapshot extractor does not set the "probing" flag. Test with a convoke card and a delve card in hand in debug mode. A freeze or a stray prompt would be a blocker and the field would have to be made safe in the harness.
-- A cost reduced to nothing may be reported as an empty string. The code returns null for an empty result (`effective.isEmpty() ? null`). A card whose whole cost vanishes (a one-mana spell under a "1 less" effect) might then show no badge instead of a 0. Test this first; the fix is a harness change (return `{0}`), so it joins phase 2.
+- (Phase 2: a spell whose reduction is a choice keeps its raised cost only, so no chooser is reached; `CostBadgeTest` "assist". Step 5.) The harness calls `CostAdjustment.adjust(..., false)` from snapshot extraction. The harness doc warns that these paths can reach choosers (convoke, delve, offering). It says the choosers are silent outside real payment, but the snapshot extractor does not set the "probing" flag. Test with a convoke card and a delve card in hand in debug mode. A freeze or a stray prompt would be a blocker and the field would have to be made safe in the harness.
+- (Fixed in phase 2: a cost reduced to nothing reads `{0}`, and reductions are applied at all; Step 5.) A cost reduced to nothing may be reported as an empty string. The code returns null for an empty result (`effective.isEmpty() ? null`). A card whose whole cost vanishes (a one-mana spell under a "1 less" effect) might then show no badge instead of a 0. Test this first; the fix is a harness change (return `{0}`), so it joins phase 2.
 - Hand cards and TTS buttons: unproven. Fallback is the hover text.
 - Collision with the age box and with picture variants whose cost row sits elsewhere (full-art, borderless, Showcase frames, split/adventure cards). Calibrate on the plain frame; accept an offset on others.
 - Snapshot cost on the engine side: more CostAdjustment per board.

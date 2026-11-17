@@ -76,7 +76,8 @@ docs/next-features-2026-11-09.md, item 16.
 - **Not built:**
   - the Card Importer's second `#link`, its DFC state kept with a link, and its own link checks (its script is in the
     Workshop save, not in this repository);
-  - player art kept over a bridge restart (the `mtg art token|back` pictures are kept while the bridge runs);
+  - player art kept over a bridge restart (the `mtg art token|back` pictures are kept while the bridge runs, by the
+    player: follow-up below);
   - a token picture for an AI seat.
 
 ## Decisions (the user, 2026-11-11)
@@ -135,6 +136,18 @@ docs/next-features-2026-11-09.md, item 16.
 - One picture per card name per owner. If any line for that name has a link, every copy of that name in that deck wears the first link given. State this in the chat message from `mtg ready`: "Sol Ring: your picture on all 1 copies".
 - If a deck has two different links for one name, use the first and warn. (Basic lands: each printing of a basic is common in a deck; allow several links for basics only and keep today's mixing for them.)
 - This removes the order and counter problem for engine mode, because it keys on the name.
+
+### Follow-up 2026-11-17: the pictures belong to the player, not the colour
+
+`mtg art token|back` pictures were kept by seat colour, so a player who later took that colour wore the last player's
+tokens and backs until the bridge restarted. They are now kept by the player's Steam ID:
+- The table sends the Steam ID with `mtg art` (`artset`'s `steam`). The bridge also notes it from the start's
+  `steam` list and from the votes (`noteSteam`).
+- A colour's cards wear the pictures of the player last seen at that colour.
+- Pictures set where no Steam ID came (a hotseat seat, an older table) are the colour's until a Steam ID is seen
+  there. The first one seen is taken as the same player's and they go with it; a later, different one is a new player
+  who doesn't inherit them.
+- Tests: `tests/test_bridge_art_owner.js` (in GATES), break-it `tools/mutate-art-owner.js`.
 
 ### Import syntax
 
