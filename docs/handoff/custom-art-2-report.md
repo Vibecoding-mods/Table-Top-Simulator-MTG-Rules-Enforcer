@@ -59,7 +59,10 @@ Everywhere:
   - `test_table_map` 631.
   - `test_bridge_claims` the same as on `main`: one check fails on both trees ("live files guard", paths), not this
     change.
-  - The 75 GATES against `origin/main`: GATES_RESULT.
+  - The 75 GATES against `origin/main`, both trees run here: the same result for each.
+  - `test_bridge_ai_tools` failed on the first run (5 checks): it compares `parseDeckList`'s whole result, and that
+    result had gained an `art` field. The links now go into an object passed in (`deckListArt`), the result's shape is
+    as before, and it passes 145 of 145. The test wasn't changed.
 - **Lua:** `cardInfo` and `engineChat` parse (luaparse).
   - No new main-chunk locals: `cardInfo` is an existing local, and its new `local`s are inside it, not in a for-in loop.
   - The chat checks `token` / `back` with plain `sub`.

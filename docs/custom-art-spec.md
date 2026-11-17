@@ -61,8 +61,8 @@ docs/next-features-2026-11-09.md, item 16.
   away. Token copies of a deck card already wore the deck's picture.
 - **The AI's decks:**
   - A deck list pasted for an AI seat (`setAiSeat` from the companion page) keeps its `#https://...` links: one per
-    name, the first line's; a second link is the card's back. `parseDeckList` now returns `art`, and `aiDeckImages`
-    checks the links.
+    name, the first line's; a second link is the card's back. `deckListArt` reads them (`parseDeckList` fills an object it is given; its own result is as it was), and
+    `aiDeckImages` checks the links.
   - The AI seat's message says "Card art: your pictures on 2 cards; Shock: the picture link was not used (...)".
   - `gamePictures` gives the AI's colour those pictures.
   - An AI given a table deck from an empty seat wore that deck's pictures already.
