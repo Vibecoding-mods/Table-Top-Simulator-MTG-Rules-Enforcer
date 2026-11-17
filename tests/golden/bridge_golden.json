@@ -708242,11 +708242,11 @@
     "wsOpen": "ws://127.0.0.1:9443"
    },
    {
-    "log": "prompt Blue #900: chooseBoolean \"Spider-Punk: pay Put a +1/+1 counter on Spider-Punk?\""
+    "log": "prompt Blue #900: chooseBoolean \"Spider-Punk: put a +1/+1 counter on Spider-Punk?\""
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Spider-Punk: pay Put a +1/+1 counter on Spider-Punk?\": Pay Put a +1/+1 counter on Spider-Punk | No: Spider-Punk gains haste\n"
+    "text": "[time] Blue   is asked #900 \"Spider-Punk: put a +1/+1 counter on Spider-Punk?\": Put a +1/+1 counter on Spider-Punk | No: Spider-Punk gains haste\n"
    },
    {
     "fetch": "https://api.scryfall.com/cards/collection",
@@ -708264,12 +708264,12 @@
      "t": "prompt",
      "color": "Blue",
      "promptId": 900,
-     "title": "Spider-Punk: pay Put a +1/+1 counter on Spider-Punk?",
+     "title": "Spider-Punk: put a +1/+1 counter on Spider-Punk?",
      "mode": "single",
      "options": [
       {
        "id": "yes",
-       "label": "Pay Put a +1/+1 counter on Spider-Punk"
+       "label": "Put a +1/+1 counter on Spider-Punk"
       },
       {
        "id": "no",
@@ -709316,7 +709316,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   answers #900 \"Spider-Punk: pay Put a +1/+1 counter on Spider-Punk?\": Pay Put a +1/+1 counter on Spider-Punk\n"
+    "text": "[time] Blue   answers #900 \"Spider-Punk: put a +1/+1 counter on Spider-Punk?\": Put a +1/+1 counter on Spider-Punk\n"
    },
    {
     "relay": {
@@ -710472,11 +710472,11 @@
     "wsOpen": "ws://127.0.0.1:9443"
    },
    {
-    "log": "prompt Blue #900: chooseBoolean \"Marionette Apprentice: pay Put a +1/+1 counter on Marionette Apprentice?\""
+    "log": "prompt Blue #900: chooseBoolean \"Marionette Apprentice: put a +1/+1 counter on Marionette Apprentice?\""
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Marionette Apprentice: pay Put a +1/+1 counter on Marionette Apprentice?\": Pay Put a +1/+1 counter on Marionette Apprentice | No: create one 1/1 colorless Servo artifact creature token\n"
+    "text": "[time] Blue   is asked #900 \"Marionette Apprentice: put a +1/+1 counter on Marionette Apprentice?\": Put a +1/+1 counter on Marionette Apprentice | No: create one 1/1 colorless Servo artifact creature token\n"
    },
    {
     "fetch": "https://api.scryfall.com/cards/collection",
@@ -710494,12 +710494,12 @@
      "t": "prompt",
      "color": "Blue",
      "promptId": 900,
-     "title": "Marionette Apprentice: pay Put a +1/+1 counter on Marionette Apprentice?",
+     "title": "Marionette Apprentice: put a +1/+1 counter on Marionette Apprentice?",
      "mode": "single",
      "options": [
       {
        "id": "yes",
-       "label": "Pay Put a +1/+1 counter on Marionette Apprentice"
+       "label": "Put a +1/+1 counter on Marionette Apprentice"
       },
       {
        "id": "no",
@@ -711546,7 +711546,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   answers #900 \"Marionette Apprentice: pay Put a +1/+1 counter on Marionette Apprentice?\": Pay Put a +1/+1 counter on Marionette Apprentice\n"
+    "text": "[time] Blue   answers #900 \"Marionette Apprentice: put a +1/+1 counter on Marionette Apprentice?\": Put a +1/+1 counter on Marionette Apprentice\n"
    },
    {
     "relay": {
@@ -873946,11 +873946,11 @@
     "wsOpen": "ws://127.0.0.1:9443"
    },
    {
-    "log": "prompt Blue #900: chooseFromSelection \"Zevlor, Elturel Exile: choose one\""
+    "log": "prompt Blue #900: chooseFromSelection \"Zevlor, Elturel Exile: choose which player?\""
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Zevlor, Elturel Exile: choose one\": AI 1 | Blue\n"
+    "text": "[time] Blue   is asked #900 \"Zevlor, Elturel Exile: choose which player?\": AI 1 | Blue\n"
    },
    {
     "fetch": "https://api.scryfall.com/cards/collection",
@@ -873968,7 +873968,7 @@
      "t": "prompt",
      "color": "Blue",
      "promptId": 900,
-     "title": "Zevlor, Elturel Exile: choose one",
+     "title": "Zevlor, Elturel Exile: choose which player?",
      "mode": "multi",
      "min": 1,
      "max": 1,
@@ -875080,7 +875080,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   answers #900 \"Zevlor, Elturel Exile: choose one\": AI 1\n"
+    "text": "[time] Blue   answers #900 \"Zevlor, Elturel Exile: choose which player?\": AI 1\n"
    },
    {
     "relay": {
