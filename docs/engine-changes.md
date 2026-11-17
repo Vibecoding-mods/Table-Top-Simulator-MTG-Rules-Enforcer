@@ -320,7 +320,7 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
   answer in 90 s draws (stuckLoop).
 - **Tests:** `BigTurnsTest` 38, `UnboundedTokensTest` 15, `HeldPassResponseTest` 5, with every default class of
   harness-tests.sh; break-its `tools/mutate-engine-docker.js --set tokens|runaway|held|watchdog`;
-  `test_bridge_unbounded_tokens` (new, in the GATES), `test_bridge_big_turns`, `test_table_trigger_groups` (5 new
+  `test_bridge_unbounded_tokens` (new, in the GATES), `test_bridge_big_turns`, `test_table_trigger_groups` (6 new
   checks); `tools/mutate-big-turns-2.js` for the bridge and table.
 
 ### 2026-11-16 big-turns-2: the tie offer merged, one tie protocol (not built)

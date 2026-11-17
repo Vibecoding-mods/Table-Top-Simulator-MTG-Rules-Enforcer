@@ -102,21 +102,24 @@ const look = (r, mark) => JSON.parse(valueOf(r, mark) || "{}");
     local grp = {}
     for _, b in ipairs(o and o.getButtons() or {}) do if tostring(b.label):sub(1, 1) == "x" then grp[#grp + 1] = { label = b.label, tip = b.tooltip } end end
     return JSON.encode({ rep = tostring(rep), n = rep and #engineGroupList[rep] or 0, badge = rep and tostring(engineBadge[rep] or "") or "", grp = grp })`, mark);
-  const all = new Set(goblins), one = new Set(["gob4"]);
+  const all = new Set(goblins), one = new Set(["gob4"]), lead = new Set(["gob1"]);
   infinite = new Set();
   const r1 = sim([send(["bl1", ...goblins], []), BADGE("plain")]);
   infinite = all;
   const r2 = sim([send(["bl1", ...goblins], []), BADGE("all inf")]);
   infinite = one;
   const r3 = sim([send(["bl1", ...goblins], []), BADGE("one inf")]);
+  infinite = lead;
+  const r4 = sim([send(["bl1", ...goblins], []), BADGE("lead inf")]);
   infinite = new Set();
-  for (const r of [r1, r2, r3]) ok("inf: no script errors", !r.errors.length, r.errors.slice(0, 3).join(" | "));
-  const plain = look(r1, "plain"), inf = look(r2, "all inf"), part = look(r3, "one inf");
+  for (const r of [r1, r2, r3, r4]) ok("inf: no script errors", !r.errors.length, r.errors.slice(0, 3).join(" | "));
+  const plain = look(r1, "plain"), inf = look(r2, "all inf"), part = look(r3, "one inf"), first = look(r4, "lead inf");
   ok("inf: a plain stack of 6 says x6", plain.n === 6 && plain.grp.some((b) => b.label === "x6"), JSON.stringify(plain));
   ok("inf: a stack of infinitely many says x∞", inf.n === 6 && inf.grp.some((b) => b.label === "x∞") && !inf.grp.some((b) => b.label === "x6"), JSON.stringify(inf));
   ok("inf: its tooltip says the engine keeps 500", inf.grp.some((b) => b.tip === "Infinitely many (the engine keeps 500 real tokens)"), JSON.stringify(inf.grp));
   ok("inf: the badge string changes with it", inf.badge.includes("grp=x∞=") && plain.badge.includes("grp=x6="), `${inf.badge} | ${plain.badge}`);
   ok("inf: one member with inf is enough, and inf doesn't split the stack", part.n === 6 && part.grp.some((b) => b.label === "x∞"), JSON.stringify(part));
+  ok("inf: the stack's first card alone with inf is enough", first.rep === "gob1" && first.grp.some((b) => b.label === "x∞"), JSON.stringify(first));
 }
 
 console.log(`${failed ? failed + " failed, " : ""}${failed ? "" : "all "}${passed} passed`);
