@@ -8856,10 +8856,10 @@ index 0000000..db530a4
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/BigBoardFixesTest.java b/forge-harness/src/test/java/forge/harness/host/BigBoardFixesTest.java
 new file mode 100644
-index 0000000..f7abad6
+index 0000000..019aa5b
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/BigBoardFixesTest.java
-@@ -0,0 +1,587 @@
+@@ -0,0 +1,720 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -8931,6 +8931,16 @@ index 0000000..f7abad6
 +        CHECKS.put("attack: past the deadline an assault that isn't lethal isn't made", BigBoardFixesTest::noCheapAssaultWhenSafe);
 +        CHECKS.put("attack: past the deadline flyers over ground blockers are a lethal assault", BigBoardFixesTest::cheapAssaultInTheAir);
 +        CHECKS.put("attack: within the deadline the assault is weighed and the AI attacks as before", BigBoardFixesTest::assaultWithinDeadline);
++        CHECKS.put("cheap assault: trample past its blocker counts, the toughest blockers on the biggest tramplers", BigBoardFixesTest::cheapTrample);
++        CHECKS.put("cheap assault: menace takes two blockers", BigBoardFixesTest::cheapMenace);
++        CHECKS.put("cheap assault: can't be blocked, shadow and protection from the blockers' colour are unblocked", BigBoardFixesTest::cheapEvasion);
++        CHECKS.put("cheap assault: protection from another colour than the blockers' is no evasion", BigBoardFixesTest::cheapProtectionOtherColor);
++        CHECKS.put("cheap assault: double strike deals twice", BigBoardFixesTest::cheapDoubleStrike);
++        CHECKS.put("cheap assault: a creature that can't block is no blocker", BigBoardFixesTest::cheapCantBlock);
++        CHECKS.put("cheap assault: infect counts nothing toward life", BigBoardFixesTest::cheapInfect);
++        CHECKS.put("cheap assault: flyers against reach are blocked", BigBoardFixesTest::cheapReach);
++        CHECKS.put("cheap assault: a 6x120 board lethal by trample and evasion is attacked with everything", BigBoardFixesTest::cheapWideLethal);
++        CHECKS.put("cheap assault: a 6x120 board that isn't lethal gets no assault", BigBoardFixesTest::cheapWideSafe);
 +        CHECKS.put("pay: the payment has its own budget, shorter than combat's", BigBoardFixesTest::payBudgetShorter);
 +        CHECKS.put("pay: past the payment budget, within the combat one, the static checks are held", BigBoardFixesTest::payUsesItsOwnBudget);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
@@ -9373,6 +9383,129 @@ index 0000000..f7abad6
 +        f.white.getController().declareAttackers(f.white, combat);
 +        expect(AiAttackController.getAssaultChecks() > a0, "no assault checks within the deadline");
 +        expect(combat.getAttackers().size() == 3, "within the deadline " + combat.getAttackers().size() + " of 3 Hill Giants attack");
++    }
++
++    private static final class Verdict {
++        long lethal;
++        long safe;
++        long checks;
++        int atBlue;
++        int mine;
++    }
++
++    private static Verdict cheapVerdict(final int life, final Object[] mine, final Object[] theirs) {
++        return cheapVerdict(new String[] {"White", "Blue", "Red"}, 0, life, mine, theirs);
++    }
++
++    private static Verdict cheapVerdict(final String[] names, final int others, final int life, final Object[] mine, final Object[] theirs) {
++        final Fixture f = new Fixture(false, names);
++        f.blue.setLife(life, null);
++        final Verdict v = new Verdict();
++        for (int i = 0; i < mine.length; i += 2) {
++            for (int n = 0; n < (Integer) mine[i]; n++) {
++                f.add((String) mine[i + 1], f.white, ZoneType.Battlefield).setSickness(false);
++                v.mine++;
++            }
++        }
++        for (int i = 0; i < theirs.length; i += 2) {
++            for (int n = 0; n < (Integer) theirs[i]; n++) {
++                f.add((String) theirs[i + 1], f.blue, ZoneType.Battlefield).setSickness(false);
++            }
++        }
++        for (int p = 2; p < f.players.size(); p++) {
++            f.players.get(p).setLife(life + 20, null);
++            f.add("Llanowar Elves", f.players.get(p), ZoneType.Battlefield).setSickness(false);
++            for (int n = 0; n < others; n++) {
++                f.add("Craw Wurm", f.players.get(p), ZoneType.Battlefield).setSickness(false);
++            }
++        }
++        f.settle();
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, f.white, 3);
++        final Combat combat = new Combat(f.white);
++        f.game.getPhaseHandler().setCombat(combat);
++        f.game.AI_TIMEOUT = -1;
++        final long l0 = AiAttackController.getCheapAssaultsLethal(), s0 = AiAttackController.getCheapAssaultsSafe(), a0 = AiAttackController.getAssaultChecks();
++        f.white.getController().declareAttackers(f.white, combat);
++        v.lethal = AiAttackController.getCheapAssaultsLethal() - l0;
++        v.safe = AiAttackController.getCheapAssaultsSafe() - s0;
++        v.checks = AiAttackController.getAssaultChecks() - a0;
++        v.atBlue = combat.getAttackersOf(f.blue).size();
++        return v;
++    }
++
++    private static void lethal(final Verdict v, final String what) {
++        expect(v.lethal > 0 && v.safe == 0, what + ": the estimate said lethal " + v.lethal + ", not " + v.safe);
++        expect(v.atBlue == v.mine, what + ": " + v.atBlue + " of " + v.mine + " attack Blue");
++        expect(v.checks == 0, what + ": " + v.checks + " assault checks past the deadline");
++    }
++
++    private static void safe(final Verdict v, final String what) {
++        expect(v.safe > 0 && v.lethal == 0, what + ": the estimate said not lethal " + v.safe + ", lethal " + v.lethal);
++        expect(v.checks == 0, what + ": " + v.checks + " assault checks past the deadline");
++    }
++
++    private static void cheapTrample() {
++        lethal(cheapVerdict(6, new Object[] {3, "Colossal Dreadmaw"}, new Object[] {3, "Craw Wurm"}), "3 Dreadmaws into 3 Craw Wurms, 6 life (2 past each)");
++        safe(cheapVerdict(7, new Object[] {3, "Colossal Dreadmaw"}, new Object[] {3, "Craw Wurm"}), "3 Dreadmaws into 3 Craw Wurms, 7 life");
++        safe(cheapVerdict(5, new Object[] {3, "Colossal Dreadmaw"}, new Object[] {2, "Craw Wurm", 1, "Indomitable Ancients"}), "3 Dreadmaws into toughness 10, 4 and 4, 5 life (0, 2 and 2 past)");
++        lethal(cheapVerdict(4, new Object[] {3, "Colossal Dreadmaw"}, new Object[] {2, "Craw Wurm", 1, "Indomitable Ancients"}), "the same, 4 life (the toughness-10 blocker holds one trampler, not all three)");
++        safe(cheapVerdict(2, new Object[] {1, "Colossal Dreadmaw", 1, "War Mammoth"}, new Object[] {1, "Indomitable Ancients", 1, "Grizzly Bears"}),
++                "a Dreadmaw and a War Mammoth into toughness 10 and 2, 2 life (the toughest on the biggest: 0 and 1 past)");
++    }
++
++    private static void cheapMenace() {
++        lethal(cheapVerdict(4, new Object[] {2, "Boggart Brute"}, new Object[] {1, "Craw Wurm"}), "2 Boggart Brutes, one blocker, 4 life (half a block at most, so 4 of the 6)");
++        safe(cheapVerdict(4, new Object[] {2, "Boggart Brute"}, new Object[] {2, "Craw Wurm"}), "2 Boggart Brutes, two blockers, 4 life (one Brute blocked by both)");
++        safe(cheapVerdict(5, new Object[] {2, "Boggart Brute"}, new Object[] {1, "Craw Wurm"}), "2 Boggart Brutes, one blocker, 5 life (half a block stops half a Brute)");
++        safe(cheapVerdict(4, new Object[] {1, "Boggart Brute", 2, "Grizzly Bears"}, new Object[] {2, "Craw Wurm"}), "a Brute and 2 Bears, two blockers, 4 life (the blocks go to the Bears, 2 a block)");
++    }
++
++    private static void cheapEvasion() {
++        lethal(cheapVerdict(6, new Object[] {1, "Phantom Warrior", 1, "Dauthi Slayer", 1, "White Knight", 1, "Hill Giant"}, new Object[] {3, "Walking Corpse"}),
++                "can't be blocked, shadow, protection from black and a Hill Giant, into 3 black blockers, 6 life");
++        safe(cheapVerdict(7, new Object[] {1, "Phantom Warrior", 1, "Dauthi Slayer", 1, "White Knight", 1, "Hill Giant"}, new Object[] {3, "Walking Corpse"}), "the same, 7 life");
++        safe(cheapVerdict(6, new Object[] {3, "Juggernaut"}, new Object[] {3, "Craw Wurm"}), "3 Juggernauts (can't be blocked by Walls) into 3 Craw Wurms, 6 life");
++    }
++
++    private static void cheapProtectionOtherColor() {
++        safe(cheapVerdict(6, new Object[] {3, "White Knight"}, new Object[] {3, "Craw Wurm"}), "3 White Knights (protection from black) into 3 green blockers, 6 life");
++    }
++
++    private static void cheapDoubleStrike() {
++        lethal(cheapVerdict(6, new Object[] {4, "Fencing Ace"}, new Object[] {1, "Craw Wurm"}), "4 Fencing Aces, one blocker, 6 life (3 unblocked twice)");
++        safe(cheapVerdict(7, new Object[] {4, "Fencing Ace"}, new Object[] {1, "Craw Wurm"}), "the same, 7 life");
++    }
++
++    private static void cheapCantBlock() {
++        lethal(cheapVerdict(9, new Object[] {3, "Hill Giant"}, new Object[] {3, "Bog Hoodlums"}), "3 Hill Giants into 3 creatures that can't block, 9 life");
++        safe(cheapVerdict(9, new Object[] {3, "Hill Giant"}, new Object[] {2, "Bog Hoodlums", 1, "Craw Wurm"}), "the same with one that can block, 9 life");
++    }
++
++    private static void cheapInfect() {
++        safe(cheapVerdict(2, new Object[] {3, "Glistener Elf"}, new Object[] {}), "3 Glistener Elves, no blockers, 2 life (poison, not damage)");
++    }
++
++    private static void cheapReach() {
++        safe(cheapVerdict(4, new Object[] {3, "Wind Drake"}, new Object[] {2, "Giant Spider"}), "3 Wind Drakes into 2 Giant Spiders, 4 life");
++        lethal(cheapVerdict(2, new Object[] {3, "Wind Drake"}, new Object[] {2, "Giant Spider"}), "the same, 2 life");
++        lethal(cheapVerdict(4, new Object[] {3, "Wind Drake", 3, "Hill Giant"}, new Object[] {1, "Giant Spider", 6, "Hill Giant"}),
++                "3 Wind Drakes and 3 Hill Giants into a Giant Spider and 6 Hill Giants, 4 life (ground blockers don't take flyers)");
++    }
++
++    private static void cheapWideLethal() {
++        lethal(cheapVerdict(new String[] {"White", "Blue", "Red", "Green", "Black", "Purple"}, 120, 20,
++                new Object[] {60, "Colossal Dreadmaw", 60, "Phantom Warrior"}, new Object[] {120, "Craw Wurm"}),
++                "6 players, 120 creatures each: 60 Dreadmaws and 60 Phantom Warriors into 120 Craw Wurms, 20 life");
++        lethal(cheapVerdict(new String[] {"White", "Blue", "Red", "Green", "Black", "Purple"}, 120, 20,
++                new Object[] {10, "Phantom Warrior", 110, "Hill Giant"}, new Object[] {120, "Craw Wurm"}),
++                "6 players, 120 creatures each: 10 Phantom Warriors and 110 Hill Giants into 120 Craw Wurms, 20 life");
++    }
++
++    private static void cheapWideSafe() {
++        final Verdict v = cheapVerdict(new String[] {"White", "Blue", "Red", "Green", "Black", "Purple"}, 120, 20,
++                new Object[] {120, "Hill Giant"}, new Object[] {120, "Craw Wurm"});
++        safe(v, "6 players, 120 creatures each: 120 Hill Giants into 120 Craw Wurms, 20 life");
++        expect(v.atBlue < v.mine, "the 120 Hill Giants went all in: " + v.atBlue);
 +    }
 +
 +    private static void payBudgetShorter() {

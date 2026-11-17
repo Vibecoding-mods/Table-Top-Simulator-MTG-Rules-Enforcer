@@ -184,6 +184,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-17 (no image; built in a cloud session) | `engine1117-cheapassault` (no image ids) | On top of `engine1117-aibudgets`. The AI's assault estimate past the combat deadline (`AiAttackController.cheapAssault`) reads more of the board, still with no attacker × blocker checks (sorts and bins, O(attackers + blockers)): blockers that can't block are none; an attacker no counted blocker could block (flying, shadow, horsemanship, protection from the blockers' colours, or a "can't be blocked" static, read once from the game's statics, since `CombatUtil.canBeBlocked` with no combat never says "can't") is unblocked; double strike counts twice; trample counts what is past its blocker's toughness, the toughest blockers on the biggest tramplers; menace takes two blocks; infect counts nothing; the blocks go where they stop the most damage per block, half a block allowed, so the estimate never says lethal when the defender could stop it. Counters `getCheapAssaultsLethal` / `getCheapAssaultsSafe`. `BigBoardFixesTest` 22 → 32 checks (two 6 × 120 boards lethal by trample and evasion, one that isn't); break-it `tools/mutate-cheap-assault.js` 18 of 18, `tools/mutate-ai-budgets.js` 20 of 20 | No | outer branch `cloud/cheap-assault`; `engine/forge.patch` (`AiAttackController`) and `engine/manabrew.patch` (`BigBoardFixesTest`) regenerated; `git apply --check` clean on `fd16e2f` / `e7d2b93b` | not built | `engine1117-aibudgets` |
 | 2026-11-17 (not built; tested in the cloud on the source tree) | mana-sources: the held check's mana probes shared per call | `ActionSpace.getPossibleActions` now works out the board's mana once per call and reuses it for every ability: each player's mana sources (`MANA_SOURCES`, `BATTLEFIELD_SOURCES`, with only the per-ability checks — mana restrictions, the ability's own host, reserved sacrifices — left per ability), the target-dependent cost statics (`TARGET_COST_STATICS`), and each ability's adjusted mana cost (`PROBED_COSTS`, copied out; skipped while an X or a target is being tried). Forge: `ComputerUtilMana.beginSharedSources`/`endSharedSources` share `groupSourcesByManaColor` per player and `checkPlayable` (copied out), and the new `StaticSourceScope` lets `CostAdjustment`, `StaticAbilityAlternativeCost` and `StaticAbilityManaConvert` walk only the cards that have a static of the mode they look for, in the same order, the host read live; cleared after the stack statics are applied. Without a scope everything runs as before. `ActionSpace.shareManaSources` (default on) switches it all off. HeldPassBench new state, before / after: 161 / 14–19 ms at 500 Clues, 34 / 1.2–2.4 ms at 500 + 500 Treasures, Soldiers unchanged (0.3, 1.7, 2–3.5 ms). New `ManaSourcesTest` (10 checks): the same action list with sharing off and on, with and without the life fallback, on 6 boards, direct memo checks, and the 500-Clue held check under 30 ms. Break-it 12 of 13 caught | No | outer branch `cloud/mana-sources`; `engine/forge.patch` (`ComputerUtilMana`, `CostAdjustment`, `StaticAbilityAlternativeCost`, `StaticAbilityManaConvert`, new `StaticSourceScope`) and `engine/manabrew.patch` (`ActionSpace`, new `ManaSourcesTest`) regenerated | not built | the patches before it |
 | 2026-11-17 (not built; tested as an overlay in `mtg-harness-test:l2-ai`) | big-turns-2 follow-up: a late runaway answer | Every queued action is tagged with the prompt it answers (`answersPrompt`, the session's prompt counter; internal to the harness, not the protocol). When the runaway question times out, its id is kept, and a yes/no tagged with it is dropped, so a click after the engine's 90 s can't answer the next yes/no question. The bridge takes the question down at 90 s (`RUNAWAY_ANSWER_SECONDS`) and tells the player that no answer counts as Keep going. New `BigTurnsTest` check `aLateAnswerToATimedOutQuestionIsDropped` (39); `anAnswerBetweenTimeoutsStartsTheCountOver` now answers the second question, not the timed-out one | No | outer branch `big-turns-2`; `engine/manabrew.patch` (Session) regenerated; branch `big-turns-2` (`cbe0365`, with `cloud/tie-offer`), merged on `engine-1120`: both patches regenerated from a source-level merge in a clean `fd16e2f` / `e7d2b93b` tree (base `82dc867`, no source conflicts), `git apply --check` clean; `ReplacementIndexTest` no longer calls the removed `Game.setRunawayTokensPerEffectCap` and makes its 1,000 and 2,500 timing tokens as piles of at most `Game.UNBOUNDED_TOKENS`, one effect each; `TieOfferTest`, `UnboundedTokensTest` and `HeldPassResponseTest` added to the `harness-tests.sh` defaults | not built | the patches before it |
 | 2026-11-17 (not built; tested as an overlay in `mtg-harness-test:l2-ai`) | big-turns-2 follow-up: the held check's cost | `heldActionsChanged` measured with `HeldPassBench` (new, not a default class). Before: 13 ms at 500 Soldiers, 48 ms at 500 + 500, 586 ms at 500 Clues, 719 ms at 500 + 500 Treasures. Now it (1) skips the held actions before `canPlay` (`Card.getAllPossibleAbilities(..., skipIds)`, `ActionSpace.getPossibleActions(..., skipIds)`), (2) reads each card's mana abilities once a call (`ActionSpace.MANA_ABILITIES`), and (3) keeps its answer for one game state (`heldStateStamp`: the game's timestamp, the stack, turn, phase, priority player, mana pool, life, battlefield, hand and untapped counts), so the StackMerge gate and the held priority share one look. New state: 0.4 ms / 2.8 ms / 4.8 ms / 249 ms (500 Clues) / 95 ms (Treasures); same state: 0.1 to 0.2 ms. New `HeldPassResponseTest` check `aHeldInstantKeepsTheHold` (6) | No | outer branch `big-turns-2`; `engine/forge.patch` (`Card`) and `engine/manabrew.patch` (`ActionSpace`, Controller) regenerated | not built | the patches before it |
@@ -371,6 +372,53 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
   Forge's own `getNetPower`; nothing here caps power itself.
 - **Tests:** `AttackTaxLethalTest.aHugeDoubleStrikerStaysAtTheCap` (damage 2^30, not negative); it fails on the
   unfixed file.
+
+### 2026-11-17 engine1117-cheapassault: the assault estimate past the combat deadline reads trample and evasion (built in the cloud, no image)
+- **Problem:** past the deadline, `doAssault` answered `cheapAssault`, which knew only flying and reach. Trample,
+  menace, evasion, double strike and creatures that can't block counted as nothing. At 6 × 120 the AI went from 61
+  attackers to 0 (`docs/handoff/ai-budgets-report.md`).
+- **Change** (`AiAttackController.cheapAssault`, `readUnblockable`, `anyBinBlocks`, `protectedColors`):
+  - **Blockers:** each is read once. One that can't block is dropped. The rest are counted in 256 bins (flying or
+    reach, shadow, horsemanship, colours), and their toughness, each extra block included, is sorted.
+  - **Attackers:** each is read once.
+    - It is unblocked when no counted bin can block it (flying, shadow, horsemanship, protection from every blocker's
+      colour), when a "can't be blocked" static without a blocker condition holds for it, or when it assigns combat
+      damage as unblocked.
+    - The "can't be blocked" statics are read once per assault. `CombatUtil.canBeBlocked(a, null, defender)` asks
+      `applyCantBlockByAbility` with no blocker, which always answers "can be blocked", so Phantom Warrior counted as
+      blockable.
+    - Double strike counts twice; infect counts nothing toward life.
+  - **Trample:** the biggest tramplers take the toughest blockers. This pairing lets the least through, the minimum
+    over all pairings, since the excess is convex. A menace trampler is held by the two toughest.
+  - **The blocks:** the defender's blocks go where they stop the most damage per block. Ground blocks go to ground
+    attackers first, then flying or reach blocks to any. Menace takes two blocks, with half a block allowed. That is at
+    least what the defender can stop.
+  - **The answer** is lethal only if what is left reaches the defender's life.
+  - **Not counted:** deathtouch, first strike against the blockers, lifelink, fear, intimidate, skulk, protection
+    from a quality other than colour, and "can't be blocked by" rules with a blocker condition. Each errs on not
+    attacking.
+  - **Cost:** sorts plus bins, O(attackers + blockers). The statics read costs one pass over the game's static
+    abilities. No attacker × blocker check is made.
+- **Tests:** `BigBoardFixesTest`, 10 new "cheap assault" checks. Each has a lethal and a not-lethal board, read from
+  `getCheapAssaultsLethal` / `getCheapAssaultsSafe` and the assault-check counter (zero), never from timing:
+  - trample, including the pairing;
+  - menace, including half a block and blocks by damage per block;
+  - can't be blocked, shadow and protection from black;
+  - protection from another colour;
+  - Juggernaut ("can't be blocked by Walls") against non-Walls;
+  - double strike;
+  - can't block;
+  - infect;
+  - reach;
+  - 6 × 120: lethal by trample and evasion (all 120 attack), lethal by 10 Phantom Warriors among 110 Hill Giants, and
+    120 Hill Giants into 120 Craw Wurms (no assault).
+- **Break-its:**
+  - `tools/mutate-cheap-assault.js <tree>`: 18 of 18 caught by name, restored by sha256.
+  - `tools/mutate-ai-budgets.js`: 20 of 20. Its three cheap-assault mutations were updated for the new code; its
+    flyers one now names the reach check.
+- **BigBoardCheck at 6 × 120** (the ai-budgets measurement, this container): still 0 attackers, 6.0 s. That is right
+  by the estimate: the defender has 64 blockers against 61 attackers (55 ground blocks for 53 ground attackers, 9 air
+  blocks for 8 flyers), and only one trampler. Every attacker can be blocked, so no sound estimate says lethal.
 
 ### 2026-11-17 engine1117-costbadge3: split and adventure halves, the cheapest way (built in the cloud, no image)
 - **Problem:**
