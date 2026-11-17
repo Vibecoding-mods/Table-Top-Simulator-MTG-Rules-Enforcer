@@ -8,10 +8,11 @@
 //
 // - The keys and their links: the engineSounds table in tools/engine-renderer.lua. Keys sharing a link share a clip
 //   (treasurespend* are death's links: one clip, two trigger effects).
-// - Each link's file: the uploaded mp3 in assets/sounds/tts (mtg2-<kind>[-xN].mp3; mtg3- for treasure and sorcery,
-//   docs/sounds.md), checked against the sha256 docs/sounds.md records for that file where it records one (a
-//   mismatch stops the run: the file is not the one uploaded). The 2026-11-11 files (damage, exile, lifegain, wipe
-//   and their 2026-11-11 bursts) have no recorded hash; they are the only copies of those names on disk.
+// - Each link's file: looked up BY LINK in docs/sounds.md, whose rows "| <file> | ... | `<sha256>` | <link> |" name
+//   the file each link was uploaded from (since 2026-11-14 the louder mtg4 files, "Twice as strong"), never guessed
+//   from the key's name. The file is read from assets/sounds/<prefix>/ (mtg4-death.mp3: assets/sounds/mtg4/) or else
+//   assets/sounds/tts/, and its sha256 must be the recorded one. A link with no row, a link two rows give different
+//   files, a missing file or a sha256 mismatch stops the run before anything is written.
 // - The clip: the mp3 decoded to 44.1 kHz 16-bit WAV (channels kept: the bursts lean left and right), the music
 //   player's silence padding cut off (everything after the last sample over -60 dBFS), plus 20 ms of silence. Unity
 //   compresses it (Vorbis) when it imports it. No gain, no filter: the level is the uploaded file's.
@@ -46,27 +47,19 @@ function soundTable() {
   if (rows.length === 0) throw new Error("engineSounds has no links");
   return rows;
 }
-// docs/sounds.md's recorded files: name -> { sha, secs } (a table row starting with the file's name)
-function recorded() {
+// docs/sounds.md's uploads: link -> { file, sha }, from each table row that starts with a file's name and ends with
+// its sha256 and the link it was uploaded as; a link two rows give different files throws
+function uploads() {
   const out = {};
   for (const line of fs.readFileSync(path.join(ROOT, "docs", "sounds.md"), "utf8").split("\n")) {
-    const m = line.match(/^\| (mtg[23]-[a-z0-9-]+\.mp3)[ |]/);
+    const m = line.match(/^\| (mtg\d-[a-z0-9-]+\.mp3) \|.*\| `([0-9a-f]{64})` \| (https?:\/\/\S+) \|$/);
     if (!m) continue;
-    const shas = line.match(/`([0-9a-f]{64})`/g);
-    const secs = line.split("|")[2]?.match(/(\d+\.\d+) s/);
-    if (shas) out[m[1]] = { sha: shas[shas.length - 1].slice(1, -1), secs: secs ? Number(secs[1]) : null };
+    const [, file, sha, link] = m;
+    if (out[link] && (out[link].file !== file || out[link].sha !== sha)) throw new Error(`docs/sounds.md: ${link} is both ${out[link].file} and ${file}`);
+    out[link] = { file, sha };
   }
   return out;
 }
-// the uploaded file of a key: mtg2-death-x4.mp3 for death_x4; mtg3- for treasure* and sorcery (the remade one)
-function fileOf(name) {
-  const base = name.replace(/_x(\d+)$/, "-x$1");
-  const pre = /^treasure|^sorcery$/.test(name) ? "mtg3-" : "mtg2-";
-  return pre + base + ".mp3";
-}
-// a file kept under another name (docs/sounds.md "Sorcery remake": the uploaded mtg3-sorcery.mp3 is the work folder's
-// mtg2-sorcery-new.mp3; the sha256 check still holds it to the uploaded one)
-const ELSEWHERE = { "mtg3-sorcery.mp3": ["test/mtg2-sorcery-new.mp3"] };
 const sha256 = (file) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 // decoded to interleaved 16-bit samples; -> { pcm: Buffer, ch }
 function decode(file) {
@@ -98,26 +91,30 @@ function writeWav(file, { pcm, ch }) {
 
 function main() {
   const rows = soundTable();
-  const docs = recorded();
-  const tts = path.join(assets, "sounds", "tts");
+  const up = uploads();
+  // every link resolved to its uploaded file, and the file checked, before anything is written
+  const srcOf = {}; // link -> { file, sha, full }
+  for (const { name, link } of rows) {
+    if (srcOf[link] !== undefined) continue;
+    const u = up[link];
+    if (u === undefined) throw new Error(`${name}: docs/sounds.md names no file for its link ${link}`);
+    const dirs = [path.join(assets, "sounds", u.file.split("-")[0]), path.join(assets, "sounds", "tts")];
+    const full = dirs.map((d) => path.join(d, u.file)).find((f) => fs.existsSync(f));
+    if (full === undefined) throw new Error(`${name}: no ${u.file} in ${dirs.join(" or ")}`);
+    const sha = sha256(full);
+    if (sha !== u.sha) throw new Error(`${name}: ${full} is not the uploaded file (sha256 ${sha}, docs/sounds.md ${u.sha})`);
+    srcOf[link] = { file: u.file, sha, full };
+  }
   fs.mkdirSync(outDir, { recursive: true });
   // (each run writes every clip again; a clip no longer in the table goes afterwards, with its .meta: the Unity build
   // would otherwise import it. The others keep their .meta, so the prefab's references to them stay the same)
   const before = fs.readdirSync(outDir).filter((f) => /\.wav$/.test(f));
   const clipOf = {}; // link -> { clip, secs, file, sha }
   const lines = ["# name\tclip\tseconds\tsource\tsha256\tlink"];
-  const notes = [];
   for (const { name, link } of rows) {
     if (clipOf[link] === undefined) {
-      const file = fileOf(name);
-      const full = [path.join(tts, file), ...(ELSEWHERE[file] || []).map((f) => path.join(assets, "sounds", f))].find((f) => fs.existsSync(f));
-      if (full === undefined) throw new Error(`${name}: no ${file} in ${tts}`);
-      const sha = sha256(full);
-      const doc = docs[file];
-      if (doc && doc.sha !== sha) throw new Error(`${name}: ${file} is not the uploaded file (sha256 ${sha}, docs/sounds.md ${doc.sha})`);
-      if (!doc) notes.push(`${file}: no sha256 in docs/sounds.md`);
+      const { file, sha, full } = srcOf[link];
       const t = trim(decode(full));
-      if (doc && doc.secs != null && Math.abs(t.secs - TAIL - doc.secs) > 0.12) notes.push(`${file}: ${(t.secs - TAIL).toFixed(2)} s of sound, docs/sounds.md says ${doc.secs} s`);
       writeWav(path.join(outDir, name + ".wav"), t);
       clipOf[link] = { clip: name, secs: t.secs, file, sha };
     }
@@ -132,6 +129,5 @@ function main() {
   }
   fs.writeFileSync(path.join(outDir, "sounds.tsv"), lines.join("\n") + "\n");
   console.log(`${rows.length} trigger effects, ${Object.keys(clipOf).length} clips -> ${outDir}`);
-  for (const n of notes) console.log("note: " + n);
 }
 main();

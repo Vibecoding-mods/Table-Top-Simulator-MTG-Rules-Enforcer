@@ -21,9 +21,11 @@ must contain so the table can use them, how to build them, and the two-client te
   The first `mtg-fx.unity3d` (10 effects, 118,140 bytes, sha256 `8e08833c…`, deployed 2026-11-12) was https://steamusercontent-a.akamaihd.net/ugc/17312155686528737831/7C7D27241612C44285FAC94314BB736DD2887FCA/; its rigs in a save are retired on load (`FX.LEGACY`).
 - `engineFxBundle.bolt` (shipped 2026-11-14, `mtg-bolt2.unity3d`, the same empty-mesh rebuild, 52,271 bytes, sha256 `5ea6e6d9cdbd…0574`, matched the same way): https://steamusercontent-a.akamaihd.net/ugc/16460449626220746289/901D08363F140757CCAB54BA2D10909F2546D622/
   Before it: `mtg-bolt.unity3d`, 50,577 bytes, https://steamusercontent-a.akamaihd.net/ugc/12109543125843195804/C6B0053848DA7FCB5E6136B82243D57A66E3B289/ (the big box on ping damage).
-- `engineFxBundle.sounds`: `mtg-sounds.unity3d` **built 2026-11-13** (section 4; 1,536,075 bytes, sha256
-  `679c7eceda5901bb99975eace4f186a18c82c44aab8389fc5bc1cb816417d662`, index `docs/fx-research/SOUNDS.md`), **not uploaded
-  yet**, so still nil. Even with its link set, the sounds stay the MusicPlayer links (`docs/sounds.md`) until the host
+- `engineFxBundle.sounds`: `mtg-sounds.unity3d` **rebuilt 2026-11-17** for today's links (section 4; 1,604,936 bytes,
+  sha256 `fa09e04ddc637c3b74b10253da4a9591e24b6aebfe6833d9077b521a839eb4ca`, index `docs/fx-research/SOUNDS.md`), **not
+  uploaded yet**, so still nil. Once it is shipped, this line reads as the fx line does ("(shipped ...)" after the
+  name, the link at the end of the line): `tests/test_table_effects.js` holds the shipped `engineFxBundle.sounds` to
+  that link, or to nil while the line has none. Even with its link set, the sounds stay the MusicPlayer links (`docs/sounds.md`) until the host
   sets `engineSoundRoute = "bundle"` (section 4, "Switching").
 - With a link and none of that object on the table, a game's first board spawns them once (`spawnObjectData`,
   `Custom_Assetbundle`, locked, parked under the table at y −30, x −40…−31, z 30). They stay in the save after that;
@@ -130,7 +132,7 @@ same), `Duration` = the clip's length; no GameObjects, no Particles. Plus the em
   Since 2026-11-13 also all at once: `engineSoundRoute = "bundle"` plays every link's **key** as a trigger effect name
   (see "Built" below).
 
-### Built (2026-11-13, not uploaded, not heard in TTS)
+### Built (2026-11-13; rebuilt 2026-11-17 from the louder mtg4 files; not uploaded, not heard in TTS)
 
 What the build is, and where it differs from the plan above:
 
@@ -138,11 +140,15 @@ What the build is, and where it differs from the plan above:
   in the table's order, read from `tools/engine-renderer.lua` itself. Keys sharing a link share one clip:
   `treasurespend` and its bursts play death's clips, as their links do. So 52 clips.
 - **Clips: the uploaded music-player mp3s**, not the `assets/sounds/stack` mixes, so the bundle plays exactly what the
-  links play: `tools/make-sound-bundle-clips.js` maps each key to its file (`mtg2-<kind>[-xN].mp3`, `mtg3-` for
-  treasure and the remade sorcery), checks it against the sha256 `docs/sounds.md` records (33 of the 52 files; the
-  2026-11-11 damage, exile, lifegain and wipe files have none), decodes it to 44.1 kHz 16-bit WAV and cuts the music
-  player's silence padding off (after the last sample over -60 dBFS, plus 20 ms). No gain, no filter. Byte for byte
-  the same on a second run.
+  links play: `tools/make-sound-bundle-clips.js` looks each key's **link** up in `docs/sounds.md` ("Twice as strong":
+  file, sha256 and link of each uploaded file; since 2026-11-14 the louder `mtg4-*.mp3` in `assets/sounds/mtg4`), so
+  the clip is the file that link was uploaded from, not a file guessed from the key's name. It stops if a link has no
+  row, a file is missing or its sha256 isn't the recorded one (all 52 files are checked). Then it decodes the file to
+  44.1 kHz 16-bit WAV and cuts the music player's silence padding off (after the last sample over -60 dBFS, plus
+  20 ms). No gain, no filter. Byte for byte the same on a second run.
+- 2026-11-17 rebuild: the 2026-11-13 build held the mtg2/mtg3 clips of the links before the 2026-11-14 louder ones,
+  so every one of the 52 clips changed (the same sounds, +6.02 dB; a few ms longer each, as the quiet tails now reach
+  over -60 dBFS: damage_x6 +0.08 s, lifegain_x8 +0.08 s, the rest under +0.03 s).
 - **Import: channels kept** (the plan said Force To Mono: the bursts lean left and right, so mono would change them),
   Decompress On Load, Vorbis quality 0.6, sample rate kept, preload on. Levels are the uploaded files' (about -20 dBFS
   RMS, Treasure by loudness, `docs/sounds.md`), not re-levelled to -16..-18 LUFS.
@@ -150,8 +156,10 @@ What the build is, and where it differs from the plan above:
 - The build (`Assets/Editor/MtgSoundsBuild.cs` in the Unity project, branch `mtg-fx`) reloads the bundle it made with
   `AssetBundle.LoadFromFile` and checks every trigger effect against `sounds.tsv`: name and order, its clip, the clip's
   length, Positional3D off, no GameObjects or particles in it. Size budget 3 MB.
-- Result: `mtg-sounds.unity3d`, 1,536,075 bytes, sha256 `679c7eceda5901bb99975eace4f186a18c82c44aab8389fc5bc1cb816417d662`
-  (`assets/fx`, gitignored; index `docs/fx-research/SOUNDS.md`, hash in `docs/fx-research/bundles.sha256`).
+- Result (2026-11-17): `mtg-sounds.unity3d`, 1,604,936 bytes, sha256
+  `fa09e04ddc637c3b74b10253da4a9591e24b6aebfe6833d9077b521a839eb4ca` (`assets/fx`, gitignored; index
+  `docs/fx-research/SOUNDS.md`, hash in `docs/fx-research/bundles.sha256`). The 2026-11-13 build (1,536,075 bytes,
+  sha256 `679c7eceda59…d662`) stood for the old links; never uploaded.
 
 Build, from scratch (the Unity editor closed on the project):
 

@@ -1023,9 +1023,13 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
   const vals = t.all("last").map((s) => JSON.parse(s.value || "{}"));
   const bdoc = require("fs").readFileSync(require("path").join(__dirname, "..", "docs", "m5-assetbundle-build.md"), "utf8");
   const fxDoc = (bdoc.match(/^- `engineFxBundle\.fx` \(shipped[^\n]*`mtg-fx\.unity3d`[^\n]*?: (https:\/\/\S+\/)$/m) || [])[1];
+  // (the sound bundle's line gets its link, after "(shipped ...):", once it is uploaded; until then the shipped one is nil)
+  const sndDoc = (bdoc.match(/^- `engineFxBundle\.sounds` \(shipped[^\n]*?: (https:\/\/\S+\/)$/m) || [])[1] || "";
   const sb = t.value("shipped bundle");
   ok("fx bundle: the shipped engineFxBundle.fx is the mtg-fx link of docs/m5-assetbundle-build.md", /^https:\/\/steamusercontent/.test(fxDoc || "")
-    && sb.fx === fxDoc && sb.sounds === "", JSON.stringify({ fxDoc, sb }));
+    && sb.fx === fxDoc, JSON.stringify({ fxDoc, sb }));
+  ok("fx bundle: the shipped engineFxBundle.sounds is the link of docs/m5-assetbundle-build.md's engineFxBundle.sounds line, or nil with none", sb.sounds === sndDoc
+    && (sndDoc === "" || /^https:\/\/steamusercontent/.test(sndDoc)), JSON.stringify({ sndDoc, sounds: sb.sounds }));
   ok("no bundle: the script ran", !t.r.errors.length, t.r.errors.slice(0, 2).join(" | "));
   ok("no bundle: no AssetBundle call at all", t.r.steps.every((s) => abLines(s.fx || []).length === 0));
   ok("no bundle: a death takes a slot, as before", (vals[0].fx || []).length === 1 && vals[0].fx[0].slot === 1 && vals[0].fx[0].rig === undefined && activeOn(t.fx("death")).length === 1, JSON.stringify(vals[0]));
@@ -1283,7 +1287,8 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
   const s0 = base();
   const k1 = clone(s0); k1.Blue.bf = k1.Blue.bf.filter((x) => x !== "b1"); k1.Blue.gy = ["b1"];
   const t = run([
-    rigs(2, RIG_NAMES, `__sim.makeObj({ Name = "Custom_Assetbundle", GUID = "snd001", GMNotes = "engine:sounds", Transform = { posY = -30 }, CustomAssetbundle = { SimTriggerEffects = { "death" } } })`),
+    rigs(2, RIG_NAMES, `__sim.makeObj({ Name = "Custom_Assetbundle", GUID = "snd001", GMNotes = "engine:sounds", Transform = { posY = -30 }, CustomAssetbundle = { SimTriggerEffects = { "death" } } })
+      engineFxBundle.sounds = nil`), // (no sound link: a shipped one would retire this memo-less sound object as stale)
     send(s0, "first board"), lua(`local r = engineSelfCheck() return JSON.encode(r.problems or {})`, "self check", 1),
     send(k1, "death", 3), RIGQ,
     { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30, mark: "clear" }, RIGQ,
@@ -1310,7 +1315,7 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
   const k2 = clone(k1); k2.Blue.bf = k2.Blue.bf.filter((x) => x !== "b2"); k2.Blue.gy.push("b2");
   const t = run([
     lua(`local o = __sim.makeObj({ Name = "Custom_Assetbundle", GUID = "snd001", GMNotes = "engine:sounds", Transform = { posY = -30 }, CustomAssetbundle = { SimTriggerEffects = { "poof", "death" } } })
-      o.__d.bundleLoaded = false engineSounds.death = "death" return "x"`, "sound bundle"),
+      o.__d.bundleLoaded = false engineSounds.death = "death" engineFxBundle.sounds = nil return "x"`, "sound bundle"), // (no sound link: see kept)
     send(s0, "first board"), send(k1, "still loading", 60), LAST,
     lua(`getObjectFromGUID("snd001").__d.bundleLoaded = true return "x"`, "loaded"), send(k2, "loaded now", 60), LAST,
   ]);
@@ -1335,7 +1340,7 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
   const t = run([
     lua(`return engineSoundRoute`, "default route", 1),
     lua(`__sim.makeObj({ Name = "Custom_Assetbundle", GUID = "snd001", GMNotes = "engine:sounds", Transform = { posY = -30 }, CustomAssetbundle = { SimTriggerEffects = { "wipe", "death", "death_x2" } } })
-      engineSounds.death, engineSounds.death_x2, engineSounds.exile = "${L("death")}", "${L("death_x2")}", "${L("exile")}" return "x"`, "sound bundle"),
+      engineSounds.death, engineSounds.death_x2, engineSounds.exile = "${L("death")}", "${L("death_x2")}", "${L("exile")}" engineFxBundle.sounds = nil return "x"`, "sound bundle"), // (no sound link: see kept)
     send(s0, "first board"), send(k1, "music route", 60), LAST,
     lua(`engineSoundRoute = "bundle" return "x"`, "route"), send(k2, "bundle route", 60), LAST,
     send(k3, "a burst", 60), LAST, send(k4, "not in the bundle", 60), LAST,
@@ -1370,7 +1375,7 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
     for _, x in ipairs((o and o.__d.played) or {}) do f[#f + 1] = x.frame end out[g] = f end out.board = __fxBoardAt or 0 return JSON.encode(out)`, "plays", 1);
   const t = run([
     rigs(1, RIG_NAMES, `__sim.makeObj({ Name = "Custom_Assetbundle", GUID = "snd001", GMNotes = "engine:sounds", Transform = { posY = -30 }, CustomAssetbundle = { SimTriggerEffects = { "death" } } })
-      engineSounds.death = "https://example.invalid/death.mp3" engineSoundRoute = "bundle"
+      engineSounds.death = "https://example.invalid/death.mp3" engineSoundRoute = "bundle" engineFxBundle.sounds = nil -- (no sound link: see kept)
       local fb = engineFxBoard engineFxBoard = function(...) __fxBoardAt = __sim.frame return fb(...) end`),
     send(s0, "first board", 10), PLAYS, send(k1, "rig death", 60), PLAYS,
     lua(`for _, o in ipairs(getObjects()) do if o.getGMNotes() == "engine:fx" then o.destruct() end end return "x"`, "no rig", 5),
@@ -1426,7 +1431,7 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
   const keys = [];
   for (const line of lua_.slice(at, lua_.indexOf("\n}", at)).split("\n")) { const m = line.match(/^\s*([a-z0-9_]+) = "(https?:\/\/[^"]+)"/); if (m) keys.push({ name: m[1], link: m[2] }); }
   const sdoc = fsx.readFileSync(px.join(__dirname, "..", "docs", "fx-research", "SOUNDS.md"), "utf8");
-  const rows = [...sdoc.matchAll(/^\| (\d+) \| `([a-z0-9_]+)` \| `([a-z0-9_]+)` \| [\d.]+ \| [\d.]+ \| (mtg[23]-[a-z0-9-]+\.mp3) \| `([0-9a-f]{12})…` \| (https?:\/\/\S+) \|$/gm)].map((m) => ({ i: +m[1], name: m[2], clip: m[3], file: m[4], sha12: m[5], link: m[6] }));
+  const rows = [...sdoc.matchAll(/^\| (\d+) \| `([a-z0-9_]+)` \| `([a-z0-9_]+)` \| [\d.]+ \| [\d.]+ \| (mtg\d-[a-z0-9-]+\.mp3) \| `([0-9a-f]{12})…` \| (https?:\/\/\S+) \|$/gm)].map((m) => ({ i: +m[1], name: m[2], clip: m[3], file: m[4], sha12: m[5], link: m[6] }));
   ok("sound bundle: one trigger effect per engineSounds key, in order", rows.length === keys.length && rows.every((r, i) => r.i === i && r.name === keys[i].name),
     JSON.stringify({ rows: rows.length, keys: keys.length, first: rows.find((r, i) => r.name !== (keys[i] || {}).name) }));
   // (a link changed or added since the build: the bundle would play the old clip, or none; rebuild it)
@@ -1440,11 +1445,13 @@ const abLines = (lines) => lines.filter((l) => l.includes('"AssetBundle.'));
   ok("sound bundle: keys sharing a link share a clip (treasurespend plays death's)", rows.every((r, i) => keys[i] && r.clip === ownerOf[keys[i].link]) && rows.some((r) => r.name === "treasurespend" && r.clip === "death"),
     JSON.stringify(rows.filter((r, i) => !keys[i] || r.clip !== ownerOf[keys[i].link])));
   const sounds = fsx.readFileSync(px.join(__dirname, "..", "docs", "sounds.md"), "utf8");
-  const shaOf = {};
-  for (const line of sounds.split("\n")) { const m = line.match(/^\| (mtg[23]-[a-z0-9-]+\.mp3)[ |]/); const s = line.match(/`([0-9a-f]{64})`/g); if (m && s) shaOf[m[1]] = s[s.length - 1].slice(1, 13); }
-  const checked = rows.filter((r) => shaOf[r.file] !== undefined);
-  ok("sound bundle: each clip's source is the uploaded file where docs/sounds.md has its sha256", checked.length >= 30 && checked.every((r) => shaOf[r.file] === r.sha12),
-    JSON.stringify({ checked: checked.length, bad: checked.filter((r) => shaOf[r.file] !== r.sha12) }));
+  // (docs/sounds.md's upload rows, "| <file> | ... | `<sha256>` | <link> |": the file each link was uploaded from, the
+  // lookup tools/make-sound-bundle-clips.js makes)
+  const upOf = {};
+  for (const line of sounds.split("\n")) { const m = line.match(/^\| (mtg\d-[a-z0-9-]+\.mp3) \|.*\| `([0-9a-f]{64})` \| (https?:\/\/\S+) \|$/); if (m) upOf[m[3]] = { file: m[1], sha12: m[2].slice(0, 12) }; }
+  const badSrc = rows.filter((r) => !upOf[r.link] || upOf[r.link].file !== r.file || upOf[r.link].sha12 !== r.sha12);
+  ok("sound bundle: each clip's source is the file docs/sounds.md records for its link (sha256)", rows.length > 0 && badSrc.length === 0,
+    JSON.stringify(badSrc.slice(0, 3).map((r) => ({ name: r.name, file: r.file, sha12: r.sha12, doc: upOf[r.link] }))));
   const size = (sdoc.match(/^([\d,]+) bytes, sha256 `([0-9a-f]{64})`/m) || []);
   ok("sound bundle: SOUNDS.md gives the bundle's size (under 3 MB) and sha256, and bundles.sha256 the same", size[1] && Number(size[1].replace(/,/g, "")) < 3e6
     && fsx.readFileSync(px.join(__dirname, "..", "docs", "fx-research", "bundles.sha256"), "utf8").includes(`${size[2]} */c/Users/you/mtg-tts/assets/fx/mtg-sounds.unity3d`), JSON.stringify(size.slice(1)));
