@@ -4687,7 +4687,9 @@ function logEvents(prev, cur, pub, facts = null) {
   // card's words: Forge's prompt words differ from the Oracle text for half the targeted instants in our decks, Into
   // the Roil's kicker line, and a permanent spell's prompt has none, Pacifism's, checker round 4.)
   const targetWords = (s, id = s?.id) => {
-    let ids = [...(s?.cardTg || []).map((x) => `card|${x}`), ...(s?.plTg || []).map((x) => `player|${x}`), ...(s?.pk || [])];
+    // (and the spells it targets on the stack, Forge's own: Counterspell at the AI's Lightning Bolt read "Blue casts
+    // Counterspell", ability sweep INV-8)
+    let ids = [...(s?.cardTg || []).map((x) => `card|${x}`), ...(s?.plTg || []).map((x) => `player|${x}`), ...(s?.tg || []).map((x) => `spell|${x}`), ...(s?.pk || [])];
     const pick = !s && game.picked?.get(id);
     if (pick?.casting && fresh(pick)) { ids = pick.ids; game.picked.delete(id); }
     const stackName = (sid) => bothStacks.find((x) => x.sids.includes(sid))?.name;
@@ -5770,13 +5772,24 @@ function logEvents(prev, cur, pub, facts = null) {
     if (cur.life[p] != null && cur.life[p] !== prev.life[p] && prev.life[p] != null) continue;
     for (const w of cmdNow(p)) out.push(`${who(p)} takes ${w}`);
   }
+  // (the engine's own damage entries at a player, engine1112's feed: each one's source and amount, for a loss the boards
+  // explain nothing of (damageNews found no part for that player). Galvanic Blast's metalcraft 4, an X spell, a trigger
+  // that came and went between two boards read bare, ability sweep INV-1. Null when an entry's source has no name; the
+  // pain lands and life paid said above are left out, as they are their own parts.)
+  const fedName = (src) => { const c = cur.cards[src] || prev.cards[src]; const n = c?.name || game.namesSeen?.get(src); return n ? tokenWords(n, c?.token) : null; };
+  const fedLoss = (p, own) => {
+    const list = (facts?.damage || []).filter((d) => d.slot === p);
+    if (!list.length || list.some((d) => !d.src || !fedName(d.src))) return null;
+    return list.filter((d) => !own.has(fedName(d.src))).map((d) => ({ n: d.n, w: `${d.combat ? "combat damage" : "damage"} from ${fedName(d.src)}` }));
+  };
   for (const [p, l] of Object.entries(cur.life)) {
     const before = prev.life[p];
     if (before == null || l === before) continue;
     const pain = l < before ? pains.filter((t) => t.slot === p) : [];
     const paid = l < before ? payable.filter((x) => x.slot === p) : [];
     if (paid.length) game.lifePays = game.lifePays.filter((x) => !paid.includes(x));
-    const parts = [...(damage.gain[p] || []), ...[...(damage.loss[p] || []), ...pain.map((t) => ({ n: t.n, w: `damage from ${t.name}` })),
+    const dealt = (damage.loss[p] || []).length ? damage.loss[p] : (l < before && fedLoss(p, new Set([...pain.map((t) => t.name), ...paid.map((x) => x.name)]))) || [];
+    const parts = [...(damage.gain[p] || []), ...[...dealt, ...pain.map((t) => ({ n: t.n, w: `damage from ${t.name}` })),
       ...paid.map((x) => ({ n: x.n, w: `paid for ${x.name}` }))].map((x) => ({ n: -x.n, w: x.w }))];
     parts.push(...lifeSources(p, l - before - parts.reduce((a, x) => a + x.n, 0), lifeFrom, Object.keys(cur.life), prev));
     const why = parts.length && parts.reduce((a, x) => a + x.n, 0) === l - before ? `, ${lifeWords(parts)}` : "";
@@ -8235,6 +8248,9 @@ function damageSteps(totalDamage, assignees, done, given = [], left = totalDamag
   return { ui, toOutput };
 }
 
+// Forge's titles for the cards that make a pile (TwoPilesEffect: lblDivideCardIntoTwoPiles, lblSelectCardForLeftPile,
+// lblSelectCardForFaceDownPile) -> the pile the picked cards make
+const PILE_TITLES = { "Divide cards into two piles": "pile 1", "Select cards for the left pile": "the left pile", "Select cards for a face down pile": "the face-down pile" };
 const ZONE_LABEL = { libraryTop: "Top of library", libraryBottom: "Bottom of library", graveyard: "Graveyard", exile: "Exile", hand: "Hand" };
 
 // Scry / surveil and similar: each card gets a destination, then the cards left on top are put in order.
@@ -10388,7 +10404,16 @@ function onPrompt(seat, prompt) {
       if (src && /\bconnives?\b/i.test(words) && /\bdiscard\b/i.test(String(ui.title)) && !ui.keep)
         ui.text = ui.note = `Connive: a nonland card discarded puts a +1/+1 counter on ${words.includes(`${src} connives`) || /\bthis creature connives\b/i.test(words) ? src : "the creature that connives"}.`;
     }
-      {
+      // (a split into two piles, Forge's TwoPiles titles: the cards picked make the first pile, the rest the other, then a
+      // player chooses one. Fact or Fiction's read "Divide cards into two piles" with the library-search hint, though the
+      // cards are revealed ones, not a library's: ability sweep finding 5)
+      const pileOf = PILE_TITLES[String(input.presentation?.title || "").trim()];
+      if (pileOf) {
+        const n = input.cards.length, ctl = prompt.sourceCard?.controllerId ?? byId[prompt.sourceCard?.id]?.controllerId;
+        ui.title = `${src ? `${src}: ` : ""}split ${countWords(n, n, "card")} into two piles: pick the cards for ${pileOf}`;
+        ui.text = `The cards you pick are ${pileOf}; the rest are the other pile (either may be empty). ${pileOf === "the left pile" ? "Then the piles are used as they are." : ctl ? `${ctl === seat.slot ? "An opponent chooses" : `${nameOf(ctl)} chooses`} one pile next.` : "Then one pile is chosen."}`;
+      }
+      if (!pileOf) {
         // Cards that aren't in any zone this player can see are in their library: a search (tutor, fetch).
         // The table puts exactly these cards into the library deck so the player can right-click → Search.
         const visible = new Set(Object.keys(byId));
