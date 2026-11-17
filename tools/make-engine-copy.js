@@ -627,8 +627,8 @@ function engineChat(message, pl)
     if cmd == "planechase" then engineSend("planechase", { color = pl.color, on = rest ~= "off" })
     else engineSend("planes", { color = pl.color, text = rest }) end
   elseif cmd == "match" then
-    -- best of three in Standard (host): mtg match bo3 / bo1; mtg match says the setting and the score
-    if not isHost and rest ~= "" then pl.broadcast("[MTG] Only the host can set best of three.") return false end
+    -- best of three (host: bo3 / bo1; anyone: mtg match, the score; mtg match concede)
+    if not isHost and rest ~= "" and rest ~= "concede" then pl.broadcast("[MTG] Only the host can set best of three.") return false end
     engineSend("match", { color = pl.color, text = rest })
   elseif cmd == "treachery" then
     -- Treachery's Leader goes first (host): mtg treachery on / off / leader <colour>; mtg treachery says the setting
@@ -695,7 +695,7 @@ function engineChat(message, pl)
       " mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off",
       " mtg hand <card>, <card> ... (debug tools on, against the AI) - your next game's starting hand, the rest dealt from your deck; mtg hand off",
       " mtg planechase on|off (host) - Planechase in the next games; mtg planes random [N] / mtg planes <name>; <name> - the planar decks",
-      " mtg match bo3|bo1 (host) - best of three in Standard 1v1: the loser of each game chooses play or draw; mtg match says the score",
+      " mtg match bo3|bo1 (host) - best of three in Standard 1v1: the loser of each game chooses play or draw, then each player sideboards; mtg match says the score; mtg match concede - give up the match",
       " mtg treachery on|off|leader <colour> (host) - Treachery: the Leader goes first (found from the table's identity cards, or named)",
       " mtg archenemy <colour>|off (host) - Archenemy in the next games: that seat (a player or an AI) against everyone else; mtg schemes random / mtg schemes <name>; <name> - the scheme deck (20 or more, 2 of each at most)",
       " mtg art off|on (host) - the players' own card pictures (1 Sol Ring #https://... in the deck list) or the normal ones, for everyone",

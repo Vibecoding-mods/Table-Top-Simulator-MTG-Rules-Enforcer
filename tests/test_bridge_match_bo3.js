@@ -2,8 +2,9 @@
 // score in the game log and chat; the score under each player's life (their mark boxes: MATCH 1-0, GAME 2) in the
 // status; after a game the loser chooses play or draw (a question on the table's own prompt panel, "Play" / "Draw"; an
 // AI loser plays), and the next game's start sends that seat as gameConfig.firstPlayer; the first to 2 wins takes the
-// match, a draw counts for neither, at most 5 games. Not built (the spec's later parts): sideboarding, "Concede match",
-// game 1's random pick (the engine's own roll decides game 1). No TTS save needed.
+// match, a draw counts for neither, at most 5 games. The extras (sideboarding, "Concede match", game 1's roll, the phase
+// bar's game number) are tests/test_bridge_bo3_extras.js's; here the play-or-draw question offers Concede match too, and
+// a new match's game 1 is rolled for. No TTS save needed.
 //   node tests/test_bridge_match_bo3.js
 const harness = require("./bridge-harness");
 
@@ -67,7 +68,7 @@ const marksOf = (m, color) => m?.players?.find((p) => p.color === color)?.allMar
     ok("game 1: the result and the score in the log", logLines(h, n).some((l) => /^AI 1 wins game 1 \(Blue conceded\. AI 1 wins\)\. Match: AI 1 1–0 Blue\.$/.test(l)), logLines(h, n).join(" | "));
     ok("game 1: and in chat", chats(h, n).some((c) => /^\[MTG\] AI 1 wins game 1\. Match: AI 1 1–0 Blue\./.test(c)), chats(h, n).join(" | "));
     const q = prompts(h, "Blue", n).at(-1);
-    ok("game 1: Blue, who lost, is asked play or draw", q && q.promptId === "__match" && JSON.stringify(q.options.map((o) => o.label)) === '["Play","Draw"]' && /Game 2/.test(q.title || ""), JSON.stringify(q));
+    ok("game 1: Blue, who lost, is asked play or draw", q && q.promptId === "__match" && JSON.stringify(q.options.map((o) => o.label)) === '["Play","Draw","Concede match"]' && /Game 2/.test(q.title || ""), JSON.stringify(q));
     seat.board = { state: { gameView: board({ winner: "player-0", conceded: "player-1", over: true }) }, fingerprint: null };
     h.B.sendTable(); await h.flush();
     same("status: the score under each life total", [marksOf(tableOf(h), "White").filter((l) => /^MATCH/.test(l)), marksOf(tableOf(h), "Blue").filter((l) => /^MATCH/.test(l))], [["MATCH 1–0"], ["MATCH 0–1"]]);
@@ -104,7 +105,7 @@ const marksOf = (m, color) => m?.players?.find((p) => p.color === color)?.allMar
     ok("game 4: Blue wins the match 2–1", logLines(h, n).some((l) => /^MATCH WON: Blue wins the match 2–1\.$/.test(l)) && chats(h, n).some((c) => /^\[MTG\] MATCH WON: Blue wins the match 2–1\./.test(c)), logLines(h, n).join(" | "));
     ok("game 4: nobody is asked play or draw", !prompts(h, "Blue", n).some((p) => p.promptId === "__match") && !chats(h, n).some((c) => /chooses to/.test(c)), chats(h, n).join(" | "));
     seat = newGame(h);
-    same("after the match: a new match, no first player", h.B._startConfig(), null);
+    ok("after the match: a new match, its game 1 rolled for (a first player from the roll)", [0, 1].includes(h.B._startConfig()?.firstPlayer), JSON.stringify(h.B._startConfig()));
     seat.board = { state: { gameView: board() }, fingerprint: null };
     h.B.sendTable(); await h.flush();
     same("after the match: the next game is game 1 of a new match", marksOf(tableOf(h), "Blue").filter((l) => /^MATCH|^GAME/.test(l)), ["MATCH 0–0", "GAME 1"]);
