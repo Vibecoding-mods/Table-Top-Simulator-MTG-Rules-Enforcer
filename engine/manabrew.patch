@@ -5672,10 +5672,10 @@ index 0000000..58308a0
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/Planechase.java b/forge-harness/src/main/java/forge/harness/host/Planechase.java
 new file mode 100644
-index 0000000..89c4600
+index 0000000..9ca208b
 --- /dev/null
 +++ b/forge-harness/src/main/java/forge/harness/host/Planechase.java
-@@ -0,0 +1,190 @@
+@@ -0,0 +1,197 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonObject;
@@ -5779,15 +5779,22 @@ index 0000000..89c4600
 +        }
 +        final Map<String, Object> state = new LinkedHashMap<>();
 +        final List<String> planeIds = new ArrayList<>();
++        final Map<String, String> ownerIds = new LinkedHashMap<>();
 +        Player controller = game.getPhaseHandler().getPlayerTurn();
 +        if (game.getActivePlanes() != null) {
 +            for (final Card plane : game.getActivePlanes()) {
 +                planeIds.add(SnapshotExtractor.javaCardId(plane));
++                if (plane.getOwner() != null) {
++                    ownerIds.put(SnapshotExtractor.javaCardId(plane), "player-" + SnapshotExtractor.playerIndex(game, plane.getOwner()));
++                }
 +                controller = plane.getController() != null ? plane.getController() : controller;
 +            }
 +        }
 +        state.put("controllerId", controller == null ? "" : "player-" + SnapshotExtractor.playerIndex(game, controller));
 +        state.put("planeIds", planeIds);
++        if (!ownerIds.isEmpty()) {
++            state.put("ownerIds", ownerIds);
++        }
 +        state.put("dieRollsThisTurn", game.getPhaseHandler().getPlanarDiceSpecialActionThisTurn());
 +        final Map<String, Integer> deckCounts = new LinkedHashMap<>();
 +        for (final Player player : game.getRegisteredPlayers()) {
@@ -14153,10 +14160,10 @@ index 0000000..4758982
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/PlanechaseTest.java b/forge-harness/src/test/java/forge/harness/host/PlanechaseTest.java
 new file mode 100644
-index 0000000..4206c96
+index 0000000..7020474
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/PlanechaseTest.java
-@@ -0,0 +1,422 @@
+@@ -0,0 +1,444 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonArray;
@@ -14213,6 +14220,8 @@ index 0000000..4206c96
 +        check("planarStateCountsTheDecksBeforeTheFirstPlane", PlanechaseTest::planarStateCountsTheDecksBeforeTheFirstPlane);
 +        check("planeswalkOpMovesTheNamedPlane", PlanechaseTest::planeswalkOpMovesTheNamedPlane);
 +        check("planeswalkOpToAPlaneInNoDeckIsRefused", PlanechaseTest::planeswalkOpToAPlaneInNoDeckIsRefused);
++        check("planarStateNamesEachPlanesOwner", PlanechaseTest::planarStateNamesEachPlanesOwner);
++        check("planarStateHasNoOwnersBeforeThePlanes", PlanechaseTest::planarStateHasNoOwnersBeforeThePlanes);
 +        check("planarOpsAreRefusedOutsidePlanechase", PlanechaseTest::planarOpsAreRefusedOutsidePlanechase);
 +        check("chaosOpIsApplied", PlanechaseTest::chaosOpIsApplied);
 +        check("planeswalkOpWalksAsTheOwnerAndGivesControlToTheActivePlayer", PlanechaseTest::planeswalkOpWalksAsTheOwnerAndGivesControlToTheActivePlayer);
@@ -14340,6 +14349,26 @@ index 0000000..4206c96
 +        expect(planar.getAsJsonObject("deckCounts").get("player-1").getAsInt() == 0, "Akoum is still in a planar deck");
 +        expect(f.commandCard("Akoum").getZone().is(ZoneType.Command), "Akoum is not in a command zone");
 +        expect(akoum.getOwner() == f.blue, "Akoum changed owner");
++    }
++
++    private static void planarStateNamesEachPlanesOwner() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.plane("Naya", f.white);
++        f.plane("Akoum", f.blue);
++        f.apply("{\"op\":\"planeswalk\",\"player\":\"player-0\",\"name\":\"Akoum\"}");
++        expectApplied(f);
++        final JsonObject planar = f.view().getAsJsonObject("planar");
++        final String akoum = SnapshotExtractor.javaCardId(f.commandCard("Akoum"));
++        final JsonObject owners = planar.getAsJsonObject("ownerIds");
++        expect(owners != null && owners.size() == 1 && "player-1".equals(owners.get(akoum).getAsString()), "ownerIds " + planar.get("ownerIds"));
++        expect("player-0".equals(planar.get("controllerId").getAsString()), "controllerId " + planar.get("controllerId"));
++    }
++
++    private static void planarStateHasNoOwnersBeforeThePlanes() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.plane("Naya", f.white);
++        final JsonObject planar = f.view().getAsJsonObject("planar");
++        expect(!planar.has("ownerIds"), "ownerIds " + planar.get("ownerIds"));
 +    }
 +
 +    private static void planeswalkOpToAPlaneInNoDeckIsRefused() throws Exception {
@@ -21892,7 +21921,7 @@ index 76fdc4f..0da1266 100644
      }
  
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
-index 0f579af..d8ebac8 100644
+index 0f579af..7a1b271 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
 +++ b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
 @@ -149,12 +149,194 @@ pub struct GameViewDto {
@@ -22090,7 +22119,7 @@ index 0f579af..d8ebac8 100644
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-@@ -216,6 +398,58 @@ pub enum PlayerStatus {
+@@ -216,6 +398,61 @@ pub enum PlayerStatus {
  pub struct DungeonStateDto {
      pub name: String,
      pub room: String,
@@ -22124,6 +22153,9 @@ index 0f579af..d8ebac8 100644
 +    #[serde(default)]
 +    #[ts(type = "Record<string, number>")]
 +    pub deck_counts: HashMap<String, u32>,
++    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
++    #[ts(type = "Record<string, string>")]
++    pub owner_ids: HashMap<String, String>,
 +    #[serde(default, skip_serializing_if = "Option::is_none")]
 +    #[ts(optional)]
 +    pub last_roll: Option<PlanarRollDto>,
@@ -22149,7 +22181,7 @@ index 0f579af..d8ebac8 100644
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-@@ -254,10 +488,36 @@ pub struct PlayerDto {
+@@ -254,10 +491,36 @@ pub struct PlayerDto {
      pub commander_casts: HashMap<String, u32>,
      #[ts(optional)]
      pub dungeon_state: Option<DungeonStateDto>,
@@ -22186,7 +22218,7 @@ index 0f579af..d8ebac8 100644
      pub counters: BTreeMap<PlayerCounterKind, u32>,
      pub mana_pool: BTreeMap<ManaColor, u32>,
      #[ts(type = "Record<string, number>")]
-@@ -397,6 +657,61 @@ pub struct CardDto {
+@@ -397,6 +660,61 @@ pub struct CardDto {
      #[serde(default, skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub zone: Option<ZoneKind>,
@@ -22248,7 +22280,7 @@ index 0f579af..d8ebac8 100644
  }
  
  #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-@@ -412,11 +727,47 @@ pub struct StackObjectDto {
+@@ -412,11 +730,47 @@ pub struct StackObjectDto {
      #[serde(skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub source_ability_text: Option<String>,
@@ -22296,7 +22328,7 @@ index 0f579af..d8ebac8 100644
  }
  
  #[cfg(test)]
-@@ -433,11 +784,13 @@ mod stack_object_tests {
+@@ -433,11 +787,13 @@ mod stack_object_tests {
              identity: CardIdentity::default(),
              text: String::new(),
              source_ability_text: Some("When this enters, draw a card.".into()),
