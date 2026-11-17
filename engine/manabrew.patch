@@ -118,14 +118,52 @@ index da0433a..78ed941 100644
                  FModel.initialize(null, null);
              }
 diff --git a/forge-harness/src/main/java/forge/harness/common/ActionSpace.java b/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
-index 972f4ae..f4e5387 100644
+index 972f4ae..7054803 100644
 --- a/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
 +++ b/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
-@@ -48,6 +48,13 @@ import java.util.Map;
+@@ -1,6 +1,7 @@
+ package forge.harness.common;
+ 
+ import forge.ai.ComputerUtilMana;
++import forge.game.staticability.StaticSourceScope;
+ import forge.card.MagicColor;
+ import forge.card.mana.ManaAtom;
+ import forge.card.mana.ManaCost;
+@@ -48,6 +49,43 @@ import java.util.Map;
  import java.util.Set;
  
  public final class ActionSpace {
 +    private static final ThreadLocal<Map<Card, List<SpellAbility>>> MANA_ABILITIES = new ThreadLocal<>();
++    private static final ThreadLocal<Map<Player, List<SourceOptions>>> MANA_SOURCES = new ThreadLocal<>();
++    private static final ThreadLocal<List<StaticAbility>> TARGET_COST_STATICS = new ThreadLocal<>();
++    private static final ThreadLocal<Map<ProbeKey, ManaCostBeingPaid>> PROBED_COSTS = new ThreadLocal<>();
++    private static final ThreadLocal<Map<Player, List<BattlefieldSource>>> BATTLEFIELD_SOURCES = new ThreadLocal<>();
++
++    private record PlayableMana(SpellAbility ability, AbilityManaPart part, List<Integer> masks) {
++    }
++
++    private record BattlefieldSource(Card card, List<PlayableMana> abilities, int implicitMask) {
++    }
++    private static final ThreadLocal<int[]> VARYING_PROBE = ThreadLocal.withInitial(() -> new int[1]);
++
++    private record ProbeKey(SpellAbility sa, Cost cost, Card host, boolean effect) {
++        @Override
++        public boolean equals(final Object o) {
++            return o instanceof ProbeKey k && k.sa == sa && k.cost == cost && k.host == host && k.effect == effect;
++        }
++
++        @Override
++        public int hashCode() {
++            return System.identityHashCode(sa) * 31 + System.identityHashCode(cost) * 7 + System.identityHashCode(host) + (effect ? 1 : 0);
++        }
++    }
++    public static volatile boolean shareManaSources = true;
++
++    private record SourceOption(SpellAbility ability, AbilityManaPart part, ManaOption option) {
++    }
++
++    private record SourceOptions(Card card, List<SourceOption> options) {
++    }
 +
 +    private static Iterable<SpellAbility> manaAbilities(final Card card) {
 +        final Map<Card, List<SpellAbility>> memo = MANA_ABILITIES.get();
@@ -135,7 +173,7 @@ index 972f4ae..f4e5387 100644
      private static final String SPEND_ONLY_COLORED_ON_X =
              "Spend only colored mana on X. No more than one mana of each color may be spent this way.";
  
-@@ -110,6 +117,15 @@ public final class ActionSpace {
+@@ -110,6 +148,15 @@ public final class ActionSpace {
              final Player player,
              final boolean includeManaAbilities,
              final boolean lifePaymentFallback
@@ -151,13 +189,21 @@ index 972f4ae..f4e5387 100644
      ) {
          final Game game = player.getGame();
          final Set<Card> candidates = new LinkedHashSet<>();
-@@ -139,10 +155,14 @@ public final class ActionSpace {
+@@ -139,10 +186,22 @@ public final class ActionSpace {
          final List<SpellAbility> actions = new ArrayList<>();
          final Map<Card, Card> spellHosts = new IdentityHashMap<>();
          boolean stackStatics = false;
 +        final boolean ownsMemo = MANA_ABILITIES.get() == null;
++        final boolean ownsSources = shareManaSources && ComputerUtilMana.beginSharedSources();
++        final boolean ownsStatics = shareManaSources && StaticSourceScope.begin();
 +        if (ownsMemo) {
 +            MANA_ABILITIES.set(new IdentityHashMap<>());
++            if (shareManaSources) {
++                MANA_SOURCES.set(new IdentityHashMap<>());
++                TARGET_COST_STATICS.set(targetCostStatics(game));
++                PROBED_COSTS.set(new HashMap<>());
++                BATTLEFIELD_SOURCES.set(new IdentityHashMap<>());
++            }
 +        }
          try {
          final List<SpellAbility> possible = new ArrayList<>();
@@ -167,27 +213,115 @@ index 972f4ae..f4e5387 100644
                  sa.setActivatingPlayer(player);
                  possible.add(sa);
                  spellHost(sa, game, spellHosts);
-@@ -173,6 +193,9 @@ public final class ActionSpace {
+@@ -152,6 +211,7 @@ public final class ActionSpace {
+                 && game.getAction().hasStaticAbilityAffectingZone(ZoneType.Stack, StaticAbilityLayer.ABILITIES)) {
+             stackStatics = true;
+             applyStackStatics(game, spellHosts.values());
++            StaticSourceScope.clear();
+         }
+         for (final SpellAbility sa : possible) {
+             final Cost payCosts = sa.getPayCosts();
+@@ -173,6 +233,19 @@ public final class ActionSpace {
              actions.add(sa);
          }
          } finally {
++            if (ownsSources) {
++                ComputerUtilMana.endSharedSources();
++            }
++            if (ownsStatics) {
++                StaticSourceScope.end();
++            }
 +            if (ownsMemo) {
 +                MANA_ABILITIES.remove();
++                MANA_SOURCES.remove();
++                TARGET_COST_STATICS.remove();
++                PROBED_COSTS.remove();
++                BATTLEFIELD_SOURCES.remove();
 +            }
              game.getAction().setHoldCheckingStaticAbilities(false);
              game.getAction().checkStaticAbilities(false);
              if (stackStatics) {
-@@ -201,6 +224,9 @@ public final class ActionSpace {
+@@ -201,13 +274,22 @@ public final class ActionSpace {
              if (!lifePaymentFallback) {
                  return false;
              }
+-            if (canPayManaWithAnnouncedX(sa, player, reservedSacrifices)) {
 +            if (canPayWithManaCostSources(sa, player, reservedSacrifices)) {
-+                return true;
-+            }
-             if (canPayManaWithAnnouncedX(sa, player, reservedSacrifices)) {
                  return true;
              }
-@@ -385,7 +411,13 @@ public final class ActionSpace {
+-            if (costDependsOnTargets(sa)) {
+-                return canPayManaWithTargets(sa, sa, player, reservedSacrifices);
++            final int[] varying = VARYING_PROBE.get();
++            varying[0]++;
++            try {
++                if (canPayManaWithAnnouncedX(sa, player, reservedSacrifices)) {
++                    return true;
++                }
++                if (costDependsOnTargets(sa)) {
++                    return canPayManaWithTargets(sa, sa, player, reservedSacrifices);
++                }
++                return false;
++            } finally {
++                varying[0]--;
+             }
+-            return false;
+         } finally {
+             if (probeHost != null) {
+                 sa.setHostCard(host);
+@@ -269,21 +351,45 @@ public final class ActionSpace {
+             return true;
+         }
+         final Card host = sa.getHostCard();
+-        final Game game = host.getGame();
++        final List<StaticAbility> shared = TARGET_COST_STATICS.get();
++        if (shared == null) {
++            for (final StaticAbility st : targetCostStatics(host.getGame())) {
++                if (st.matchesValidParam("ValidCard", host)) {
++                    return true;
++                }
++            }
++        } else {
++            for (final StaticAbility st : shared) {
++                if (st.matchesValidParam("ValidCard", host)) {
++                    return true;
++                }
++            }
++        }
++        for (final StaticAbility st : host.getStaticAbilities()) {
++            if (isTargetCostStatic(st) && st.matchesValidParam("ValidCard", host)) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    private static List<StaticAbility> targetCostStatics(final Game game) {
+         final CardCollection cards = new CardCollection(game.getCardsIn(ZoneType.Battlefield));
+         cards.addAll(game.getCardsIn(ZoneType.Stack));
+         cards.addAll(game.getCardsIn(ZoneType.Command));
+-        cards.add(host);
++        final List<StaticAbility> statics = new ArrayList<>();
+         for (final Card card : cards) {
+             for (final StaticAbility st : card.getStaticAbilities()) {
+-                if ((st.checkMode(StaticAbilityMode.ReduceCost) || st.checkMode(StaticAbilityMode.RaiseCost))
+-                        && st.hasParam("ValidTarget")
+-                        && st.matchesValidParam("ValidCard", host)) {
+-                    return true;
++                if (isTargetCostStatic(st)) {
++                    statics.add(st);
+                 }
+             }
+         }
+-        return false;
++        return statics;
++    }
++
++    private static boolean isTargetCostStatic(final StaticAbility st) {
++        return (st.checkMode(StaticAbilityMode.ReduceCost) || st.checkMode(StaticAbilityMode.RaiseCost)) && st.hasParam("ValidTarget");
+     }
+ 
+     private static boolean canPayManaWithTargets(
+@@ -385,7 +491,13 @@ public final class ActionSpace {
              if (stackSa == sa || stackSa.getId() == sa.getId()) {
                  continue;
              }
@@ -202,7 +336,7 @@ index 972f4ae..f4e5387 100644
                  continue;
              }
              final Card sourceCard = si.getSourceCard();
-@@ -417,6 +449,171 @@ public final class ActionSpace {
+@@ -417,6 +529,194 @@ public final class ActionSpace {
          return reserved;
      }
  
@@ -211,42 +345,19 @@ index 972f4ae..f4e5387 100644
 +        int genericCost;
 +    }
 +
-+    private static boolean canPayWithManaCostSources(
-+            final SpellAbility sa, final Player player, final Set<Card> reservedSacrifices) {
-+        final ManaCostBeingPaid cost = probeManaCost(sa.getPayCosts(), sa, player, false);
-+        final List<ManaCostShard> colored = new ArrayList<>();
-+        int generic = 0;
-+        for (final ManaCostShard shard : cost.getUnpaidShards()) {
-+            if (shard == ManaCostShard.X) {
-+                return false;
-+            }
-+            if (shard.isPhyrexian() && player.canPayLife(2, false, sa)) {
-+                continue;
-+            }
-+            if (shard.isGeneric()) {
-+                generic++;
-+            } else {
-+                colored.add(shard);
-+            }
-+        }
-+        final List<Integer> fixedUnits = new ArrayList<>();
-+        for (final byte type : ManaAtom.MANATYPES) {
-+            for (int i = player.getManaPool().getAmountOfColor(type); i > 0; i--) {
-+                fixedUnits.add((int) type);
-+            }
-+        }
-+        final List<List<ManaOption>> choices = new ArrayList<>();
-+        boolean anyManaCost = false;
++    private static List<SourceOptions> manaSources(final Player player) {
++        final Map<Player, List<SourceOptions>> memo = MANA_SOURCES.get();
++        return memo == null ? buildManaSources(player) : memo.computeIfAbsent(player, ActionSpace::buildManaSources);
++    }
++
++    private static List<SourceOptions> buildManaSources(final Player player) {
++        final List<SourceOptions> sources = new ArrayList<>();
 +        for (final Card card : player.getCardsIn(ZoneType.Battlefield)) {
-+            if (reservedSacrifices.contains(card) || card == sa.getHostCard()) {
-+                continue;
-+            }
-+            final List<ManaOption> free = new ArrayList<>();
-+            final List<ManaOption> paid = new ArrayList<>();
++            final List<SourceOption> options = new ArrayList<>();
 +            for (final SpellAbility ma : manaAbilities(card)) {
 +                ma.setActivatingPlayer(player);
 +                final AbilityManaPart part = ma.getManaPart();
-+                if (part == null || !ma.canPlay() || !ma.checkRestrictions(player) || !part.meetsManaRestrictions(sa)) {
++                if (part == null || !ma.canPlay() || !ma.checkRestrictions(player)) {
 +                    continue;
 +                }
 +                final Cost maCost = ma.getPayCosts();
@@ -285,7 +396,53 @@ index 972f4ae..f4e5387 100644
 +                if (option.units.isEmpty()) {
 +                    continue;
 +                }
-+                (option.genericCost > 0 ? paid : free).add(option);
++                options.add(new SourceOption(ma, part, option));
++            }
++            if (!options.isEmpty()) {
++                sources.add(new SourceOptions(card, options));
++            }
++        }
++        return sources;
++    }
++
++    private static boolean canPayWithManaCostSources(
++            final SpellAbility sa, final Player player, final Set<Card> reservedSacrifices) {
++        final ManaCostBeingPaid cost = probeManaCost(sa.getPayCosts(), sa, player, false);
++        final List<ManaCostShard> colored = new ArrayList<>();
++        int generic = 0;
++        for (final ManaCostShard shard : cost.getUnpaidShards()) {
++            if (shard == ManaCostShard.X) {
++                return false;
++            }
++            if (shard.isPhyrexian() && player.canPayLife(2, false, sa)) {
++                continue;
++            }
++            if (shard.isGeneric()) {
++                generic++;
++            } else {
++                colored.add(shard);
++            }
++        }
++        final List<Integer> fixedUnits = new ArrayList<>();
++        for (final byte type : ManaAtom.MANATYPES) {
++            for (int i = player.getManaPool().getAmountOfColor(type); i > 0; i--) {
++                fixedUnits.add((int) type);
++            }
++        }
++        final List<List<ManaOption>> choices = new ArrayList<>();
++        boolean anyManaCost = false;
++        for (final SourceOptions source : manaSources(player)) {
++            final Card card = source.card();
++            if (reservedSacrifices.contains(card) || card == sa.getHostCard()) {
++                continue;
++            }
++            final List<ManaOption> free = new ArrayList<>();
++            final List<ManaOption> paid = new ArrayList<>();
++            for (final SourceOption entry : source.options()) {
++                if (!entry.part().meetsManaRestrictions(sa)) {
++                    continue;
++                }
++                (entry.option().genericCost > 0 ? paid : free).add(entry.option());
 +            }
 +            final List<ManaOption> options = new ArrayList<>();
 +            if (!free.isEmpty()) {
@@ -374,15 +531,112 @@ index 972f4ae..f4e5387 100644
      private static boolean canPayManaCostWithReservedSacrifices(
              final SpellAbility sa,
              final Player player,
-@@ -648,7 +845,7 @@ public final class ActionSpace {
-             }
+@@ -470,6 +770,22 @@ public final class ActionSpace {
  
+     private static ManaCostBeingPaid probeManaCost(
+             final Cost cost, final SpellAbility sa, final Player payer, final boolean effect) {
++        final Map<ProbeKey, ManaCostBeingPaid> probed = PROBED_COSTS.get();
++        if (probed == null || payer != sa.getActivatingPlayer() || VARYING_PROBE.get()[0] > 0) {
++            return probeManaCostNow(cost, sa, payer, effect);
++        }
++        final ProbeKey key = new ProbeKey(sa, cost, sa.getHostCard(), effect);
++        ManaCostBeingPaid known = probed.get(key);
++        if (known == null) {
++            known = probeManaCostNow(cost, sa, payer, effect);
++            probed.put(key, new ManaCostBeingPaid(known));
++            return known;
++        }
++        return new ManaCostBeingPaid(known);
++    }
++
++    private static ManaCostBeingPaid probeManaCostNow(
++            final Cost cost, final SpellAbility sa, final Player payer, final boolean effect) {
+         final Card host = sa.getHostCard();
+         Zone castFromBackup = null;
+         if (sa.isSpell() && !host.isInZone(ZoneType.Stack)) {
+@@ -642,13 +958,40 @@ public final class ActionSpace {
+                 ? saBeingPaid.getHostCard()
+                 : null;
+ 
+-        for (final Card card : player.getCardsIn(ZoneType.Battlefield)) {
+-            if (card == excludedSource) {
++        for (final BattlefieldSource source : battlefieldSources(player)) {
++            if (source.card() == excludedSource) {
+                 continue;
+             }
+-
              List<Integer> cardSourceMasks = new ArrayList<>();
 -            for (final SpellAbility manaAbility : card.getManaAbilities()) {
++            for (final PlayableMana mana : source.abilities()) {
++                if (!mana.part().meetsManaRestrictions(saBeingPaid)) {
++                    continue;
++                }
++                if (!canPayWithReservedSacrifices(mana.ability(), player, reservedSacrifices)) {
++                    continue;
++                }
++                cardSourceMasks = mergeAlternativeManaAbility(cardSourceMasks, mana.masks());
++            }
++            if (!cardSourceMasks.isEmpty()) {
++                sourceMasks.addAll(cardSourceMasks);
++                continue;
++            }
++            if (source.implicitMask() != 0) {
++                sourceMasks.add(source.implicitMask());
++            }
++        }
++    }
++
++    private static List<BattlefieldSource> battlefieldSources(final Player player) {
++        final Map<Player, List<BattlefieldSource>> memo = BATTLEFIELD_SOURCES.get();
++        return memo == null ? buildBattlefieldSources(player) : memo.computeIfAbsent(player, ActionSpace::buildBattlefieldSources);
++    }
++
++    private static List<BattlefieldSource> buildBattlefieldSources(final Player player) {
++        final List<BattlefieldSource> sources = new ArrayList<>();
++        for (final Card card : player.getCardsIn(ZoneType.Battlefield)) {
++            final List<PlayableMana> abilities = new ArrayList<>();
 +            for (final SpellAbility manaAbility : manaAbilities(card)) {
                  if (!manaAbility.isManaAbility()) {
                      continue;
                  }
+@@ -660,7 +1003,7 @@ public final class ActionSpace {
+                     continue;
+                 }
+                 final AbilityManaPart manaPart = manaAbility.getManaPart();
+-                if (manaPart == null || !manaPart.meetsManaRestrictions(saBeingPaid)) {
++                if (manaPart == null) {
+                     continue;
+                 }
+                 if (manaAbility.getPayCosts() != null
+@@ -672,24 +1015,12 @@ public final class ActionSpace {
+                 )) {
+                     continue;
+                 }
+-                if (!canPayWithReservedSacrifices(manaAbility, player, reservedSacrifices)) {
+-                    continue;
+-                }
+-                cardSourceMasks = mergeAlternativeManaAbility(cardSourceMasks, producedManaMasks(manaAbility));
+-            }
+-
+-            if (!cardSourceMasks.isEmpty()) {
+-                sourceMasks.addAll(cardSourceMasks);
+-                continue;
+-            }
+-
+-            if (card.isLand() && !card.isTapped()) {
+-                final int implicitMask = implicitLandManaMask(card);
+-                if (implicitMask != 0) {
+-                    sourceMasks.add(implicitMask);
+-                }
++                abilities.add(new PlayableMana(manaAbility, manaPart, producedManaMasks(manaAbility)));
+             }
++            final int implicitMask = card.isLand() && !card.isTapped() ? implicitLandManaMask(card) : 0;
++            sources.add(new BattlefieldSource(card, abilities, implicitMask));
+         }
++        return sources;
+     }
+ 
+     private static List<Integer> mergeAlternativeManaAbility(
 diff --git a/forge-harness/src/main/java/forge/harness/common/AutoPay.java b/forge-harness/src/main/java/forge/harness/common/AutoPay.java
 index 4edefb1..eb1e7a1 100644
 --- a/forge-harness/src/main/java/forge/harness/common/AutoPay.java
@@ -12326,6 +12580,412 @@ index 0000000..49affd1
 +        card.setGameTimestamp(p.getGame().getNextTimestamp());
 +        p.getZone(zone).add(card);
 +        return card;
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/ManaSourcesTest.java b/forge-harness/src/test/java/forge/harness/host/ManaSourcesTest.java
+new file mode 100644
+index 0000000..17627c9
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/ManaSourcesTest.java
+@@ -0,0 +1,400 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.ability.AbilityUtils;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.staticability.StaticAbilityMode;
++import forge.game.staticability.StaticSourceScope;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.ActionSpace;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.List;
++import java.util.Set;
++import java.util.concurrent.locks.ReentrantLock;
++import java.util.function.Consumer;
++
++public final class ManaSourcesTest {
++    private ManaSourcesTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        check("aMixedManaBoardHasTheSameActionsBothWays", ManaSourcesTest::aMixedManaBoardHasTheSameActionsBothWays);
++        check("costChangersAndConversionsGiveTheSameActionsBothWays", ManaSourcesTest::costChangersAndConversionsGiveTheSameActionsBothWays);
++        check("aTappedOutBoardHasTheSameActionsBothWays", ManaSourcesTest::aTappedOutBoardHasTheSameActionsBothWays);
++        check("lowLifeAndPhyrexianManaGiveTheSameActionsBothWays", ManaSourcesTest::lowLifeAndPhyrexianManaGiveTheSameActionsBothWays);
++        check("spellsThatChangeTheirOwnCostGiveTheSameActionsBothWays", ManaSourcesTest::spellsThatChangeTheirOwnCostGiveTheSameActionsBothWays);
++        check("theProbeMemoGivesAFreshCostForEachProbe", ManaSourcesTest::theProbeMemoGivesAFreshCostForEachProbe);
++        check("theSharedManaSourcesAreFreshCopiesPerQuestion", ManaSourcesTest::theSharedManaSourcesAreFreshCopiesPerQuestion);
++        check("stackStaticsGiveTheSameActionsBothWays", ManaSourcesTest::stackStaticsGiveTheSameActionsBothWays);
++        check("theStaticScopeRereadsTheBoardAfterAClear", ManaSourcesTest::theStaticScopeRereadsTheBoardAfterAClear);
++        check("theHeldCheckOn500CluesIsUnder30Ms", ManaSourcesTest::theHeldCheckOn500CluesIsUnder30Ms);
++        ActionSpace.shareManaSources = true;
++        System.out.println(failed == 0 ? "PASS ManaSourcesTest" : "FAIL ManaSourcesTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static final List<String> HAND = List.of("Stoke the Flames", "Dismember", "Gitaxian Probe", "Fireball", "Krosan Tusker",
++            "Lightning Bolt", "Llanowar Elves", "Grizzly Bears", "Serra Angel", "Ghalta, Primal Hunger", "Electrolyze", "Bounty of the Hunt");
++
++    private static void aMixedManaBoardHasTheSameActionsBothWays() {
++        sameBothWays("mixed", f -> {
++            f.lands(f.white, "Swamp", 3);
++            f.lands(f.white, "Forest", 2);
++            f.lands(f.white, "Mountain", 2);
++            f.add("Cabal Coffers", f.white, ZoneType.Battlefield);
++            f.add("Gaea's Cradle", f.white, ZoneType.Battlefield);
++            f.add("Pillar of the Paruns", f.white, ZoneType.Battlefield);
++            f.add("Lotus Petal", f.white, ZoneType.Battlefield);
++            f.add("Llanowar Elves", f.white, ZoneType.Battlefield).setSickness(false);
++            f.add("Llanowar Elves", f.white, ZoneType.Battlefield);
++            for (int i = 0; i < 3; i++) {
++                f.add("Serra Angel", f.white, ZoneType.Battlefield);
++            }
++            f.add("Grizzly Bears", f.white, ZoneType.Battlefield).setSickness(false);
++            f.tokens(f.white, 3, "c_a_treasure_sac");
++            f.tokens(f.white, 3, "c_a_clue_draw");
++            f.tokens(f.white, 2, "c_a_food_sac");
++            f.hand(f.white, HAND);
++        });
++    }
++
++    private static void costChangersAndConversionsGiveTheSameActionsBothWays() {
++        sameBothWays("changers", f -> {
++            f.lands(f.white, "Mountain", 3);
++            f.lands(f.white, "Island", 2);
++            f.add("Goblin Electromancer", f.white, ZoneType.Battlefield).setSickness(false);
++            f.add("Thalia, Guardian of Thraben", f.blue, ZoneType.Battlefield);
++            f.add("Chromatic Orrery", f.white, ZoneType.Battlefield);
++            f.add("Fist of Suns", f.white, ZoneType.Battlefield);
++            f.tokens(f.white, 2, "c_a_treasure_sac");
++            f.tokens(f.white, 2, "c_a_clue_draw");
++            f.hand(f.white, HAND);
++        });
++    }
++
++    private static void aTappedOutBoardHasTheSameActionsBothWays() {
++        sameBothWays("tapped", f -> {
++            f.lands(f.white, "Forest", 4);
++            f.add("Gaea's Cradle", f.white, ZoneType.Battlefield);
++            for (final Card c : f.white.getCardsIn(ZoneType.Battlefield)) {
++                c.setTapped(true);
++            }
++            f.add("Llanowar Elves", f.white, ZoneType.Battlefield).setSickness(false);
++            f.tokens(f.white, 1, "c_a_treasure_sac");
++            f.tokens(f.white, 2, "c_a_food_sac");
++            f.hand(f.white, HAND);
++        });
++    }
++
++    private static void lowLifeAndPhyrexianManaGiveTheSameActionsBothWays() {
++        sameBothWays("low life", f -> {
++            f.lands(f.white, "Swamp", 1);
++            f.lands(f.white, "Island", 1);
++            f.white.setLife(3, null);
++            f.tokens(f.white, 1, "c_a_treasure_sac");
++            f.hand(f.white, HAND);
++        });
++    }
++
++    private static void spellsThatChangeTheirOwnCostGiveTheSameActionsBothWays() {
++        sameBothWays("own cost", f -> {
++            f.lands(f.white, "Plains", 3);
++            f.lands(f.white, "Forest", 2);
++            for (int i = 0; i < 3; i++) {
++                f.add("Serra Angel", f.white, ZoneType.Battlefield);
++            }
++            f.add("Grizzly Bears", f.blue, ZoneType.Battlefield).setTapped(true);
++            f.add("Grizzly Bears", f.blue, ZoneType.Battlefield);
++            f.hand(f.white, List.of("Quicksand Whirlpool", "Ghalta, Primal Hunger", "Serra Angel", "Krosan Tusker"));
++        });
++        final Fixture f = new Fixture();
++        f.lands(f.white, "Plains", 3);
++        f.lands(f.white, "Forest", 2);
++        for (int i = 0; i < 3; i++) {
++            f.add("Serra Angel", f.white, ZoneType.Battlefield);
++        }
++        f.add("Grizzly Bears", f.blue, ZoneType.Battlefield).setTapped(true);
++        f.hand(f.white, List.of("Quicksand Whirlpool", "Ghalta, Primal Hunger"));
++        f.game.getAction().checkStaticAbilities();
++        final String all = String.join(" | ", ActionSpace.buildMainActionLabels(ActionSpace.getPossibleActions(f.white, true, true)));
++        expect(all.contains("Quicksand Whirlpool"), "Quicksand Whirlpool on a tapped creature is not offered: " + all);
++        expect(all.contains("Ghalta"), "Ghalta for GG is not offered: " + all);
++    }
++
++    @SuppressWarnings("unchecked")
++    private static void theProbeMemoGivesAFreshCostForEachProbe() throws Exception {
++        final Fixture f = new Fixture();
++        f.lands(f.white, "Mountain", 4);
++        f.add("Goblin Electromancer", f.white, ZoneType.Battlefield);
++        final Card stoke = f.add("Stoke the Flames", f.white, ZoneType.Hand);
++        f.game.getAction().checkStaticAbilities();
++        final SpellAbility sa = stoke.getFirstSpellAbility();
++        sa.setActivatingPlayer(f.white);
++        final Method probe = ActionSpace.class.getDeclaredMethod("probeManaCost", forge.game.cost.Cost.class, SpellAbility.class, Player.class, boolean.class);
++        probe.setAccessible(true);
++        final String alone = probe.invoke(null, sa.getPayCosts(), sa, f.white, false).toString();
++        final String aloneEffect = probe.invoke(null, sa.getPayCosts(), sa, f.white, true).toString();
++        expect(!alone.equals(aloneEffect), "the Electromancer changes neither probe: " + alone);
++        final Field memo = ActionSpace.class.getDeclaredField("PROBED_COSTS");
++        memo.setAccessible(true);
++        final ThreadLocal<Object> probed = (ThreadLocal<Object>) memo.get(null);
++        probed.set(new java.util.HashMap<>());
++        try {
++            final forge.game.mana.ManaCostBeingPaid first = (forge.game.mana.ManaCostBeingPaid) probe.invoke(null, sa.getPayCosts(), sa, f.white, false);
++            expect(first.toString().equals(alone), "the first probe in a memo gives " + first + ", not " + alone);
++            first.increaseGenericMana(5);
++            final String effect = probe.invoke(null, sa.getPayCosts(), sa, f.white, true).toString();
++            expect(effect.equals(aloneEffect), "the effect probe in a memo gives " + effect + ", not " + aloneEffect);
++            final forge.game.mana.ManaCostBeingPaid again = (forge.game.mana.ManaCostBeingPaid) probe.invoke(null, sa.getPayCosts(), sa, f.white, false);
++            expect(again.toString().equals(alone), "a probe after the first was changed gives " + again + ", not " + alone);
++            again.increaseGenericMana(5);
++            final String third = probe.invoke(null, sa.getPayCosts(), sa, f.white, false).toString();
++            expect(third.equals(alone), "a probe after a remembered one was changed gives " + third + ", not " + alone);
++        } finally {
++            probed.remove();
++        }
++    }
++
++    private static void theSharedManaSourcesAreFreshCopiesPerQuestion() throws Exception {
++        final Fixture f = new Fixture();
++        f.lands(f.white, "Forest", 2);
++        f.add("Llanowar Elves", f.white, ZoneType.Battlefield);
++        f.add("Llanowar Elves", f.white, ZoneType.Battlefield).setSickness(false);
++        f.game.getAction().checkStaticAbilities();
++        final Method group = forge.ai.ComputerUtilMana.class.getDeclaredMethod("groupSourcesByManaColor", Player.class, boolean.class);
++        group.setAccessible(true);
++        final int playable = ((com.google.common.collect.ListMultimap<?, ?>) group.invoke(null, f.white, true)).size();
++        final int every = ((com.google.common.collect.ListMultimap<?, ?>) group.invoke(null, f.white, false)).size();
++        expect(playable != every, "the summoning-sick Elves change nothing: " + playable);
++        expect(forge.ai.ComputerUtilMana.beginSharedSources(), "a shared scope was already open");
++        try {
++            final com.google.common.collect.ListMultimap<?, ?> first = (com.google.common.collect.ListMultimap<?, ?>) group.invoke(null, f.white, true);
++            expect(first.size() == playable, "the first shared answer has " + first.size() + ", not " + playable);
++            first.clear();
++            final int sharedEvery = ((com.google.common.collect.ListMultimap<?, ?>) group.invoke(null, f.white, false)).size();
++            expect(sharedEvery == every, "the shared answer with every source has " + sharedEvery + ", not " + every);
++            final int again = ((com.google.common.collect.ListMultimap<?, ?>) group.invoke(null, f.white, true)).size();
++            expect(again == playable, "a shared answer after the first was cleared has " + again + ", not " + playable);
++        } finally {
++            forge.ai.ComputerUtilMana.endSharedSources();
++        }
++    }
++
++    private static void stackStaticsGiveTheSameActionsBothWays() {
++        sameBothWays("stack statics", f -> {
++            f.lands(f.white, "Mountain", 1);
++            f.lands(f.white, "Island", 1);
++            f.add("Witherbloom, the Balancer", f.white, ZoneType.Battlefield);
++            f.add("Inspiring Statuary", f.white, ZoneType.Battlefield);
++            for (int i = 0; i < 3; i++) {
++                f.add("Grizzly Bears", f.white, ZoneType.Battlefield);
++            }
++            f.tokens(f.white, 2, "c_a_clue_draw");
++            f.hand(f.white, HAND);
++        });
++    }
++
++    private static void theStaticScopeRereadsTheBoardAfterAClear() {
++        final Fixture f = new Fixture();
++        f.lands(f.white, "Mountain", 2);
++        expect(StaticSourceScope.begin(), "a scope was already open");
++        try {
++            expect(!StaticSourceScope.begin(), "a second begin opened a scope");
++            expect(names(StaticSourceScope.staticSources(f.game, StaticAbilityMode.ManaConvert)).isEmpty(), "two Mountains convert mana");
++            f.add("Chromatic Orrery", f.white, ZoneType.Battlefield);
++            expect(names(StaticSourceScope.staticSources(f.game, StaticAbilityMode.ManaConvert)).isEmpty(), "the scope reread the board before a clear");
++            StaticSourceScope.clear();
++            expect(names(StaticSourceScope.staticSources(f.game, StaticAbilityMode.ManaConvert)).equals(List.of("Chromatic Orrery")),
++                    "after a clear the scope gives " + names(StaticSourceScope.staticSources(f.game, StaticAbilityMode.ManaConvert)));
++        } finally {
++            StaticSourceScope.end();
++        }
++        expect(StaticSourceScope.begin(), "end left the scope open");
++        StaticSourceScope.end();
++    }
++
++    private static List<String> names(final Iterable<Card> cards) {
++        final List<String> out = new ArrayList<>();
++        for (final Card c : cards) {
++            out.add(c.getName());
++        }
++        return out;
++    }
++
++    private static void sameBothWays(final String board, final Consumer<Fixture> setup) {
++        for (final boolean lifeFallback : new boolean[] {false, true}) {
++            ActionSpace.shareManaSources = false;
++            final List<String> each = actions(setup, lifeFallback);
++            ActionSpace.shareManaSources = true;
++            final List<String> shared = actions(setup, lifeFallback);
++            expect(each.equals(shared), board + " board, life fallback " + lifeFallback + ": the actions differ\n each   " + each + "\n shared " + shared);
++            expect(each.size() > 3, board + " board: only " + each);
++        }
++    }
++
++    private static List<String> actions(final Consumer<Fixture> setup, final boolean lifeFallback) {
++        final Fixture f = new Fixture();
++        setup.accept(f);
++        f.game.getAction().checkStaticAbilities();
++        final List<SpellAbility> actions = ActionSpace.getPossibleActions(f.white, true, lifeFallback);
++        final List<String> labels = ActionSpace.buildMainActionLabels(actions);
++        final List<String> out = new ArrayList<>();
++        for (int i = 0; i < actions.size(); i++) {
++            out.add(labels.get(i) + " " + actions.get(i).getDescription());
++        }
++        return out;
++    }
++
++    private static void theHeldCheckOn500CluesIsUnder30Ms() throws Exception {
++        final Fixture f = new Fixture(true);
++        f.add("Mountain", f.white, ZoneType.Battlefield);
++        f.add("Lightning Bolt", f.white, ZoneType.Hand);
++        f.tokens(f.white, 500, "c_a_clue_draw");
++        for (int i = 0; i < 5; i++) {
++            f.add("Soul Warden", f.white, ZoneType.Battlefield);
++        }
++        f.game.getAction().checkStateEffects(true);
++        f.game.getAction().moveToPlay(f.add("Grizzly Bears", f.white, ZoneType.Hand), null, null);
++        f.game.getAction().checkStateEffects(true);
++        f.game.getStack().addAllTriggeredAbilitiesToStack();
++        final ManaBrewInteractiveController c = (ManaBrewInteractiveController) f.white.getController();
++        final Field stackIds = ManaBrewInteractiveController.class.getDeclaredField("exhaustStackIds");
++        stackIds.setAccessible(true);
++        stackIds.set(c, PriorityFastForward.stackIds(f.game));
++        final Method ids = ManaBrewInteractiveController.class.getDeclaredMethod("responseIds", List.class);
++        ids.setAccessible(true);
++        final Field held = ManaBrewInteractiveController.class.getDeclaredField("heldActionIds");
++        held.setAccessible(true);
++        held.set(c, ids.invoke(null, ActionSpace.getPossibleActions(f.white, true, true)));
++        for (int i = 0; i < 5; i++) {
++            c.heldResolutionsLeft();
++        }
++        final Field stamp = ManaBrewInteractiveController.class.getDeclaredField("heldCheckStamp");
++        stamp.setAccessible(true);
++        final long[] fresh = new long[25];
++        for (int i = 0; i < fresh.length; i++) {
++            stamp.set(c, null);
++            final long t0 = System.nanoTime();
++            c.heldResolutionsLeft();
++            fresh[i] = System.nanoTime() - t0;
++        }
++        Arrays.sort(fresh);
++        final double median = fresh[fresh.length / 2] / 1e6;
++        System.out.println(String.format(java.util.Locale.ROOT, "metric held check, 500 Clues, new state: median %.1f ms, max %.1f ms", median, fresh[fresh.length - 1] / 1e6));
++        expect(median < 30, "the held check on 500 Clues took a median " + median + " ms, not under 30");
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("mana-sources");
++        final Game game;
++        final Player white;
++        final Player blue;
++
++        Fixture() {
++            this(false);
++        }
++
++        Fixture(final boolean interactive) {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(interactive ? new ManaBrewInteractiveLobbyPlayer("White", session) : new LobbyPlayerAi("White", null)));
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("Blue", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            game = new Game(players, rules, new Match(rules, players, "ManaSourcesTest"));
++            game.setAge(GameStage.Play);
++            white = game.getPlayers().get(0);
++            blue = game.getPlayers().get(1);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, white, 2);
++            game.getPhaseHandler().onStackResolved();
++            if (interactive) {
++                session.attach(game.getMatch(), game, Set.of(), false);
++                try {
++                    final Field lock = ManaBrewInteractiveSession.class.getDeclaredField("gameLock");
++                    lock.setAccessible(true);
++                    ((ReentrantLock) lock.get(session)).lock();
++                } catch (final ReflectiveOperationException e) {
++                    throw new RuntimeException(e);
++                }
++            }
++        }
++
++        Card add(final String name, final Player p, final ZoneType zone) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            p.getZone(zone).add(card);
++            return card;
++        }
++
++        void lands(final Player p, final String land, final int n) {
++            for (int i = 0; i < n; i++) {
++                add(land, p, ZoneType.Battlefield);
++            }
++        }
++
++        void hand(final Player p, final List<String> names) {
++            for (final String name : names) {
++                add(name, p, ZoneType.Hand);
++            }
++        }
++
++        void tokens(final Player p, final int n, final String script) {
++            final Card host = add("Grizzly Bears", p, ZoneType.Hand);
++            final SpellAbility sa = AbilityFactory.getAbility("DB$ Token | TokenAmount$ " + n + " | TokenScript$ " + script, host);
++            sa.setActivatingPlayer(p);
++            AbilityUtils.resolve(sa);
++            p.getZone(ZoneType.Hand).remove(host);
++        }
 +    }
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java b/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java
