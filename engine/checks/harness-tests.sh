@@ -24,7 +24,7 @@ cd /build
   TeamGameTest RejoinRewindTest PlayerRulesTest DrawCountRewindTest TurnCounterRewindTest SharedTurnsTest \
   SharedTurnsDevTest SharedCombatTest SharedTurnsPlayTest ArchenemyTest ArchenemySchemeSweepTest ArchenemyViewTest \
   FirstPlayerTest CardStateRewindTest BigTurnsTest ThreeHeadedGiantTest ProtocolDefaultsTest AttackTaxLethalTest \
-  SnapshotSpeedTest
+  SnapshotSpeedTest StressCapsTest
 failed=""
 for c in "$@"; do
   echo "=== $c"
