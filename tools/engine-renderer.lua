@@ -3820,6 +3820,48 @@ local function sect(name)
   sectAt = now
 end
 
+-- A seat's hand on the table (stress catalog D): the first ENGINE_HAND_SHOW cards, in the engine's order; the rest are
+-- one "+N more in hand" card beside the library, which opens the Engine panel (engineHandMoreClick: the panel plays
+-- them). A big draw spawns at most ENGINE_HAND_SPAWNS new hand cards a frame, the rest on the frames after (one redraw
+-- a frame while some wait). The hand counter keeps the engine's count (engineHandCount). pend: the seat's held draws,
+-- still on top of the library. Returns how many are folded.
+ENGINE_HAND_SHOW = 40
+ENGINE_HAND_SPAWNS = 12
+engineHandRedrawDue = false
+function engineHandPlace(color, g, hand, pend, seen)
+  local shown, spawned, folded, waiting = 0, 0, 0, false
+  for _, c in ipairs(hand) do
+    if pend ~= nil and heldIn(pend.draw, c.id) then seen[c.id] = true -- still on top of the library
+    elseif shown >= ENGINE_HAND_SHOW then folded = folded + 1
+    else
+      shown = shown + 1
+      if engineObjs[c.id] == nil and not engineSpawning[c.id] then spawned = spawned + 1 end
+      if spawned > ENGINE_HAND_SPAWNS then waiting = true
+      else place(c, g.handPos + Vector(0, 1, 0), Vector(0, g.rotY, 0), seen, color, { zone = "hand", color = color }) end
+    end
+  end
+  if waiting and not engineHandRedrawDue then
+    engineHandRedrawDue = true
+    Wait.frames(function() engineHandRedrawDue = false if lastTable ~= nil then engineRender(lastTable) end end, 1)
+  end
+  if folded > 0 then
+    local id = "hand:more:" .. color
+    local label = "+" .. folded .. "\nmore"
+    place({ id = id, n = "+" .. folded .. " more in hand", tl = "Your hand (" .. (shown + folded) .. " cards)",
+      tx = "The first " .. ENGINE_HAND_SHOW .. " cards of your hand are in your hand zone; these " .. folded .. " are not. Click to open the Engine panel: it plays every card in your hand.",
+      f = ENGINE_BACK, b = ENGINE_BACK }, onTable(g.lib + g.right * 2.6, 0.2), Vector(0, g.rotY, 0), seen, nil, { zone = "handmore", color = color })
+    local o = engineObjs[id]
+    if o ~= nil and not o.isDestroyed() then
+      local b = (o.getButtons() or {})[1]
+      if b == nil then
+        o.createButton({ click_function = "engineHandMoreClick", function_owner = Global, label = label, position = { 0, 0.3, 0 },
+          width = 900, height = 1300, font_size = 260, color = { 0.1, 0.1, 0.12, 0.85 }, font_color = { 1, 0.85, 0.3 }, tooltip = "Open the Engine panel" })
+      elseif b.label ~= label then o.editButton({ index = 0, label = label }) end
+    end
+  end
+  return folded
+end
+
 function engineRender(m)
   if m == nil then return end
   if engineFixHolds ~= nil and engineFixHolds(m) then return end -- (a manual fix has the engine paused: the board waits)
@@ -3958,12 +4000,7 @@ function engineRender(m)
         -- playtest 2026-10-26: Kenrith back in the command zone was still drawn where it had been on the battlefield)
         place(c, (engineManualPlay[c.id] and engineManual[c.id]) or onTable(base), Vector(0, g.rotY, 0), seen, nil, { zone = "command", color = color })
       end
-      if pl.hand ~= nil and g.handPos ~= nil and Player[color].seated then
-        for _, c in ipairs(pl.hand) do
-          if pend ~= nil and heldIn(pend.draw, c.id) then seen[c.id] = true -- still on top of the library
-          else place(c, g.handPos + Vector(0, 1, 0), Vector(0, g.rotY, 0), seen, color, { zone = "hand", color = color }) end
-        end
-      end
+      if pl.hand ~= nil and g.handPos ~= nil and Player[color].seated then engineHandPlace(color, g, pl.hand, pend, seen) end
       sect("commandHand")
       local heldDraw = enginePendingCount(color)
       engineLibraryDeck(color, g, (pl.library or 0) + heldDraw, seen)
@@ -4593,13 +4630,24 @@ local function panelXml(color)
 end
 
 -- Options of the open prompt as { index, label }; numbers for number prompts.
+-- (a number search looks at most ENGINE_NUMBER_SCAN numbers from the low end, so a range of 0 to 2^30 with a search
+-- that matches little doesn't stop the table; the number typed itself, when it is in range, always comes first:
+-- stress catalog F)
+ENGINE_NUMBER_SCAN = 100000
 local function optionList(p, filter)
   local list = {}
   if p.mode == "number" then
     -- every number in range that matches the search (the search box finds 99 in 0-100), the first 1000 (paged)
-    for n = p.min or 0, p.max or 0 do
+    local lo, hi = p.min or 0, p.max or 0
+    local typed = tonumber(filter or "")
+    if typed ~= nil and tostring(typed) ~= filter then typed = nil end
+    if typed ~= nil and typed >= lo and typed <= hi then list[1] = { index = typed, label = tostring(typed) } else typed = nil end
+    local steps = 0
+    for n = lo, hi do
+      steps = steps + 1
+      if steps > ENGINE_NUMBER_SCAN then break end
       local label = tostring(n)
-      if filter == nil or filter == "" or label:find(filter, 1, true) then list[#list + 1] = { index = n, label = label } end
+      if n ~= typed and (filter == nil or filter == "" or label:find(filter, 1, true)) then list[#list + 1] = { index = n, label = label } end
       if #list >= 1000 then break end
     end
     return list
@@ -5636,6 +5684,14 @@ end
 
 -- Builds the panels once (and again only when the seated colours change); otherwise just updates them.
 -- promptColor: refresh that colour's options too ("none" = status lines only, nil = everyone's options).
+-- the "+N more in hand" card clicked (engineHandPlace): the Engine panel opens on its answers, which play the hand
+function engineHandMoreClick(obj, color)
+  if engineColors[color] == nil or not panelReady then return end
+  engineBrowse[color] = nil
+  engineShown[color] = "pin"
+  updatePanel(color)
+  updateOptions(color)
+end
 function engineRenderPanels(promptColor)
   local seated = {}
   for _, c in ipairs(getSeatedPlayers()) do if data[c] then seated[#seated + 1] = c end end
@@ -10675,6 +10731,10 @@ function engineScryOpen(color)
   end
   return st, p
 end
+-- a scry option that is a card (not a quick button, "All on top": the bridge's scryAllOptions)
+function engineScryCard(o)
+  return tostring(o.id):sub(1, 2) ~= "__"
+end
 function engineScryIndex(p, id)
   for i, o in ipairs(p.options or {}) do if tostring(o.id) == tostring(id) then return i end end
   return nil
@@ -10685,7 +10745,7 @@ function engineScryHeld()
   for color in pairs(enginePrompts) do
     local st, p = engineScryOpen(color)
     if st ~= nil and Player[color] ~= nil and Player[color].seated then
-      for _, o in ipairs(p.options or {}) do if not st.gone[o.id] then held[o.id] = true end end
+      for _, o in ipairs(p.options or {}) do if engineScryCard(o) and not st.gone[o.id] then held[o.id] = true end end
     end
   end
   return held
@@ -10698,7 +10758,7 @@ function engineScryPlace(seen)
       local side = Player[color].getHandTransform(2)
       local base = side and side.position or (g.handPos or g.mat)
       for i, o in ipairs(p.options or {}) do
-        if not st.gone[o.id] then
+        if engineScryCard(o) and not st.gone[o.id] then
           place({ id = o.id, n = o.label, f = o.img }, base + Vector(0, 1, 0), Vector(0, g.rotY, 0), seen, color, { zone = "scry", color = color, hand2 = true })
           local obj = engineObjs[o.id]
           if obj ~= nil and not obj.isDestroyed() and not st.menu[o.id] then
@@ -10748,7 +10808,7 @@ function engineScryDrop(color, obj, id)
     if side ~= nil then obj.setPosition(side.position + Vector(0, 1, 0)) end
     return
   end
-  for _, o in ipairs(p.options or {}) do if not st.gone[o.id] then return end end
+  for _, o in ipairs(p.options or {}) do if engineScryCard(o) and not st.gone[o.id] then return end end
   engineScryFinish(color) -- the last card is out of the zone
 end
 do

@@ -4,7 +4,8 @@
 //     as before. (The harness's own X <= 99 is the engine's, not checked here.)
 //  2. Name lists (#11): fewNames names 8, then "... and N more"; the game log's mill, discard, exile-from-graveyard and
 //     "puts ... into their hand" lines use it; 8 or fewer read as before.
-//  3. The effects hover (#15): past the 3 marks the "+N MORE EFFECTS" box's hover lists 8 texts, then "... and N more".
+//  3. The effects hover (#15): past the 3 marks the "+N MORE EFFECTS" box's hover lists 20 texts (stress catalog 2's E,
+//     was 8), then "... and N more".
 //   node tests/test_bridge_stress_caps.js
 // (BRIDGE_PATH=<a copy> loads a copy instead: tools/mutate-stress-caps.js breaks one so a check fails by name.)
 const harness = require("./bridge-harness");
@@ -108,14 +109,14 @@ async function ask(p) {
   // 3. the effects hover
   {
     const h = harness.load();
-    const effects = Array.from({ length: 15 }, (_, i) => ({ id: `effect-${i}`, name: `Effect ${i + 1}`, text: `Text ${i + 1}.`, emblem: false, untilEndOfTurn: false }));
+    const effects = Array.from({ length: 30 }, (_, i) => ({ id: `effect-${i}`, name: `Effect ${i + 1}`, text: `Text ${i + 1}.`, emblem: false, untilEndOfTurn: false }));
     const marks = h.B._effectMarks({ effects }, { zones: [] });
     const few = h.B._effectMarks({ effects: effects.slice(0, 6) }, { zones: [] });
     harness.restore();
-    ok("effects: 3 marks and one +12 MORE EFFECTS box", marks.length === 4 && marks[3].startsWith("+12 MORE EFFECTS\t"), JSON.stringify(marks));
+    ok("effects: 3 marks and one +27 MORE EFFECTS box", marks.length === 4 && marks[3].startsWith("+27 MORE EFFECTS\t"), JSON.stringify(marks));
     const tip = (marks[3] || "").split("\t")[1] || "";
     const lines = tip.split("\n");
-    ok("effects: the box's hover lists 8 texts, then ... and 4 more", lines.length === 9 && lines[0] === "Effect 4: Text 4." && lines[7] === "Effect 11: Text 11." && lines[8] === "... and 4 more", JSON.stringify(lines));
+    ok("effects: the box's hover lists 20 texts, then ... and 7 more", lines.length === 21 && lines[0] === "Effect 4: Text 4." && lines[19] === "Effect 23: Text 23." && lines[20] === "... and 7 more", JSON.stringify(lines));
     const fewTip = (few[3] || "").split("\t")[1] || "";
     ok("effects: 3 in the hover list in full, nothing more said", fewTip.split("\n").length === 3 && !/more$/.test(fewTip), JSON.stringify(few));
   }
