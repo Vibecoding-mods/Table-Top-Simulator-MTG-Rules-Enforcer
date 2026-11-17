@@ -179,11 +179,14 @@ const save = '{\r\n  "SaveName": "Mock MTGA 4 player",\r\n  "GameMode": "MTG",\r
 {
   const t = pack.readmeText({ nodeVersion: "v0", bridge: "b", table: "t", built: "2026-11-17" });
   for (const [name, re] of [["the section", /^OPTIONAL: PLAY ON A FRIEND'S ENGINE \(OWN SERVER\)$/m], ["no Docker on this PC", /this PC needs no\s+Docker/],
-    ["the status page's box", /open "Own server", type the address and the key, then press\s+"Use this server"/], ["server.json's shape", /\{ "host": "mtg\.example\.org", "port": 9443, "key": "the key", "secure": false \}/],
+    ["Tailscale only", /Join your friend's Tailscale network[\s\S]*That is the only way we\s+recommend/], ["server.json's shape", /\{ "host": "their-tailscale-name", "port": 9443, "key": "the key" \}/],
+    ["the key encrypted for this Windows account", /encrypts the key in it for your Windows account/], ["the engine version warning", /Amber when the server runs another engine version/],
+    ["mtg reset", /"mtg reset" can't restart that engine either: it says to restart the room on the\s+host's server/],
     ["--server for one run", /--server HOST:PORT/], ["the light", /the third light, "Your server", says whether the\s+server answers/],
-    ["each red light", /refused the connection[\s\S]*didn't answer[\s\S]*isn't known[\s\S]*refused the key[\s\S]*busy with an earlier game/], ["back to this computer", /"Use this computer" \(or deleting server\.json\)/],
+    ["each red light", /refused the connection[\s\S]*didn't answer[\s\S]*isn't known[\s\S]*refused the key[\s\S]*busy with an earlier game/], ["back to this computer", /Deleting server\.json goes back to the engine in Docker/], ["no box", (x) => !/Use this server|Use this computer|status page, open "Own server"/.test(x)],
+    ["no TLS advice", (x) => !/secure|wss|TLS/.test(x.slice(x.indexOf("OPTIONAL: PLAY ON A FRIEND'S ENGINE"), x.indexOf("PRIVACY")))],
     ["keep the key private", /Never share that file, post the key in a\s+chat/], ["the server is never stopped", /the companion never stops it/]])
-    ok(`friend README own server: ${name}`, re.test(t));
+    ok(`friend README own server: ${name}`, typeof re === "function" ? re(t) : re.test(t));
   // (no one's real address or key: the only IP address is this PC's own, the only host the example one)
   const ips = (t.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) || []).filter((ip) => ip !== "127.0.0.1");
   ok("friend README own server: no address but 127.0.0.1 and the example host, no key value", !ips.length && !/MANABREW_SERVER_KEY=\S/.test(t), ips.join(", "));

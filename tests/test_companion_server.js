@@ -96,7 +96,7 @@ async function bridgeSide(tmp) {
     ok("bridge, own server: GET /versions says its relay and remoteEngine, and checks no container here", vb && vb.relay === "ws://mtg.example.org:9443" && vb.remoteEngine === true && vb.now.remote === true && !vb.outOfStep.some((w) => /Docker|engine isn't|relay isn't/.test(w)) && restarts(h) === 0 && !h.effects.some((e) => e.execFile), vb);
     h.B.onTTS({ t: "reset" });
     await h.flush();
-    ok("bridge, own server: mtg reset restarts no container here and says to restart the room on the server", restarts(h) === 0 && said(h).includes("restart the Forge room on the server"), said(h));
+    ok("bridge, own server: mtg reset restarts no container here and says to restart the room on the server", restarts(h) === 0 && said(h).includes("restart the room on the host's server"), said(h));
     h.effects.length = 0;
     h.B._setGame({ started: true, fromTable: false, seats: new Map(), setupAt: 0 });
     h.B.onTTS({ t: "start", autoReset: true, seats: [] });
@@ -293,6 +293,16 @@ async function realRun() {
     ok("companion: no key for another host: no login is tried, so no key goes there", relay.seen.length === before && r.text.includes("no key"), `${relay.seen.length - before} messages; ${r.text.slice(0, 400)}`);
     r = await run("{ \"host\": \"ws://127.0.0.1\" }");
     ok("companion: a server.json problem is said at start and on the engine light", r.out.includes("Own server: server.json:") && r.text.includes("without ws://"), `${r.out.slice(0, 300)} ${r.text.slice(0, 300)}`);
+    // the server's engine build against the table's (stack/deployed.json engineBuild): a warning, the start not stopped
+    const built = await fakeRelay({ rooms: [{ room_name: L.Room, status: "Lobby", engine_build: "engine1120" }] });
+    try {
+      fs.writeFileSync(path.join(home, "stack", "deployed.json"), JSON.stringify({ bridge: "b", table: "t", engineBuild: "engine1121" }));
+      r = await run(JSON.stringify({ host: "127.0.0.1", port: built.port, key: "server-key" }));
+      ok("companion: a server on another engine build than the table's: amber, both named", /3 Engine stack +\[AMBER\] Your server runs engine engine1120, but this table was deployed with engine engine1121/.test(r.text), r.text.slice(0, 700));
+      fs.writeFileSync(path.join(home, "stack", "deployed.json"), JSON.stringify({ bridge: "b", table: "t", engineBuild: "engine1120" }));
+      r = await run(JSON.stringify({ host: "127.0.0.1", port: built.port, key: "server-key" }));
+      ok("companion: the same engine build as the table's: green", r.text.includes(`Your server (127.0.0.1:${built.port}): room ${L.Room} is open`), r.text.slice(0, 700));
+    } finally { await built.close(); fs.rmSync(path.join(home, "stack", "deployed.json"), { force: true }); }
     r = await run(null);
     ok("companion: no server.json: the engine light is this computer's again", !r.out.includes("Own server") && !r.text.includes("Your server"), r.out.slice(0, 300));
   } finally {
@@ -367,6 +377,12 @@ function breakit() {
       "if (process.env.MTG_KEY_FILE) delete process.env.MTG_KEY;", "", "bridge: with MTG_KEY_FILE, MTG_KEY is dropped"],
     ["bridge/bridge.js", "mtg reset restarts the local Forge room with a server",
       "  if (REMOTE_ENGINE) {\n    // (own server", "  if (false) {\n    // (own server", "bridge, own server: mtg reset restarts no container here"],
+    ["companion-node/probes.js", "the room's engine build not read",
+      "r.engineBuild = found && typeof found.engine_build === \"string\" && found.engine_build ? found.engine_build : null;", "r.engineBuild = null;", "companion: a server on another engine build than the table's: amber, both named"],
+    ["companion-node/controller.js", "the table's engine build not passed to the light",
+      "this.unstarted(Step.Stack, L.decideServer(this.server, login, this.game, L.str(this.deployed, \"engineBuild\")))", "this.unstarted(Step.Stack, L.decideServer(this.server, login, this.game))", "companion: a server on another engine build than the table's: amber, both named"],
+    ["bridge/bridge.js", "mtg reset with a server doesn't say to restart the room on the host's server",
+      "If a game is stuck there, restart the room on the host's server", "If a game is stuck there, restart the Forge room", "bridge, own server: mtg reset restarts no container here and says to restart the room on the server"],
     ["bridge/bridge.js", "with a server, Start after a cut-off game is left waiting",
       "    if (then) guarded(\"start (own server)\", then);\n", "", "bridge, own server: Start after a cut-off game"],
     ["bridge/bridge.js", "GET /versions doesn't say the bridge's relay",

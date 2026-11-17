@@ -2815,7 +2815,7 @@ index 0b747a2f..f1b06281 100644
       * <p>
       * Add a hardcoded trigger that will execute "at <phase>".
 diff --git a/forge-game/src/main/java/forge/game/phase/PhaseHandler.java b/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
-index 4a3a94df..71f1021a 100644
+index 4a3a94df..073dc911 100644
 --- a/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
 +++ b/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
 @@ -20,6 +20,8 @@ package forge.game.phase;
@@ -3585,7 +3585,7 @@ index 4a3a94df..71f1021a 100644
 +                }
 +            }
 +        }
-+        tellTeam(team, List.of(primary.getName() + " settles the team's blocks (rule 805.2)"));
++        tellTeam(team, List.of(primary.getName() + " decides (team leader)"));
 +    }
 +
 +    // CR 805.10d: with shared team life but not shared turns (level 1), the defending team is the attacked player and

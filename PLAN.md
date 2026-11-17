@@ -41,7 +41,7 @@ Archenemy polish, 2HG shared-turn looks, 3HG table). Rollback is engine1119.
 - Multi-human tests: 4 humans, the rewind and manual-fix votes, 2HG shared turns, Treachery with 4 people, a second GIF client.
 - Steam Deck test of the Linux/Mac companion.
 - Uploads (particle bundles, sound bundle), telling the table's author, sound licences.
-- Decisions: the 805.2 primary player, the team-block notice wording, checkpoint thinning (oldest first or each turn's first), companion key storage.
+- Decisions: made 2026-11-17 (the 805.2 primary player, the team-block notice wording, checkpoint thinning, companion own-server); built on `cloud/owner-decisions-1117` (`docs/handoff/owner-decisions-1117-report.md`).
 
 ## 2026-11-13 (asked by the user)
 - 🔶 **Floating mana you can see at a glance.** Today your pool shows only as a line in the engine panel's status text

@@ -97,16 +97,10 @@ The importer's script is in the Workshop save, so this needs the save. `mtg art 
 
 | Question | From |
 |---|---|
-| 805.2's primary player: the team's first seat in turn order (as built) or `docs/game-modes-spec.md` §5.4's mirror image? One line either way. | l2-tests |
-| The team-block notice: "Yellow settles the team's blocks (rule 805.2)" or "Yellow decides (team leader)". | team-block |
-| Checkpoint thinning: oldest first (as built, as `StressCapsTest` requires), or keep each turn's first (then change `thinCheckpoints` and that test together). | big-board-fixes |
-| Companion own-server mode, six questions: | companion-server |
-| 1. Should the Windows app get `server.json`? | |
-| 2. Should the key stay in a plain file, or go in the OS keychain? | |
-| 3. With a server, should `mtg reset` skip the local Docker restart, or say "restart the room on your server"? | |
-| 4. Who checks the engine version against the server? | |
-| 5. Should the status page get a host/port/key box? | |
-| 6. Should setup-server offer TLS, or recommend Tailscale only? | |
+| 805.2's primary player: **decided 2026-11-17**, the team's first seat in turn order on every table size (spec says so now). | l2-tests |
+| The team-block notice: **decided**, "Yellow decides (team leader)", sent so by the engine. | team-block |
+| Checkpoint thinning: **decided**, drop the oldest turns' in-between points first, then the oldest turn's first, the current turn's last (never its newest, never a pending vote's point); the size cap stays. | big-board-fixes |
+| Companion own-server mode, **decided**: (1) Windows keeps `server.json`; (2) the key encrypted with DPAPI on Windows, the file mode 600 on Linux/Mac; (3) with a server, `mtg reset` skips the local Docker restart and says "restart the room on the host's server"; (4) the companion compares the server's engine version with the table's on connect and warns; (5) no status-page box; (6) Tailscale only. | companion-server |
 
 ## Done later by this session (not open)
 

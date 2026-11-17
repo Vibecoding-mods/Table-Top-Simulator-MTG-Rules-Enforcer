@@ -54,9 +54,11 @@ Status: v2, 2026-10-20 (v1 proposal 2026-10-19). Full hosting paused by the user
 4. The companion app (docs/companion-app-spec.md) wraps steps G, H and P into buttons. Since its 2026-11-05 rewrite
    that is a later phase, after Home mode.
    **Step G is built (2026-11-17):** the companion's own-server mode (docs/companion-app-spec.md §5.8) points a
-   friend's companion and bridge at a host's engine: `server.json` or the status page's Own server box (address and
-   key), a "Your server" light that says whether the server answers, and no Docker on the friend's PC. The relay must be
-   reachable from the friend's PC (`tools/setup-server.sh` binds it to `RELAY_BIND`, e.g. the Tailscale address).
+   friend's companion and bridge at a host's engine: `server.json` (address and key; no status-page box, the owner's
+   decision of 2026-11-17), a "Your server" light that says whether the server answers and warns when its engine build
+   isn't the table's, and no Docker on the friend's PC. The relay must be reachable from the friend's PC: **Tailscale
+   only** (the owner's decision): `tools/setup-server.sh` binds the relay to the Tailscale address (`RELAY_BIND`), and
+   no TLS setup is offered or recommended.
 
 **Step zero (free, before paying for anything):**
 - Play one online game on the current home setup, now that the 2026-10-19 snapshot fix is in.

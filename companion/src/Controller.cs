@@ -157,8 +157,11 @@ namespace MtgCompanion
         public static string BridgeUrl = "http://127.0.0.1:48787"; // (--bridge-url: tests point it at a fake)
         // Own-server mode (OwnServer.cs, docs/companion-app-spec.md §5.8): --server HOST[:PORT] for this run, else
         // server.json in the package folder. server: null for the engine in Docker on this PC, else the setting (Ok or
-        // with a problem). Read at start, at each start sequence and when the page's Own server box changes it.
+        // with a problem). Read at start and at each start sequence. No status-page box sets it (the owner's decision,
+        // 2026-11-17): the player writes server.json (its key encrypted for this Windows account, KeyVault) or uses --server.
         public static string ServerArg;
+        // how a plain key is encrypted (KeyVault.Protect; the self-test makes it throw to check what is logged)
+        public static Func<string, string> KeyProtect = KeyVault.Protect;
         volatile ServerSetting server;
         public ServerSetting Server { get { return server; } }
         bool OnServer { get { return server != null; } }
@@ -265,38 +268,33 @@ namespace MtgCompanion
         void ReadServer()
         {
             var was = server;
-            server = OwnServer.SettingOf(Probes.ReadText(L.ServerFile), ServerArg, Environment.GetEnvironmentVariable(OwnServer.KeyVariable));
+            string resave, problem, protectError = null;
+            Func<string, string> protect = k =>
+            {
+                try { return KeyProtect(k); }
+                catch (Exception e) { protectError = e.GetType().Name + ": " + Logic.Clip(e.Message, 160); throw; }
+            };
+            var opened = OwnServer.OpenKey(Probes.ReadText(L.ServerFile), KeyVault.Unprotect, protect, out resave, out problem);
+            // (encryption failing: the file stays as it is and the game still plays; said once, never with the key)
+            if (protectError != null && !Observe) Log.Write(OwnServer.File + ": the key couldn't be encrypted for this Windows account (" + protectError + "); server.json stays as it is");
+            server = problem != null ? ServerSetting.Bad(problem) : OwnServer.SettingOf(opened, ServerArg, Environment.GetEnvironmentVariable(OwnServer.KeyVariable));
+            // (a plain key: saved again encrypted for this Windows account, once; never in observe mode)
+            if (resave != null && !Observe)
+            {
+                try
+                {
+                    var tmp = L.ServerFile + ".tmp";
+                    File.WriteAllText(tmp, resave);
+                    if (File.Exists(L.ServerFile)) File.Replace(tmp, L.ServerFile, null); else File.Move(tmp, L.ServerFile);
+                    Log.Write(OwnServer.File + ": the key is now encrypted for this Windows account (DPAPI)");
+                }
+                catch (Exception e) { Log.Write(OwnServer.File + ": the key couldn't be encrypted (" + e.Message + "); it stays as it is"); }
+            }
             Rows[StepStack].Name = server != null ? OwnServer.RowName : Names[StepStack];
             string now = server == null ? "this PC's engine" : server.Ok ? "your server " + OwnServer.Words(server.Server) : "a server setting with a problem: " + server.Problem;
             string before = was == null ? "this PC's engine" : was.Ok ? "your server " + OwnServer.Words(was.Server) : "a server setting with a problem: " + was.Problem;
             if (was == null && server == null) return;
             if (now != before || was == null) Log.Write("engine: " + now);
-        }
-
-        // The page's Own server box: writes server.json (or removes it for this computer's engine) and checks again.
-        // Refused during a game: switching engines would end it. text null: back to this computer. Returns a refusal or null.
-        public string SetServer(string text)
-        {
-            if (Observe) return "Observe mode: nothing is changed.";
-            RefreshGame();
-            if (IsLocked) return Logic.LockText(Game);
-            if (ServerArg != null) return "This run was started with --server " + ServerArg + ": start the companion without it to change the server here.";
-            try
-            {
-                if (text == null) { if (File.Exists(L.ServerFile)) File.Delete(L.ServerFile); }
-                else File.WriteAllText(L.ServerFile, text);
-            }
-            catch (Exception e) { return "Couldn't write " + OwnServer.File + ": " + e.Message; }
-            Log.Write("status page: own server " + (text == null ? "off (this computer's engine)" : "set"));
-            Enqueue(() =>
-            {
-                ReadServer();
-                loginCache = null; versionsAt = DateTime.MinValue;
-                // (a bridge running for the other engine: restarted for this one when the engine runs, else checked)
-                if (engineStarted && !Observe) { StopBridge(); pendingFrom = 1; }
-                else checkPending = true;
-            });
-            return null;
         }
 
         // ── the update's state: one snapshot, changed only here
@@ -909,9 +907,10 @@ namespace MtgCompanion
             if (s == null || !s.Ok) { Set(StepStack, OwnServer.Decide(s, null, Game)); return false; }
             Set(StepStack, new Verdict(Light.Busy, "Asking your server (" + OwnServer.Words(s.Server) + ")."));
             var login = IsLocked ? new LoginResult { Kind = LoginKind.Skipped } : Login();
-            var v = OwnServer.Decide(s, login, Game);
+            var v = OwnServer.Decide(s, login, Game, J.Str(deployed, "engineBuild"));
             Set(StepStack, v);
-            return v.Light == Light.Green;
+            // (amber: the server's engine build isn't the table's; said, and the start goes on)
+            return v.Light == Light.Green || v.Light == Light.Amber;
         }
 
         bool DoStack(bool fresh)
@@ -1407,7 +1406,7 @@ namespace MtgCompanion
             if (IsLocked) login = new LoginResult { Kind = LoginKind.Skipped };
             else if (loginCache == null || (DateTime.UtcNow - loginAt).TotalSeconds > 60) login = Login();
             else login = loginCache;
-            Set(StepStack, OwnServer.Decide(s, login, Game));
+            Set(StepStack, OwnServer.Decide(s, login, Game, J.Str(deployed, "engineBuild")));
         }
 
         void MonitorDocker()

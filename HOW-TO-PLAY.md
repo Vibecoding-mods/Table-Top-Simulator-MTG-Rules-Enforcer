@@ -47,17 +47,20 @@ runs on a server of yours, instead of starting one on this computer. TTS and the
 2. In the companion's folder, make a file named `server.json`:
 
    ```json
-   { "host": "mtg.example.org", "port": 9443, "key": "the MANABREW_SERVER_KEY from the server's stack/.env" }
+   { "host": "100.64.0.5", "port": 9443, "key": "the MANABREW_SERVER_KEY from the server's stack/.env" }
    ```
 
    `host` and a key are needed. `host` is a name or an IP address (an IPv6 address in `[brackets]`), without `ws://`.
    `port` is 9443 unless given. `key` is the server's relay key; leave it out only to use the `MTG_SERVER_KEY` environment
    variable instead (with neither, the light says so: this package's own key is never sent to a server).
-   `"secure": true` connects with `wss://` (the relay behind TLS). Keep the file private: `chmod 600 server.json` (the
-   companion does this itself when it finds the file readable by others).
+   Use Tailscale to reach the server: both computers join the same Tailscale network, and `host` is the server's Tailscale
+   address or name (we don't recommend a relay on the internet, with or without TLS). Keep the file private:
+   `chmod 600 server.json` (the companion does this itself when it finds the file readable by others). On Windows the
+   companion encrypts the key in `server.json` for your Windows account the first time it reads it.
 3. Start the companion as usual. Its window says "Own server: the engine runs on mtg.example.org:9443". On the status page,
    **Container engine** and **Engine images** say "Not needed here", and **Engine stack** logs in to your server:
-   green when its Forge room is open.
+   green when its Forge room is open, amber when the server runs another engine build than your table was deployed
+   with (ask the host to update the server, or update your package).
 
 If the light is red, it says why, for example:
 
@@ -72,8 +75,8 @@ Fix it, then press **Try again**. To use it for one run only: `./start.sh --serv
 or `secure`: a key is never sent to a server it wasn't written for), so set `MTG_SERVER_KEY` to that server's key. To go
 back to the engine on this computer, delete `server.json`. **Stop everything** stops the bridge only; the server's engine
 keeps running (with a `server.json` that has a problem, it stops the engine on this computer, as without a server).
-`mtg reset` can't restart the Forge room on a server: when a room is stuck ("busy with another game"), restart it on the
-server (`docker compose -f stack/compose.yml restart forge-room` in its folder). A bridge left running for another engine
+`mtg reset` can't restart the Forge room on a server: it says to restart the room on the host's server. When a room is
+stuck ("busy with another game"), restart it there (`docker compose -f stack/compose.yml restart forge-room` in its folder). A bridge left running for another engine
 is restarted when you press **Start engine** (never during a game). Keep `server.json` to yourself: the key in it lets
 anyone into your server's games.
 
