@@ -1,10 +1,47 @@
 # Project plan: rules-enforced MTG Commander in TTS
 
-Last updated: 2026-11-10. The design is in [SPEC.md](SPEC.md); test results and how to rerun them are in [TESTING.md](TESTING.md).
+Last updated: 2026-11-17. The design is in [SPEC.md](SPEC.md); test results and how to rerun them are in [TESTING.md](TESTING.md).
 
 **Status key:** ✅ done · 🔶 built, needs testing in TTS · ⬜ to do · 💡 idea, not scheduled
 
 ---
+
+## 2026-11-17: where things stand
+(From a full audit of this file, the specs and the git log. The sections below keep their older "in source" notes; this
+section is the current picture.)
+
+**Deployed:** engine1120 (big turns 2, tie offer, attack tax "Pay for all", attack lines, stress caps, Repeat xN,
+Archenemy polish, 2HG shared-turn looks, 3HG table). Rollback is engine1119.
+
+**🔶 Built, going out with engine1121 (in main, image being built):**
+- Archenemy table view: the scheme set in motion, the ongoing row, the scheme deck with its count, the banner, the setup button.
+- Treachery: the Leader goes first.
+- Best of three for Standard: game 1's roll, "GAME 2 OF 3", sideboarding (private to the owner), Concede match.
+- Cost badge phase 2: the cost of a card cast from a graveyard or exile; split and adventure halves.
+- Custom art past plain cards: DFC backs, game-made tokens, the AI's pasted decks, keyed by Steam ID.
+- Stress catalog 2: copies keep their targets (xN), All/None, scry shortcuts, big hands; token runs (identical tokens in a row are one entry).
+- Big boards: checkpoints capped by size, an AI payment deadline, shared mana-source probes (action list 21 s → 0.32 s at 6×90).
+- Ability-sweep follow-ups: life losses name their source, spells name their targets, pile splits.
+- Planechase follow-ups: plane owners from the engine, the planar deck's order question.
+- Windows companion: own-server mode (it was Linux/Mac only).
+- M6: headless six-seat games and the six-seat table golden (in the deploy gates).
+
+**⬜ Still open (an agent can do these):**
+- Bo3: the roll winner should choose play or draw (it plays now).
+- Cost badge "cheapest" compares mana value only.
+- Companion own-server break-it: 3 survivors to close.
+- Quadratic token creation (static abilities recomputed per entering card): needs a design.
+- Real opening hand at the mulligan (`openingCards`), not at first priority.
+- Remaining stress catalog items past the top ten; unprobed prompt shapes (ChooseNumber, GenericChoice, ChoosePlayer, Fortify, Reconfigure, Bestow).
+- Slow-tail re-measure on a quiet PC.
+
+**Needs you or other players:**
+- The 6-player save (top priority): your OK to create it, then a look on the real table.
+- A real-table look at: the ∞ badge, attack lines, Archenemy view, cost badges, custom art, Play/Draw, 3HG, token runs, floating mana chips, the tie pop-up.
+- Multi-human tests: 4 humans, the rewind and manual-fix votes, 2HG shared turns, Treachery with 4 people, a second GIF client.
+- Steam Deck test of the Linux/Mac companion.
+- Uploads (particle bundles, sound bundle), telling the table's author, sound licences.
+- Decisions: the 805.2 primary player, the team-block notice wording, checkpoint thinning (oldest first or each turn's first), companion key storage.
 
 ## 2026-11-13 (asked by the user)
 - 🔶 **Floating mana you can see at a glance.** Today your pool shows only as a line in the engine panel's status text
