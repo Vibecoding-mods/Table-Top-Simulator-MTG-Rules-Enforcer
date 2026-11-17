@@ -1,7 +1,8 @@
 // A picked starting hand ("mtg hand", the companion page's Starting hand; bridge setPickedHand, takePickedHands,
 // handPrompt, handOps): set, cleared and refused; dropped by a game with another person or with debug tools off; the
-// dealt hand kept at the engine's real mulligan question; and at the first priority the one debug fix that makes the
-// hand the picked one, in the order the cards end up in. Real data: Blue's deck is the default Neheb, the Worthy preset
+// dealt hand kept at the engine's real mulligan question when the engine dealt at random; and at the first priority the
+// one debug fix that makes the hand the picked one, in the order the cards end up in (an engine without openingCards:
+// test_bridge_opening_hand covers the one that deals them). Real data: Blue's deck is the default Neheb, the Worthy preset
 // (manabrew/public/preset_decks, the deck the bridge gives a seat with no deck of its own), the board and the mulligan
 // prompt are the golden's dump2, recorded from Forge (Blue's hand: Vraska's Fall, Venomous Changeling, Hurloon Minotaur,
 // Pestilence, Heated Debate, Simian Spirit Guide, Fire-Belly Changeling).
@@ -86,7 +87,7 @@ function started(h, { red = false, pick = null } = {}) {
     const r = (await post(h, { kind: "hand", color: "Blue", names: [" lightning bolt", "Vraska's Fall", "Counterspell"] }));
     same("set: the answer", r, { ok: true, message: "Picked hand for Blue's next game: Lightning Bolt, Vraska's Fall, Counterspell, and 4 more dealt at random from the deck. Not in Neheb, the Worthy (the deck Blue plays), so added to the game: Counterspell. A deck card not dealt is added as an extra copy." });
     same("set: said to the whole table, with when they come", chats(h).at(-1),
-      "[MTG] Debug: Blue's next game (against the AI) starts with a picked hand: Lightning Bolt, Vraska's Fall, Counterspell, and 4 more dealt at random from the deck. Not in Neheb, the Worthy (the deck Blue plays), so added to the game: Counterspell. A deck card not dealt is added as an extra copy. They come at the first priority, in turn 1 (the engine deals the opening hand itself and takes no change at the keep-or-mulligan question, so the dealt hand is kept by itself).");
+      "[MTG] Debug: Blue's next game (against the AI) starts with a picked hand: Lightning Bolt, Vraska's Fall, Counterspell, and 4 more dealt at random from the deck. Not in Neheb, the Worthy (the deck Blue plays), so added to the game: Counterspell. A deck card not dealt is added as an extra copy. The engine deals them as the opening hand, before the keep-or-mulligan question (a mulligan deals again as usual). An engine without that deals at random, and then they come at the first priority, in turn 1.");
     const blue = h.B.toolsState().hand.seats.find((s) => s.color === "Blue");
     same("GET: the hand waiting, Forge's spelling, in order; the added card", [blue.waiting, blue.added], [["Lightning Bolt", "Vraska's Fall", "Counterspell"], ["Counterspell"]]);
     same("GET: the deck the seat plays, where from", [blue.deck, blue.source, h.B.toolsState().hand.max], ["Neheb, the Worthy", "default", 7]);
@@ -138,7 +139,7 @@ function started(h, { red = false, pick = null } = {}) {
     await h.flush();
     same("start: taken into this game, gone from the waiting list", [h.B._getGame().handPick, h.B.toolsState().hand.seats.find((s) => s.color === "Blue").waiting],
       [{ Blue: { names: ["Lightning Bolt", "Counterspell"] } }, null]);
-    ok("start: said, with the deck the seat plays", chats(h).includes("[MTG] Blue's picked hand: Lightning Bolt, Counterspell, and 5 more dealt at random from the deck. Not in Neheb, the Worthy (the deck Blue plays), so added to the game: Counterspell. A deck card not dealt is added as an extra copy. They come at the first priority, in turn 1 (the engine deals the opening hand itself and takes no change at the keep-or-mulligan question, so the dealt hand is kept by itself)."), JSON.stringify(chats(h).slice(-3)));
+    ok("start: said, with the deck the seat plays", chats(h).includes("[MTG] Blue's picked hand: Lightning Bolt, Counterspell, and 5 more dealt at random from the deck. Not in Neheb, the Worthy (the deck Blue plays), so added to the game: Counterspell. A deck card not dealt is added as an extra copy. The engine deals them as the opening hand, before the keep-or-mulligan question (a mulligan deals again as usual). An engine without that deals at random, and then they come at the first priority, in turn 1."), JSON.stringify(chats(h).slice(-3)));
   });
   await run(async (h) => {
     h.B.setDebugTools(true);

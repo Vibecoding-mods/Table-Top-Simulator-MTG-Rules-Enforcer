@@ -36,6 +36,17 @@ function containerImages(done) {
   });
 }
 
+// The engine build id the running node says it is (its image's SELF_HOSTED_NODE_ENGINE_BUILD: engine/engine-build-id.sh's
+// hash of the pins and the patches, which engine/build-images.sh bakes in): null when Docker can't say or the image is
+// older than the setting
+function containerBuild(done) {
+  execFile("docker", ["inspect", "-f", "{{range .Config.Env}}{{println .}}{{end}}", NODE_CONTAINER], { timeout: 8000 }, (err, out) => {
+    const line = String(out || "").split(/\r?\n/).find((l) => l.startsWith("SELF_HOSTED_NODE_ENGINE_BUILD="));
+    const build = line ? line.slice("SELF_HOSTED_NODE_ENGINE_BUILD=".length).trim() : "";
+    done(err || !build ? null : build);
+  });
+}
+
 // now: { bridge, table, node, relay } (or { bridge, table, remote: true }: the engine on the host's own server). bridge: the hash of the code this process loaded. table: the stamp from the
 // table's messages: undefined until one came, null from a table older than stamps. Returns what doesn't match, in a
 // player's words.
@@ -64,4 +75,4 @@ const waiting = (deployed) => (deployed ? [
   ...(![null, deployed.tableSource].includes(fileHash(TABLE_SOURCE)) ? ["tools/engine-renderer.lua or tools/engine-json.lua"] : []),
 ] : []);
 
-module.exports = { MANIFEST, COMPOSE, BRIDGE_FILES, TABLE_SOURCE, sha8, fileHash, bridgeHash, readManifest, containerImages, outOfStep, waiting };
+module.exports = { MANIFEST, COMPOSE, BRIDGE_FILES, TABLE_SOURCE, sha8, fileHash, bridgeHash, readManifest, containerImages, containerBuild, outOfStep, waiting };

@@ -1,5 +1,5 @@
-// --selftest, own-server mode (OwnServer.cs): the setting, the start light, the bridge's environment and the status
-// page's box, against canned inputs. `--selftest --section own-server` runs this section alone
+// --selftest, own-server mode (OwnServer.cs, KeyVault.cs): the setting, the key at rest, the start light (the server's
+// engine build too) and the bridge's environment, against canned inputs. `--selftest --section own-server` runs this section alone
 // (tests/test_companion_own_server.js does, and tools/mutate-companion-own-server.js breaks the rules one at a time).
 using System;
 using System.Collections.Generic;
@@ -104,25 +104,6 @@ namespace MtgCompanion
             v = OwnServer.BridgeForOtherEngine(ok.Server);
             Check("bridge: for another engine: amber, Restart the bridge", v.Light == Light.Amber && v.Fix == Fixes.BridgeRestart, v);
 
-            // ── the status page's box: never the key
-            var view = OwnServer.View(ok);
-            var shown = J.Write(view);
-            Check("page: the server, its port, a key is set, its last 2 characters only", (string)view["mode"] == "server" && (string)view["host"] == "mtg.example.org" && (bool)view["keySet"] && (string)view["keyEnds"] == "01" && !shown.Contains(Key), shown);
-            Check("page: this computer's engine", (string)OwnServer.View(null)["mode"] == "local");
-            Check("page: a short key shows no characters", OwnServer.KeyEnds("abc") == "");
-            string problem;
-            var text = OwnServer.FileFromBox("MTG.example.org:9600", " " + Key + " ", false, null, out problem);
-            var back = OwnServer.SettingOf(text, null, null);
-            Check("page: Use this server writes a server.json the companion reads back", problem == null && back != null && back.Ok && back.Server.Host == "mtg.example.org" && back.Server.Port == 9600 && back.Server.Key == Key, problem ?? text);
-            text = OwnServer.FileFromBox("mtg.example.org:9600", "", true, "{\"host\":\"mtg.example.org\",\"key\":\"" + Key + "\"}", out problem);
-            back = OwnServer.SettingOf(text, null, null);
-            Check("page: a blank key keeps server.json's for the same host", problem == null && back != null && back.Ok && back.Server.Key == Key && back.Server.Secure, problem ?? text);
-            text = OwnServer.FileFromBox("other.example.org", "", false, "{\"host\":\"mtg.example.org\",\"key\":\"" + Key + "\"}", out problem);
-            Check("page: a blank key for another host is refused (the old key isn't sent there)", text == null && problem != null && problem.Contains("key"), problem);
-            text = OwnServer.FileFromBox("ws://mtg.example.org", Key, false, null, out problem);
-            Check("page: a bad address is refused with the reason, nothing written", text == null && problem != null && problem.Contains("without ws://"), problem);
-            text = OwnServer.FileFromBox("", Key, false, null, out problem);
-            Check("page: no address: asks for one", text == null && problem != null && problem.Contains("address"), problem);
             // ── what a failed connect says (Probes.ConnectFailureKind), from each platform's exceptions: .NET Framework on
             // Windows reports an unknown name as a WebException (NameResolutionFailure) with no SocketException, mono as a
             // SocketException (HostNotFound). Checked here with both shapes, so neither branch is only seen on one platform.
@@ -139,12 +120,58 @@ namespace MtgCompanion
             Check("login kind: another WebException: closed, not isn't known",
                 kind(new System.Net.WebException("x", System.Net.WebExceptionStatus.ConnectFailure)) == LoginKind.Closed);
             Check("login kind: cancelled: timeout", kind(new AggregateException(new System.Threading.Tasks.TaskCanceledException())) == LoginKind.Timeout);
+
+            // ── the server's engine build against the table's (the owner's decision, 2026-11-17)
+            var open = new LoginResult { Kind = LoginKind.Ok, RoomFound = true, RoomStatus = "Lobby", Ms = 42 };
+            open.EngineBuild = "engine1121";
+            v = OwnServer.Decide(ok, open, noGame, "engine1121");
+            Check("build: the server's build is the table's: green", v.Light == Light.Green && v.Text.Contains("is open"), v);
+            open.EngineBuild = "engine1120";
+            v = OwnServer.Decide(ok, open, noGame, "engine1121");
+            Check("build: another build than the table's: amber, both named, ask the host", v.Light == Light.Amber && v.Text.Contains("engine1120") && v.Text.Contains("engine1121") && v.Text.Contains("ask the host"), v);
+            v = OwnServer.Decide(ok, new LoginResult { Kind = LoginKind.Ok, RoomFound = true, RoomStatus = "InGame", EngineBuild = "engine1120" }, Game.On("a game", 3), "engine1121");
+            Check("build: another build during our own game: amber too", v.Light == Light.Amber, v);
+            open.EngineBuild = null;
+            v = OwnServer.Decide(ok, open, noGame, "engine1121");
+            Check("build: a server too old to say: green, no warning", v.Light == Light.Green, v);
+            open.EngineBuild = "engine1121";
+            v = OwnServer.Decide(ok, open, noGame, null);
+            Check("build: a deploy too old to say: green, no warning", v.Light == Light.Green, v);
+
+            // ── the key at rest: encrypted for this Windows account (DPAPI), a plain key re-saved encrypted once
+            Func<string, string> seal = k => "sealed:" + new string(k.Reverse().ToArray());
+            Func<string, string> unseal = b => { if (!b.StartsWith("sealed:")) throw new InvalidOperationException("not ours"); return new string(b.Substring(7).Reverse().ToArray()); };
+            string resave, problem;
+            var plainFile = "{\"host\":\"mtg.example.org\",\"port\":9555,\"key\":\"" + Key + "\"}";
+            var opened = OwnServer.OpenKey(plainFile, unseal, seal, out resave, out problem);
+            var used = OwnServer.SettingOf(opened, null, null);
+            Check("key: a plain key is used as it is", problem == null && used != null && used.Ok && used.Server.Key == Key && used.Server.Port == 9555, Show(used));
+            Check("key: and the file is saved again with it encrypted, never plain", resave != null && !resave.Contains(Key) && resave.Contains("\"" + KeyVault.Field + "\"") && resave.Contains("9555"), resave);
+            var resaved = resave;
+            opened = OwnServer.OpenKey(resaved, unseal, seal, out resave, out problem);
+            used = OwnServer.SettingOf(opened, null, null);
+            Check("key: the encrypted file opens to the same key, and isn't saved again", problem == null && resave == null && used != null && used.Ok && used.Server.Key == Key && used.Server.Host == "mtg.example.org", Show(used));
+            opened = OwnServer.OpenKey(resaved, b => { throw new InvalidOperationException("another account"); }, seal, out resave, out problem);
+            Check("key: another account's encrypted key: a problem that says to put the key in again", opened == null && problem != null && problem.Contains("another Windows account") && problem.Contains("\"key\""), problem);
+            opened = OwnServer.OpenKey(resaved.Replace("{", "{\"key\":\"new-key-0123\","), unseal, seal, out resave, out problem);
+            used = OwnServer.SettingOf(opened, null, null);
+            Check("key: a key typed beside an encrypted one wins, and replaces it encrypted", used != null && used.Ok && used.Server.Key == "new-key-0123" && resave != null && !resave.Contains("new-key-0123") && resave.Split(new[] { KeyVault.Field }, StringSplitOptions.None).Length == 2, resave);
+            opened = OwnServer.OpenKey(plainFile, unseal, k => { throw new InvalidOperationException("no DPAPI"); }, out resave, out problem);
+            Check("key: encryption failing keeps the plain file (nothing saved) and still plays", resave == null && problem == null && OwnServer.SettingOf(opened, null, null).Ok, Show(OwnServer.SettingOf(opened, null, null)));
+            opened = OwnServer.OpenKey("{ \"host\": ", unseal, seal, out resave, out problem);
+            Check("key: a broken file is handed on for SettingOf to explain", opened == "{ \"host\": " && resave == null && problem == null && !OwnServer.SettingOf(opened, null, null).Ok);
+            Check("key: no file: nothing", OwnServer.OpenKey(null, unseal, seal, out resave, out problem) == null && resave == null && problem == null);
+            string real = null;
+            try { real = KeyVault.Protect(Key); } catch (Exception e) { real = "error: " + e.Message; }
+            string back = null;
+            try { back = KeyVault.Unprotect(real); } catch (Exception e) { back = "error: " + e.Message; }
+            Check("key: DPAPI (ProtectedData, CurrentUser) round trip, the blob never the key", back == Key && !real.Contains(Key), real + " -> " + back);
             OwnServerWiring(Key);
         }
 
         // The Controller and the page's API with a server.json in a temp package: the row's name, the bridge loop's
-        // environment, Use this server / Use this computer through POST /api/server, and the key never in the status
-        // JSON or the log. (The bridge URL points at nothing, so no game locks it.)
+        // environment, the plain key saved again encrypted, no Own server box on the page, and the key never in the
+        // status JSON or the log. (The bridge URL points at nothing, so no game locks it.)
         static void OwnServerWiring(string key)
         {
             var tmp = Path.Combine(Path.GetTempPath(), "mtg-companion-selftest-server-" + Guid.NewGuid().ToString("N").Substring(0, 8));
@@ -169,23 +196,35 @@ namespace MtgCompanion
                 var effects = new List<string>();
                 var w = Page(c, effects);
                 var status = Send(w, Get(w, "/api/status", w.Token)).Body;
-                Check("wiring: the status JSON has the server, never its key", J.Str(J.Get(J.Parse(status), "server"), "mode") == "server" && !status.Contains(key), Logic.Clip(status, 200));
-                var res = J.Parse(Send(w, PostTo(w, "/api/server", "{\"local\":true}", w.Token)).Body);
-                Check("wiring: Use this computer removes server.json", J.Bool(res, "ok") && !File.Exists(l.ServerFile), J.Write(res));
-                res = J.Parse(Send(w, PostTo(w, "/api/server", "{\"host\":\"10.0.0.7:9600\",\"key\":\"" + key + "\",\"secure\":false}", w.Token)).Body);
-                var back = OwnServer.SettingOf(Probes.ReadText(l.ServerFile), null, null);
-                Check("wiring: Use this server writes server.json", J.Bool(res, "ok") && back != null && back.Ok && back.Server.Host == "10.0.0.7" && back.Server.Port == 9600 && back.Server.Key == key, J.Write(res));
-                res = J.Parse(Send(w, PostTo(w, "/api/server", "{\"host\":\"ws://x\",\"key\":\"k\"}", w.Token)).Body);
-                Check("wiring: a bad address is refused, server.json unchanged", !J.Bool(res, "ok") && Probes.ReadText(l.ServerFile).Contains("10.0.0.7"), J.Write(res));
-                var noToken = Send(w, PostTo(w, "/api/server", "{\"local\":true}", null));
-                Check("wiring: POST /api/server without the page's token is refused", noToken.Status == 403 && File.Exists(l.ServerFile), noToken.Status);
+                Check("wiring: the status JSON has no server part (no box) and never the key", !J.Has(J.Parse(status), "server") && !status.Contains(key), Logic.Clip(status, 200));
+                var stored = Probes.ReadText(l.ServerFile) ?? "";
+                Check("wiring: the plain key in server.json is saved again encrypted for this account", !stored.Contains(key) && stored.Contains("\"" + KeyVault.Field + "\"") && stored.Contains("9555"), stored);
+                var again = new Controller(l, true, Path.Combine(tmp, "saves"), Path.Combine(tmp, "state"), "x.exe");
+                Check("wiring: the encrypted server.json opens to the same key", again.Server != null && again.Server.Ok && again.Server.Server.Key == key && again.BridgeLoopInfo().EnvironmentVariables["MTG_KEY"] == key, Show(again.Server));
+                var gone = Send(w, PostTo(w, "/api/server", "{\"local\":true}", w.Token));
+                Check("wiring: POST /api/server is gone (no box): not found, server.json kept", gone.Status == 404 && File.Exists(l.ServerFile), gone.Status);
+                var page = Send(w, Get(w, "/", null)).Body ?? "";
+                Check("wiring: the page has no Own server box", !page.Contains("srvbox") && !page.Contains("/api/server"), Logic.Clip(page, 120));
+                File.WriteAllText(l.ServerFile, "{\"host\":\"mtg.example.org\",\"key\":\"" + key + "\"}");
+                var watcher = new Controller(l, true, Path.Combine(tmp, "saves"), Path.Combine(tmp, "state"), "x.exe");
+                Check("wiring: observe mode leaves a plain key as it is (nothing written)", watcher.Server != null && watcher.Server.Ok && Probes.ReadText(l.ServerFile).Contains(key));
+                var realProtect = Controller.KeyProtect;
+                try
+                {
+                    Controller.KeyProtect = k => { throw new System.Security.Cryptography.CryptographicException("DPAPI unavailable"); };
+                    var failing = new Controller(l, false, Path.Combine(tmp, "saves"), Path.Combine(tmp, "state"), "x.exe");
+                    var said = Probes.ReadText(Log.File) ?? "";
+                    Check("wiring: encryption failing is logged once (no key), the file kept, the server still used",
+                        said.Contains("the key couldn't be encrypted for this Windows account (CryptographicException: DPAPI unavailable)") && !said.Contains(key)
+                        && Probes.ReadText(l.ServerFile).Contains(key) && failing.Server != null && failing.Server.Ok, Logic.Clip(said, 300));
+                }
+                finally { Controller.KeyProtect = realProtect; }
                 File.Delete(l.ServerFile);
                 var local = new Controller(l, true, Path.Combine(tmp, "saves"), Path.Combine(tmp, "state"), "x.exe");
                 psi = local.BridgeLoopInfo();
                 Check("wiring: no server.json: Engine stack, and the bridge's server variables emptied", local.Rows[Controller.StepStack].Name == Controller.Names[Controller.StepStack] && psi.EnvironmentVariables["MTG_RELAY"] == "" && psi.EnvironmentVariables["MTG_REMOTE_ENGINE"] == "", psi.EnvironmentVariables["MTG_RELAY"]);
-                Check("wiring: observe mode changes no server", local.SetServer("{}") != null && !File.Exists(l.ServerFile));
                 var logText = Probes.ReadText(Log.File) ?? "";
-                Check("wiring: the key is never in the log", !logText.Contains(key) && logText.Contains("own server"), Logic.Clip(logText, 300));
+                Check("wiring: the key is never in the log, and the encryption is", !logText.Contains(key) && logText.Contains("now encrypted for this Windows account"), Logic.Clip(logText, 300));
             }
             catch (Exception e) { Check("wiring: no exception", false, e.ToString()); }
             finally

@@ -997,6 +997,8 @@ namespace MtgCompanion
     public class LoginResult
     {
         public LoginKind Kind; public bool RoomFound; public string RoomStatus; public long Ms; public string Detail;
+        // the engine build the room's node runs (its RoomInfo engine_build); null from a server too old to say
+        public string EngineBuild;
     }
 
     public class Listener { public int Port; public int Pid; public string Name; public string CommandLine; }

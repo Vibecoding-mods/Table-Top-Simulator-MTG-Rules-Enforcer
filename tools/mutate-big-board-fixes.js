@@ -27,12 +27,12 @@ const MUTATIONS = [
   ["pay: the hold not released", M, "                ai.getGame().getAction().setHoldCheckingStaticAbilities(false);\n", "", "pay: past the deadline the payment is made with the static checks held, then one pass"],
   ["pay: no pass after the held payment", M, "                ai.getGame().getAction().setHoldCheckingStaticAbilities(false);\n                ai.getGame().getAction().checkStaticAbilities();\n", "                ai.getGame().getAction().setHoldCheckingStaticAbilities(false);\n", "pay: past the deadline the payment is made with the static checks held, then one pass"],
   ["pay: the deadline taken as passed at once", M, "System.currentTimeMillis() >= budget.deadline", "true", "pay: within the deadline every mana ability runs its static pass as before"],
-  ["block: no chump blocks past the deadline", K, "            makeChumpBlocksPastDeadline(combat, possibleBlockers);\n", "", "block: past the deadline a lethal attack is chump-blocked"],
+  ["block: no chump blocks past the deadline", K, "            makeChumpBlocksPastDeadline(combat, ai.getCreaturesInPlay());\n", "", "block: past the deadline a lethal attack is chump-blocked"],
   ["block: chump blocks when not lethal", K, "            if (damage < ai.getLife()) {\n                break;\n            }\n", "", "block: past the deadline an attack that isn't lethal gets no forced blocks"],
   ["checkpoints: the cap not by size", S, "return (int) Math.max(1, Math.min(MAX_CHECKPOINTS, CHECKPOINT_BUDGET_BYTES / perCheckpoint));", "return MAX_CHECKPOINTS;", "checkpoints: the cap falls with the cards in the game"],
   ["checkpoints: bytes per card in thousands", S, "CHECKPOINT_BYTES_PER_CARD = 27 * 1024;", "CHECKPOINT_BYTES_PER_CARD = 27 * 1000;", "checkpoints: the cap falls with the cards in the game"],
-  ["checkpoints: the newest dropped", S, "        while (checkpoints.size() > cap) {\n            checkpoints.removeFirst();", "        while (checkpoints.size() > cap) {\n            checkpoints.removeLast();", "checkpoints: past the cap the oldest go, as before"],
-  ["checkpoints: the session not capped", S, "        thinCheckpoints(checkpoints, checkpointCap(cardsInZones(game)));\n", "        thinCheckpoints(checkpoints, 1000);\n", "checkpoints: the session keeps no more than the cap"],
+  ["checkpoints: the newest dropped", S, "        return first != null && first != newest && first != keep ? first : null;", "        return newest != keep ? newest : null;", "checkpoints: past the turns' firsts the oldest turns go"],
+  ["checkpoints: the session not capped", S, "        thinCheckpoints(checkpoints, checkpointCap(cardsInZones(game)),\n", "        thinCheckpoints(checkpoints, 1000,\n", "checkpoints: the session keeps no more than the cap"],
 ];
 
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");

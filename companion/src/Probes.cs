@@ -404,6 +404,7 @@ namespace MtgCompanion
                 if (found == null) foreach (var x in rooms) if (J.Str(x, "room_name") == room) { found = x; break; }
                 r.RoomFound = found != null;
                 r.RoomStatus = found == null ? null : J.Str(found, "status");
+                r.EngineBuild = found == null ? null : J.Str(found, "engine_build");
                 r.Ms = sw.ElapsedMilliseconds;
                 return r;
             }

@@ -1,12 +1,13 @@
 // The Windows companion's own-server mode (companion/src/OwnServer.cs; docs/companion-app-spec.md §5.8): a friend's
 // companion plays on the host's engine over the network instead of running Docker.
-//  1. `--selftest --section own-server`: server.json and --server, the start light, the bridge's environment, the
-//     status page's Own server box (POST /api/server), the key never shown or logged.
+//  1. `--selftest --section own-server`: server.json and --server, the key encrypted at rest (DPAPI, a plain key saved
+//     again encrypted), the start light (the server's engine build against the table's), the bridge's environment, no
+//     Own server box (the owner's decision, 2026-11-17), the key never shown or logged.
 //  2. The real companion (`--observe --dump --steps 1,2,3`) in a temp package with a server.json, against a fake relay
 //     on this computer (a WebSocket server on a spare port, never the live 9443): the server answers (green, Docker and
 //     the images "Not needed here"), a wrong key, nothing on the port, a busy room, no Forge room, a name that doesn't
 //     resolve, no key, and no server.json (this computer's engine again); the key never in the dump or the log.
-//  3. The status page's box (companion/src/WebPage.cs, its script in a Node vm): what it shows, and what it sends.
+//  3. The status page (companion/src/WebPage.cs, its script in a Node vm) has no Own server box.
 // Builds the exe first: build.cmd on Windows; elsewhere mono's mcs (C# 5, the same sources) and runs it under mono with
 // a virtual display (xvfb-run), when they are installed.
 //   node tests/test_companion_own_server.js
@@ -98,19 +99,20 @@ function fakeRelay({ key = KEY, rooms = [{ room_name: "tts-commander", status: "
 const freePort = () => new Promise((done) => { const s = require("net").createServer().listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => done(p)); }); });
 
 // a temp friend package: the exe's folder with version.json and a server.json (null: none)
-function makePkg(exe, server) {
+function makePkg(exe, server, files = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mtg-own-server-pkg-"));
   fs.mkdirSync(path.join(dir, "logs"));
   fs.mkdirSync(path.join(dir, "stack"));
   fs.writeFileSync(path.join(dir, "version.json"), JSON.stringify({ built: "2026-11-17T00:00:00Z" }));
   if (server !== null) fs.writeFileSync(path.join(dir, "server.json"), typeof server === "string" ? server : JSON.stringify(server));
+  for (const [rel, text] of Object.entries(files)) fs.writeFileSync(path.join(dir, rel), text);
   const copy = path.join(dir, "MTG Companion.exe");
   fs.copyFileSync(exe, copy);
   return { dir, exe: copy };
 }
 // one --observe pass of steps 1-3: the dump's rows and text, and the log
-async function observe(exe, server, extraArgs = [], env = {}) {
-  const pkg = makePkg(exe, server);
+async function observe(exe, server, extraArgs = [], env = {}, files = {}) {
+  const pkg = makePkg(exe, server, files);
   try {
     const dumpFile = path.join(pkg.dir, "dump.txt");
     const r = await runExe(pkg.exe, ["--observe", "--no-web", "--no-browser", "--steps", "1,2,3", "--state", path.join(pkg.dir, "state"), "--saves", path.join(pkg.dir, "saves"),
@@ -134,18 +136,8 @@ function pageChecks() {
   const ctx = vm.createContext({});
   vm.runInContext(script, ctx);
   const P = ctx.MtgPage;
-  ok("page: the Own server box is in the page, hidden until the companion says its mode", /<details id='srvbox' class='card' hidden>/.test(html) && /id='srv-host'/.test(html) && /id='srv-key'/.test(html) && /type='password' id='srv-key'/.test(html));
-  same("page: no server part (the Linux/Mac companion): the box stays hidden", P.serverView(undefined).show, false);
-  const sv = P.serverView({ mode: "server", host: "mtg.example.org", port: 9443, secure: false, keySet: true, keyEnds: "wn", fixed: false });
-  ok("page: a server: shown open, the address without the default port, the key's last 2 characters only", sv.show && sv.open && sv.host === "mtg.example.org" && /mtg\.example\.org:9443/.test(sv.text) && /ending in wn/.test(sv.text), JSON.stringify(sv));
-  same("page: another port is kept in the address box", P.serverView({ mode: "server", host: "10.0.0.7", port: 9600 }).host, "10.0.0.7:9600");
-  ok("page: a problem is said", /has a problem: no key/.test(P.serverView({ mode: "problem", problem: "no key for your server" }).text));
-  ok("page: --server for this run: the box can't change it", P.serverView({ mode: "server", host: "a.b", port: 9443, fixed: true }).fixed === true);
-  same("page: this computer: shown, closed", [P.serverView({ mode: "local" }).show, P.serverView({ mode: "local" }).open], [true, false]);
-  same("page: Use this server sends the address, the key and secure", JSON.parse(JSON.stringify(P.serverRequest(" mtg.example.org:9600 ", ` ${KEY} `, true))), { host: "mtg.example.org:9600", key: KEY, secure: true });
-  ok("page: no address: asks for one", /Type your server/.test(P.serverRequest("", KEY, false).error || ""));
-  ok("page: ws:// refused before sending", /without ws:\/\//.test(P.serverRequest("ws://a.b", KEY, false).error || ""));
-  ok("page: a space refused before sending", /space/.test(P.serverRequest("a b", KEY, false).error || ""));
+  ok("page: no Own server box (the owner's decision, 2026-11-17)", !/srvbox|id='srv-|\/api\/server/.test(html), (/.{0,60}(srvbox|srv-|\/api\/server).{0,60}/.exec(html) || [""])[0]);
+  ok("page: its script has no box functions left", P && P.serverView === undefined && P.serverRequest === undefined);
 }
 
 (async () => {
@@ -199,6 +191,15 @@ function pageChecks() {
     o = await observe(exe, null);
     ok("no server.json: this computer's engine (Engine stack, Docker asked)", o.rows[3]?.name === "Engine stack" && /^Engine: this PC \(Docker\)$/m.test(o.dump) && !/Not needed here/.test(o.dump), o.dump || o.out);
   } finally { await relay.close(); }
+  // the server's engine build against the table's (stack/deployed.json engineBuild): amber when they differ
+  const built = await fakeRelay({ rooms: [{ room_name: "tts-commander", status: "Lobby", engine_build: "engine1120" }] });
+  try {
+    const s = { host: "127.0.0.1", port: built.port, key: KEY };
+    let o = await observe(exe, s, [], {}, { "stack/deployed.json": JSON.stringify({ bridge: "b", table: "t", engineBuild: "engine1121" }) });
+    ok("another engine build than the table's: amber, both named, Try again", o.rows[3]?.light === "AMBER" && /Your server runs engine engine1120, but this table was deployed with engine engine1121/.test(o.rows[3]?.text), o.rows[3]?.text || o.out);
+    o = await observe(exe, s, [], {}, { "stack/deployed.json": JSON.stringify({ bridge: "b", table: "t", engineBuild: "engine1120" }) });
+    ok("the table's engine build: green", o.rows[3]?.light === "GREEN" && /room tts-commander is open/.test(o.rows[3]?.text), o.rows[3]?.text || o.out);
+  } finally { await built.close(); }
   for (const [name, rooms, re] of [["a busy room", [{ room_name: "tts-commander", status: "InGame" }], /busy with an earlier game/], ["no Forge room", [], /its Forge room \(tts-commander\) isn't open/]]) {
     const r2 = await fakeRelay({ rooms });
     try {
