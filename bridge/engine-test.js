@@ -39,7 +39,7 @@ const TEAM_MODE = arg("mode", "");
 if (TEAM_MODE && !teams.TEAM_MODES[TEAM_MODE]) throw new Error(`--mode ${TEAM_MODE}: use 2hg, 2v2 or juggernaut`);
 if (TEAM_MODE && SEATS !== 4) throw new Error(`--mode ${TEAM_MODE} needs --seats 4`);
 const JUGG = TEAM_MODE === "juggernaut" ? teams.juggOf({ color: arg("jugg", "White"), cmd: arg("jugg-cmd", 21), order: arg("jugg-order", "first") }) : null;
-const SEAT_COLORS = ["White", "Red", "Yellow", "Blue"];
+const SEAT_COLORS = teams.seatColorsFor(SEATS); // (the six-seat table's colours past four seats)
 const BOTS = Number(arg("bots", SEATS - 1)); // Forge AI seats to request; 0 when other test clients fill the table
 const TAG = arg("tag", "");
 const DUMP = arg("dump", ""); // write last board + one sample of each prompt type here
