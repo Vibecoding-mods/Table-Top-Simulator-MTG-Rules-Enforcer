@@ -496,6 +496,16 @@ namespace MtgCompanion
 
         void Enqueue(Action a) { lock (q) work.Enqueue(a); cancel = true; wake.Set(); }
 
+        // --watch-once (with --dump): one pass of the watcher on the worker, after the first pass, so a dump shows the
+        // watcher's own lights (MonitorServer's, with the table's engine build) and not only the start sequence's.
+        // True when it ran within the time.
+        public bool WatchOnce(int timeoutMs)
+        {
+            var done = new ManualResetEvent(false);
+            Enqueue(() => { Safe(MonitorTick, "watch once"); done.Set(); });
+            return done.WaitOne(timeoutMs);
+        }
+
         void Loop()
         {
             while (!quit)
