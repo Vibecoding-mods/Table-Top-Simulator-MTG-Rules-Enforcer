@@ -347,6 +347,18 @@ namespace MtgCompanion
             return false;
         }
 
+        // What a failed connect says. A name that doesn't resolve is "isn't known" in own-server mode (OwnServer.Decide):
+        // Windows' .NET Framework reports it as a WebException (NameResolutionFailure), mono as a SocketException
+        // (HostNotFound, NoData, TryAgain). The self-test checks both shapes on every platform.
+        public static LoginKind ConnectFailureKind(Exception e)
+        {
+            var se = FindSocketError(e);
+            return se != null && se.SocketErrorCode == SocketError.ConnectionRefused ? LoginKind.Refused
+                 : NameFailure(e) ? LoginKind.NotFound
+                 : se != null && (se.SocketErrorCode == SocketError.HostNotFound || se.SocketErrorCode == SocketError.NoData || se.SocketErrorCode == SocketError.TryAgain) ? LoginKind.NotFound
+                 : (Inner(e) is OperationCanceledException || Inner(e) is TaskCanceledException) ? LoginKind.Timeout : LoginKind.Closed;
+        }
+
         static Exception Inner(Exception e)
         {
             while ((e is AggregateException || e is System.Reflection.TargetInvocationException) && e.InnerException != null) e = e.InnerException;
@@ -371,12 +383,7 @@ namespace MtgCompanion
                 }
                 catch (Exception e)
                 {
-                    var se = FindSocketError(e);
-                    // (a name that doesn't resolve: own-server mode says so, OwnServer.Decide)
-                    r.Kind = se != null && se.SocketErrorCode == SocketError.ConnectionRefused ? LoginKind.Refused
-                           : NameFailure(e) ? LoginKind.NotFound
-                           : se != null && (se.SocketErrorCode == SocketError.HostNotFound || se.SocketErrorCode == SocketError.NoData || se.SocketErrorCode == SocketError.TryAgain) ? LoginKind.NotFound
-                           : (Inner(e) is OperationCanceledException || Inner(e) is TaskCanceledException) ? LoginKind.Timeout : LoginKind.Closed;
+                    r.Kind = ConnectFailureKind(e);
                     r.Detail = Inner(e).Message;
                     return r;
                 }

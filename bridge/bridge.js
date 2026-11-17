@@ -2402,24 +2402,45 @@ function onRoomUpdate(seat, room) {
       payload: { type: "spawnBot", deck: botDecks[0], decks: botDecks, forgeAi: true },
     } });
   }
-  const ready = room.players.filter((p) => p.ready && p.connected).length;
-  if (!game.startSent && formatOk && room.status === "Lobby" && ready >= game.total) {
+  // (the latest room and the seat it came to: a start held for game 1's roll goes out with the room as it is then,
+  // sendStart)
+  game.lastRoom = room;
+  game.lastRoomSeat = seat;
+  if (!game.startSent && roomStartReady(room)) {
     game.startSent = true;
-    const send = () => {
-      const order = clockwiseOrder(room);
-      game.startOrder = order;
-      // (a team mode's teams, or who goes first: sent first, which the node keeps for the game it starts next, host.rs
-      // gameConfig; startConfig)
-      const config = startConfig();
-      if (config) controllerOf(room, seats).send({ type: "BroadcastState", state: {
-        kind: "roomRelay", protocol: "self-hosted-node", version: 1, messageId: `tts-${Date.now()}-teams`, roomId: seat.roomId,
-        payload: config } });
-      controllerOf(room, seats).send({ type: "StartGame", format: MODES[game.mode || "commander"].format, seat_order: order });
-    };
     // (best of three's game 1: the roll's winner chooses to play or draw first, holdStartForRoll)
-    if (matchRollWaits()) holdStartForRoll(send);
-    else send();
+    if (matchRollWaits()) holdStartForRoll(sendStart);
+    else sendStart();
   }
+}
+
+// the room can start: its format is the game's (or Any), it is in the lobby, and everyone is in and ready
+function roomStartReady(room) {
+  const wantFormat = MODES[game.mode || "commander"].format;
+  const formatOk = !room.format || room.format === "Any" || room.format === wantFormat;
+  return formatOk && room.status === "Lobby" && room.players.filter((p) => p.ready && p.connected).length >= game.total;
+}
+
+// The start: the seat order, the gameConfig (teams, first player: startConfig) and StartGame, from the latest room
+// update. A start held for game 1's roll (holdStartForRoll) runs after the wait, when a player may have left or
+// reconnected: it uses the room as it is then, and if the room can't start any more it goes out at the next update that
+// is ready (game 1's first player is kept, so nothing is rolled again). (review of bo3-roll-choice, 2026-11-17)
+function sendStart() {
+  const room = game.lastRoom, seat = game.lastRoomSeat, seats = [...game.seats.values()];
+  if (!room || !roomStartReady(room)) {
+    game.startSent = false;
+    chat("[MTG] The room isn't ready to start: the game starts once everyone is back in and ready.");
+    return;
+  }
+  const order = clockwiseOrder(room);
+  game.startOrder = order;
+  // (a team mode's teams, or who goes first: sent first, which the node keeps for the game it starts next, host.rs
+  // gameConfig; startConfig)
+  const config = startConfig();
+  if (config) controllerOf(room, seats).send({ type: "BroadcastState", state: {
+    kind: "roomRelay", protocol: "self-hosted-node", version: 1, messageId: `tts-${Date.now()}-teams`, roomId: seat.roomId,
+    payload: config } });
+  controllerOf(room, seats).send({ type: "StartGame", format: MODES[game.mode || "commander"].format, seat_order: order });
 }
 
 // Turns go clockwise round the table, as the seats sit (TABLE_COLORS order: White, Red, Yellow, Blue): the AI players
