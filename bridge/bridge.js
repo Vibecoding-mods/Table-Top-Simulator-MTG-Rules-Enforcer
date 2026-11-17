@@ -653,6 +653,7 @@ function firstColorOf() {
 function startConfig() {
   const first = firstColorOf();
   const idx = first ? (game.seatColors || []).indexOf(first) : -1;
+  if (first && idx < 0) chat(`[MTG] ${first} is not a seat in this game, so the engine picks who goes first.`); // (a Leader's card by an empty seat)
   if (game.teams) {
     const cfg = teams2hg.gameConfig(game.teams, game.startOrder, game.seatColors, game.teamMode, game.jugg, game.mode === "standard", game.teamTurns || null, game.arch || null);
     if (idx >= 0 && !cfg.players.some((p) => p.goesFirst)) cfg.firstPlayer = idx;

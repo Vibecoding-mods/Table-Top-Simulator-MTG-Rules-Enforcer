@@ -950,9 +950,13 @@ end
 function engineIdentityNote(o, found)
   if o.type ~= "Card" then return end
   local name = tostring(o.getName())
-  if name:find("Identity", 1, true) == nil then return end
+  if name:find("Identity \226\128\148", 1, true) == nil then return end -- ("Identity ", an em dash: not Identity Crisis)
   found.any = true
-  if found.leader == nil and name:find("Leader", 1, true) ~= nil then found.leader = engineIdentitySeat(o) end
+  if name:find("Leader", 1, true) == nil then return end
+  local seat = engineIdentitySeat(o)
+  -- (two Leader cards at different seats: nobody is the Leader; the host names one)
+  if found.leader == nil and not found.twice then found.leader = seat
+  elseif found.leader ~= seat then found.leader, found.twice = nil, true end
 end
 function engineIdentitySeat(o)
   for _, c in ipairs(TABLE_PROFILE.seats or {}) do
