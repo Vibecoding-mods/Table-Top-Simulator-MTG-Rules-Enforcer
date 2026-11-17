@@ -4461,7 +4461,7 @@ function optionColor(p, index, picked)
   if picked then return "#E53935" end
   if o.id == "__endturn" then return "#2e3a59" end
   if o.id == "__resolve" then return "#b8860b" end -- yellow: pass until the stack is empty
-  if o.id == "__group" then return ENGINE_GROUP_COLOR end -- purple, as its corner button
+  if o.id == "__group" or o.id == "__loop" then return ENGINE_GROUP_COLOR end -- purple, as its corner button
   if p.mode == "single" and index == 1 then return "#e8711a" end
   return "#262626"
 end
@@ -4798,8 +4798,9 @@ function engineUpdateCorner(color, p)
       if i > 1 and o.id == "__cancel" and small == nil then small, smallLabel = i, "Cancel" end
     end
     for i, o in ipairs(p.options) do
-      -- (or a repeated yes/no's "No ×3": the bridge's offerRepeat, answering this one and the next ones alike)
-      if i > 1 and (o.id == "__group" or o.id == "__repeat:no") then group, groupTip = i, tostring(o.label) break end
+      -- (or a repeated yes/no's "No ×3": the bridge's offerRepeat, answering this one and the next ones alike; or a
+      -- loop's "Repeat ×N" at priority, the bridge's loopOfferFor, when no "Resolve N×" is offered)
+      if i > 1 and (o.id == "__group" or o.id == "__repeat:no" or o.id == "__loop") then group, groupTip = i, tostring(o.label) break end
     end
     -- (the whole label when it fits, "Resolve 12× Spirit Token"; else without "Resolve ", then cut; the tooltip keeps it all)
     if group ~= nil then
