@@ -2123,6 +2123,10 @@ function saveResume() {
       outOrder: game.outOrder, outStamp: game.outStamp, outWhere: game.outWhere, inLibrary: game.inLibrary, emptyAt: game.emptyAt, printedPT: game.printedPT,
       // (each plane's owner, for the 901.10 line: logEvents)
       ...(game.planeOwners?.size ? { planeOwners: [...game.planeOwners] } : {}),
+      // (Archenemy: the schemes seen in the command zone and the one set in motion last, schemeView: a restarted bridge
+      // counted seq from 1 again, and the table showed an old scheme's banner again and skipped the next one's)
+      ...(game.schemesSeen?.size ? { schemesSeen: [...game.schemesSeen] } : {}),
+      ...(game.schemeNow ? { schemeNow: game.schemeNow } : {}),
       // (a table of other seats than the 4-player one: its colours, which a restarted bridge has not heard yet)
       ...(TABLE_COLORS !== DEFAULT_TABLE_COLORS ? { tableSeats: [...TABLE_COLORS] } : {}) },
     seats: [...game.seats.values()].map((st) => ({ color: st.color, deckId: st.deckId, username: st.username, slot: st.slot, roomId: st.roomId, mullsTaken: st.mullsTaken })),
@@ -2143,7 +2147,8 @@ function resumeGame(now = Date.now()) {
     clearResume();
     return false;
   }
-  game = { ...snap.game, deckNames: new Set(snap.game.deckNames || []), planeOwners: new Map(snap.game.planeOwners || []), seats: new Map(), started: true, closing: false,
+  game = { ...snap.game, deckNames: new Set(snap.game.deckNames || []), planeOwners: new Map(snap.game.planeOwners || []),
+    schemesSeen: new Set(Array.isArray(snap.game.schemesSeen) ? snap.game.schemesSeen : []), seats: new Map(), started: true, closing: false,
     maxSet: true, botsRequested: true, startSent: true, resumed: true };
   customArt.off = snap.game.artOff === true;
   TABLE_COLORS = Object.freeze(tableSeatsOf(snap.game.tableSeats) || DEFAULT_TABLE_COLORS);
@@ -3981,8 +3986,10 @@ function logSnapshot(pub, prev = null) {
   const marks = Object.fromEntries((pub.players || []).map((p) => [p.id, trackMarks(p, pub).values]));
   // (Planechase: the planes in play and the planar die's last roll, Forge's planar block; null in other games)
   // (and the players out of the game, for rule 901.10: a plane leaves the game with its owner, logEvents)
+  // (and each plane's owner from the engine when it says, planar.ownerIds: our Forge build, engine1117-planarowners)
   const planar = pub.planar ? { ids: (pub.planar.planeIds || []).map(String), controller: pub.planar.controllerId || null, roll: pub.planar.lastRoll || null,
-    out: (pub.players || []).filter((p) => p.status && p.status !== "playing").map((p) => p.id) } : null;
+    out: (pub.players || []).filter((p) => p.status && p.status !== "playing").map((p) => p.id),
+    ...(pub.planar.ownerIds && typeof pub.planar.ownerIds === "object" ? { owners: { ...pub.planar.ownerIds } } : {}) } : null;
   // (a plane's owner, for 901.10: the player who planeswalked to it, from their own planar deck (logEvents), or Forge's
   // own word when one of its triggers is on the stack, whose ownerId is the card's owner. The plane card's ownerId is
   // the command zone's player, who controls it, so it can't say.)
@@ -5995,14 +6002,17 @@ function logEvents(prev, cur, pub, facts = null) {
   // player's command zone every turn)
   if (cur.planar?.roll && cur.planar.roll.seq !== prev.planar?.roll?.seq) out.push(`${who(cur.planar.roll.playerId)} rolls the planar die: ${cur.planar.roll.result}`);
   const planeOwners = game ? (game.planeOwners ??= new Map()) : new Map();
+  // (whose a plane is: the engine's word, from the board it was last on, else the bridge's own tracking below, for an
+  // engine that sends no ownerIds)
+  const ownerOf = (id) => cur.planar?.owners?.[id] || prev.planar?.owners?.[id] || planeOwners.get(id);
   if (cur.planar && prev.planar && cur.planar.ids.join("|") !== prev.planar.ids.join("|")) {
     const name = (id) => cur.cards[id]?.name || prev.cards[id]?.name || game.namesSeen?.get(id) || "a plane";
     // (rule 901.10: a player leaving the game takes the planes they own with them, and the planar controller planeswalks
     // from their own planar deck: "Akoum leaves the game with AI 1; Blue planeswalks to Naya", not "(from Akoum)")
     const leavers = (cur.planar.out || []).filter((p) => !(prev.planar.out || []).includes(p));
-    const gone = prev.planar.ids.filter((id) => !cur.planar.ids.includes(id) && leavers.includes(planeOwners.get(id)));
+    const gone = prev.planar.ids.filter((id) => !cur.planar.ids.includes(id) && leavers.includes(ownerOf(id)));
     const left = prev.planar.ids.filter((id) => !cur.planar.ids.includes(id) && !gone.includes(id) && prev.cards[id]?.planar === "plane");
-    const leaves = [...new Set(gone.map((id) => planeOwners.get(id)))].map((p) => `${gone.filter((id) => planeOwners.get(id) === p).map(name).join(" and ")} ${gone.filter((id) => planeOwners.get(id) === p).length > 1 ? "leave" : "leaves"} the game with ${who(p)}`);
+    const leaves = [...new Set(gone.map(ownerOf))].map((p) => `${gone.filter((id) => ownerOf(id) === p).map(name).join(" and ")} ${gone.filter((id) => ownerOf(id) === p).length > 1 ? "leave" : "leaves"} the game with ${who(p)}`);
     const arrived = cur.planar.ids.filter((x) => !prev.planar.ids.includes(x));
     arrived.forEach((id, k) => {
       const by = who(cur.planar.controller || cur.active);
@@ -6469,14 +6479,19 @@ function schemeView(pub, schemeCards, slim, toCard) {
   const isOngoing = (c) => ongoing.has(c.id) || (c.supertypes || []).includes("Ongoing");
   const entry = (c) => ({ ...toCard(c), ctl: game.slotColor[c.controllerId] || null, ...(isOngoing(c) ? { ong: true } : {}) });
   game.schemesSeen ??= new Set();
+  let fresh = false;
   for (const c of schemeCards) {
     if (game.schemesSeen.has(c.id)) continue;
     game.schemesSeen.add(c.id);
     game.schemeNow = { seq: (game.schemeNow?.seq || 0) + 1, card: entry(c) };
+    fresh = true;
   }
   // (one gone back under the deck may come out again later: it is a new one then)
   const here = new Set(schemeCards.map((c) => c.id));
-  for (const id of [...game.schemesSeen]) if (!here.has(id)) game.schemesSeen.delete(id);
+  for (const id of [...game.schemesSeen]) if (!here.has(id)) { game.schemesSeen.delete(id); fresh = true; }
+  // (and saved at once, after either: a restart right after a scheme still knows it, and one that went back under the
+  // deck is new again when it comes out, saveResume)
+  if (fresh) saveResume();
   const now = game.schemeNow ? { seq: game.schemeNow.seq, card: slim(here.has(game.schemeNow.card.id) ? entry(schemeCards.find((c) => c.id === game.schemeNow.card.id)) : game.schemeNow.card) } : null;
   return { schemes: schemeCards.map((c) => slim(entry(c))), schemeNow: now };
 }
@@ -11718,8 +11733,15 @@ function onPrompt(seat, prompt) {
       // bottom: the order rarely matters.
       const what = `${prompt.sourceAbilityText || ""} ${prompt.sourceCard?.text || ""}`;
       // (and "the rest on the bottom", Ripple's: Surging Dementia's three asked "click the card to put on top", hp-23 gap)
-      const trig = /^Order triggered abilities/i.test(title), bottom = /bottom of [^.]*library in any order|\bthe rest on the bottom of (?:your|their) library\./i.test(what);
-      const onTop = !trig && !bottom && !!src && /library/i.test(what);
+      // (planes and phenomena to the bottom of a planar deck in any order: Norn's Seedcore, Pools of Becoming, The Fertile
+      // Lands of Saulvinia, Spatial Merging. Ten or so cards, so their order is the next planes': asked, in planar-deck
+      // words. Forge moves them to the bottom one by one in the answer's order, so the first ends nearest the top.
+      // Norn's Seedcore asked "click the one that goes first", and Pools of Becoming's was kept without asking, its text
+      // also putting a hand on a library's bottom; follow-up 2026-11-17)
+      const planarBottom = /\bbottom of (?:your|their) planar deck\b/i.test(what) && input.items.length > 0
+        && input.items.every((i) => (i.card?.types || []).some((t) => t === "Plane" || t === "Phenomenon"));
+      const trig = /^Order triggered abilities/i.test(title), bottom = !planarBottom && /bottom of [^.]*library in any order|\bthe rest on the bottom of (?:your|their) library\./i.test(what);
+      const onTop = !trig && !bottom && !planarBottom && !!src && /library/i.test(what);
       // (permanents returned to the battlefield: Ephemerate's order is the order they come back, enters triggers too)
       const comesBack = /\breturn\b[^.]*\bbattlefield\b/i.test(what);
       // (a look at the top of a library said in the log, as Brainstorm's put-back is: Ponder's read nothing, rebuilt hand
@@ -11736,6 +11758,9 @@ function onPrompt(seat, prompt) {
         ? [(n) => `Your team's triggers: click the one that happens ${n ? "next" : "first"}`, teamTrig.hint]
         : trig
         ? [(n) => `Your triggers: click the one that happens ${n ? "next" : "first"}`, "The one you click first happens first. Not sure? Keep this order."]
+        : planarBottom
+          ? [(n) => `${src || title}: these go to the bottom of your planar deck: click the one that comes up ${n ? "next" : "first"}`,
+            "The one you click first is nearest the top of your planar deck: it comes up first of these. Not sure? Keep this order."]
         : bottom
           ? [(n) => `${src || title}: these go to the bottom of your library${n ? ` (${n + 1})` : ""}`, "The order on the bottom hardly matters: Keep this order is fine."]
           : onTop
