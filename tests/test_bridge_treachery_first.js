@@ -48,6 +48,14 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     ok("leader: said in chat", chats(h).some((c) => /^\[MTG\] Treachery: Yellow is the Leader and goes first\./.test(c)), chats(h).join(" | "));
   });
   await run(async (h) => {
+    const r = await start(h, { treachery: { leader: "Yellow" } });
+    r.g.seatColors = ["Blue", "White"];
+    const n = h.effects.length;
+    same("a Leader at no seat of this game: no gameConfig", h.B._startConfig(), null);
+    await h.flush();
+    ok("a Leader at no seat: said", chats(h, n).some((c) => /Yellow is not a seat in this game/.test(c)), chats(h, n).join(" | "));
+  });
+  await run(async (h) => {
     const r = await start(h, {});
     same("no Treachery: no gameConfig, as before", r.cfg, null);
   });
@@ -123,6 +131,9 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     same("table: the Leader's card nearest Yellow's mat", q('objects = { obj("Identity — Assassin", 1, -18), obj("Identity — Leader: The Seer", 2, 17), obj("Identity — Traitor", -18, 1) } return leaderOf()'), "Yellow");
     same("table: the Leader's card in Red's hand", q('objects = { obj("Identity — Leader", 0, 0, "Red"), obj("Identity — Traitor", 0, 0, "Blue") } return leaderOf()'), "Red");
     same("table: identity cards but no Leader's: Treachery, no Leader", q('objects = { obj("Identity — Assassin", 1, -18), obj("Identity — Guardian", 18, 1) } return leaderOf()'), "nil");
+    same("table: Identity Crisis is no identity card: no Treachery", q('objects = { obj("Identity Crisis", 0, 0), obj("Grizzly Bears", 0, 0) } return leaderOf()'), "none");
+    same("table: two Leader cards at two seats: nobody is the Leader", q('objects = { obj("Identity — Leader", 0, 0, "Red"), obj("Identity — Leader", 0, 0, "Blue") } return leaderOf()'), "nil");
+    same("table: two Leader cards at one seat: that seat", q('objects = { obj("Identity — Leader", 0, 0, "Red"), obj("Identity — Leader: The Seer", 0, 0, "Red") } return leaderOf()'), "Red");
     same("table: a card named Leader that isn't an identity card doesn't count", q('objects = { obj("Pack Leader", 0, 19), obj("Identity — Assassin", 1, -18) } return leaderOf()'), "nil");
   }
   ok("table: the start message carries it", /start\.treachery = engineTreacheryLeader\(\)/.test(COPY), "make-engine-copy.js engineStartGame");
