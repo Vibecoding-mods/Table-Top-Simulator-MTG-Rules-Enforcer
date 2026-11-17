@@ -1320,7 +1320,7 @@ index 8d204538..c41c160c 100644
          return noGUIUser;
      }
 diff --git a/forge-game/src/main/java/forge/game/GameAction.java b/forge-game/src/main/java/forge/game/GameAction.java
-index e6cbe012..438d8f35 100644
+index e6cbe012..5a4b2ef4 100644
 --- a/forge-game/src/main/java/forge/game/GameAction.java
 +++ b/forge-game/src/main/java/forge/game/GameAction.java
 @@ -21,6 +21,7 @@ import com.google.common.collect.*;
@@ -1331,7 +1331,7 @@ index e6cbe012..438d8f35 100644
  import forge.card.CardStateName;
  import forge.card.CardType.Supertype;
  import forge.card.ColorSet;
-@@ -1049,6 +1050,17 @@ public class GameAction {
+@@ -1049,6 +1050,60 @@ public class GameAction {
          return holdCheckingStaticAbilities;
      }
  
@@ -1346,10 +1346,53 @@ index e6cbe012..438d8f35 100644
 +        return staticPasses;
 +    }
 +
++    // CR 613.8 dependency detection tries each pair of a layer's statics: it applies one, filters the battlefield again
++    // for the other, then undoes the first. Every pair starts from the same state, so each static's own filter and
++    // conditions are worked out once per search (DependencyScans), not once per pair. A static that applies to nothing
++    // changes nothing, so its pairs can't make a dependency. The results stay good for the next search in the layer
++    // while the static applied in between changed nothing. Off: the old scan for each pair (the tests compare both).
++    public static boolean dependencyScanCache = true;
++    private long dependencyScans;
++
++    public long getDependencyScans() {
++        return dependencyScans;
++    }
++
++    private final class DependencyScans {
++        final Map<StaticAbility, CardCollectionView> affected = Maps.newHashMap();
++        final Map<StaticAbility, Boolean> applies = Maps.newHashMap();
++        final Map<StaticAbility, Boolean> noPlayers = Maps.newHashMap();
++
++        CardCollectionView affected(final StaticAbility stAb, final CardCollectionView preList) {
++            CardCollectionView got = affected.get(stAb);
++            if (got == null) {
++                dependencyScans++;
++                got = StaticAbilityContinuous.getAffectedCards(stAb, preList);
++                affected.put(stAb, got);
++            }
++            return got;
++        }
++
++        boolean applies(final StaticAbility stAb, final StaticAbilityLayer layer) {
++            return applies.computeIfAbsent(stAb, st -> st.appliesBefore(layer));
++        }
++
++        boolean appliesToNothing(final StaticAbility stAb, final CardCollectionView cards) {
++            return cards.isEmpty() && stAb.hasParam("Affected")
++                    && noPlayers.computeIfAbsent(stAb, st -> StaticAbilityContinuous.getAffectedPlayers(st).isEmpty());
++        }
++
++        void clear() {
++            affected.clear();
++            applies.clear();
++            noPlayers.clear();
++        }
++    }
++
      // This doesn't check layers or if the ability gets removed by other effects
      public boolean hasStaticAbilityAffectingZone(ZoneType zone, StaticAbilityLayer layer) {
          for (final Card ca : game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
-@@ -1109,6 +1121,7 @@ public class GameAction {
+@@ -1109,6 +1164,7 @@ public class GameAction {
          if (game.isGameOver()) {
              return;
          }
@@ -1357,7 +1400,85 @@ index e6cbe012..438d8f35 100644
          game.getTracker().freeze(); //prevent views flickering during while updating for state-based effects
          game.getTracker().holdChangeVersion();
  
-@@ -1988,7 +2001,8 @@ public class GameAction {
+@@ -1167,6 +1223,7 @@ public class GameAction {
+                 }
+             }
+ 
++            final DependencyScans scans = dependencyScanCache ? new DependencyScans() : null;
+             final long signature = staticsSignature(staticsForLayer);
+             final boolean reuseOrder = cached != null && Long.valueOf(signature).equals(cached.signature.get(layer));
+             final List<Integer> cachedOrder = reuseOrder ? cached.order.get(layer) : null;
+@@ -1185,7 +1242,7 @@ public class GameAction {
+                     }
+                 } else if (!stAb.isCharacteristicDefining()) {
+                     // dependency with CDA seems unlikely
+-                    stAb = findStaticAbilityToApply(layer, staticsForLayer, preList, affectedPerAbility, dependencies);
++                    stAb = findStaticAbilityToApply(layer, staticsForLayer, preList, affectedPerAbility, dependencies, scans);
+                 }
+                 order.add(stAb.getId());
+                 staticsForLayer.remove(stAb);
+@@ -1203,6 +1260,9 @@ public class GameAction {
+                     affectedHere = previouslyAffected;
+                     stAb.applyContinuousAbility(layer, previouslyAffected);
+                 }
++                if (scans != null && affectedHere != null && !scans.appliesToNothing(stAb, affectedHere)) {
++                    scans.clear();
++                }
+                 if (affectedHere != null) {
+                     affectedPerLayer.computeIfAbsent(layer, l -> Sets.newHashSet()).addAll(affectedHere);
+                     for (final Card c : affectedHere) {
+@@ -1332,7 +1392,7 @@ public class GameAction {
+     }
+ 
+     private StaticAbility findStaticAbilityToApply(StaticAbilityLayer layer, List<StaticAbility> staticsForLayer, CardCollectionView preList, Map<StaticAbility, CardCollectionView> affectedPerAbility,
+-                                                   Table<StaticAbility, StaticAbility, Set<StaticAbilityLayer>> dependencies) {
++                                                   Table<StaticAbility, StaticAbility, Set<StaticAbilityLayer>> dependencies, final DependencyScans scans) {
+         StaticAbility first = staticsForLayer.get(0);
+         if (staticsForLayer.size() == 1) {
+             return first;
+@@ -1359,7 +1419,12 @@ public class GameAction {
+             boolean compareAffected = false;
+             CardCollectionView affectedHere = affectedPerAbility.get(stAb);
+             if (affectedHere == null) {
+-                affectedHere = StaticAbilityContinuous.getAffectedCards(stAb, preList);
++                if (scans != null) {
++                    affectedHere = scans.affected(stAb, preList);
++                } else {
++                    dependencyScans++;
++                    affectedHere = StaticAbilityContinuous.getAffectedCards(stAb, preList);
++                }
+                 compareAffected = true;
+             }
+             Iterable<Object> effectResults = generateContinuousEffectChanges(layer, stAb);
+@@ -1371,7 +1436,18 @@ public class GameAction {
+ 
+                 boolean removeFull = true;
+                 CardCollectionView affectedOther = affectedPerAbility.get(otherStAb);
+-                if (affectedOther == null) {
++                if (affectedOther == null && scans != null) {
++                    if (!scans.applies(otherStAb, layer)) {
++                        continue;
++                    }
++                    final CardCollectionView cards = scans.affected(otherStAb, preList);
++                    if (scans.appliesToNothing(otherStAb, cards)) {
++                        game.getStaticEffects().removeStaticEffect(otherStAb, layer, true);
++                        continue;
++                    }
++                    affectedOther = StaticAbilityContinuous.applyContinuousAbility(otherStAb, new CardCollection(cards), layer);
++                } else if (affectedOther == null) {
++                    dependencyScans++;
+                     affectedOther = otherStAb.applyContinuousAbilityBefore(layer, preList);
+                     if (affectedOther == null) {
+                         // ability was removed
+@@ -1388,6 +1464,7 @@ public class GameAction {
+                 boolean dependency = exists != stAb.getHostCard().getStaticAbilities().contains(stAb);
+                 // ...what it applies to...
+                 if (!dependency && compareAffected) {
++                    dependencyScans++;
+                     CardCollectionView affectedAfterOther = StaticAbilityContinuous.getAffectedCards(stAb, preList);
+                     dependency = !Iterators.elementsEqual(affectedHere.iterator(), affectedAfterOther.iterator());
+                 }
+@@ -1988,7 +2065,8 @@ public class GameAction {
              // then the rest have lost!
              reason = GameEndReason.WinsGameSpellEffect;
              for (Player pl : allPlayers) {
@@ -1367,7 +1488,7 @@ index e6cbe012..438d8f35 100644
                      continue;
                  }
  
-@@ -2015,6 +2029,19 @@ public class GameAction {
+@@ -2015,6 +2093,19 @@ public class GameAction {
              }
          }
  
@@ -1387,7 +1508,7 @@ index e6cbe012..438d8f35 100644
          if (losers != null) {
              for (Player p : losers) {
                  game.onPlayerLost(p);
-@@ -2380,6 +2407,52 @@ public class GameAction {
+@@ -2380,6 +2471,52 @@ public class GameAction {
      public void startGame(GameOutcome lastGameOutcome) {
          startGame(lastGameOutcome, null);
      }
@@ -1440,7 +1561,7 @@ index e6cbe012..438d8f35 100644
      public void startGame(GameOutcome lastGameOutcome, Runnable startGameHook) {
          Player first = determineFirstTurnPlayer(lastGameOutcome);
  
-@@ -2395,6 +2468,7 @@ public class GameAction {
+@@ -2395,6 +2532,7 @@ public class GameAction {
  
              game.setAge(GameStage.Mulligan);
              for (final Player p1 : game.getPlayers()) {
@@ -1448,7 +1569,7 @@ index e6cbe012..438d8f35 100644
                  // Choose starting hand for each player with multiple hands
                  if (StaticData.instance().getFilteredHandsEnabled() ) {
                      drawStartingHand(p1);
-@@ -2451,6 +2525,12 @@ public class GameAction {
+@@ -2451,6 +2589,12 @@ public class GameAction {
                  return game.getPlayers().get(0);
              }
  
@@ -1461,7 +1582,7 @@ index e6cbe012..438d8f35 100644
              // 904.6: in Archenemy games the Archenemy goes first
              if (game.getRules().hasAppliedVariant(GameType.Archenemy)) {
                  for (Player p : game.getPlayers()) {
-@@ -2471,7 +2551,7 @@ public class GameAction {
+@@ -2471,7 +2615,7 @@ public class GameAction {
          if (!powerPlayers.isEmpty()) {
              List<Player> players = Lists.newArrayList(powerPlayers);
              Collections.shuffle(players, MyRandom.getRandom());
@@ -1470,7 +1591,7 @@ index e6cbe012..438d8f35 100644
          }
  
          boolean isFirstGame = lastGameOutcome == null;
-@@ -2499,9 +2579,36 @@ public class GameAction {
+@@ -2499,9 +2643,36 @@ public class GameAction {
              }
          }
          goesFirst = goesFirst.getController().chooseStartingPlayer(isFirstGame);
@@ -5252,10 +5373,21 @@ index 42c36fb2..5f35f204 100644
              // this doesn't allow a second target, even if same object
              int num = 0;
 diff --git a/forge-game/src/main/java/forge/game/staticability/StaticAbility.java b/forge-game/src/main/java/forge/game/staticability/StaticAbility.java
-index 60226a90..fb97935c 100644
+index 60226a90..a1a373a5 100644
 --- a/forge-game/src/main/java/forge/game/staticability/StaticAbility.java
 +++ b/forge-game/src/main/java/forge/game/staticability/StaticAbility.java
-@@ -409,7 +409,7 @@ public class StaticAbility extends CardTraitBase implements IIdentifiable, Clone
+@@ -276,6 +276,10 @@ public class StaticAbility extends CardTraitBase implements IIdentifiable, Clone
+         return StaticAbilityContinuous.applyContinuousAbility(this, layer, preList);
+     }
+ 
++    public final boolean appliesBefore(final StaticAbilityLayer layer) {
++        return shouldApplyContinuousAbility(layer, false);
++    }
++
+     public final CardCollectionView applyContinuousAbility(final StaticAbilityLayer layer, final CardCollectionView affected) {
+         if (!shouldApplyContinuousAbility(layer, true)) {
+             return null;
+@@ -409,7 +413,7 @@ public class StaticAbility extends CardTraitBase implements IIdentifiable, Clone
  
          if (hasParam("PlayerTurn")) {
              List<Player> players = AbilityUtils.getDefinedPlayers(hostCard, getParam("PlayerTurn"), this);
@@ -5318,6 +5450,19 @@ index bf8a95fe..627f5674 100644
 +        return stAb.matchesValidParam("ValidSA", sa);
      }
  }
+diff --git a/forge-game/src/main/java/forge/game/staticability/StaticAbilityContinuous.java b/forge-game/src/main/java/forge/game/staticability/StaticAbilityContinuous.java
+index dae24312..096990d9 100644
+--- a/forge-game/src/main/java/forge/game/staticability/StaticAbilityContinuous.java
++++ b/forge-game/src/main/java/forge/game/staticability/StaticAbilityContinuous.java
+@@ -1002,7 +1002,7 @@ public final class StaticAbilityContinuous {
+         return cards;
+     }
+ 
+-    private static List<Player> getAffectedPlayers(final StaticAbility stAb) {
++    public static List<Player> getAffectedPlayers(final StaticAbility stAb) {
+         final Map<String, String> params = stAb.getMapParams();
+         final Card hostCard = stAb.getHostCard();
+         final Player controller = hostCard.getController();
 diff --git a/forge-game/src/main/java/forge/game/staticability/StaticAbilityManaConvert.java b/forge-game/src/main/java/forge/game/staticability/StaticAbilityManaConvert.java
 index 87f94552..bc482096 100644
 --- a/forge-game/src/main/java/forge/game/staticability/StaticAbilityManaConvert.java
