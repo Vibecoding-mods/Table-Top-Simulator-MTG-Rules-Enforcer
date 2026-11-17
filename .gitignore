@@ -45,3 +45,5 @@ tools/loopback-rec/*.exe
 
 # own-server mode: holds the server key, never commit
 server.json
+bridge/tts-console.log.*
+*.log.old
