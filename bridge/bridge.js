@@ -975,13 +975,28 @@ function onArt(m) {
 // deck card already wears the deck's picture). "mtg art back <card> <link>": a two-faced card's back, on every copy the
 // player owns, and its face once transformed: the Card Importer keeps no back for a card whose front has a link, so this
 // gives it in the meantime. Each link passes artProblem; "clear" takes a player's away; the host's "mtg art off" puts
-// them all away. Kept by seat colour while the bridge runs.
-const playerArt = {}; // colour -> { tokens: { normName: link }, backs: { normName(engine name): link }, names: { normName: as said } }
+// them all away. Kept while the bridge runs, by the player: their Steam ID, which the table sends with "mtg art", the
+// start and the votes (seatSteam). A colour's pictures set where no Steam ID came are kept by the colour until a Steam
+// ID is seen there: the first one is taken as the same player's, and the pictures go with it; a different one is a new
+// player, and the colour's pictures are dropped. Keyed by colour alone, a player who later took that colour wore the
+// last player's tokens and backs until the bridge restarted (follow-up 2026-11-17).
+const playerArt = {}; // "steam:<id>" | "seat:<colour>" -> { tokens: { normName: link }, backs: { normName(engine name): link }, names: { normName: as said } }
+const seatSteam = {}; // colour -> the Steam ID last seen at it (noteSeatSteam)
+function noteSeatSteam(color, steam) {
+  if (!color || !accomplishLib.steamKey(steam)) return;
+  // (pictures kept by the colour exist only while no Steam ID was seen there: the first one seen is taken as the
+  // player's who set them, unless that player has pictures of their own already)
+  const seatKey = `seat:${color}`;
+  if (playerArt[seatKey]) { playerArt[`steam:${steam}`] ??= playerArt[seatKey]; delete playerArt[seatKey]; }
+  seatSteam[color] = String(steam);
+}
+// whose pictures a colour's cards wear: the player last seen there, else the colour's own
+const artKeyOf = (color) => (seatSteam[color] ? `steam:${seatSteam[color]}` : `seat:${color}`);
 // a picture as the image lookups give one (tokenImage, imagesFor)
 const pictureEntry = (link) => ({ face: link, back: null });
 function playerArtOf(color) {
   if (!color || customArt.off) return null;
-  const a = playerArt[color];
+  const a = playerArt[artKeyOf(color)];
   return a && (Object.keys(a.tokens).length || Object.keys(a.backs).length) ? a : null;
 }
 // a transformed card under its back face's name, with a player's back for its front (Scryfall's faces say which)
@@ -998,7 +1013,8 @@ function onArtSet(m) {
   const color = m.color;
   const words = String(m.text || "").trim().split(/\s+/).filter(Boolean);
   const kind = (words.shift() || "").toLowerCase();
-  const a = (playerArt[color] ??= { tokens: {}, backs: {}, names: {} });
+  noteSeatSteam(color, m.steam); // (who typed it: their own pictures, wherever they sit)
+  const a = (playerArt[artKeyOf(color)] ??= { tokens: {}, backs: {}, names: {} });
   const resend = () => { if (game?.started) scheduleTable(); };
   if (kind !== "token" && kind !== "back") return chat("[MTG] Use:  mtg art token <token name> <link>  (your tokens of that name),  mtg art back <card> <link>  (your two-faced card's back),  mtg art token clear  or  mtg art back clear", color);
   const list = kind === "token" ? a.tokens : a.backs;
@@ -2803,8 +2819,9 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
     // audit B4)
     ...(row && zone === "graveyard" ? { og: "graveyard" } : {}),
     // (what it costs now, when that isn't its printed cost: the table's cost badge; never on a card face down to the
-    // others, whose badge buttons other players may see)
-    ...(c.isFaceDown ? {} : costNow(c, zone)),
+    // others, whose badge buttons other players may see: a foretold card in its owner's row says it in its hover text,
+    // cardNotes)
+    ...(c.isFaceDown ? {} : costNow(c, zone, row)),
   };
 }
 
@@ -2968,6 +2985,14 @@ function cardNotes(c, zone, row = false) {
     nt.push(cost ? `Flashback ${cost}` : "Has flashback");
   }
   if (zone === "graveyard") nt.push(...graveKeywordNotes(c));
+  // (the halves of a split or adventure card and the other ways to cast it, priced by our Forge build: spellCostNotes)
+  nt.push(...spellCostNotes(c, row));
+  // (a face-down card in its owner's playable row, a foretold one: what it costs now in words only, as the table's cost
+  // badge text says it, engineCostChange; its badge buttons might show to the other players)
+  if (row && c.isFaceDown) {
+    const now = costNow(c, zone, true);
+    if (now.ec) nt.push(`Costs ${now.ec} now${now.em ? ` by ${now.em}` : ""} (printed ${now.mc || "no mana cost"})`);
+  }
   // (what a delayed trigger will do to it, a card in a pile showing no status box: Flickerwisp's exiled card returns)
   if (zone === "exile" || zone === "graveyard") nt.push(...delayedWordsOf(c.id));
   if (zone === "exile") {
@@ -3188,8 +3213,23 @@ function faceDownAnyView(c, views) {
 // priced untaxed (Mairsil showed no badge once a Thalia hand cost had come, live check 2026-11-12). Should an engine
 // ever price the tax in, its cost then has at least the tax more generic than the printed one, and is taken as it is:
 // the one misreading left is an untaxed cost raised by the tax's amount or more by other effects.
-function costNow(c, zone) {
-  const printed = c.manaCost && c.manaCost !== "no cost" ? String(c.manaCost) : "";
+// Phase 2 (our Forge build, engine1117-costbadge2): a card its seat may cast from a graveyard, exile or the library's
+// top carries playCost, the mana it costs cast from there now (flashback, escape, foretell, plot, a "you may cast"
+// permission, with Forge's reductions and increases), playCostMode, the way it is cast, and for a foretold card
+// face down in exile playCostPrinted, its face's printed cost (Forge's manaCost there is the face-down one's). It is
+// taken for a card in the seat's playable row only (row), when the engine sent no effectiveManaCost; em, the way's words,
+// goes to the hover text ("by flashback"). A plain permission ("may play") and a free cast say no way.
+const playWay = (mode) => (mode === "foretold" ? "foretell" : mode === "plotted" ? "plot" : mode);
+function costNow(c, zone, row = false) {
+  const printed = c.playCostPrinted || (c.manaCost && c.manaCost !== "no cost" ? String(c.manaCost) : "");
+  if (row && !c.effectiveManaCost && c.playCost) {
+    // (a half of a split or adventure card has no badge: the picture shows a cost for each half, and the badge sits on
+    // the card's one cost; its words go in the hover, spellCostNotes)
+    if (c.playCostName) return {};
+    const mode = String(c.playCostMode || "");
+    const em = mode && mode !== "may play" && mode !== "free" ? playWay(mode) : null;
+    return c.playCost !== printed ? { ec: String(c.playCost), mc: printed, ...(em ? { em: em } : {}) } : {};
+  }
   let now = c.effectiveManaCost || null;
   const tax = zone === "command" ? Number(c.commanderTax) || 0 : 0;
   const base = now || printed;
@@ -3198,6 +3238,32 @@ function costNow(c, zone) {
     now = `{${(generic ? Number(generic[1]) : 0) + tax}}${generic ? base.slice(generic[0].length) : base}`;
   }
   return now && now !== printed ? { ec: now, mc: printed } : {};
+}
+// Our Forge build's halves and ways (engine1117-costbadge3, docs/cost-badge-spec.md Step 5 "Follow-ups"), as hover lines:
+// - spellCosts, a split or adventure card's halves where it may be cast (the hand): each half whose cost changed,
+//   "Stomp: costs {2}{R} now (printed {1}{R})". A split card has no badge (Forge's effectiveManaCost is left out for
+//   it: its first half against the whole card's printed cost read cheaper); an adventure card's creature keeps its own.
+// - in the seat's playable row only: the half playCost casts, playCostName, "Castable: Memory {5}{U}{U} by aftermath
+//   (printed {4}{U}{U})", and the other ways, playCostOthers, "Other ways to cast it: Ice {1}{U}; {2}{R} by flashback"
+//   (a half named; a permission's and a free cast's way not).
+function spellCostNotes(c, row) {
+  const out = [];
+  for (const s of Array.isArray(c.spellCosts) ? c.spellCosts : []) {
+    if (s && s.cost && s.cost !== s.printed) out.push(`${s.name}: costs ${s.cost} now (printed ${s.printed || "no mana cost"})`);
+  }
+  if (!row || !c.playCost) return out;
+  const way = (m) => (m && m !== "may play" && m !== "free" ? playWay(m) : null);
+  if (c.playCostName) {
+    const w = way(c.playCostMode);
+    out.push(`Castable: ${c.playCostName} ${c.playCost}${w ? ` by ${w}` : ""}${c.playCostPrinted && c.playCostPrinted !== c.playCost ? ` (printed ${c.playCostPrinted})` : ""}`);
+  }
+  const others = (Array.isArray(c.playCostOthers) ? c.playCostOthers : []).filter((s) => s && s.cost).map((s) => {
+    const w = way(s.mode);
+    const half = c.playCostName || (s.name && s.name !== c.identity?.name) ? `${s.name} ` : "";
+    return `${half}${s.cost}${w ? ` by ${w}` : ""}`;
+  });
+  if (others.length) out.push(`Other ways to cast it: ${others.join("; ")}`);
+  return out;
 }
 // the generic part of a mana cost string, "{3}{U}" -> 3 (none: 0)
 const genericOf = (cost) => Number(/^\{(\d+)\}/.exec(cost || "")?.[1] || 0);
@@ -12334,6 +12400,8 @@ function onTTS(m) {
       break;
     case "start": {
       noteStamp(m);
+      // (the seated players' Steam IDs: whose card pictures each colour's cards wear, noteSeatSteam)
+      for (const [c, id] of Object.entries(steamIds(m.steam))) noteSeatSteam(c, id);
       warnIfOutOfStep();
       const go = () => {
         noteTableSeats(m, false); // (the table's seats, if it says them: a bridge started after its hello)
@@ -12712,6 +12780,7 @@ function steamIds(raw) {
 }
 // a Steam ID the table sent with a message from that player (a vote, a look at the list)
 function noteSteam(color, steam) {
+  noteSeatSteam(color, steam); // (and whose card pictures that colour's cards wear)
   if (game && color && accomplishLib.steamKey(steam)) (game.steam ??= {})[color] = String(steam);
 }
 // the tie offer as the table shows it: who is locked and why, who is still to answer (colours, and the people by name),
