@@ -6767,10 +6767,10 @@ engineFxArt = engineFxArt or { burst = nil, smoke = nil, ring = nil }
 -- a link and no such object on the table, a game's first board spawns them once, parked under the table (fx: the
 -- pool of rigs, GM notes "engine:fx"; sounds: one object, "engine:sounds"); they then stay in the save. nil or "" =
 -- nothing spawned (rigs or a sound object already in the save are still used); with none, the effects are today's.
--- bolt: the bolt bundle (mtg-bolt.unity3d, rigs "engine:bolt"). Both uploaded 2026-11-12 night (fx: mtg-fx2.unity3d,
--- the tint-ready rebuild; links matched to their files by sha256). sounds: mtg-sounds.unity3d (built 2026-11-13,
--- docs/fx-research/SOUNDS.md), nil until it is uploaded; it is played only with engineSoundRoute "bundle".
-engineFxBundle = engineFxBundle or { fx = "https://steamusercontent-a.akamaihd.net/ugc/15666370258971028614/C9FF06D0A10B0C170C2B49122C0423FE29D35D3B/", sounds = nil, bolt = "https://steamusercontent-a.akamaihd.net/ugc/16460449626220746289/901D08363F140757CCAB54BA2D10909F2546D622/" }
+-- bolt: the bolt bundle (rigs "engine:bolt"). fx is mtg-fx3.unity3d and bolt mtg-bolt2.unity3d (2026-11-14); sounds is
+-- mtg-sounds.unity3d rebuilt for the louder links, uploaded 2026-11-17 as mtg-sounds2.unity3d (docs/fx-research/SOUNDS.md);
+-- each link matched to its file by sha256. The sounds play only with engineSoundRoute "bundle".
+engineFxBundle = engineFxBundle or { fx = "https://steamusercontent-a.akamaihd.net/ugc/15666370258971028614/C9FF06D0A10B0C170C2B49122C0423FE29D35D3B/", sounds = "https://steamusercontent-a.akamaihd.net/ugc/15114084856576246659/1C0EF7B107C80CB8AC97411FC266B54E33CF8B1B/", bolt = "https://steamusercontent-a.akamaihd.net/ugc/16460449626220746289/901D08363F140757CCAB54BA2D10909F2546D622/" }
 -- The particle effects (docs/particle-fx-spec.md), "mtg fx on|low|off" (the host's, saved with the game): on, all of
 -- them; low, a wipe's wave without its cards' own deaths, and no bolts; off, no rig effect at all, the table as it was
 -- without the bundle (sounds, slots and flashes stay). engineFxTint: the host's flag for the live tint check (a
