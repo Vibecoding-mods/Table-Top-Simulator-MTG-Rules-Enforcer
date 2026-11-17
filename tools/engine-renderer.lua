@@ -3847,8 +3847,8 @@ function engineHandPlace(color, g, hand, pend, seen)
   if folded > 0 then
     local id = "hand:more:" .. color
     local label = "+" .. folded .. "\nmore"
-    place({ id = id, n = "+" .. folded .. " more in hand", tl = "Your hand (" .. (shown + folded) .. " cards)",
-      tx = "The first " .. ENGINE_HAND_SHOW .. " cards of your hand are in your hand zone; these " .. folded .. " are not. Click to open the Engine panel: it plays every card in your hand.",
+    place({ id = id, n = "+" .. folded .. " more in hand", tl = color .. "'s hand (" .. (shown + folded) .. " cards)",
+      tx = "The first " .. ENGINE_HAND_SHOW .. " cards of " .. color .. "'s hand are in their hand zone; these " .. folded .. " are not. Click to open the Engine panel: it plays every card in your hand.",
       f = ENGINE_BACK, b = ENGINE_BACK }, onTable(g.lib + g.right * 2.6, 0.2), Vector(0, g.rotY, 0), seen, nil, { zone = "handmore", color = color })
     local o = engineObjs[id]
     if o ~= nil and not o.isDestroyed() then
