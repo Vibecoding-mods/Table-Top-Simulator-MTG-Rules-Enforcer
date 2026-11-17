@@ -53,6 +53,10 @@ Status: v2, 2026-10-20 (v1 proposal 2026-10-19). Full hosting paused by the user
    the Tailscale IP (`RELAY_BIND`), our images built from `engine/`, key in `stack/.env`, which isn't committed.
 4. The companion app (docs/companion-app-spec.md) wraps steps G, H and P into buttons. Since its 2026-11-05 rewrite
    that is a later phase, after Home mode.
+   **Step G is built (2026-11-17):** the companion's own-server mode (docs/companion-app-spec.md §5.8) points a
+   friend's companion and bridge at a host's engine: `server.json` or the status page's Own server box (address and
+   key), a "Your server" light that says whether the server answers, and no Docker on the friend's PC. The relay must be
+   reachable from the friend's PC (`tools/setup-server.sh` binds it to `RELAY_BIND`, e.g. the Tailscale address).
 
 **Step zero (free, before paying for anything):**
 - Play one online game on the current home setup, now that the 2026-10-19 snapshot fix is in.

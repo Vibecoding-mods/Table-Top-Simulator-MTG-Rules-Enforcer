@@ -365,7 +365,9 @@ namespace MtgCompanion
                 catch (Exception e)
                 {
                     var se = FindSocketError(e);
+                    // (a name that doesn't resolve: own-server mode says so, OwnServer.Decide)
                     r.Kind = se != null && se.SocketErrorCode == SocketError.ConnectionRefused ? LoginKind.Refused
+                           : se != null && (se.SocketErrorCode == SocketError.HostNotFound || se.SocketErrorCode == SocketError.NoData || se.SocketErrorCode == SocketError.TryAgain) ? LoginKind.NotFound
                            : (Inner(e) is OperationCanceledException || Inner(e) is TaskCanceledException) ? LoginKind.Timeout : LoginKind.Closed;
                     r.Detail = Inner(e).Message;
                     return r;
