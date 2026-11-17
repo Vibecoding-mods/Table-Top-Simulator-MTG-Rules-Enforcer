@@ -1,6 +1,7 @@
 // Best of three's extras for Standard (docs/game-modes-spec.md §3.6; the parts cloud/treachery-bo3 left unbuilt):
 //  1. Game 1's first player: a random roll (two d20, again on a tie), in chat and the log, and on the table (the board's
-//     matchRoll, which the table shows once on its banner); the winner of the roll goes first. Not when the table names
+//     matchRoll, which the table shows once on its banner); the winner of the roll chooses to play or draw (an AI plays).
+//     Not when the table names
 //     a first player; later games keep the loser's play-or-draw choice.
 //  2. The game number in the phase bar: the board's match, "GAME 2 OF 3" ("GAME 4 OF 5" once draws stretch it).
 //  3. Sideboarding between games: each human player with a sideboard (a deck's 15, read from its file or list) is asked
@@ -74,18 +75,24 @@ function rolls(list) { const real = Math.random; let i = 0; Math.random = () => 
 const on = async (h) => { h.B._gameMode.mode = "standard"; await say(h, "bo3"); };
 
 (async () => {
-  // ── 1. game 1's roll
+  // ── 1. game 1's roll: Blue wins it and chooses (the room ready, the question, Play; tests/test_bridge_bo3_roll_choice.js
+  // has the rest of the choice)
   await run(async (h) => {
     await on(h);
     let n = h.effects.length;
     let seat = newGame(h);
+    Object.assign(h.B._getGame(), { startSent: false, botsRequested: true, maxSet: true });
+    seat.joined = true;
     const back = rolls([14, 7]);
-    const cfg = h.B._startConfig();
+    h.B.onRoomUpdate(seat, { room_id: "room-1", status: "Lobby", max_players: 2,
+      players: [{ username: seat.username, ready: true, connected: true }, { username: "Forge AI", ready: true, connected: true, is_bot: true }] });
     back();
-    await h.flush();
-    same("roll: game 1's first player is the roll's winner (Blue 14, seat 1)", cfg, { type: "gameConfig", firstPlayer: 1, players: [] });
-    ok("roll: said in chat with both numbers", chats(h, n).some((c) => /^\[MTG\] Game 1: a roll for who goes first: Blue 14, AI 1 7\. Blue goes first\.$/.test(c)), chats(h, n).join(" | "));
-    ok("roll: said in the log", logLines(h, n).some((l) => /^Roll for game 1: Blue 14, AI 1 7: Blue goes first$/.test(l)) || h.B._getGame().log?.some((l) => /Roll for game 1: Blue 14, AI 1 7: Blue goes first/.test(l)), JSON.stringify(h.B._getGame().log || logLines(h, n)));
+    await h.settle();
+    await choose(h, "__play");
+    const cfg = seat.sent.filter((m) => m.state?.payload?.type === "gameConfig").map((m) => m.state.payload).at(-1);
+    same("roll: the roll's winner, Blue, chooses to play: Blue (seat 1) goes first", cfg, { type: "gameConfig", firstPlayer: 1, players: [] });
+    ok("roll: said in chat with both numbers", chats(h, n).some((c) => /^\[MTG\] Game 1: a roll for who goes first: Blue 14, AI 1 7\. Blue wins the roll and chooses to play or draw\.$/.test(c)), chats(h, n).join(" | "));
+    ok("roll: said in the log", logLines(h, n).some((l) => /^Roll for game 1: Blue 14, AI 1 7: Blue wins the roll$/.test(l)) || h.B._getGame().log?.some((l) => /Roll for game 1: Blue 14, AI 1 7: Blue wins the roll/.test(l)), JSON.stringify(h.B._getGame().log || logLines(h, n)));
     const again = h.B._startConfig();
     await h.flush();
     ok("roll: asked once a game (the start config again keeps it, rolls nothing more)", again?.firstPlayer === 1 && chats(h, n).filter((c) => /a roll for who goes first/.test(c)).length === 1, JSON.stringify(again) + chats(h, n).join(" | "));
