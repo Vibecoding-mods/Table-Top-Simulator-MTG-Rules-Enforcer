@@ -389,3 +389,21 @@ Counts are violations; "distinct" counts unique flagged lines.
 - **The Kykar play-test is still running.** Its later bugs (after #18) and the session counts above will change.
 - **The Kykar engine bug (#15, runaway cap) and the game-over wording (#16).** Neither is in this sweep. #15 is a
   rules/engine cap; #16 needs a game end.
+
+## Follow-up status, 2026-11-17 (`cloud/ability-sweep-2`)
+
+Each item checked against the bridge as it is now with the spec's own example, in Forge's shapes
+(`tests/test_bridge_ability_sweep2.js`, in the deploy gates; break-it `node tools/mutate-ability-sweep2.js`, 10 of 10
+caught by name). Bridge only, no engine or screen change.
+
+| item | status | where |
+|---|---|---|
+| INV-1, a life loss names its source | **Fixed now for what the boards can't read.** The engine's damage entries (engine1112's feed: source, player, amount, combat) name the loss when the board reading found nothing for that player: Galvanic Blast's metalcraft 4 (the spec's kw-02 example), an X spell, triggers that came and went between two boards (`Impact Tremors ×3`), combat (`combat damage from`). A source with no name, or entries that don't add up to the loss, leave it bare. Pain lands, life paid, Lightning Bolt, drains (Sovereign's Bite), Niv-Mizzet, lifelink were already named | `bridge.js` `fedLoss` in logEvents' life lines; `test_bridge_ability_sweep2` INV-1, `test_bridge_events` Kykar #4, #11, #26 |
+| INV-8, a cast line names its target | **Fixed now for spells on the stack.** "Blue casts Counterspell" at the AI's Lightning Bolt now reads "targeting Lightning Bolt" (Forge's spell targets were left out of `targetWords`). Creatures, players, two targets and the AI's casts were already named | `targetWords`; golden `hp-08 gap: log: storm copies ...` recaptured ("Blue casts Flusterstorm targeting Chart a Course") |
+| Finding 5, Fact or Fiction's split | **Fixed now.** Forge's three pile titles read "split 5 cards into two piles: pick the cards for pile 1" (the left pile, the face-down pile), with who chooses next; the library-search hint (wrong: the cards are revealed ones) is gone | `PILE_TITLES`, chooseCards |
+| Finding 8, an edict's sacrifice | already fixed: "Craw Wurm is sacrificed (Diabolic Edict)" from Forge's cause on the move | `sacrificeWords`; checked again here |
+| Findings 1, 2, 3, 4, 6, 7, 9, 10, 11, 12, 13; INV-2 to INV-7, INV-9 to INV-13 | already fixed, each with a test | `test_bridge_events` and `test_bridge_claims` (Kykar #N, "kykar probe", INV-6) |
+
+Still open: a line from an older engine with no damage feed stays bare where the words don't give the amount
+(Galvanic Blast's metalcraft); the invariant checker (`tmp/log-invariants.js`) was never committed, so no live log has
+been re-checked with it.
