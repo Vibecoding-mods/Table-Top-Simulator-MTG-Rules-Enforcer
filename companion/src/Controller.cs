@@ -160,6 +160,8 @@ namespace MtgCompanion
         // with a problem). Read at start and at each start sequence. No status-page box sets it (the owner's decision,
         // 2026-11-17): the player writes server.json (its key encrypted for this Windows account, KeyVault) or uses --server.
         public static string ServerArg;
+        // how a plain key is encrypted (KeyVault.Protect; the self-test makes it throw to check what is logged)
+        public static Func<string, string> KeyProtect = KeyVault.Protect;
         volatile ServerSetting server;
         public ServerSetting Server { get { return server; } }
         bool OnServer { get { return server != null; } }
@@ -266,8 +268,15 @@ namespace MtgCompanion
         void ReadServer()
         {
             var was = server;
-            string resave, problem;
-            var opened = OwnServer.OpenKey(Probes.ReadText(L.ServerFile), KeyVault.Unprotect, KeyVault.Protect, out resave, out problem);
+            string resave, problem, protectError = null;
+            Func<string, string> protect = k =>
+            {
+                try { return KeyProtect(k); }
+                catch (Exception e) { protectError = e.GetType().Name + ": " + Logic.Clip(e.Message, 160); throw; }
+            };
+            var opened = OwnServer.OpenKey(Probes.ReadText(L.ServerFile), KeyVault.Unprotect, protect, out resave, out problem);
+            // (encryption failing: the file stays as it is and the game still plays; said once, never with the key)
+            if (protectError != null && !Observe) Log.Write(OwnServer.File + ": the key couldn't be encrypted for this Windows account (" + protectError + "); server.json stays as it is");
             server = problem != null ? ServerSetting.Bad(problem) : OwnServer.SettingOf(opened, ServerArg, Environment.GetEnvironmentVariable(OwnServer.KeyVariable));
             // (a plain key: saved again encrypted for this Windows account, once; never in observe mode)
             if (resave != null && !Observe)

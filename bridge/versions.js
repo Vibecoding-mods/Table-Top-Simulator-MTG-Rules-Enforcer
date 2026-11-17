@@ -36,8 +36,9 @@ function containerImages(done) {
   });
 }
 
-// The engine build the running node says it is (its image's SELF_HOSTED_NODE_ENGINE_BUILD, engine/build-images.sh's
-// tag): null when Docker can't say or the image is older than the setting
+// The engine build id the running node says it is (its image's SELF_HOSTED_NODE_ENGINE_BUILD: engine/engine-build-id.sh's
+// hash of the pins and the patches, which engine/build-images.sh bakes in): null when Docker can't say or the image is
+// older than the setting
 function containerBuild(done) {
   execFile("docker", ["inspect", "-f", "{{range .Config.Env}}{{println .}}{{end}}", NODE_CONTAINER], { timeout: 8000 }, (err, out) => {
     const line = String(out || "").split(/\r?\n/).find((l) => l.startsWith("SELF_HOSTED_NODE_ENGINE_BUILD="));

@@ -13,15 +13,22 @@ const ROOT = path.join(__dirname, "..");
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
 const TEST = "tests/test_engine_build_record.js";
 const V = "bridge/versions.js", D = "tools/deploy.js", K = "tools/make-friend-package.js", I = "engine/build-images.sh";
+const J = "tools/engine-build-id.js", H = "engine/engine-build-id.sh";
 
 // [label, file, from, to, check that must fail]: `from` must occur exactly once
 const MUTATIONS = [
   ["the build read from the wrong variable", V, "l.startsWith(\"SELF_HOSTED_NODE_ENGINE_BUILD=\")", "l.startsWith(\"ENGINE_BUILD=\")", "containerBuild: the node's build from its environment"],
   ["an empty build recorded", V, "done(err || !build ? null : build);", "done(err ? null : build);", "containerBuild: an empty build (an image built without a tag): null"],
   ["a Docker error not noticed", V, "done(err || !build ? null : build);", "done(!build ? null : build);", "containerBuild: Docker failing after printing a build: null (not trusted)"],
-  ["deploy doesn't record it", D, "...images, engineBuild, at:", "...images, at:", "deploy: records the node's build as engineBuild"],
+  ["deploy doesn't record it", D, "...images, engineBuild, at:", "...images, at:", "deploy: records this tree's id as engineBuild, refuses a running engine of another"],
   ["version.json without it", K, "    engineBuild: deployed.engineBuild || null,\n", "", "package: version.json carries engineBuild"],
-  ["the node image not told its tag", I, "--build-arg ENGINE_BUILD=\"$tag\" ", "", "build-images: the node image is told its tag"],
+  ["the node image told its tag again", I, "--build-arg ENGINE_BUILD=\"$build_id\"", "--build-arg ENGINE_BUILD=\"$tag\"", "build-images: the node image is told the build id, never its tag"],
+  ["deploy doesn't refuse another running engine", D, "if (running && running !== engineBuild) stop(", "if (false) stop(", "deploy: records this tree's id as engineBuild, refuses a running engine of another"],
+  ["the JS id keeps carriage returns", J, ".toString(\"latin1\").replace(/\\r/g, \"\");", ".toString(\"latin1\");", "id: a Windows checkout (CRLF patches): the same id"],
+  ["the bash id keeps carriage returns", H, "tr -d '\\r' < \"$dir/manabrew.patch\"", "cat \"$dir/manabrew.patch\"", "id: a Windows checkout (CRLF patches): the same id"],
+  ["the JS id leaves the pins out", J, "  h.update(`manabrew ${pin(\"MANABREW_COMMIT\")}\\nforge ${pin(\"FORGE_COMMIT\")}\\n`, \"latin1\");\n", "", "id: another pin: another id"],
+  ["the JS id leaves forge.patch out", J, "  h.update(patch(\"forge.patch\"), \"latin1\");\n", "", "id: one byte of a patch changed: another id (the warning)"],
+  ["the bash id doesn't separate the patches", H, "printf '\\0'; ", "", "id: the bash recipe (build-images.sh's) and the JS one (deploy's) agree"],
 ];
 
 const NAMES = [...new Set(MUTATIONS.map((m) => m[4]))];

@@ -284,7 +284,8 @@ the same setting and rules as the Linux/Mac companion (`companion-node`, `docs/h
     Docker.
   - The third row is named **Your server**: one relay login (`Probes.RelayLogin` to `ws[s]://host:port`, 5 s), then
     `ListRooms`. Green when room `tts-commander` is open (or in our game). **Amber** when the room's `engine_build`
-    (the relay's `RoomInfo`, the node's `SELF_HOSTED_NODE_ENGINE_BUILD`, its image's tag) isn't the one this table was
+    (the relay's `RoomInfo`, the node's `SELF_HOSTED_NODE_ENGINE_BUILD`: the engine build id, a hash of the pins and
+    the patches, `engine/engine-build-id.sh`, never the image's tag) isn't the one this table was
     deployed with (`stack/deployed.json` `engineBuild`): "Your server runs engine X, but this table was deployed with
     engine Y", and the start goes on. No warning when either is unknown (an older server or deploy). Red, each with **Try again** and the help
     text: refused the key, refused the connection (nothing listens on the port), the name isn't known
