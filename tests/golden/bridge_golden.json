@@ -211688,9 +211688,10 @@
      "title": "Pestilence: pay {2} how many times? (Multikicker)",
      "mode": "number",
      "min": 0,
-     "max": 20,
-     "kind": "number",
-     "text": ""
+     "max": 999,
+     "text": "999 is the most the table offers.",
+     "note": "999 is the most the table offers.",
+     "kind": "number"
     }
    },
    {
@@ -697120,7 +697121,7 @@
      "title": "Minds Aglow: join forces: pay how much mana?",
      "mode": "number",
      "min": 0,
-     "max": 20,
+     "max": 99,
      "note": "Each player draws X cards, where X is the total amount of mana paid this way.",
      "text": "Each player draws X cards, where X is the total amount of mana paid this way.\nJoin forces — Starting with you, each player may pay any amount of mana. Each player draws X cards, where X is the total amount of mana paid this way.",
      "kind": "number"
