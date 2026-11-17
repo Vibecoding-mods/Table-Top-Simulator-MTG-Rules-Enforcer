@@ -5072,7 +5072,7 @@ index 66837611..360e66ad 100644
                  }
              }
 diff --git a/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java b/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java
-index 4d9877fb..f2c2c0ba 100644
+index 4d9877fb..3e9ba9ce 100644
 --- a/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java
 +++ b/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java
 @@ -66,6 +66,26 @@ public class ReplacementHandler {
@@ -5164,7 +5164,7 @@ index 4d9877fb..f2c2c0ba 100644
          final Object affected = runParams.get(AbilityKey.Affected);
          Player decider = null;
  
-@@ -196,6 +248,20 @@ public class ReplacementHandler {
+@@ -196,23 +248,68 @@ public class ReplacementHandler {
              decider = ((Card) affected).getController();
          }
  
@@ -5182,10 +5182,19 @@ index 4d9877fb..f2c2c0ba 100644
 +            batch.checked = true;
 +        }
 +        final int found = replacersFound;
++        // A card moving to the battlefield: the CR 614.12 lookahead (two full static passes) once for all the layers.
++        // Until one of them has a replacement to apply nothing in the game changes, so each layer's list is the one
++        // its own lookahead found; the layers are still tried in their order (614.17 can't-happen first, then
++        // 616.1b to 616.1e), and once one applies the event is run again with fresh lists, as before.
++        final Map<ReplacementLayer, List<ReplacementEffect>> byLayer = lookaheadPerRun && ReplacementType.Moved.equals(event)
++                && ZoneType.Battlefield.equals(runParams.get(AbilityKey.Destination)) && runParams.get(AbilityKey.ReplacementEffect) == null
++                ? replacementsByLayer(event, runParams) : null;
          // try out all layer
          for (ReplacementLayer layer : ReplacementLayer.values()) {
-             ReplacementResult res = run(event, runParams, layer, decider);
-@@ -203,6 +269,9 @@ public class ReplacementHandler {
+-            ReplacementResult res = run(event, runParams, layer, decider);
++            ReplacementResult res = byLayer == null ? run(event, runParams, layer, decider)
++                    : run(event, runParams, layer, decider, byLayer.getOrDefault(layer, Lists.newArrayList()));
+             if (res != ReplacementResult.NotReplaced) {
                  return res;
              }
          }
@@ -5195,7 +5204,30 @@ index 4d9877fb..f2c2c0ba 100644
  
          return ReplacementResult.NotReplaced;
      }
-@@ -213,6 +282,7 @@ public class ReplacementHandler {
+ 
++    // every layer's replacement effects from one lookahead, each list in the order its own layer's lookahead finds them
++    private Map<ReplacementLayer, List<ReplacementEffect>> replacementsByLayer(final ReplacementType event, final Map<AbilityKey, Object> runParams) {
++        final Map<ReplacementLayer, List<ReplacementEffect>> byLayer = new java.util.EnumMap<>(ReplacementLayer.class);
++        for (final ReplacementEffect re : getReplacementList(event, runParams, null)) {
++            // (one with no layer was in no layer's list before either)
++            if (re.getLayer() != null) {
++                byLayer.computeIfAbsent(re.getLayer(), l -> Lists.newArrayList()).add(re);
++            }
++        }
++        return byLayer;
++    }
++
++    // false: a lookahead for each layer, as before (tests compare the two)
++    public static volatile boolean lookaheadPerRun = true;
++
+     private ReplacementResult run(final ReplacementType event, final Map<AbilityKey, Object> runParams, final ReplacementLayer layer, final Player decider) {
+-        final List<ReplacementEffect> possibleReplacers = getReplacementList(event, runParams, layer);
++        return run(event, runParams, layer, decider, getReplacementList(event, runParams, layer));
++    }
++
++    private ReplacementResult run(final ReplacementType event, final Map<AbilityKey, Object> runParams, final ReplacementLayer layer, final Player decider,
++            final List<ReplacementEffect> possibleReplacers) {
+ 
          if (possibleReplacers.isEmpty()) {
              return ReplacementResult.NotReplaced;
          }
