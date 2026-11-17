@@ -1973,6 +1973,18 @@ index c7208809..032b00a7 100644
      }
  
      private static CardCollectionView getCardsToCopy(Game game) {
+diff --git a/forge-game/src/main/java/forge/game/ability/AbilityKey.java b/forge-game/src/main/java/forge/game/ability/AbilityKey.java
+index f1dcd57c..03c290e3 100644
+--- a/forge-game/src/main/java/forge/game/ability/AbilityKey.java
++++ b/forge-game/src/main/java/forge/game/ability/AbilityKey.java
+@@ -91,6 +91,7 @@ public enum AbilityKey {
+     Map("Map"),
+     Mana("Mana"),
+     MergedCards("MergedCards"),
++    MovedBatch("MovedBatch"), // ReplacementHandler.MovedBatch: one effect's tokens of one kind entering together
+     Mode("Mode"),
+     NaturalResult("NaturalResult"),
+     NewCard("NewCard"),
 diff --git a/forge-game/src/main/java/forge/game/ability/AbilityUtils.java b/forge-game/src/main/java/forge/game/ability/AbilityUtils.java
 index 9d90c5c3..411e3375 100644
 --- a/forge-game/src/main/java/forge/game/ability/AbilityUtils.java
@@ -2497,7 +2509,7 @@ index 48ef9963..8fd74d94 100644
              eff.setSVar("NumTurns", "Number$" + numTurns);
              SpellAbility calcTurn = AbilityFactory.getAbility(effect, eff);
 diff --git a/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java b/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java
-index 7bc3aae4..29a7f10a 100644
+index 7bc3aae4..7b28734a 100644
 --- a/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java
 +++ b/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java
 @@ -1,6 +1,7 @@
@@ -2508,7 +2520,28 @@ index 7bc3aae4..29a7f10a 100644
  import java.util.List;
  import java.util.Map;
  import java.util.Set;
-@@ -108,12 +109,30 @@ public abstract class TokenEffectBase extends SpellAbilityEffect {
+@@ -24,6 +25,7 @@ import forge.game.ability.SpellAbilityEffect;
+ import forge.game.card.token.TokenInfo;
+ import forge.game.event.GameEventCardStatsChanged;
+ import forge.game.player.Player;
++import forge.game.replacement.ReplacementHandler;
+ import forge.game.replacement.ReplacementType;
+ import forge.game.spellability.SpellAbility;
+ import forge.game.trigger.Trigger;
+@@ -71,6 +73,12 @@ public abstract class TokenEffectBase extends SpellAbilityEffect {
+         return makeTokenTable(createTokenTable(players, tokenScripts, finalAmount, sa), clone, triggerList, combatChanged, sa);
+     }
+ 
++    // tokens that entered with the static checks held (the batch above), so tests can count them without timing
++    private static final java.util.concurrent.atomic.AtomicLong TOKENS_BATCHED = new java.util.concurrent.atomic.AtomicLong();
++    public static long getTokensBatched() {
++        return TOKENS_BATCHED.get();
++    }
++
+     protected TokenCreateTable makeTokenTable(TokenCreateTable tokenTable, final boolean clone, CardZoneTable triggerList, MutableBoolean combatChanged, final SpellAbility sa) {
+         final Card host = sa.getHostCard();
+         final Game game = host.getGame();
+@@ -108,14 +116,52 @@ public abstract class TokenEffectBase extends SpellAbilityEffect {
          moveParams.put(AbilityKey.LastStateBattlefield, game.copyLastStateBattlefield());
          moveParams.put(AbilityKey.LastStateGraveyard, game.copyLastStateGraveyard());
  
@@ -2529,6 +2562,7 @@ index 7bc3aae4..29a7f10a 100644
              Player controller = prototype.getController();
 -            int cellAmount = c.getValue();
 -            game.recordTokenRequest(cellAmount);
+-
 +            final String pile = TokenPile.key(prototype);
 +            final int room = Math.max(0, Math.min(Game.UNBOUNDED_TOKENS - pileSizes.getOrDefault(pile, 0),
 +                    Game.UNBOUNDED_TOKENS - madeByEffect));
@@ -2538,9 +2572,45 @@ index 7bc3aae4..29a7f10a 100644
 +            }
 +            pileSizes.merge(pile, cellAmount, Integer::sum);
 +            madeByEffect += cellAmount;
- 
++
++            // The tokens of one kind enter together. The first goes as before; when no replacement effect could
++            // apply to it (ReplacementHandler.MovedBatch), the rest enter with the static checks held and one pass
++            // runs after them: each still triggers on its own (the zone change triggers wait, and are collected and
++            // checked after the effect, as before) and gets its ETB counters, and the layers are applied once to all.
++            // Not for copies of permanents, tokens attached as they're made, or tokens made with counters (their
++            // checks need the static abilities applied to each one).
++            final boolean batchable = !clone && prototype.getCopiedPermanent() == null && !sa.hasParam("AttachedTo")
++                    && !sa.hasParam("WithCountersType") && cellAmount > 1;
++            final ReplacementHandler.MovedBatch batch = batchable ? new ReplacementHandler.MovedBatch() : null;
++            if (batch != null) {
++                moveParams.put(AbilityKey.MovedBatch, batch);
++            }
++            final boolean wasHolding = game.getAction().isHoldingStaticAbilities();
++            boolean held = false;
++            try {
              for (int i = 0; i < cellAmount; i++) {
++                if (batch != null && !held && batch.nothingApplies()) {
++                    game.getAction().setHoldCheckingStaticAbilities(true);
++                    held = true;
++                    TOKENS_BATCHED.addAndGet(cellAmount - i);
++                }
                  Card tok = new CardCopyService(prototype).copyCard(true);
+                 // disconnect from prototype
+                 tok.getStates().forEach(cs -> tok.getState(cs).resetOriginalHost(prototype));
+@@ -218,6 +264,13 @@ public abstract class TokenEffectBase extends SpellAbilityEffect {
+                     moved.removeRemembered(prototype.getRemembered());
+                 }
+             }
++            } finally {
++                moveParams.remove(AbilityKey.MovedBatch);
++                if (held) {
++                    game.getAction().setHoldCheckingStaticAbilities(wasHolding);
++                    game.getAction().checkStaticAbilities();
++                }
++            }
+         }
+ 
+         if (sa.hasParam("AtEOT")) {
 diff --git a/forge-game/src/main/java/forge/game/card/Card.java b/forge-game/src/main/java/forge/game/card/Card.java
 index bcc6c1ac..d51f0079 100644
 --- a/forge-game/src/main/java/forge/game/card/Card.java
@@ -4975,10 +5045,37 @@ index 66837611..360e66ad 100644
                  }
              }
 diff --git a/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java b/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java
-index 4d9877fb..065e878d 100644
+index 4d9877fb..f2c2c0ba 100644
 --- a/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java
 +++ b/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java
-@@ -99,6 +99,7 @@ public class ReplacementHandler {
+@@ -66,6 +66,26 @@ public class ReplacementHandler {
+         game = gameState;
+     }
+ 
++    // One effect's tokens of one kind entering the battlefield together (TokenEffectBase): the first is checked for
++    // replacement effects as usual, with the CR 614.12 lookahead (two full static passes for each layer). When no
++    // replacement effect could apply to it at any layer, the rest of that kind are its copies entering at the same
++    // time, and none can apply to them either: replacement effects of permanents entering simultaneously don't apply
++    // to each other (614.12), and nothing was replaced, so nothing else changed. They skip the check.
++    public static final class MovedBatch {
++        private boolean checked;
++        private boolean nothingApplies;
++
++        public boolean nothingApplies() {
++            return checked && nothingApplies;
++        }
++    }
++    private int replacersFound;
++    private static final java.util.concurrent.atomic.AtomicLong MOVED_CHECKS = new java.util.concurrent.atomic.AtomicLong();
++    // Moved-to-the-battlefield replacement checks made (each a 614.12 lookahead per layer), so tests can count them
++    public static long getMovedChecks() {
++        return MOVED_CHECKS.get();
++    }
++
+     public List<ReplacementEffect> getReplacementList(final ReplacementType event, final Map<AbilityKey, Object> runParams, final ReplacementLayer layer) {
+         final CardCollection preList = new CardCollection();
+         Card affectedLKI = null;
+@@ -99,6 +119,7 @@ public class ReplacementHandler {
          }
  
          final List<ReplacementEffect> possibleReplacers = Lists.newArrayList();
@@ -4986,7 +5083,7 @@ index 4d9877fb..065e878d 100644
  
          // Round up Static replacement effects
          game.forEachCardInGame(crd -> {
-@@ -122,7 +123,8 @@ public class ReplacementHandler {
+@@ -122,7 +143,8 @@ public class ReplacementHandler {
              // only when not prelist
              boolean noLKIstate = c != crd || event != ReplacementType.Moved || c.isImmutable() || runParams.get(AbilityKey.LastStateBattlefield) == null;
              if (!noLKIstate) {
@@ -4996,7 +5093,7 @@ index 4d9877fb..065e878d 100644
                  if (lastState != c) {
                      // use LKI because it has the right RE from the state before the effect started
                      c = lastState;
-@@ -172,6 +174,35 @@ public class ReplacementHandler {
+@@ -172,6 +194,35 @@ public class ReplacementHandler {
          return possibleReplacers;
      }
  
@@ -5032,7 +5129,7 @@ index 4d9877fb..065e878d 100644
      public boolean cantHappenCheck(final ReplacementType event, final Map<AbilityKey, Object> runParams) {
          return !getReplacementList(event, runParams, ReplacementLayer.CantHappen).isEmpty();
      }
-@@ -185,6 +216,7 @@ public class ReplacementHandler {
+@@ -185,6 +236,7 @@ public class ReplacementHandler {
       * @return ReplacementResult, an enum that represents what happened to the replacement effect.
       */
      public ReplacementResult run(ReplacementType event, final Map<AbilityKey, Object> runParams) {
@@ -5040,6 +5137,45 @@ index 4d9877fb..065e878d 100644
          final Object affected = runParams.get(AbilityKey.Affected);
          Player decider = null;
  
+@@ -196,6 +248,20 @@ public class ReplacementHandler {
+             decider = ((Card) affected).getController();
+         }
+ 
++        final MovedBatch batch = ReplacementType.Moved.equals(event) ? (MovedBatch) runParams.get(AbilityKey.MovedBatch) : null;
++        if (batch != null && batch.nothingApplies()) {
++            return ReplacementResult.NotReplaced;
++        }
++        if (ReplacementType.Moved.equals(event) && ZoneType.Battlefield.equals(runParams.get(AbilityKey.Destination))) {
++            MOVED_CHECKS.incrementAndGet();
++        }
++        // (only the first token's own check decides: one that applies runs this again for the updated event, where
++        // the effect already applied is no longer found)
++        final boolean decides = batch != null && !batch.checked;
++        if (decides) {
++            batch.checked = true;
++        }
++        final int found = replacersFound;
+         // try out all layer
+         for (ReplacementLayer layer : ReplacementLayer.values()) {
+             ReplacementResult res = run(event, runParams, layer, decider);
+@@ -203,6 +269,9 @@ public class ReplacementHandler {
+                 return res;
+             }
+         }
++        if (decides) {
++            batch.nothingApplies = replacersFound == found;
++        }
+ 
+         return ReplacementResult.NotReplaced;
+     }
+@@ -213,6 +282,7 @@ public class ReplacementHandler {
+         if (possibleReplacers.isEmpty()) {
+             return ReplacementResult.NotReplaced;
+         }
++        replacersFound++;
+ 
+         ReplacementEffect chosenRE;
+         // "can't" is never a choice
 diff --git a/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java b/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java
 index 42c36fb2..5f35f204 100644
 --- a/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java

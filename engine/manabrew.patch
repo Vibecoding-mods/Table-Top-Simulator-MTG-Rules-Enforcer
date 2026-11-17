@@ -22708,6 +22708,296 @@ index 0000000..7db9dd6
 +        return card;
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/TokenBatchTest.java b/forge-harness/src/test/java/forge/harness/host/TokenBatchTest.java
+new file mode 100644
+index 0000000..4a97a5e
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/TokenBatchTest.java
+@@ -0,0 +1,284 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.ability.AbilityUtils;
++import forge.game.ability.effects.TokenEffectBase;
++import forge.game.card.Card;
++import forge.game.card.CounterEnumType;
++import forge.game.keyword.Keyword;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.replacement.ReplacementHandler;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.MagicStack;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++
++public final class TokenBatchTest {
++    private TokenBatchTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        CHECKS.put("layers: after the batch every token has the anthems, the lord and their keywords", TokenBatchTest::layersAfterTheBatch);
++        CHECKS.put("passes: the static passes of one effect don't grow with the tokens it makes", TokenBatchTest::passesDontGrow);
++        CHECKS.put("passes: the replacement lookahead runs for the first token of a kind only", TokenBatchTest::lookaheadOnce);
++        CHECKS.put("triggers: each token triggers whenever another creature enters on its own", TokenBatchTest::eachTokenTriggers);
++        CHECKS.put("replacements: a replacement that applies to the first token applies to each, none batched", TokenBatchTest::replacementForEach);
++        CHECKS.put("replacements: an enters-with-counters replacement gives each token its counter, none batched", TokenBatchTest::countersForEach);
++        CHECKS.put("not batched: tokens made with counters each get them", TokenBatchTest::withCountersNotBatched);
++        CHECKS.put("hold: the static checks are not held after the effect", TokenBatchTest::holdReleased);
++        CHECKS.put("doubler: a doubled effect makes twice the tokens, batched", TokenBatchTest::doubledBatched);
++        CHECKS.put("sanity: 400 tokens on an anthem board in under 15 s", TokenBatchTest::timingSanity);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            check(e.getKey(), e.getValue());
++        }
++        System.out.println(failed == 0 ? "PASS TokenBatchTest" : "FAIL TokenBatchTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void expect(final boolean ok, final String why) {
++        if (!ok) {
++            throw new AssertionError(why);
++        }
++    }
++
++    private static List<Card> tokens(final Player p) {
++        final List<Card> out = new ArrayList<>();
++        for (final Card c : p.getCardsIn(ZoneType.Battlefield)) {
++            if (c.isToken()) {
++                out.add(c);
++            }
++        }
++        return out;
++    }
++
++    private static void layersAfterTheBatch() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(30, "w_1_1_soldier", "");
++        final List<Card> made = tokens(f.white);
++        expect(made.size() == 30, "made " + made.size() + " of 30");
++        expect(TokenEffectBase.getTokensBatched() - b0 == 29, "batched " + (TokenEffectBase.getTokensBatched() - b0) + " of the 29 after the first");
++        for (final Card c : made) {
++            expect(c.getNetPower() == 5 && c.getNetToughness() == 5 && c.hasKeyword(Keyword.FIRST_STRIKE) && c.hasKeyword(Keyword.VIGILANCE),
++                    "a token is " + c.getNetPower() + "/" + c.getNetToughness() + " first strike " + c.hasKeyword(Keyword.FIRST_STRIKE)
++                            + " vigilance " + c.hasKeyword(Keyword.VIGILANCE) + ", not 5/5 with both (Glorious Anthem, Intangible Virtue, Honor of the Pure, Field Marshal)");
++        }
++    }
++
++    private static void passesDontGrow() {
++        final Fixture small = new Fixture();
++        small.anthems();
++        final long s = small.passesFor(20);
++        final Fixture big = new Fixture();
++        big.anthems();
++        final long b = big.passesFor(200);
++        expect(b == s && b <= 20, "static passes for 20 tokens " + s + ", for 200 " + b);
++    }
++
++    private static void lookaheadOnce() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        final long m0 = ReplacementHandler.getMovedChecks();
++        f.make(50, "w_1_1_soldier", "");
++        expect(ReplacementHandler.getMovedChecks() - m0 == 1, "enter-the-battlefield replacement checks for 50 tokens of one kind: " + (ReplacementHandler.getMovedChecks() - m0));
++    }
++
++    private static void eachTokenTriggers() throws Exception {
++        final Fixture f = new Fixture();
++        f.add("Soul Warden", f.white);
++        f.settle();
++        f.make(40, "w_1_1_soldier", "");
++        f.game.getTriggerHandler().runWaitingTriggers();
++        int warden = 0;
++        for (final SpellAbility sa : f.pending()) {
++            warden += sa.getHostCard() != null && sa.getHostCard().getName().equals("Soul Warden") ? 1 : 0;
++        }
++        for (final forge.game.spellability.SpellAbilityStackInstance si : f.game.getStack()) {
++            warden += si.getSourceCard() != null && si.getSourceCard().getName().equals("Soul Warden") ? 1 : 0;
++        }
++        expect(warden == 40, "Soul Warden triggered " + warden + " times for 40 tokens");
++    }
++
++    private static void replacementForEach() {
++        final Fixture f = new Fixture();
++        f.add("Authority of the Consuls", f.blue);
++        f.settle();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(20, "w_1_1_soldier", "");
++        int tapped = 0;
++        for (final Card c : tokens(f.white)) {
++            tapped += c.isTapped() ? 1 : 0;
++        }
++        expect(tapped == 20, tapped + " of 20 tokens entered tapped under Authority of the Consuls");
++        expect(TokenEffectBase.getTokensBatched() == b0, "batched " + (TokenEffectBase.getTokensBatched() - b0) + " though a replacement applied");
++    }
++
++    private static void countersForEach() {
++        final Fixture f = new Fixture();
++        f.add("Grumgully, the Generous", f.white);
++        f.settle();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(20, "w_1_1_soldier", "");
++        int countered = 0;
++        for (final Card c : tokens(f.white)) {
++            countered += c.getCounters(CounterEnumType.P1P1) == 1 ? 1 : 0;
++        }
++        expect(countered == 20, countered + " of 20 tokens entered with Grumgully's +1/+1 counter");
++        expect(TokenEffectBase.getTokensBatched() == b0, "batched " + (TokenEffectBase.getTokensBatched() - b0) + " though a replacement applied");
++    }
++
++    private static void withCountersNotBatched() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(10, "w_1_1_soldier", " | WithCountersType$ P1P1 | WithCountersAmount$ 2");
++        int countered = 0;
++        for (final Card c : tokens(f.white)) {
++            countered += c.getCounters(CounterEnumType.P1P1) == 2 ? 1 : 0;
++        }
++        expect(countered == 10 && TokenEffectBase.getTokensBatched() == b0, countered + " of 10 tokens with 2 counters, " + (TokenEffectBase.getTokensBatched() - b0) + " batched");
++    }
++
++    private static void holdReleased() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        f.make(10, "w_1_1_soldier", "");
++        expect(!f.game.getAction().isHoldingStaticAbilities(), "the static checks are still held after the effect");
++        final Card later = f.add("Grizzly Bears", f.white);
++        f.game.getAction().checkStaticAbilities();
++        expect(later.getNetPower() == 3, "a creature after the effect is " + later.getNetPower() + " power, not 3 (Glorious Anthem, Honor of the Pure)");
++    }
++
++    private static void doubledBatched() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        f.add("Anointed Procession", f.white);
++        f.settle();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(25, "w_1_1_soldier", "");
++        expect(tokens(f.white).size() == 50 && TokenEffectBase.getTokensBatched() - b0 == 49, tokens(f.white).size() + " tokens, " + (TokenEffectBase.getTokensBatched() - b0) + " batched");
++    }
++
++    private static void timingSanity() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        final long t0 = System.nanoTime();
++        f.make(400, "w_1_1_soldier", "");
++        final double s = (System.nanoTime() - t0) / 1e9;
++        expect(tokens(f.white).size() == 400 && s < 15, "400 tokens took " + s + " s");
++    }
++
++    private static final class Fixture {
++        final Game game;
++        final Player white;
++        final Player blue;
++
++        Fixture() {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("White", null)));
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("Blue", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            game = new Game(players, rules, new Match(rules, players, "TokenBatchTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0), 3);
++            game.getPhaseHandler().onStackResolved();
++            white = game.getPlayers().get(0);
++            blue = game.getPlayers().get(1);
++            for (int i = 0; i < 10; i++) {
++                add("Plains", white);
++                add("Grizzly Bears", blue);
++            }
++            settle();
++        }
++
++        void anthems() {
++            for (final String name : new String[] {"Glorious Anthem", "Intangible Virtue", "Honor of the Pure", "Field Marshal"}) {
++                add(name, white);
++            }
++            settle();
++        }
++
++        Card add(final String name, final Player p) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            if (paper == null) {
++                throw new AssertionError("no card named " + name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            p.getZone(ZoneType.Battlefield).add(card);
++            return card;
++        }
++
++        void settle() {
++            game.getAction().checkStaticAbilities();
++            game.getAction().checkStateEffects(true);
++        }
++
++        void make(final int amount, final String script, final String extra) {
++            final Card host = white.getCardsIn(ZoneType.Battlefield).getFirst();
++            final SpellAbility sa = AbilityFactory.getAbility("AB$ Token | Cost$ 0 | TokenAmount$ " + amount + " | TokenScript$ " + script + " | TokenOwner$ You" + extra, host);
++            sa.setActivatingPlayer(white);
++            AbilityUtils.resolve(sa);
++        }
++
++        long passesFor(final int amount) {
++            final long p0 = game.getAction().getStaticPasses();
++            make(amount, "w_1_1_soldier", "");
++            return game.getAction().getStaticPasses() - p0;
++        }
++
++        @SuppressWarnings("unchecked")
++        List<SpellAbility> pending() throws Exception {
++            final Field field = MagicStack.class.getDeclaredField("simultaneousStackEntryList");
++            field.setAccessible(true);
++            return new ArrayList<>((List<SpellAbility>) field.get(game.getStack()));
++        }
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/TurnCounterRewindTest.java b/forge-harness/src/test/java/forge/harness/host/TurnCounterRewindTest.java
 new file mode 100644
 index 0000000..0141732
