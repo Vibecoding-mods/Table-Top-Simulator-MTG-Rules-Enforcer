@@ -10,6 +10,9 @@
 const fs = require("fs");
 const path = require("path");
 const harness = require("./bridge-harness");
+// (the table golden's runner patches string patterns the way MoonSharp has them, and must load before fengari)
+let TABLE_RUN = null, TABLE_RUN_ERR = "";
+try { TABLE_RUN = require("./golden/table-run"); } catch (e) { TABLE_RUN_ERR = String(e.message).split("\n")[0]; }
 const { lua, lauxlib, lualib, to_luastring } = require("./lua/node_modules/fengari");
 
 const ROOT = path.join(__dirname, "..");
@@ -242,11 +245,11 @@ function firstDiff(x, y) {
   // token runs packed as the bridge packs them (slim tokens alike in a row, by the details the stream sent); every step's
   // effects (objects, setVectorLines, UI) must be byte-identical ──
   let save = null;
-  try { save = require("./golden/table-run").buildSave(); } catch (e) { save = null; }
-  if (!save) console.log("SKIP fake-TTS part: it needs the Workshop table (MTG_TABLE_JSON), as tests/test_table_golden.js does");
+  try { save = TABLE_RUN ? TABLE_RUN.buildSave() : null; } catch (e) { save = null; TABLE_RUN_ERR = String(e.message).split("\n")[0]; }
+  if (!save) console.log("SKIP fake-TTS part: it needs the Workshop table (MTG_TABLE_JSON), as tests/test_table_golden.js does (" + TABLE_RUN_ERR + ")");
   else {
     const { simulate } = require("./lua/run-sim");
-    const { scenarios } = require("./golden/table-run");
+    const { scenarios } = TABLE_RUN;
     const NO_BUNDLE = "engineFxBundle = { fx = nil, sounds = nil }";
     let packed = 0;
     for (const sc of scenarios()) {
