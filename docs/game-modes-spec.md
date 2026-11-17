@@ -209,6 +209,10 @@ mode buttons (§10). Best of one stays the default.
     question, as the loser's after a game), and the start waits: the gameConfig's `firstPlayer` and StartGame go out
     with the answer.
   - With no answer in 30 seconds (`ROLL_CHOICE_SECONDS`) they play, said in chat. An AI winner plays at once.
+  - The held start goes out with the room as it is then (`sendStart`, the latest room update). A player who reconnected
+    during the wait is in the seat order. If the room can't start any more (someone left or isn't ready), chat says so
+    and the start goes out at the next ready update, with the choice kept and nothing rolled again
+    (`cloud/followups-3`).
   - Chat and log: "Game 1: a roll for who goes first: Blue 14, White 7. Blue wins the roll and chooses to play or
     draw." then "Blue chooses to draw: White goes first in game 1." Before the game starts the AI is named by its
     colour, since the bridge names it "AI 1" only once the relay starts the game.
