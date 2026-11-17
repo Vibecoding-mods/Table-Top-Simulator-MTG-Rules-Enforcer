@@ -142,6 +142,7 @@ function relayLogin(url, key, room, stepMs) {
         const rooms = Array.isArray(o.rooms) ? o.rooms : [];
         const found = rooms.find((x) => x && x.room_name === room && x.status === "Lobby") || rooms.find((x) => x && x.room_name === room);
         r.roomFound = !!found; r.roomStatus = found ? String(found.status) : null;
+        r.engineBuild = found && typeof found.engine_build === "string" && found.engine_build ? found.engine_build : null;
         finish("ok");
       }
     };

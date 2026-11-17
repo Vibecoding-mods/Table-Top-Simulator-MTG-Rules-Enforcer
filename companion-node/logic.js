@@ -412,7 +412,14 @@ const serverNotNeeded = (s) => verdict(Light.Green, `Not needed here: the engine
 
 // The engine step with a server: its login (probes.relayLogin's result, or { kind: "skipped" } during a game) as a
 // light. setting: serverSetting's result.
-function decideServer(setting, login, game) {
+// The server's engine build against the one this table was deployed with (stack/deployed.json engineBuild): words
+// for the warning, or null when they match or either is unknown (a server or a deploy older than the field)
+function engineBuildWarning(have, want) {
+  if (!have || !want || have === want) return null;
+  return `Your server runs engine ${have}, but this table was deployed with engine ${want}. They may not work together: ask the host to update the server, or update this package.`;
+}
+
+function decideServer(setting, login, game, wantBuild) {
   if (!setting.ok) return verdict(Light.Red, `Own server: ${setting.problem}`, { fix: Fixes.Retry, label: "Try again" });
   const s = setting.server, at = serverWords(s);
   const again = { fix: Fixes.Retry, label: "Try again" };
@@ -421,8 +428,11 @@ function decideServer(setting, login, game) {
   switch (login.kind) {
     case "ok":
       if (!login.roomFound) return verdict(Light.Red, `Connected to your server (${at}), but its Forge room (${Room}) isn't open. Start the Forge room on the server, then press Try again.`, again);
-      if (login.roomStatus === "Lobby") return verdict(Light.Green, `Your server (${at}): room ${Room} is open (login ${login.ms} ms).`);
-      if (locked(game)) return verdict(Light.Green, `Your server (${at}): room ${Room} is in a game.`);
+      if (login.roomStatus === "Lobby" || locked(game)) {
+        const warn = engineBuildWarning(login.engineBuild, wantBuild);
+        if (warn) return verdict(Light.Amber, warn, again);
+        return verdict(Light.Green, login.roomStatus === "Lobby" ? `Your server (${at}): room ${Room} is open (login ${login.ms} ms).` : `Your server (${at}): room ${Room} is in a game.`);
+      }
       return verdict(Light.Red, `Your server's room (${at}) is busy with an earlier game, so a new start would be refused. Restart the relay and the Forge room on the server.`, again);
     case "authFailed":
       return verdict(Light.Red, `Your server (${at}) refused the key${why}. Put the server's key (its MANABREW_SERVER_KEY) in ${ServerFile} as "key".`, again);
@@ -890,7 +900,7 @@ module.exports = {
   httpOk, httpOf, parseJson, isObj, get, has, str, int, Game, decideGame, playersText, locked, lockText,
   DockerUrl, decideDocker, sameId, normId, deployedAfterLoad, shortId, decideImages,
   TableWorkshopId, SixWorkshopId, workshopUrl, workshopMissing, parseMakeTable, tableBuildFailed, saveDone, deployedWithTable,
-  decideStack, ServerFile, DefaultServerPort, parseServer, serverSpec, sameHost, serverSetting, serverFileModeProblem, bridgeRelay, relayDiffers, serverUrl, serverWords, serverNotNeeded, decideServer,
+  decideStack, ServerFile, DefaultServerPort, parseServer, serverSpec, sameHost, serverSetting, serverFileModeProblem, bridgeRelay, relayDiffers, serverUrl, serverWords, serverNotNeeded, decideServer, engineBuildWarning,
   savesFolderVerdict, stopRefusal, writeProblem, composeFailure, SaveName, planSave, readSaveName,
   isBridgeCommandLine, decidePorts, decideBridge, countExits,
   DefaultSaveName, Room, ttsHowTo, decideTts, sha8, clip, relayKey, worst, overall,

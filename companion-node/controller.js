@@ -268,16 +268,17 @@ class Controller {
     await this.refreshGame();
     this.set(Step.Stack, verdict(Light.Busy, `Connecting to your server (${L.serverWords(this.server.server)}).`));
     const login = this.isLocked ? { kind: "skipped" } : await this.login();
-    const v = L.decideServer(this.server, login, this.game);
+    const v = L.decideServer(this.server, login, this.game, L.str(this.deployed, "engineBuild"));
     this.set(Step.Stack, v);
-    return v.light === Light.Green;
+    // (amber: the server's engine build isn't the table's; said, and the start goes on)
+    return v.light === Light.Green || v.light === Light.Amber;
   }
 
   async monitorServer() {
     this.serverNotNeeded(Step.Docker); this.serverNotNeeded(Step.Images);
     if (!this.server.ok) { this.set(Step.Stack, L.decideServer(this.server, null, this.game)); return; }
     const login = this.isLocked ? { kind: "skipped" } : !this.loginCache || Date.now() - this.loginAt > 60000 ? await this.login() : this.loginCache;
-    this.set(Step.Stack, this.unstarted(Step.Stack, L.decideServer(this.server, login, this.game)));
+    this.set(Step.Stack, this.unstarted(Step.Stack, L.decideServer(this.server, login, this.game, L.str(this.deployed, "engineBuild"))));
   }
 
   // what the bridge needs to use the server: its relay (MTG_RELAY), that the engine isn't on this computer

@@ -876,9 +876,21 @@ function startConfig() {
   if (game.teams) {
     const cfg = teams2hg.gameConfig(game.teams, game.startOrder, game.seatColors, game.teamMode, game.jugg, game.mode === "standard", game.teamTurns || null, game.arch || null);
     if (idx >= 0 && !cfg.players.some((p) => p.goesFirst)) cfg.firstPlayer = idx;
+    for (const o of openingCardsConfig()) {
+      const p = cfg.players.find((x) => x.username === o.username);
+      if (p) p.openingCards = o.openingCards; else cfg.players.push(o);
+    }
     return cfg;
   }
-  return idx >= 0 ? { type: "gameConfig", firstPlayer: idx, players: [] } : null;
+  const opening = openingCardsConfig();
+  if (idx < 0 && !opening.length) return null;
+  return { type: "gameConfig", ...(idx >= 0 ? { firstPlayer: idx } : {}), players: opening };
+}
+// (startConfig) this game's picked hands (takePickedHands) for the engine to deal as the opening hands: one gameConfig
+// player each, { username, openingCards } (engine1122-openinghand: the cards go on top of the library before the deal)
+function openingCardsConfig() {
+  return Object.entries(game?.handPick || {}).map(([color, h]) => ({ username: game.seats.get(color)?.username, openingCards: h.names.slice() }))
+    .filter((p) => p.username);
 }
 
 function onArchenemy(m) {
@@ -1900,7 +1912,7 @@ class Seat {
             return;
           }
           if (!room) { log(`room ${ROOM} not found`); chat(REMOTE_ENGINE ? `[MTG] Room "${ROOM}" not found on your server (${RELAY}). Start the Forge room there.` : `[MTG] Room "${ROOM}" not found. Is the Docker stack running?`); return; }
-          log(`room ${ROOM} busy (${room.status})`); chat(REMOTE_ENGINE ? "[MTG] Room is busy with another game. The engine runs on your own server: restart the Forge room there (docker compose -f stack/compose.yml restart forge-room), then press Start again." : `[MTG] Room is busy with another game. Type "mtg reset".`); return;
+          log(`room ${ROOM} busy (${room.status})`); chat(REMOTE_ENGINE ? "[MTG] Room is busy with another game. The engine runs on the host's server: restart the room on the host's server (there: docker compose -f stack/compose.yml restart forge-room), then press Start again." : `[MTG] Room is busy with another game. Type "mtg reset".`); return;
         }
         this.roomId = room.room_id;
         game.roomId = room.room_id;
@@ -12643,7 +12655,7 @@ function restartRoom(then) {
   if (REMOTE_ENGINE) {
     // (own server: the Forge room isn't a container here. The start goes on at once: a room that is free starts the
     // game, a busy one says so, and nothing waits for a restart that never comes.)
-    chat(`[MTG] The engine runs on your own server (${RELAY}), so the bridge can't restart its Forge room from here. If a game is stuck there, restart the Forge room on the server: docker compose -f stack/compose.yml restart forge-room`);
+    chat(`[MTG] The engine runs on the host's server (${RELAY}), so the bridge can't restart its Forge room from here. If a game is stuck there, restart the room on the host's server (there: docker compose -f stack/compose.yml restart forge-room).`);
     if (then) guarded("start (own server)", then);
     return;
   }
@@ -13846,14 +13858,16 @@ function setDebugTools(on) {
 
 // ───────── a picked starting hand ("mtg hand", the companion page's Starting hand; debug tools, games against the AI) ─────────
 // Up to HAND_MAX card names for a player's next game, while debug tools are on; that player must be the only person in
-// the game. Forge deals the opening hand itself and the harness takes no change at the keep-or-mulligan question
-// (awaitMulliganDecision reads only a mulligan_decision; applyState is a priority action), so the picked cards come at
-// the player's first priority with nothing on the stack (in turn 1, whoever's turn it is), as one debug fix: the
-// dealt hand is kept by itself; a picked card that was dealt stays (it is the deck's own); every other picked card is
-// added to the hand (createCard, as a scenario's), and for each one a dealt card goes to the bottom of the library, so
-// the hand keeps its size and the dealt cards left are the rest "at random from the deck". A picked card the deck has
-// but didn't deal is added too: the library is hidden from the bridge, so its own copy stays there. Stacking the library
-// before the deal needs an engine change (docs/companion-app-spec.md §10.3).
+// the game. The engine deals them as the opening hand (engine1122-openinghand: the gameConfig's openingCards,
+// openingCardsConfig; Forge puts them on top of the library before the deal, taking the deck's own copy or creating
+// one), so the keep-or-mulligan question shows them and the London mulligan acts on them (handPrompt).
+// An engine without that deals at random and takes no change at the keep-or-mulligan question (awaitMulliganDecision
+// reads only a mulligan_decision; applyState is a priority action), so then the picked cards come at the player's
+// first priority with nothing on the stack (in turn 1, whoever's turn it is), as one debug fix: the dealt hand is kept
+// by itself; a picked card that was dealt stays (it is the deck's own); every other picked card is added to the hand
+// (createCard, as a scenario's), and for each one a dealt card goes to the bottom of the library, so the hand keeps its
+// size and the dealt cards left are the rest "at random from the deck". A picked card the deck has but didn't deal is
+// added too: the library is hidden from the bridge, so its own copy stays there.
 const HAND_MAX = 7;
 const handChoice = {}; // colour -> { names: [Forge's names, as typed in order] }: set up in that colour's next game
 // the deck the bridge gives this colour in its next game, as onRoomUpdate picks it (a table deck checked with "mtg ready",
@@ -13910,7 +13924,7 @@ function handWords(color, names, deck) {
     + (plan && plan.fromDeck.length ? ` A deck card not dealt is added as an extra copy.` : "")
     + (deck ? "" : " (The deck for that seat can't be read, so whether these are in it is told when the game starts.)");
 }
-const HAND_WHEN = "They come at the first priority, in turn 1 (the engine deals the opening hand itself and takes no change at the keep-or-mulligan question, so the dealt hand is kept by itself).";
+const HAND_WHEN = "The engine deals them as the opening hand, before the keep-or-mulligan question (a mulligan deals again as usual). An engine without that deals at random, and then they come at the first priority, in turn 1.";
 // m: { color, names } or { color, off: true } -> { ok, message }; a hand set or cleared is said to the whole table
 function setPickedHand(m) {
   const color = TABLE_COLORS.find((c) => c.toLowerCase() === String(m?.color || "").toLowerCase());
@@ -13973,6 +13987,9 @@ function takePickedHands(seatList) {
     chat(`[MTG] ${poss(color)} picked hand: ${handWords(color, h.names, deck)} ${HAND_WHEN}`);
   }
 }
+// two names for one card, as the engine's card database reads them: any case, either face of a double-faced card, either
+// half of a split card or the whole "A // B" (forge-cards.json's index)
+const sameCardName = (a, b) => (forgeIndex()[normName(a)] || normName(a)) === (forgeIndex()[normName(b)] || normName(b));
 // The changes that turn the dealt hand into the picked one, as a debug fix's list (the table's form: players by colour).
 // Picked cards that were dealt stay; the others are added, after one dealt card each goes to the bottom of the library
 // (the last dealt ones). The hand ends as the dealt cards kept, in their order, then the added ones in the order picked.
@@ -13981,7 +13998,7 @@ function handOps(names, color, pub) {
   const left = ((pub.zones || []).find((z) => z.zone === "hand" && z.ownerId === slot)?.cards || []).filter((c) => c.id);
   const add = [];
   for (const n of names) {
-    const i = left.findIndex((c) => c.identity?.name === n);
+    const i = left.findIndex((c) => sameCardName(c.identity?.name, n));
     if (i >= 0) left.splice(i, 1); else add.push(n);
   }
   const out = left.slice(Math.max(0, left.length - add.length)).map((c) => ({ op: "move", card: c.id, zone: "library", position: "bottom",
@@ -13989,11 +14006,19 @@ function handOps(names, color, pub) {
   for (const name of add) out.push({ op: "createCard", name, player: color, zone: "hand" });
   return out;
 }
-// (onPrompt) a game with a picked hand: the opening hand is kept, and the player's first priority with nothing on the
-// stack, whoever's turn, makes the hand the picked one (a debug fix: against the AI it applies at once)
+// (onPrompt) a game with a picked hand. The engine deals it as the opening hand (gameConfig openingCards,
+// openingCardsConfig): at the keep-or-mulligan question the hand already is the picked one, so that is said and the
+// question is the player's, as in any game (a mulligan deals again as usual). An engine without it deals at random: then
+// the opening hand is kept, and the player's first priority with nothing on the stack, whoever's turn, makes the hand
+// the picked one (a debug fix: against the AI it applies at once).
 function handPrompt(seat, type, prompt, gv) {
   const h = game?.handPick?.[seat.color];
   if (!h || !game.fromTable) return false;
+  if (type === "mulligan" && !handOps(h.names, seat.color, gv).length) {
+    delete game.handPick[seat.color];
+    chat(`[MTG] ${poss(seat.color)} picked hand was dealt as the opening hand: keep it or take a mulligan as usual.`);
+    return false;
+  }
   if (type === "mulligan") { seat.respond(prompt.promptId, "mulligan", { type: "mulliganDecision", keep: true }); return true; }
   if (type !== "chooseAction" || fixBusy(gv) || (gv.stack || []).length) return false;
   delete game.handPick[seat.color];

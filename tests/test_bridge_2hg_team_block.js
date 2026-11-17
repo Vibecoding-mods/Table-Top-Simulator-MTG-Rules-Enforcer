@@ -190,7 +190,9 @@ const onIds = (s) => (s?.options || []).filter((o) => o.on).map((o) => o.id);
 
   // ── the helpers ──
   same("teamBlockNotice: a change is said as it is", T.teamBlockNotice("Blue: Centaur Courser no longer blocks."), { kind: "change", line: "Blue: Centaur Courser no longer blocks." });
-  same("teamBlockNotice: the cap", T.teamBlockNotice("White settles the team's blocks (rule 805.2)"), { kind: "settle", line: "White decides (team leader)" });
+  same("teamBlockNotice: the cap", T.teamBlockNotice("White decides (team leader)"), { kind: "settle", line: "White decides (team leader)" });
+  same("teamBlockNotice: an older engine's cap reads the same", T.teamBlockNotice("White settles the team's blocks (rule 805.2)"), { kind: "settle", line: "White decides (team leader)" });
+  same("teamBlockNotice: 'decides' alone is not the cap", [T.teamBlockNotice("White decides"), T.teamBlockNotice("White decides (team leader) to attack")], [null, null]);
   same("teamBlockNotice: any other notice is not one", [T.teamBlockNotice("White picked AI 1"), T.teamBlockNotice("Block declaration invalid: x")], [null, null]);
   same("jointBlock: a prompt without the fields is none", T.jointBlock({ type: "chooseBlockers", attackers: [] }), null);
 
