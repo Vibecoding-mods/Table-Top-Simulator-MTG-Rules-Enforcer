@@ -1914,10 +1914,30 @@ index 7bc3aae4..29a7f10a 100644
              for (int i = 0; i < cellAmount; i++) {
                  Card tok = new CardCopyService(prototype).copyCard(true);
 diff --git a/forge-game/src/main/java/forge/game/card/Card.java b/forge-game/src/main/java/forge/game/card/Card.java
-index bcc6c1ac..5e358b93 100644
+index bcc6c1ac..ad3ba27b 100644
 --- a/forge-game/src/main/java/forge/game/card/Card.java
 +++ b/forge-game/src/main/java/forge/game/card/Card.java
-@@ -7887,6 +7887,79 @@ public class Card extends GameEntity implements Comparable<Card>, IHasSVars, ITr
+@@ -7392,6 +7392,9 @@ public class Card extends GameEntity implements Comparable<Card>, IHasSVars, ITr
+         return getAllPossibleAbilities(player, removeUnplayable, null);
+     }
+     public List<SpellAbility> getAllPossibleAbilities(final Player player, final boolean removeUnplayable, final Multimap<SpellAbility, SpellAbility> unhiddenAltCost) {
++        return getAllPossibleAbilities(player, removeUnplayable, unhiddenAltCost, Set.of());
++    }
++    public List<SpellAbility> getAllPossibleAbilities(final Player player, final boolean removeUnplayable, final Multimap<SpellAbility, SpellAbility> unhiddenAltCost, final Set<Integer> skipIds) {
+         CardState oState = getOriginalState(CardStateName.Original);
+         final List<SpellAbility> abilities = Lists.newArrayList();
+         Consumer<SpellAbility> consumer = sa -> {
+@@ -7475,6 +7478,9 @@ public class Card extends GameEntity implements Comparable<Card>, IHasSVars, ITr
+         // removeAll on two ArrayLists is quadratic, and with removeUnplayable most entries go.
+         final List<SpellAbility> playable = Lists.newArrayListWithCapacity(abilities.size());
+         for (final SpellAbility sa : abilities) {
++            if (skipIds.contains(sa.getId())) {
++                continue;
++            }
+             sa.setActivatingPlayer(player);
+             // fix things like retrace
+             // check only if SA can't be cast normally
+@@ -7887,6 +7893,79 @@ public class Card extends GameEntity implements Comparable<Card>, IHasSVars, ITr
          numberTurnActivations.clear();
      }
  
