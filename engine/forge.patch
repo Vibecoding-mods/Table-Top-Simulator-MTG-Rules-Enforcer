@@ -22,7 +22,7 @@ index c3b3b8ab..e5ca9a24 100644
          int totalMana = ComputerUtilMana.getAvailableManaEstimate(defender, true);
          int manaReserved = 0; // for paying the cost to transform
 diff --git a/forge-ai/src/main/java/forge/ai/AiBlockController.java b/forge-ai/src/main/java/forge/ai/AiBlockController.java
-index eb732342..5358c962 100644
+index eb732342..f4b8aea0 100644
 --- a/forge-ai/src/main/java/forge/ai/AiBlockController.java
 +++ b/forge-ai/src/main/java/forge/ai/AiBlockController.java
 @@ -142,7 +142,9 @@ public class AiBlockController {
@@ -63,6 +63,56 @@ index eb732342..5358c962 100644
          blockersLeft = new ArrayList<>(possibleBlockers); // keeps track of all unassigned blockers
          blockedButUnkilled = new ArrayList<>(); // keeps track of all blocked attackers that currently wouldn't be destroyed
      }
+@@ -1122,6 +1129,49 @@ public class AiBlockController {
+         }
+         attackers = sortPotentialAttackers(combat);
+         assignBlockers(combat, possibleBlockers);
++        if (AiController.evalDeadlinePassed(ai)) {
++            makeChumpBlocksPastDeadline(combat, possibleBlockers);
++        }
++    }
++
++    // Past the declaration's budget the steps above stop where they are, and on a big board that can be before the
++    // first block: an AI at 6 life facing 30 attackers blocked nothing. When what is still unblocked would kill, chump
++    // with the least valuable blockers left, the biggest attackers first, until it wouldn't. Its cost is the attackers
++    // times the blockers, with no combat prediction.
++    private void makeChumpBlocksPastDeadline(final Combat combat, final List<Card> possibleBlockers) {
++        final List<Card> unblocked = new ArrayList<>();
++        int damage = 0;
++        for (final Card attacker : combat.getAttackersOf(ai)) {
++            if (combat.getBlockers(attacker).isEmpty()) {
++                unblocked.add(attacker);
++                damage += ComputerUtilCombat.damageIfUnblocked(attacker, ai, combat, false);
++            }
++        }
++        if (ai.cantLoseForZeroOrLessLife()) {
++            return;
++        }
++        unblocked.sort((a, b) -> Integer.compare(ComputerUtilCombat.damageIfUnblocked(b, ai, combat, false), ComputerUtilCombat.damageIfUnblocked(a, ai, combat, false)));
++        final List<Card> free = new ArrayList<>();
++        for (final Card b : possibleBlockers) {
++            if (!combat.isBlocking(b) && CombatUtil.canBlock(b, combat)) {
++                free.add(b);
++            }
++        }
++        free.sort((a, b) -> Integer.compare(ComputerUtilCard.evaluateCreature(a), ComputerUtilCard.evaluateCreature(b)));
++        for (final Card attacker : unblocked) {
++            if (damage < ai.getLife()) {
++                break;
++            }
++            for (final Card blocker : free) {
++                if (CombatUtil.canBlock(attacker, blocker, combat)) {
++                    combat.addBlocker(attacker, blocker);
++                    free.remove(blocker);
++                    final int dealt = ComputerUtilCombat.damageIfUnblocked(attacker, ai, combat, false);
++                    damage -= attacker.hasKeyword(Keyword.TRAMPLE) ? Math.min(dealt, Math.max(0, blocker.getNetToughness())) : dealt;
++                    break;
++                }
++            }
++        }
+     }
+     /**
+      * assignBlockersForCombat() with additional and possibly "virtual" blockers.
 diff --git a/forge-ai/src/main/java/forge/ai/AiController.java b/forge-ai/src/main/java/forge/ai/AiController.java
 index 549fdaf8..9aee5501 100644
 --- a/forge-ai/src/main/java/forge/ai/AiController.java
@@ -276,10 +326,58 @@ index 1dfd5d98..d652baab 100644
          for (final Card attacker : attackers) {
              final List<Card> blockers = combat.getBlockers(attacker);
 diff --git a/forge-ai/src/main/java/forge/ai/ComputerUtilMana.java b/forge-ai/src/main/java/forge/ai/ComputerUtilMana.java
-index 5f96dead..58bc7a11 100644
+index 5f96dead..b963290c 100644
 --- a/forge-ai/src/main/java/forge/ai/ComputerUtilMana.java
 +++ b/forge-ai/src/main/java/forge/ai/ComputerUtilMana.java
-@@ -1496,7 +1496,37 @@ public class ComputerUtilMana {
+@@ -594,8 +594,35 @@ public class ComputerUtilMana {
+         return manaProduced;
+     }
+ 
++    // A real payment has the combat declarations' budget (Game.getAITimeout). Each mana ability activated runs a full
++    // static pass (MagicStack.add), and on a big board each costs hundreds of milliseconds once the state has changed.
++    // Past the budget the rest of the payment holds the static checks, and one pass runs when it ends.
++    private static final class PayBudget {
++        final long deadline;
++        boolean held;
++
++        PayBudget(final long deadline) {
++            this.deadline = deadline;
++        }
++    }
++
+     // returns null if unpayable
+     private static List<SpellAbility> payManaCost(final ManaCostBeingPaid cost, final SpellAbility sa, final Player ai, final boolean test, boolean checkPlayable, boolean effect) {
++        if (test) {
++            return payManaCost(cost, sa, ai, true, checkPlayable, effect, null);
++        }
++        final PayBudget budget = new PayBudget(System.currentTimeMillis() + ai.getGame().getAITimeout() * 1000L);
++        try {
++            return payManaCost(cost, sa, ai, false, checkPlayable, effect, budget);
++        } finally {
++            if (budget.held) {
++                ai.getGame().getAction().setHoldCheckingStaticAbilities(false);
++                ai.getGame().getAction().checkStaticAbilities();
++            }
++        }
++    }
++
++    private static List<SpellAbility> payManaCost(final ManaCostBeingPaid cost, final SpellAbility sa, final Player ai, final boolean test, boolean checkPlayable, boolean effect, final PayBudget budget) {
+         if ((sa.isOffering() && sa.getSacrificedAsOffering() == null) || (sa.isEmerge() && sa.getSacrificedAsEmerge() == null)) {
+             // nothing was chosen
+             return null;
+@@ -773,6 +800,11 @@ public class ComputerUtilMana {
+                     continue;
+                 }
+ 
++                if (budget != null && !budget.held && System.currentTimeMillis() >= budget.deadline
++                        && !ai.getGame().getAction().isHoldingStaticAbilities()) {
++                    ai.getGame().getAction().setHoldCheckingStaticAbilities(true);
++                    budget.held = true;
++                }
+                 ai.getGame().getStack().addAndUnfreeze(saPayment);
+                 // subtract mana from mana pool
+                 manapool.payManaFromAbility(sa, cost, saPayment);
+@@ -1496,7 +1528,37 @@ public class ComputerUtilMana {
          return sortedManaSources;
      }
  
@@ -317,7 +415,7 @@ index 5f96dead..58bc7a11 100644
          final ListMultimap<Integer, SpellAbility> manaMap = ArrayListMultimap.create();
          final Game game = ai.getGame();
  
-@@ -1618,6 +1648,28 @@ public class ComputerUtilMana {
+@@ -1618,6 +1680,28 @@ public class ComputerUtilMana {
       * @return a int.
       * @since 1.0.15
       */
@@ -963,10 +1061,36 @@ index 8d204538..93a52607 100644
          if (StaticAbilityCantChangeDayTime.cantChangeDay(this, value)) {
              return;
 diff --git a/forge-game/src/main/java/forge/game/GameAction.java b/forge-game/src/main/java/forge/game/GameAction.java
-index e6cbe012..853f5941 100644
+index e6cbe012..5b2c3767 100644
 --- a/forge-game/src/main/java/forge/game/GameAction.java
 +++ b/forge-game/src/main/java/forge/game/GameAction.java
-@@ -1988,7 +1988,8 @@ public class GameAction {
+@@ -1049,6 +1049,17 @@ public class GameAction {
+         return holdCheckingStaticAbilities;
+     }
+ 
++    public boolean isHoldingStaticAbilities() {
++        return holdCheckingStaticAbilities;
++    }
++
++    // how many static ability passes ran in this game: a measure for the engine's own tests and benchmarks
++    private long staticPasses;
++
++    public long getStaticPasses() {
++        return staticPasses;
++    }
++
+     // This doesn't check layers or if the ability gets removed by other effects
+     public boolean hasStaticAbilityAffectingZone(ZoneType zone, StaticAbilityLayer layer) {
+         for (final Card ca : game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
+@@ -1109,6 +1120,7 @@ public class GameAction {
+         if (game.isGameOver()) {
+             return;
+         }
++        staticPasses++;
+         game.getTracker().freeze(); //prevent views flickering during while updating for state-based effects
+         game.getTracker().holdChangeVersion();
+ 
+@@ -1988,7 +2000,8 @@ public class GameAction {
              // then the rest have lost!
              reason = GameEndReason.WinsGameSpellEffect;
              for (Player pl : allPlayers) {
@@ -976,7 +1100,7 @@ index e6cbe012..853f5941 100644
                      continue;
                  }
  
-@@ -2015,6 +2016,19 @@ public class GameAction {
+@@ -2015,6 +2028,19 @@ public class GameAction {
              }
          }
  
@@ -996,7 +1120,7 @@ index e6cbe012..853f5941 100644
          if (losers != null) {
              for (Player p : losers) {
                  game.onPlayerLost(p);
-@@ -2451,6 +2465,12 @@ public class GameAction {
+@@ -2451,6 +2477,12 @@ public class GameAction {
                  return game.getPlayers().get(0);
              }
  
@@ -1009,7 +1133,7 @@ index e6cbe012..853f5941 100644
              // 904.6: in Archenemy games the Archenemy goes first
              if (game.getRules().hasAppliedVariant(GameType.Archenemy)) {
                  for (Player p : game.getPlayers()) {
-@@ -2471,7 +2491,7 @@ public class GameAction {
+@@ -2471,7 +2503,7 @@ public class GameAction {
          if (!powerPlayers.isEmpty()) {
              List<Player> players = Lists.newArrayList(powerPlayers);
              Collections.shuffle(players, MyRandom.getRandom());
@@ -1018,7 +1142,7 @@ index e6cbe012..853f5941 100644
          }
  
          boolean isFirstGame = lastGameOutcome == null;
-@@ -2499,9 +2519,36 @@ public class GameAction {
+@@ -2499,9 +2531,36 @@ public class GameAction {
              }
          }
          goesFirst = goesFirst.getController().chooseStartingPlayer(isFirstGame);
@@ -1056,10 +1180,32 @@ index e6cbe012..853f5941 100644
          Player takesAction = first;
          do {
 diff --git a/forge-game/src/main/java/forge/game/GameActionUtil.java b/forge-game/src/main/java/forge/game/GameActionUtil.java
-index 2411340d..76985e46 100644
+index 2411340d..7542290d 100644
 --- a/forge-game/src/main/java/forge/game/GameActionUtil.java
 +++ b/forge-game/src/main/java/forge/game/GameActionUtil.java
-@@ -177,7 +177,7 @@ public final class GameActionUtil {
+@@ -85,6 +85,9 @@ public final class GameActionUtil {
+      *         a possible alternative cost the provided activator can use to pay
+      *         the provided {@link SpellAbility}.
+      */
++    // off only to compare with the old path (BigBoardFixesTest)
++    public static boolean skipInPlayLandAlternatives = true;
++
+     public static List<SpellAbility> getAlternativeCosts(final SpellAbility sa, final Player activator, boolean altCostOnly) {
+         final List<SpellAbility> alternatives = Lists.newArrayList();
+ 
+@@ -94,6 +97,11 @@ public final class GameActionUtil {
+         if (sa.isSpell() && source.isInPlay()) {
+             return alternatives;
+         }
++        // a land on the battlefield can't be played, so none of its play's alternatives can be: the stack copy and its
++        // static passes below were run for every land in play while a static affected the stack (big boards)
++        if (skipInPlayLandAlternatives && sa.isLandAbility() && source.isInPlay()) {
++            return alternatives;
++        }
+ 
+         if (sa.isSpell() || sa.isLandAbility()) {
+             boolean lkicheck = false;
+@@ -177,7 +185,7 @@ public final class GameActionUtil {
                          // "if you also return a creature you control to its owner's hand" is an
                          // additional cost, so with nothing to return the spell is simply not castable
                          beamSA.getPayCosts().add(new Cost(
