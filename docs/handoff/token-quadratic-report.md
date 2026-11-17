@@ -138,3 +138,44 @@ for another zone). So no check can reach it; it's kept as a guard.
 - No image, no live game.
 - The per-pass cost on big boards and the per-layer lookahead (see 2).
 - 500 tokens before the change wasn't timed to the end.
+
+## After review (same branch)
+
+**The power-4 triggers (a real miss, now fixed).**
+- **The check:** under Glorious Anthem × 3 (1/1 becomes 4/4), Elemental Bond and Garruk's Uprising each triggered for
+  **1 of 20** tokens, the first, unbatched one.
+- **Why:** for a card entering the battlefield, `TriggerChangesZone` tests `ValidCard` against the copy taken when it
+  entered (`Zone.saveLKI`, `getCardsAddedThisTurn`, CR 603.6b). For a held token that copy was taken without the
+  anthems.
+- **The fix:** after the batch's pass, each batched token's entry is taken again as it is now (`Zone.refreshAddedLKI`).
+  Now 20 and 20.
+- **Every caller of `makeTokenTable` passes a non-null trigger list:** Endure, Incubate, Recruit, Empower, Amass and
+  Investigate make a new `CardZoneTable`; Token and CopyPermanent use the ability's table or a new one.
+
+**Exceptions:**
+- A batch starts only with the static checks off, so the hold always goes back off. The `wasHolding` branch was dead
+  and is gone.
+- An exception from the batch comes out as itself. If the pass after it throws too, that one is added to it
+  (`addSuppressed`).
+- **Checks:** an exception thrown at the 5th of 20 tokens is the one that comes out, the hold is released, and the
+  tokens made have the anthems. An effect inside a hold that was already on isn't batched and leaves the hold on.
+- **Not checked:** the suppressed pass failure. A static pass can't be made to throw from a test without another
+  hook into `GameAction`.
+
+**Torpor Orb, Hushbringer, Humility:**
+- Torpor Orb and Hushbringer each stop all of Soul Warden's triggers for the 20 tokens (19 batched).
+- Humility makes all 20 vigilant 2/2 Knights 1/1 with no vigilance.
+- No mutation of this change can make the Torpor and Hushbringer checks fail, since Forge's trigger suppression is
+  untouched. They guard against a future change.
+
+**The sibling "other creatures enter with" case:** no token script has a Moved replacement (all 862 checked), so it
+can't be expressed with tokens.
+
+**The theoretical gap,** now in `docs/engine-changes.md`: a replacement effect whose applicability depends on a count
+the batch changes (creatures entered this turn, say) is checked for the first token of a kind only. No such Moved
+replacement was found in the pool.
+
+**Tests and break-it now:**
+- `TokenBatchTest` 17 checks.
+- `tools/mutate-token-batch.js` 13 of 13 caught by name. The new mutations: the entries not taken again, the hold not
+  released on an exception, a batch inside a hold, and no pass after the batch (Humility).

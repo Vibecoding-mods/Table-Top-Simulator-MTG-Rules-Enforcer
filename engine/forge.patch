@@ -2509,7 +2509,7 @@ index 48ef9963..8fd74d94 100644
              eff.setSVar("NumTurns", "Number$" + numTurns);
              SpellAbility calcTurn = AbilityFactory.getAbility(effect, eff);
 diff --git a/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java b/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java
-index 7bc3aae4..7b28734a 100644
+index 7bc3aae4..5fef1a97 100644
 --- a/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java
 +++ b/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java
 @@ -1,6 +1,7 @@
@@ -2528,11 +2528,13 @@ index 7bc3aae4..7b28734a 100644
  import forge.game.replacement.ReplacementType;
  import forge.game.spellability.SpellAbility;
  import forge.game.trigger.Trigger;
-@@ -71,6 +73,12 @@ public abstract class TokenEffectBase extends SpellAbilityEffect {
+@@ -71,6 +73,14 @@ public abstract class TokenEffectBase extends SpellAbilityEffect {
          return makeTokenTable(createTokenTable(players, tokenScripts, finalAmount, sa), clone, triggerList, combatChanged, sa);
      }
  
 +    // tokens that entered with the static checks held (the batch above), so tests can count them without timing
++    // run after each token is made (tests only: TokenBatchTest throws from it, to see a batch end on an exception)
++    public static volatile java.util.function.Consumer<Card> afterEachTokenForTests;
 +    private static final java.util.concurrent.atomic.AtomicLong TOKENS_BATCHED = new java.util.concurrent.atomic.AtomicLong();
 +    public static long getTokensBatched() {
 +        return TOKENS_BATCHED.get();
@@ -2541,7 +2543,7 @@ index 7bc3aae4..7b28734a 100644
      protected TokenCreateTable makeTokenTable(TokenCreateTable tokenTable, final boolean clone, CardZoneTable triggerList, MutableBoolean combatChanged, final SpellAbility sa) {
          final Card host = sa.getHostCard();
          final Game game = host.getGame();
-@@ -108,14 +116,52 @@ public abstract class TokenEffectBase extends SpellAbilityEffect {
+@@ -108,14 +118,53 @@ public abstract class TokenEffectBase extends SpellAbilityEffect {
          moveParams.put(AbilityKey.LastStateBattlefield, game.copyLastStateBattlefield());
          moveParams.put(AbilityKey.LastStateGraveyard, game.copyLastStateGraveyard());
  
@@ -2580,13 +2582,14 @@ index 7bc3aae4..7b28734a 100644
 +            // Not for copies of permanents, tokens attached as they're made, or tokens made with counters (their
 +            // checks need the static abilities applied to each one).
 +            final boolean batchable = !clone && prototype.getCopiedPermanent() == null && !sa.hasParam("AttachedTo")
-+                    && !sa.hasParam("WithCountersType") && cellAmount > 1;
++                    && !sa.hasParam("WithCountersType") && cellAmount > 1 && !game.getAction().isHoldingStaticAbilities();
++            final List<Card> heldTokens = Lists.newArrayList();
 +            final ReplacementHandler.MovedBatch batch = batchable ? new ReplacementHandler.MovedBatch() : null;
 +            if (batch != null) {
 +                moveParams.put(AbilityKey.MovedBatch, batch);
 +            }
-+            final boolean wasHolding = game.getAction().isHoldingStaticAbilities();
 +            boolean held = false;
++            Throwable failure = null;
 +            try {
              for (int i = 0; i < cellAmount; i++) {
 +                if (batch != null && !held && batch.nothingApplies()) {
@@ -2597,20 +2600,44 @@ index 7bc3aae4..7b28734a 100644
                  Card tok = new CardCopyService(prototype).copyCard(true);
                  // disconnect from prototype
                  tok.getStates().forEach(cs -> tok.getState(cs).resetOriginalHost(prototype));
-@@ -218,6 +264,13 @@ public abstract class TokenEffectBase extends SpellAbilityEffect {
+@@ -217,6 +266,37 @@ public abstract class TokenEffectBase extends SpellAbilityEffect {
+                 if (sa.hasParam("CleanupForEach")) {
                      moved.removeRemembered(prototype.getRemembered());
                  }
-             }
++                if (held) {
++                    heldTokens.add(moved);
++                }
++                if (afterEachTokenForTests != null) {
++                    afterEachTokenForTests.accept(moved);
++                }
++            }
++            } catch (RuntimeException | Error thrown) {
++                failure = thrown;
++                throw thrown;
 +            } finally {
 +                moveParams.remove(AbilityKey.MovedBatch);
 +                if (held) {
-+                    game.getAction().setHoldCheckingStaticAbilities(wasHolding);
-+                    game.getAction().checkStaticAbilities();
++                    // (a batch starts only with the hold off, so it goes back off; the pass after it never hides an
++                    // exception from the batch)
++                    game.getAction().setHoldCheckingStaticAbilities(false);
++                    try {
++                        game.getAction().checkStaticAbilities();
++                        // (each one's entry as it is now, with the layers: what its enters triggers test)
++                        for (final Card token : heldTokens) {
++                            if (token.getZone() != null) {
++                                token.getZone().refreshAddedLKI(token);
++                            }
++                        }
++                    } catch (RuntimeException passFailed) {
++                        if (failure == null) {
++                            throw passFailed;
++                        }
++                        failure.addSuppressed(passFailed);
++                    }
 +                }
-+            }
+             }
          }
  
-         if (sa.hasParam("AtEOT")) {
 diff --git a/forge-game/src/main/java/forge/game/card/Card.java b/forge-game/src/main/java/forge/game/card/Card.java
 index bcc6c1ac..d51f0079 100644
 --- a/forge-game/src/main/java/forge/game/card/Card.java
@@ -6084,7 +6111,7 @@ index 00000000..19e20b28
 +    }
 +}
 diff --git a/forge-game/src/main/java/forge/game/zone/Zone.java b/forge-game/src/main/java/forge/game/zone/Zone.java
-index 8050c40f..6bf14ae9 100644
+index 8050c40f..b69b2fb2 100644
 --- a/forge-game/src/main/java/forge/game/zone/Zone.java
 +++ b/forge-game/src/main/java/forge/game/zone/Zone.java
 @@ -262,6 +262,15 @@ public class Zone implements java.io.Serializable, Iterable<Card> {
@@ -6103,6 +6130,31 @@ index 8050c40f..6bf14ae9 100644
      @Override
      public Iterator<Card> iterator() {
          return cardList.iterator();
+@@ -286,6 +295,24 @@ public class Zone implements java.io.Serializable, Iterable<Card> {
+         return result;
+     }
+ 
++    // A card's entry here taken again, as it is now (TokenEffectBase: a token that entered with the static checks held,
++    // once the pass after them has run). The enters triggers read this copy (TriggerChangesZone, CR 603.6b), so it
++    // must show the card with the layers applied, as an entry taken without the hold does.
++    public void refreshAddedLKI(Card c) {
++        for (final ZoneType zt : cardsAddedThisTurn.keySet()) {
++            final List<Card> added = cardsAddedThisTurn.get(zt);
++            final int at = added.lastIndexOf(c);
++            if (at >= 0) {
++                final Card old = added.get(at);
++                final Card lki = CardCopyService.getLKICopy(c);
++                added.set(at, lki);
++                enteredFromThisTurn.remove(old);
++                enteredFromThisTurn.put(lki, zt);
++                return;
++            }
++        }
++    }
++
+     public void saveLKI(Card c, Card old) {
+         final Zone oldZone = game.getZoneOf(old);
+         final ZoneType zt = oldZone == null ? ZoneType.Stack : oldZone.getZoneType();
 diff --git a/forge-gui/res/cardsfolder/a/aetherling.txt b/forge-gui/res/cardsfolder/a/aetherling.txt
 index f6e89bab..88978a3b 100644
 --- a/forge-gui/res/cardsfolder/a/aetherling.txt
