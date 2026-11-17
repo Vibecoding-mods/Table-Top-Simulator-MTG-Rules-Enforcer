@@ -71,11 +71,12 @@ const line = (start) => {
 };
 const LUA = [
   line("ENGINE_SCHEME = {"), line("ENGINE_ARCH_SETUP = nil"), line("ENGINE_ARCH_SEATS = {"),
-  ...["engineExpandUrl", "engineStoreStatic", "engineFillStatic", "engineArchColor", "engineSchemeSpot", "engineSchemes", "engineSchemeDeckCard",
+  ...["engineZoneScale", "engineExpandUrl", "engineStoreStatic", "engineFillStatic", "engineArchColor", "engineSchemeSpot", "engineSchemes", "engineSchemeDeckCard",
     "engineSchemeDeckOf", "engineSchemeBanner", "engineArchLabel", "engineArchNext", "onMtgSetupArch", "engineArchNoted", "engineOnTexts", "engineTextInto"].map(fn),
 ].join("\n");
 const STUBS = `
 ENGINE_BACK = "https://back"
+ATTACH_SCALE = 0.5
 engineStatic = {}
 local vmt = {}
 function Vector(x, y, z) return setmetatable({ x = x, y = y, z = z }, vmt) end
@@ -220,7 +221,21 @@ const banner = (m) => q("local json = ... takeBoard(json) engineSchemeBanner(las
   // the board's own path
   ok("board: the schemes' details filled in (mergeStatic)", /for _, c in ipairs\(m\.schemes or \{\}\) do engineFillStatic\(c\) end\n\s+if m\.schemeNow ~= nil then engineFillStatic\(m\.schemeNow\.card\) end/.test(SRC), "mergeStatic");
   ok("board: each board draws the schemes", /pcall\(engineSchemes, m, seen\)/.test(SRC) && /pcall\(engineSchemeBanner, m\)/.test(SRC), "engineRender");
-  ok("board: the scheme set in motion is drawn large", /meta\.zone == "plane" or meta\.zone == "schemenow"\)\) and 1\.5/.test(SRC), "place's scale");
+  // the scheme shape (table-polish): scheme cards are oversized, upright; every scheme zone at that size, planes as before
+  same("shape: the scheme set in motion, the ongoing row and the deck at the oversized card's size; planes 1.5; others as before",
+    q('local o = {} for _, z in ipairs({ "schemenow", "scheme", "schemedeck", "plane", "battlefield", "attached", "suspended" }) do o[#o + 1] = tostring(engineZoneScale(z)) end return table.concat(o, ",")'),
+    "1.4,1.4,1.4,1.5,1,0.5,0.5");
+  ok("shape: a card spawned in a zone takes its size (place)", /local zs = engineZoneScale\(opts\.zone\)\n\s+if zs ~= 1 then obj\.setScale\(Vector\(zs, 1, zs\)\) end/.test(SRC), "place");
+  ok("shape: a card already there is resized to its zone's size each board", /local wantScale = engineZoneScale\(meta and meta\.zone\)/.test(SRC), "the board's update");
+  ok("shape: schemes are never turned as a plane is (upright, the archenemy's seat's rotation)", /local rot = Vector\(0, g\.rotY, 0\)/.test(fn("engineSchemes")) && !/rotY\) \+ 90|g\.rotY \+ 90/.test(fn("engineSchemes")), "engineSchemes");
+  // (clear of each other at that size: a TTS card is about 2.2 x 3.1 at scale 1; the plane at the centre, 1.5 and turned,
+  // reaches 1.7 from it along the archenemy's axis; the stack floats over the caster's own mat)
+  const sz = q("return tostring(ENGINE_SCHEME.scale * 2.25) .. '|' .. tostring(ENGINE_SCHEME.scale * 3.15) .. '|' .. ENGINE_SCHEME.row .. '|' .. ENGINE_SCHEME.rowStart .. '|' .. ENGINE_SCHEME.deck .. '|' .. ENGINE_SCHEME.toward").split("|").map(Number);
+  const [w, h, row, rowStart, deckAt, toward] = sz;
+  ok("shape: the row's schemes keep a gap at that size", row - w > 0.2, `row ${row}, card ${w}`);
+  ok("shape: the row and the deck stay clear of the scheme set in motion", rowStart - w > 0.5 && Math.abs(deckAt) - w > 0.5, `rowStart ${rowStart}, deck ${deckAt}, card ${w}`);
+  ok("shape: clear of a plane at the centre (a mat 20 from it)", toward * 20 - h / 2 > 1.5 * 2.25 / 2 + 0.5, `scheme from ${toward * 20 - h / 2}, plane to ${1.5 * 2.25 / 2}`);
+  ok("shape: clear of the stack over the archenemy's own mat", 20 - (toward * 20 + h / 2) > 3.1 / 2 + 0.5, `scheme to ${toward * 20 + h / 2}, the stack from ${20 - 3.1 / 2}`);
   ok("board: a new game's schemes count from 1 again", /engineSchemeSeen = nil -- \(and its schemes set in motion\)/.test(SRC), "the reset");
 
   console.log(`${failed ? "FAIL" : "PASS"} test_table_archenemy_view: ${passed} passed, ${failed} failed`);

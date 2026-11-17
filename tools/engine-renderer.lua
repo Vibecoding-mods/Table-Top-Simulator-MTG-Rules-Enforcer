@@ -318,7 +318,7 @@ local function badgeParts(c)
   -- (a stack of a pile the engine stopped counting at its cap, the bridge's inf: "infinitely many" by the rules, the
   -- engine keeping ENGINE_TOKEN_CAP real tokens; docs/big-turns-2-spec.md 1.6)
   if (c.groupN or 1) > 1 then
-    if c.groupInf then parts[#parts + 1] = { "grp", ENGINE_INF_BADGE, BADGE.black, "Infinitely many (the engine keeps " .. ENGINE_TOKEN_CAP .. " real tokens)" }
+    if c.groupInf then parts[#parts + 1] = { "grp", "x" .. engineInfText(), BADGE.black, "Infinitely many (the engine keeps " .. ENGINE_TOKEN_CAP .. " real tokens)" }
     else parts[#parts + 1] = { "grp", "x" .. c.groupN, BADGE.black } end
   end
   -- a copy of another card (Phantasmal Image as Kenrith): which of two alike is the copy (legend rule, playtest 2026-10-26)
@@ -597,8 +597,9 @@ function engineCardEntry(id, obj, c, opts)
   if c ~= nil then
     updateBadge(obj, c, opts.zone)
     obj.setLock(opts.lock == true)
-    if opts.zone == "attached" or opts.zone == "linked" or opts.zone == "revealed" or opts.zone == "suspended" then obj.setScale(Vector(ATTACH_SCALE, 1, ATTACH_SCALE))
-    elseif opts.zone == "plane" then obj.setScale(Vector(1.5, 1, 1.5)) end -- (a plane in play: larger, place)
+    -- (its zone's size: a plane larger, a scheme at the oversized card's size, an attached card smaller; engineZoneScale)
+    local zs = engineZoneScale(opts.zone)
+    if zs ~= 1 then obj.setScale(Vector(zs, 1, zs)) end
   end
   if engineGlowLate ~= nil then engineGlowLate(id) end
 end
@@ -672,7 +673,7 @@ local function place(c, pos, rot, seen, handColor, meta)
   -- "Creature — Rat", hp-22 #4 2026-10-28)
   if o.getName() ~= nickname(c) then op("name") o.setName(nickname(c)) end
   if o.getDescription() ~= description(c) then op("desc") o.setDescription(description(c)) end
-  local wantScale = (meta and (meta.zone == "attached" or meta.zone == "linked" or meta.zone == "revealed" or meta.zone == "suspended")) and ATTACH_SCALE or (meta and (meta.zone == "plane" or meta.zone == "schemenow")) and 1.5 or 1
+  local wantScale = engineZoneScale(meta and meta.zone)
   if math.abs(o.getScale().x - wantScale) > 0.01 then op("scale") o.setScale(Vector(wantScale, 1, wantScale)) end
   if handColor ~= nil then
     engineInHand[c.id] = true
@@ -1520,9 +1521,16 @@ end
 -- picked to attack (by target), those blocking (by attacker), each attacker blocked. So picking one token out of a
 -- stack of 20 draws a stack of 19 and a card of 1, two objects, never the 20 a split lays out.
 ENGINE_GROUP_MIN = 5
--- the badge of a stack of infinitely many tokens (inf), and the engine's cap on one pile (Game.UNBOUNDED_TOKENS); the
--- infinity sign is not yet seen on real TTS: "xINF" is the fallback if its button font draws a box
-ENGINE_INF_BADGE = "x∞"
+-- The infinity sign, in one place (engineInfText): the token stack's "x∞" badge, and engineCompact's "∞" / "-∞" at the
+-- engine's cap (the life counter, the counter and P/T badges). It is drawn by TTS's object-button font, which hasn't
+-- been seen to have "∞" (U+221E) on a real table: no font file ships with the table, and none of the button labels
+-- seen live use a sign from that block. If it draws a box there, set ENGINE_INF.ascii = true: every one of them then
+-- reads "INF" ("xINF", "-INF"), and the life counter's font counts its letters as such.
+ENGINE_INF = { glyph = "∞", fallback = "INF", ascii = false }
+function engineInfText()
+  return ENGINE_INF.ascii and ENGINE_INF.fallback or ENGINE_INF.glyph
+end
+-- the engine's cap on one pile of tokens (Game.UNBOUNDED_TOKENS); a stack past it has the "x" .. engineInfText() badge
 ENGINE_TOKEN_CAP = 500
 engineGroupOf = {} -- engine card id -> representative id while it is drawn as part of a group
 engineGroupKey = {} -- representative id -> its group's key (the kind's: a split splits every stack of the kind)
@@ -1642,7 +1650,7 @@ ENGINE_COMPACT_UNITS = { { 1000000000, "B" }, { 1000000, "M" }, { 1000, "K" } }
 function engineCompact(v)
   local n = tonumber(v)
   if n == nil or n ~= n then return tostring(v) end
-  if n >= ENGINE_HUGE then return "∞" elseif n <= -ENGINE_HUGE then return "-∞" end
+  if n >= ENGINE_HUGE then return engineInfText() elseif n <= -ENGINE_HUGE then return "-" .. engineInfText() end
   local a = math.abs(n)
   if a < 10000 then return tostring(v) end
   local sign = n < 0 and "-" or ""
@@ -1663,8 +1671,8 @@ end
 ENGINE_LIFE_FONT = { font = 1000, letters = 3 }
 function engineLifeLook(life)
   local label = engineCompact(life)
-  -- (letters as TTS draws them: "∞" is three bytes and one letter)
-  local letters = #label - (string.find(label, "∞", 1, true) and 2 or 0)
+  -- (letters as TTS draws them: "∞" is three bytes and one letter; the fallback "INF" three letters)
+  local letters = #label - (string.find(label, ENGINE_INF.glyph, 1, true) and (#ENGINE_INF.glyph - 1) or 0)
   local font = letters <= ENGINE_LIFE_FONT.letters and ENGINE_LIFE_FONT.font or math.floor(ENGINE_LIFE_FONT.font * ENGINE_LIFE_FONT.letters / letters)
   return { label = label, font = font, letters = letters, compacted = label ~= tostring(life) }
 end
@@ -4997,7 +5005,19 @@ end
 -- (as a plane is), turned to read from their seat, its text in its hover; the other schemes in the command zone (the
 -- ongoing ones) in a row to its right; and to its left the scheme deck, a stand-in card with ARCHENEMY and the count
 -- on it. All look-only. The archenemy: the player row's arch, else the board's teams.archenemy.
-ENGINE_SCHEME = { toward = 0.42, row = 3.4, rowStart = 4.4, deck = -4.6, y = 2.4 }
+-- Scheme cards are oversized (about 8.9 x 12.7 cm, as planes are) but upright, not landscape: the scheme set in motion,
+-- the ongoing row and the deck stand-in are drawn at that size (scale: the oversized card's width over a normal card's,
+-- 88.9 / 63.5 mm), never turned as a plane is. At that size the row's cards keep a gap (row is over a card's width)
+-- and the deck and the row stay clear of the scheme set in motion.
+ENGINE_SCHEME = { toward = 0.42, row = 3.4, rowStart = 4.4, deck = -4.6, y = 2.4, scale = 1.4 }
+-- How large a card is drawn in its zone: a plane in play 1.5 (and turned, engineRender); a scheme, set in motion,
+-- ongoing or the deck, the oversized card's size; a card attached, linked, revealed or suspended small; else 1.
+function engineZoneScale(zone)
+  if zone == "attached" or zone == "linked" or zone == "revealed" or zone == "suspended" then return ATTACH_SCALE end
+  if zone == "plane" then return 1.5 end
+  if zone == "schemenow" or zone == "scheme" or zone == "schemedeck" then return ENGINE_SCHEME.scale end
+  return 1
+end
 function engineArchColor(m)
   for _, pl in ipairs(m.players or {}) do if pl.arch and pl.color ~= nil then return pl.color end end
   return m.teams and m.teams.archenemy or nil
