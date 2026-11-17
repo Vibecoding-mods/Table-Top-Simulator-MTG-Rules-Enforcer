@@ -22887,10 +22887,10 @@ index 3385214..d968b3c 100644
          Reorder(reorder::ReorderInput {
              presentation: common::PromptPresentation {
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
-index 76fdc4f..0da1266 100644
+index 76fdc4f..cd711b5 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
-@@ -789,6 +789,29 @@ fn card_to_dto_for_viewer(game: &GameState, cid: CardId, viewer: Option<PlayerId
+@@ -789,6 +789,35 @@ fn card_to_dto_for_viewer(game: &GameState, cid: CardId, viewer: Option<PlayerId
          // Rust engine doesn't surface it yet.
          would_die_in_combat: false,
          zone: None,
@@ -22917,10 +22917,16 @@ index 76fdc4f..0da1266 100644
 +        cant_block: false,
 +        must_attack: false,
 +        unbounded: false,
++        play_cost: None,
++        play_cost_mode: None,
++        play_cost_printed: None,
++        play_cost_name: None,
++        play_cost_others: None,
++        spell_costs: None,
      }
  }
  
-@@ -859,6 +882,8 @@ impl GameViewDtoExt for GameViewDto {
+@@ -859,6 +888,8 @@ impl GameViewDtoExt for GameViewDto {
                          .cloned()
                          .unwrap_or_else(|| card.card_name.clone()),
                      room: card.svars.get("CurrentRoom").cloned().unwrap_or_default(),
@@ -22929,7 +22935,7 @@ index 76fdc4f..0da1266 100644
                  })
              });
              let active_scheme_names: Vec<String> = command_zone
-@@ -936,9 +961,17 @@ impl GameViewDtoExt for GameViewDto {
+@@ -936,9 +967,17 @@ impl GameViewDtoExt for GameViewDto {
                  player_keywords,
                  commander_casts,
                  dungeon_state,
@@ -22947,7 +22953,7 @@ index 76fdc4f..0da1266 100644
                  counters,
                  mana_pool: mana_pool_to_map(&pool),
                  commander_damage,
-@@ -1015,6 +1048,7 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1015,6 +1054,7 @@ impl GameViewDtoExt for GameViewDto {
                      identity,
                      text: entry.spell_ability.ability_text.clone(),
                      source_ability_text: stack_source_ability_text(game, &entry.spell_ability),
@@ -22955,7 +22961,7 @@ index 76fdc4f..0da1266 100644
                      is_permanent_spell: entry.is_creature_spell || entry.is_permanent_spell,
                      is_casting: entry.is_pending_cast,
                      is_double_faced: source_card.map(|c| c.is_double_faced()).unwrap_or(false),
-@@ -1022,6 +1056,7 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1022,6 +1062,7 @@ impl GameViewDtoExt for GameViewDto {
                          .map(|c| u8::from(c.is_transformed))
                          .unwrap_or_default(),
                      targets: collect_stack_targets(&entry.spell_ability),
@@ -22963,7 +22969,7 @@ index 76fdc4f..0da1266 100644
                  }
              })
              .collect();
-@@ -1061,9 +1096,17 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1061,9 +1102,17 @@ impl GameViewDtoExt for GameViewDto {
              initiative_holder_id: game.initiative_holder.map(player_id_str),
              day_time: day_time_of(game),
              active_plane_names: (!active_plane_names.is_empty()).then_some(active_plane_names),
