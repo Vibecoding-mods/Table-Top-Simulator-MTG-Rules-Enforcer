@@ -224,6 +224,8 @@ let tableStamp; // the version the table last said: undefined until it said one,
 // the table's hello said it reuses the last board's restore points when a board says keepRewind (see sendTable); an
 // older table, or one not heard from since the bridge started, gets them in every board
 let tableKeepsRewind = false;
+// Whether the table lays out token runs (tokenRuns, its hello's tokenRuns): only then does a board send them
+let tableTokenRuns = false;
 const TABLE_ROW_PICTURES = 7; // the pictures the table's card row holds (ROW_MAX in tools/engine-renderer.lua)
 const alignment = { checks: 0, problems: 0, slowestMs: 0, guesses: {} }; // (since this bridge started)
 
@@ -5865,6 +5867,50 @@ function slimmer(game) {
   return { slim, statics };
 }
 
+// Token runs (docs/handoff/token-entries-report.md): tokens next to each other on a battlefield list that are the same in
+// everything the table reads (their slim entry but the id, and their fixed details) go out as the first one's entry with
+// gi, the ids of the others; "engine-card-N" ids in a row as [first N, how many], any other id as itself. The table
+// (engine-renderer.lua engineExpandRuns) lays each run out again, one entry per token, before it reads the board, so
+// every board draws as it did; what it decodes grows with the kinds of tokens, not with the tokens (TTS decodes ~15 ms
+// a KB: 1,000 tokens were ~78 KB a board). The others' details and rules text aren't sent: the table points their
+// details at the first one's as it lays the run out, and they count as never sent (sentStatic), so a token that later
+// stands alone gets its own in full. fresh: an other token's details changed in this board (its picture found): the
+// caller sends the list whole, so the table lays it out again. A table that doesn't say it reads runs (hello
+// tokenRuns) gets every token as before.
+const RUN_ID = /^engine-card-(\d+)$/;
+function tokenRuns(list, statics) {
+  const out = [];
+  let run = null, fresh = false;
+  const close = () => { if (run && run.ids.length) run.first.gi = packRunIds(run.ids); run = null; };
+  for (const c of list) {
+    const st = c.s === 1 && c.id ? game.sentStatic?.[c.id] : null;
+    const key = st && st.includes('"tok":true') ? `${JSON.stringify({ ...c, id: null })}|${st}` : null;
+    if (key && run && run.key === key) {
+      run.ids.push(c.id);
+      if (statics[c.id]) { fresh = true; delete statics[c.id]; game.textQueue?.delete(c.id); }
+      delete game.sentStatic[c.id];
+      continue;
+    }
+    close();
+    out.push(c);
+    if (key) run = { first: c, key, ids: [] };
+  }
+  close();
+  return { list: out, fresh };
+}
+// the ids of a run's other tokens: [N, k] for "engine-card-N" ... "engine-card-(N+k-1)", any other id as itself
+function packRunIds(ids) {
+  const out = [];
+  for (const id of ids) {
+    const m = RUN_ID.exec(id);
+    const n = m ? Number(m[1]) : null;
+    const last = out.at(-1);
+    if (n != null && Array.isArray(last) && last[0] + last[1] === n) last[1]++;
+    else out.push(n != null ? [n, 1] : id);
+  }
+  return out;
+}
+
 // A player row's dungeon, from Forge's dungeonState (docs/planechase-dungeon-engine-spec.md D5-D7): `dungeon` {id, name,
 // room, next, text}, the room's text and the rooms it leads to from the state's room list (the first room when it is in
 // none yet), and `dungeonsDone`, the dungeons completed (left out at 0). The card's id from the state, else the dungeon
@@ -6048,6 +6094,17 @@ function sendTable() {
   // counters, damage, ...) plus s:1 meaning "details as sent before". A reload (hello) or new game resends all.
   const { slim, statics } = slimmer(game);
   for (const pl of players) for (const z of ZONE_KEYS) if (pl[z]) pl[z] = pl[z].map(slim);
+  // (identical tokens in a row of a battlefield: one entry, tokenRuns)
+  // (a run whose other tokens' details changed goes out whole, never as kept: the table points their details at the
+  // first one's as it lays the run out)
+  if (tableTokenRuns) {
+    for (const pl of players) {
+      if (!pl.battlefield) continue;
+      const r = tokenRuns(pl.battlefield, statics);
+      pl.battlefield = r.list;
+      if (r.fresh) delete game.sentZones?.[pl.color + "|battlefield"];
+    }
+  }
   const planar = planarRow(pub);
   const planes = planeCards.map((c) => slim({ ...toCard(c), ctl: planar?.controller || game.slotColor[c.controllerId] || null }));
   // (the stack's instant and sorcery spells by card, ins / sor, for the board they resolve on: resolvedSpells)
@@ -11682,6 +11739,7 @@ function onTTS(m) {
     case "hello":
       tableStamp = m.stamp ?? null;
       tableKeepsRewind = m.keepRewind === true;
+      tableTokenRuns = m.tokenRuns === true;
       noteMode(m); // (the table's game mode: a restarted bridge takes it up again)
       noteTableSeats(m, true); // (its seats, clockwise: none said is the 4-player table)
       // (the table's repeat while it has drawn nothing, with no game running: nothing to send, suite review)
@@ -13369,7 +13427,7 @@ if (require.main === module) {
     alignment, tableCard, costNow, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
     summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword, playWindow,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
-    _spellsMark: spellsMark, _actingFor: actingFor, _tieState: tieState, _stalemateEarners: stalemateEarners, _forcedTieEarned: forcedTieEarned, STALEMATE_EARNED_BY, _steamIds: steamIds, _harmlessVotes: harmlessVotes, _accomplishments: accomplishments, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice,
+    _spellsMark: spellsMark, _actingFor: actingFor, _tokenRuns: (on) => { tableTokenRuns = !!on; }, _packRunIds: packRunIds, _tieState: tieState, _stalemateEarners: stalemateEarners, _forcedTieEarned: forcedTieEarned, STALEMATE_EARNED_BY, _steamIds: steamIds, _harmlessVotes: harmlessVotes, _accomplishments: accomplishments, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice,
     _archenemy: archenemy, _onArchenemy: onArchenemy, _onSchemes: onSchemes, _withArchenemy: withArchenemy, _forgeSchemes: forgeSchemes, ARCH_NO_UNDO, ARCH_SWITCH_OFF,
     _engineSetting: () => ({ RELAY, KEY, REMOTE_ENGINE }), _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, setPickedHand, splitHandText, handOps, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
