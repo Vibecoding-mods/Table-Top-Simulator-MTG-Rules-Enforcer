@@ -105,3 +105,45 @@ mutations, each caught by name, every file restored by sha256.
 - No image, no live game.
 - On the table: pick a hand (companion page, Starting hand), start against the AI, and see the picked cards at the
   keep-or-mulligan question; then a mulligan and a rewind to turn 1.
+
+## After review (same branch)
+
+**MEDIUM: a name Forge didn't match the same way.**
+- **The bug:** a pick written as one half of a split card ("Fire" for "Fire // Ice"), the back face of a double-faced
+  card ("Insectile Aberration"), or in another case made `stackOpeningCards` create a second copy. The bridge then saw
+  an unmet pick at the mulligan question: it kept the hand for the player and swapped cards in again at the first
+  priority.
+- **Shown red first:** `OpeningHandTest`'s new split and double-faced checks failed (2 Fire // Ice, 2 Delvers).
+- **Forge fix:** `stackOpeningCards` reads a name as the card database does: `CardDb.getRules(name, true)`, so any
+  case, either face, either half or the whole name. It matches the library by those rules, taking the deck's own
+  copy, and creates by the full name. A name the database doesn't know is skipped, and that slot is dealt at random.
+- **Bridge fix:** `handOps` compares the hand's names with the picks the same way (`sameCardName`, through
+  forge-cards.json's index), so a hand shown with either half's or the whole name counts as dealt.
+- **How the bridge tells the engine supports it:** the hand at the first mulligan question holds every pick. Then the
+  pick is used up, the question is the player's, and there is no first-priority swap.
+  - The bridge accepts only names in that same index, and the engine places every name its database knows. So on an
+    engine with `openingCards` every pick is in the hand.
+  - On an old engine whose random deal happens to hold every pick, there is nothing to swap either.
+  - **What isn't covered:** a name in the bridge's index that the engine's database lacks (an index built from
+    another Forge). Then the bridge falls back to the old path.
+  - An explicit flag would close that, but needs a protocol field: the mulligan prompt's `MulliganInput` is shared
+    by the relay and the node, has three Rust literals, and would need both images rebuilt. I didn't add one; say if
+    you want it.
+
+**LOW: the created card is in the game's tracking.** `aCreatedCardIsInTheGamesCardTracking`: `findById` finds it, it
+is in `getCardsInGame` and the hand, and it has White as owner and the hand as its zone.
+
+**Tests now:**
+- `OpeningHandTest` 12 checks: a split picked as "Fire // Ice", "Fire", "ice" and "FIRE // ICE"; a double-faced card
+  by either face; an unknown name; the created card's tracking.
+- `test_bridge_opening_hand` 23 checks: a half and a back face kept as the engine's cards when set; an unknown name
+  refused; dealt with the whole name, shown by its half, picked by its half, double-faced, and by its back face.
+  6 of the new ones failed without the bridge change.
+- `test_bridge_hand` 46.
+
+**Break-it:** 22 of 22 caught by name. The new mutations:
+- names compared as typed in Forge, and in the bridge;
+- no face or half names;
+- an unknown name not skipped.
+
+"No face or half names" is caught by the split check: a back face's name resolves even without face names allowed.

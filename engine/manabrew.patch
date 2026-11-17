@@ -14939,10 +14939,10 @@ index 0000000..9ff2732
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/OpeningHandTest.java b/forge-harness/src/test/java/forge/harness/host/OpeningHandTest.java
 new file mode 100644
-index 0000000..6501480
+index 0000000..25cff37
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/OpeningHandTest.java
-@@ -0,0 +1,268 @@
+@@ -0,0 +1,324 @@
 +package forge.harness.host;
 +
 +import forge.ai.LobbyPlayerAi;
@@ -14991,6 +14991,10 @@ index 0000000..6501480
 +        check("moreNamesThanTheHandTakesOnlyTheFirst", OpeningHandTest::moreNamesThanTheHandTakesOnlyTheFirst);
 +        check("withoutOpeningCardsTheDealIsRandom", OpeningHandTest::withoutOpeningCardsTheDealIsRandom);
 +        check("aRewindToTurnOneKeepsThePickedHand", OpeningHandTest::aRewindToTurnOneKeepsThePickedHand);
++        check("aSplitCardPickedWholeOrByOneHalfIsTheDecksOwn", OpeningHandTest::aSplitCardPickedWholeOrByOneHalfIsTheDecksOwn);
++        check("aDoubleFacedCardPickedByEitherFaceIsTheDecksOwn", OpeningHandTest::aDoubleFacedCardPickedByEitherFaceIsTheDecksOwn);
++        check("anUnknownNameIsSkippedAndTheRestDealt", OpeningHandTest::anUnknownNameIsSkippedAndTheRestDealt);
++        check("aCreatedCardIsInTheGamesCardTracking", OpeningHandTest::aCreatedCardIsInTheGamesCardTracking);
 +        System.out.println(failed == 0 ? "PASS OpeningHandTest" : "FAIL OpeningHandTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
 +    }
@@ -15118,6 +15122,51 @@ index 0000000..6501480
 +                "after the rewind to turn 1 White's hand is " + names(white, ZoneType.Hand));
 +    }
 +
++    private static final List<String> EXTRAS = List.of("Fire // Ice", "Delver of Secrets");
++
++    private static void aSplitCardPickedWholeOrByOneHalfIsTheDecksOwn() {
++        for (final String typed : List.of("Fire // Ice", "Fire", "ice", "FIRE // ICE")) {
++            final Run r = new Run(List.of(typed), 0, EXTRAS).play();
++            final List<String> all = new ArrayList<>(names(r.white, ZoneType.Hand));
++            all.addAll(names(r.white, ZoneType.Library));
++            expect(names(r.white, ZoneType.Hand).contains("Fire // Ice"), "picked as \"" + typed + "\": White's hand " + names(r.white, ZoneType.Hand));
++            expect(count(all, "Fire // Ice") == 1 && all.size() == 24, "picked as \"" + typed + "\": " + count(all, "Fire // Ice") + " Fire // Ice of " + all.size() + " cards, not the deck's one of 24");
++        }
++    }
++
++    private static void aDoubleFacedCardPickedByEitherFaceIsTheDecksOwn() {
++        for (final String typed : List.of("Delver of Secrets", "Insectile Aberration")) {
++            final Run r = new Run(List.of(typed), 0, EXTRAS).play();
++            final List<String> all = new ArrayList<>(names(r.white, ZoneType.Hand));
++            all.addAll(names(r.white, ZoneType.Library));
++            expect(names(r.white, ZoneType.Hand).contains("Delver of Secrets"), "picked as \"" + typed + "\": White's hand " + names(r.white, ZoneType.Hand));
++            expect(count(all, "Delver of Secrets") == 1 && all.size() == 24, "picked as \"" + typed + "\": " + count(all, "Delver of Secrets") + " Delvers of " + all.size() + " cards, not the deck's one of 24");
++        }
++    }
++
++    private static void anUnknownNameIsSkippedAndTheRestDealt() {
++        final Run r = new Run(List.of("No Such Card Anywhere", "Lightning Bolt"), 0).play();
++        final List<String> hand = r.hands.get("White").get(0);
++        final List<String> all = new ArrayList<>(names(r.white, ZoneType.Hand));
++        all.addAll(names(r.white, ZoneType.Library));
++        expect(hand.size() == 7 && hand.contains("Lightning Bolt"), "with an unknown name White's hand is " + hand);
++        expect(all.size() == 22, "with an unknown name White has " + all.size() + " cards, not the deck's 22");
++    }
++
++    private static void aCreatedCardIsInTheGamesCardTracking() {
++        final Run r = new Run(PICKED, 0).play();
++        Card mountain = null;
++        for (final Card c : r.white.getCardsIn(ZoneType.Hand)) {
++            if (c.getName().equals("Mountain")) {
++                mountain = c;
++            }
++        }
++        expect(mountain != null, "no created Mountain in White's hand " + names(r.white, ZoneType.Hand));
++        expect(r.game.findById(mountain.getId()) == mountain, "the created Mountain (id " + mountain.getId() + ") isn't found by its id");
++        expect(r.game.getCardsInGame().contains(mountain) && r.game.getCardsIn(ZoneType.Hand).contains(mountain), "the created Mountain isn't in the game's cards");
++        expect(mountain.getOwner() == r.white && mountain.getZone() == r.white.getZone(ZoneType.Hand), "the created Mountain's owner " + mountain.getOwner() + ", zone " + mountain.getZone());
++    }
++
 +    private static List<String> names(final Player p, final ZoneType zone) {
 +        final List<String> out = new ArrayList<>();
 +        for (final Card c : p.getCardsIn(zone)) {
@@ -15157,6 +15206,10 @@ index 0000000..6501480
 +        final Map<String, List<List<String>>> hands = new HashMap<>();
 +
 +        Run(final List<String> picked, final int whiteMulligans) {
++            this(picked, whiteMulligans, List.of());
++        }
++
++        Run(final List<String> picked, final int whiteMulligans, final List<String> extras) {
 +            final ManaBrewEngineAdapter.StartGameRequest request = ManaBrewEngineAdapter.parseStartGameRequest(json(picked));
 +            final GameRules rules = new GameRules(GameType.Constructed);
 +            final List<RegisteredPlayer> registered = new ArrayList<>();
@@ -15165,6 +15218,9 @@ index 0000000..6501480
 +                deck.getMain().add("Plains", 20);
 +                deck.getMain().add(card("Grizzly Bears"), 1);
 +                deck.getMain().add(card("Lightning Bolt"), 1);
++                for (final String extra : extras) {
++                    deck.getMain().add(card(extra), 1);
++                }
 +                final RegisteredPlayer rp = new RegisteredPlayer(deck);
 +                ManaBrewEngineAdapter.configurePlayer(rp, config, request, GameType.Constructed);
 +                rp.setPlayer(new LobbyPlayerAi(config.getName(), null));

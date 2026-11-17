@@ -47,11 +47,13 @@ const HAND = ["engine-card-43", "engine-card-35", "engine-card-75", "engine-card
 const mulligan = () => { const p = clone(D2.prompts.mulligan); p.input.handCardIds = HAND.slice(); return p; };
 const PASS = { actions: [{ id: "pass", type: "pass" }] };
 const prompt = (type, input = {}, id = 900) => ({ promptId: id, decidingPlayerId: "player-0", input: { type, ...input } });
-function started(h, pick) {
+function started(h, pick, rename = {}) {
   const seat = new h.B.Seat("Blue", "neheb_minotaur_commander");
   seat.slot = "player-0";
   seat.board = { state: clone(D2.board), fingerprint: null };
   Object.assign(seat.board.state.gameView, { stack: [] });
+  // (a dealt card shown under another name: the engine's split or double-faced card)
+  for (const c of seat.board.state.gameView.zones.find((z) => z.zone === "hand" && z.ownerId === "player-0").cards) if (rename[c.id]) c.identity = { ...c.identity, name: rename[c.id] };
   h.B._setGame({ seats: new Map([["Blue", seat]]), bots: 1, total: 2, playerOrder: [], slotNames: { "player-0": "Blue", "player-1": "AI 1" },
     slotColor: { "player-0": "Blue", "player-1": "White" }, started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {},
     handPick: { Blue: { names: pick } } });
@@ -102,6 +104,24 @@ function started(h, pick) {
     h.B.onPrompt(seat, prompt("chooseAction", PASS, 901)); await h.flush();
     same("dealt: no change at the first priority", applies(h).length, 0);
   });
+  // a split and a double-faced card: picked by one half or the other face, read as the engine's card
+  await run(async (h) => {
+    h.B.setDebugTools(true);
+    const r1 = h.B.onToolsPost({ kind: "hand", color: "Blue", names: ["Fire", "insectile aberration"] });
+    same("set: a half and a back face are kept as the engine's cards", [r1.ok, h.B.toolsState().hand.seats.find((x) => x.color === "Blue").waiting], [true, ["Fire // Ice", "Delver of Secrets"]]);
+    same("set: a name the engine doesn't know is refused", h.B.onToolsPost({ kind: "hand", color: "Blue", names: ["Fire", "No Such Card Anywhere"] }).message, 'The engine has no card called "No Such Card Anywhere".');
+  });
+  for (const [label, pick, shown] of [["whole", "Fire // Ice", "Fire // Ice"], ["shown by its half", "Fire // Ice", "Fire"], ["picked by its half", "Fire", "Fire // Ice"], ["double-faced", "Delver of Secrets", "Delver of Secrets"], ["double-faced, its back", "Insectile Aberration", "Delver of Secrets"]]) {
+    await run(async (h) => {
+      h.B.setDebugTools(true);
+      const seat = started(h, [pick, "Pestilence"], { "engine-card-43": shown });
+      h.B.onPrompt(seat, mulligan()); await h.flush();
+      same(`dealt, ${label}: the mulligan question is Blue's, nothing at the first priority`, [responses(h).length, seat.prompt?.ui?.title, h.B._getGame().handPick], [0, "Keep this hand?", {}]);
+      h.B.onPrompt(seat, prompt("chooseAction", PASS, 901)); await h.flush();
+      same(`dealt, ${label}: no change at the first priority`, applies(h).length, 0);
+    });
+  }
+
   // an engine that dealt at random: kept, and the fix at the first priority, as before
   await run(async (h) => {
     h.B.setDebugTools(true);
