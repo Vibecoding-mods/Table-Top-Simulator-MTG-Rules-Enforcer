@@ -89,7 +89,8 @@ const CARD_FACTS = {
 // bridge's own records of what Forge doesn't send
 const TABLE_ONLY_KEYS = { blk: "blocking", blkOf: "the attackers it blocks", sick: "nothing reads it; the status box's mark is decided in the bridge, which knows whose turn it is", enc: "ew is a cipher link; the table treats it as any link",
   og: "a playable-row card from the graveyard: the FROM GRAVEYARD chip (the zone the bridge found it in, no CardDto field)",
-  pk: "your own face-down card's face { n, f, v }: from each human seat's own view (facePeek), drawn as UI only those seats' colours see" };
+  pk: "your own face-down card's face { n, f, v }: from each human seat's own view (facePeek), drawn as UI only those seats' colours see",
+  inf: "CardDto.unbounded (big-turns-2 step 0, docs/big-turns-2-spec.md 1.6): a token pile the engine stopped counting at its cap; sent, and the table does not read it yet. It moves to CARD_FACTS when an engine with the field ships" };
 
 // Forge's zones -> where the table puts them. check: the words engineSelfCheck reports
 const ZONES = {

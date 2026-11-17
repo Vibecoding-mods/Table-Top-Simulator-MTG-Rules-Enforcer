@@ -100,10 +100,50 @@ index 1f5ce6e9..6ef46c6d 100644
                  combat.addAttacker(c, ai);
              }
 diff --git a/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java b/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java
-index 1dfd5d98..c19c4933 100644
+index 1dfd5d98..d652baab 100644
 --- a/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java
 +++ b/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java
-@@ -298,29 +298,45 @@ public class ComputerUtilCombat {
+@@ -181,10 +181,11 @@ public class ComputerUtilCombat {
+                 return 0;
+             }
+ 
+-            damage += predictPowerBonusOfAttacker(attacker, null, combat, withoutAbilities);
++            // (in long, clamped at GameEntity.NUMBER_CAP: a 2^30 power that doubles must not wrap negative)
++            damage = GameEntity.capped((long) damage + predictPowerBonusOfAttacker(attacker, null, combat, withoutAbilities));
+             sum = predictDamageTo(attacked, damage, attacker, true);
+             if (attacker.hasDoubleStrike()) {
+-                sum *= 2;
++                sum = GameEntity.capped((long) sum * 2);
+             }
+         }
+         return sum;
+@@ -206,8 +207,8 @@ public class ComputerUtilCombat {
+         if (!attacked.canReceiveCounters(CounterEnumType.POISON)) {
+             return 0;
+         }
+-        int damage = attacker.getNetCombatDamage() +
+-                predictPowerBonusOfAttacker(attacker, null, null, false);
++        final int damage = GameEntity.capped((long) attacker.getNetCombatDamage()
++                + predictPowerBonusOfAttacker(attacker, null, null, false));
+         int poison = 0;
+         if (attacker.isInfectDamage(attacked)) {
+             int pd = predictDamageTo(attacked, damage, attacker, true);
+@@ -215,12 +216,12 @@ public class ComputerUtilCombat {
+             if (pd > 1 || !attacker.getController().getOpponents().getCardsIn(ZoneType.Battlefield).anyMatch(CardPredicates.nameEquals("Vorinclex, Monstrous Raider"))) {
+                 poison = pd;
+                 if (attacker.hasDoubleStrike()) {
+-                    poison *= 2;
++                    poison = GameEntity.capped((long) poison * 2);
+                 }
+             }
+         }
+         if (damage > 0) {
+-            poison += predictExtraPoisonWithDamage(attacker, attacked, damage);
++            poison = GameEntity.capped((long) poison + predictExtraPoisonWithDamage(attacker, attacked, damage));
+         }
+         return poison;
+     }
+@@ -298,29 +299,45 @@ public class ComputerUtilCombat {
          int damage = 0;
  
          if (ai.canLoseLife()) {
@@ -166,7 +206,7 @@ index 1dfd5d98..c19c4933 100644
      // calculates the amount of poison counters after the attack
      /**
       * <p>
-@@ -332,11 +348,18 @@ public class ComputerUtilCombat {
+@@ -332,11 +349,18 @@ public class ComputerUtilCombat {
       * @return a int.
       */
      public static int resultingPoison(final Player ai, final Combat combat) {
@@ -188,7 +228,7 @@ index 1dfd5d98..c19c4933 100644
          int poison = 0;
  
          final List<Card> attackers = combat.getAttackersOf(ai);
-@@ -361,15 +384,15 @@ public class ComputerUtilCombat {
+@@ -361,15 +385,15 @@ public class ComputerUtilCombat {
  
          poison += sumPoisonIfUnblocked(unblocked, ai);
  
@@ -208,7 +248,7 @@ index 1dfd5d98..c19c4933 100644
                      res.add(c);
                  }
              }
-@@ -391,7 +414,7 @@ public class ComputerUtilCombat {
+@@ -391,7 +415,7 @@ public class ComputerUtilCombat {
      }
      public static boolean lifeInDanger(final Player ai, final Combat combat, final int payment) {
          // life in danger only cares about the player's life. Not Planeswalkers' life
@@ -217,7 +257,7 @@ index 1dfd5d98..c19c4933 100644
              return false;
          }
  
-@@ -408,7 +431,7 @@ public class ComputerUtilCombat {
+@@ -408,7 +432,7 @@ public class ComputerUtilCombat {
          }
  
          // check for creatures that must be blocked
@@ -226,7 +266,7 @@ index 1dfd5d98..c19c4933 100644
  
          final List<Card> threateningCommanders = getLifeThreateningCommanders(ai, combat);
  
-@@ -474,7 +497,7 @@ public class ComputerUtilCombat {
+@@ -474,7 +498,7 @@ public class ComputerUtilCombat {
          final List<Card> threateningCommanders = getLifeThreateningCommanders(ai, combat);
  
          // check for creatures that must be blocked

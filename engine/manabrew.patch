@@ -7203,10 +7203,10 @@ index 0000000..c11442b
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/AttackTaxLethalTest.java b/forge-harness/src/test/java/forge/harness/host/AttackTaxLethalTest.java
 new file mode 100644
-index 0000000..a8335ed
+index 0000000..db530a4
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/AttackTaxLethalTest.java
-@@ -0,0 +1,404 @@
+@@ -0,0 +1,415 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonArray;
@@ -7261,6 +7261,7 @@ index 0000000..a8335ed
 +        check("twentyBearsDealTwoEachIntoGhostlyPrison", AttackTaxLethalTest::twentyBearsDealTwoEachIntoGhostlyPrison);
 +        check("aPumpCounts", AttackTaxLethalTest::aPumpCounts);
 +        check("doubleStrikeDoubles", AttackTaxLethalTest::doubleStrikeDoubles);
++        check("aHugeDoubleStrikerStaysAtTheCap", AttackTaxLethalTest::aHugeDoubleStrikerStaysAtTheCap);
 +        check("infectIsPoisonNotDamage", AttackTaxLethalTest::infectIsPoisonNotDamage);
 +        check("preventionIsNoDamage", AttackTaxLethalTest::preventionIsNoDamage);
 +        check("aCommanderCountsTowardItsLimit", AttackTaxLethalTest::aCommanderCountsTowardItsLimit);
@@ -7331,6 +7332,16 @@ index 0000000..a8335ed
 +        final Card ace = creature("Fencing Ace", f.white);
 +        final JsonObject d = damageOf(f.attackPrompt(), ace, playerId(f, f.ai));
 +        expect(d.get("damage").getAsInt() == 2, "a 1/1 double striker's damage: " + d);
++    }
++
++    // 2^30 + 1 power doubled is past an int: it is sent at the 2^30 cap, never wrapped negative
++    private static void aHugeDoubleStrikerStaysAtTheCap() throws Exception {
++        final Fixture f = new Fixture(GameType.Constructed);
++        final Card ace = creature("Fencing Ace", f.white);
++        ace.setCounters(CounterType.getType("P1P1"), forge.game.GameEntity.NUMBER_CAP);
++        expect(ace.getNetPower() == forge.game.GameEntity.NUMBER_CAP + 1, "the ace's power: " + ace.getNetPower());
++        final JsonObject d = damageOf(f.attackPrompt(), ace, playerId(f, f.ai));
++        expect(d.get("damage").getAsLong() == forge.game.GameEntity.NUMBER_CAP, "a 2^30 + 1 double striker's damage: " + d);
 +    }
 +
 +    private static void infectIsPoisonNotDamage() throws Exception {
