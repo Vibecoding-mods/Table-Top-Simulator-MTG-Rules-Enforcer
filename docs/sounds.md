@@ -297,11 +297,84 @@ its file by the sha256 above): in `engineSounds` in `tools/engine-renderer.lua` 
 `mtg-treasure*.mp3` rows; the files are the mtg3- ones; the `mtg-treasurespend*.mp3` rows carry death's links). After a
 deploy, check as the host with `mtg sounds test treasure`, `treasurespend`, `treasure 8`, `treasurespend 3`.
 
-## The sound bundle (route B, built 2026-11-13; not uploaded, not heard)
+## Twice as strong (mtg4, made and uploaded 2026-11-13 night; the links today)
 
-The same sounds as one AssetBundle, `mtg-sounds.unity3d` (1,536,075 bytes, sha256
-`679c7eceda5901bb99975eace4f186a18c82c44aab8389fc5bc1cb816417d662`): a trigger effect per `engineSounds` key (58), each
-the uploaded mp3 of that key with the music player's padding cut off, so it sounds the same through either route. Keys
+The user: "raise all sound effects by double". Every link of the tables above was replaced on 2026-11-14 by a louder
+copy of the file it played: `node tools/make-louder-sounds.js` (+6.02 dB, double the amplitude) read each link's
+uploaded file from TTS's Steam Cloud folder (`<LINK HASH>_<name>.mp3`), low-passed it at 18.6 kHz, added the gain
+with a limiter at -1 dBFS for the peaks it pushed over, padded it to at least 2 s and encoded it with the recipe above
+(libmp3lame 192k, ID3 title `mtg4-<name>`). The files: `assets/sounds/mtg4/` (gitignored; `manifest.json` there
+names each one's source, `links.json` the links they got). The lengths are the old files' (2 s, or the
+`engineSoundLen` ones), so `engineSoundLen` is unchanged. So the tables above give the kinds and their links, but the
+file behind each link is the mtg4 one below. `treasurespend*` share death's links, so they play `mtg4-death*`.
+
+Each link below matches its file by sha256 against the uploaded copy TTS keeps in its Steam Cloud folder
+(`<LINK HASH>_mtg4-<name>.mp3`; checked 2026-11-17 for all 58 keys, one file each, none ambiguous or missing). The
+sound bundle (next section) is built from this table: `tools/make-sound-bundle-clips.js` looks up each
+`engineSounds` link here.
+
+| File (`assets/sounds/mtg4/`) | Keys | File size | sha256 | Link |
+|---|---|---|---|---|
+| mtg4-death.mp3 | `death`, `treasurespend` | 49,593 bytes | `29262143ab777695b71a4844e5e50973d888d86eb5964c151af2b663dc5562cf` | https://steamusercontent-a.akamaihd.net/ugc/9800569858149488327/8971500EFD07C4FD0BD18D68B8B252405017A5A0/ |
+| mtg4-wipe.mp3 | `wipe` | 49,592 bytes | `256db25693478a45742391ad274810250033e54234f34f10b0021e42c3b9f467` | https://steamusercontent-a.akamaihd.net/ugc/15817545063740906107/206A0FA5435B601208C14BC12289526592275C05/ |
+| mtg4-damage.mp3 | `damage` | 49,594 bytes | `d9d5aa02688fa861eb8075c6c323675d2623e52ad2bb6c7ae34c047ffc534b45` | https://steamusercontent-a.akamaihd.net/ugc/18394554027578421591/38584ACB11DF0374F06EF58288CC103E1A7BCB17/ |
+| mtg4-exile.mp3 | `exile` | 49,593 bytes | `6c3ec60574aa3bd70eb68d57643db5f9fbb3f8f90a4066f5cf4cae058b01247d` | https://steamusercontent-a.akamaihd.net/ugc/15277917318962835347/67E988768501AE61D76EA0B61CE26CBF7B9047F3/ |
+| mtg4-instant.mp3 | `instant` | 49,595 bytes | `7199e33da7deeb26c9220d817f5ec20e044953ca3ca6153b46ff59b753fa723c` | https://steamusercontent-a.akamaihd.net/ugc/12129289638876188200/E4A383D9F0FD11D33AD0C3231ADBDC76640FB6F4/ |
+| mtg4-lifegain.mp3 | `lifegain` | 49,596 bytes | `3b14621ce750d374432ea99958ecd7c0d4e4763e64f6f21f83173afcf4196644` | https://steamusercontent-a.akamaihd.net/ugc/14589447832811798852/152589A1C8FC457DF750D1F1DA09974B7D4621DC/ |
+| mtg4-counter.mp3 | `counter` | 49,595 bytes | `8b46dfc733137fc659c0aa01aef370fd2135587f70754d94550c9757071664f1` | https://steamusercontent-a.akamaihd.net/ugc/10198555696183163869/22D514A072E215258BFB7BDD0D94438B93234282/ |
+| mtg4-knockout.mp3 | `knockout` | 49,596 bytes | `d8c7de2bf9b5173f8e806d6be53eb8242f8c05861ba71146c17988d2cb087feb` | https://steamusercontent-a.akamaihd.net/ugc/17359985036682352321/876EDEC83B31E9D171B93725698195BD3A60998D/ |
+| mtg4-countered.mp3 | `countered` | 49,597 bytes | `019fcb374377299bec7ba706dbc7329b03cc17350addd99e3314da62d51fc1ef` | https://steamusercontent-a.akamaihd.net/ugc/16224198548986524439/ECC3E042EBA1BBB7F8ACA675DF0D15CDED64151C/ |
+| mtg4-playerhit.mp3 | `playerhit` | 49,597 bytes | `80ef027553ba874da28f7e8e05d87986464e9f7c6eabe38e632770b8cf42edaf` | https://steamusercontent-a.akamaihd.net/ugc/13286146598818442690/A0BF8B16B8001A089539C205ABEA92AD37067A30/ |
+| mtg4-bighit.mp3 | `bighit` | 49,594 bytes | `1d70fe933ffbc7cccb3c3a3702b8354f4eac9e620c91ebc58e886c7513fe3278` | https://steamusercontent-a.akamaihd.net/ugc/10985637461852960373/895695DAAB6E6CFED9309BB61B579480F0019975/ |
+| mtg4-sorcery.mp3 | `sorcery` | 59,073 bytes | `23fa4e7af05f0a42188cf6e410e082815e365080715934d34fb3d0283465d18d` | https://steamusercontent-a.akamaihd.net/ugc/17287502999685576865/30550DE1D11406AE8BB4478A926881AD27AC8101/ |
+| mtg4-bighit-x2.mp3 | `bighit_x2` | 49,597 bytes | `5782a147f7ecdf593afaa1a1fd2844cbc57454ccc7ea9b4bfb97a26d8d26cc19` | https://steamusercontent-a.akamaihd.net/ugc/14501727456834808804/628C139A9EC2F064F0AEBAAEB358CC3F5A40173D/ |
+| mtg4-bighit-x3.mp3 | `bighit_x3` | 49,597 bytes | `f785ad3d3babe8dda4114b8516e0aee6767a63d760aea6ade36fe7fd204c8fce` | https://steamusercontent-a.akamaihd.net/ugc/14675707134736660256/DE23EECC399113DB5A8A701388F4602430CE862A/ |
+| mtg4-bighit-x4.mp3 | `bighit_x4` | 49,597 bytes | `318c009df8bd9c0e18debc3015aa3af9ddadda4348e3c95d14cb8322453f1dc1` | https://steamusercontent-a.akamaihd.net/ugc/12947269894393077649/85CCD3DCB33516740ABC987287B3377D5A4056A7/ |
+| mtg4-bighit-x6.mp3 | `bighit_x6` | 49,597 bytes | `fa9f33635416b380e7619d9fcde8fb1d7ab51a8ceb21756ad8ab433e6015365b` | https://steamusercontent-a.akamaihd.net/ugc/10328800220900197571/5E27AF2CFFF991B0299DAE84D956A878410BB649/ |
+| mtg4-bighit-x8.mp3 | `bighit_x8` | 54,612 bytes | `4fdb3de1fd8b2475a3de0797c49d61815b884df7c762f4f564bb16a6a8249eba` | https://steamusercontent-a.akamaihd.net/ugc/15836800511667477523/58269293AE3E3564573F65363CB2CD69342DEE7C/ |
+| mtg4-damage-x2.mp3 | `damage_x2` | 49,597 bytes | `8888a374b76743c493293f76cc49ac4fe3aee416210a6069e25148c4a6d2dea9` | https://steamusercontent-a.akamaihd.net/ugc/15391021997800247402/7C763CA26C8CD97E1034D2CFDA51E12EF92CF4D4/ |
+| mtg4-damage-x3.mp3 | `damage_x3` | 49,597 bytes | `b8049c177593b6c6261e31e6b025abcabf053fc07d777e460f7bcea2ea455a4a` | https://steamusercontent-a.akamaihd.net/ugc/11994110290441954314/FEC87CC02628F37F7943AD3E2135796B3AEA9410/ |
+| mtg4-damage-x4.mp3 | `damage_x4` | 49,597 bytes | `6fe52adf7a54085407b793cda979f4bddef9fbf7d6172e362a8d553b9ffda187` | https://steamusercontent-a.akamaihd.net/ugc/13578099046086566174/4E86F9603540AB189BF84E0AD81053317898F17B/ |
+| mtg4-damage-x6.mp3 | `damage_x6` | 49,597 bytes | `3b4e166d3e40c1fddd6c75056cce865c2bd9aa7a05c4289cae197919623378f0` | https://steamusercontent-a.akamaihd.net/ugc/13086995823088759042/AC30C0C5FB2451996CDA7668D3D0260B2A396E85/ |
+| mtg4-damage-x8.mp3 | `damage_x8` | 49,597 bytes | `0532067b8bdc7781172b74bb84d994c2f53ab1ef7190672d90d6cc230d2ae2df` | https://steamusercontent-a.akamaihd.net/ugc/15550604889634791289/8440E3ED39B3788D00E0FA66E873F5D698E0D1B6/ |
+| mtg4-death-x2.mp3 | `death_x2`, `treasurespend_x2` | 49,596 bytes | `64d49eb09a68fb60ea23e5cf17e8f9162d8049372cfe8bae0e7b9cfb6f5c0f08` | https://steamusercontent-a.akamaihd.net/ugc/9883242587509736557/6981B43D6337A0228E5B453184A9B6B4A375C466/ |
+| mtg4-death-x3.mp3 | `death_x3`, `treasurespend_x3` | 49,596 bytes | `52c23c94c4b1900582f64c9c16d5e6c3ead08fb8c7c794f0c22283c3161cacda` | https://steamusercontent-a.akamaihd.net/ugc/10436603059024612911/CCB29073C58A677B180E47CF78A95FEBAECDAF43/ |
+| mtg4-death-x4.mp3 | `death_x4`, `treasurespend_x4` | 49,596 bytes | `d5b67bff63aa5f7d4d09c62d2cde53603860f1418bd217aa85d6738c817f861c` | https://steamusercontent-a.akamaihd.net/ugc/9611064040962894146/B332E6D7EDBD65B4A51C597E8A7765AC9A973232/ |
+| mtg4-death-x6.mp3 | `death_x6`, `treasurespend_x6` | 49,596 bytes | `611ae6d9d9f88d617bce41b6e4982090d3e45f28118613b8e4c533b2d8f0dcd5` | https://steamusercontent-a.akamaihd.net/ugc/13035548119423571592/E20CCA3DD638DDE3277520B4919AF32372247E4B/ |
+| mtg4-death-x8.mp3 | `death_x8`, `treasurespend_x8` | 49,596 bytes | `2dc16288786a5afefbcbe52e599292af46854f3ca9da500974a8f5209ed0bac9` | https://steamusercontent-a.akamaihd.net/ugc/11027633385360712386/AE3BDE68AC8603D4E63502B86013A24FE3DA3E66/ |
+| mtg4-exile-x2.mp3 | `exile_x2` | 49,596 bytes | `3d3886cb7f4a99dd643b29cc63aaee22c552d21ad39794929b90e1859da4777e` | https://steamusercontent-a.akamaihd.net/ugc/10685423988775677223/93E9E99CDF836B7D5DA0B5617E9B87FB9A68EF63/ |
+| mtg4-exile-x3.mp3 | `exile_x3` | 49,596 bytes | `d095a94aa574cf64883c6e6255a865f13327fac1e3df7f4a508e08f6dcccd312` | https://steamusercontent-a.akamaihd.net/ugc/9798376956180430026/5E3EAAE6998CEFF1B80E4FBC73A9180EEF487C51/ |
+| mtg4-exile-x4.mp3 | `exile_x4` | 49,596 bytes | `51cd99c920744187773e70ec8aa5f0169e2e43b3f09284ad71ee59cdbd948944` | https://steamusercontent-a.akamaihd.net/ugc/15676129596723056222/2E876EFB1AD5BBC1BC6B73559C841AB957FE7682/ |
+| mtg4-exile-x6.mp3 | `exile_x6` | 50,223 bytes | `afb274eee109b4e25be4a7855ef376529238bab5cb57f08fde3bb22bc612c8eb` | https://steamusercontent-a.akamaihd.net/ugc/12325136851710697223/AF2DC095D2C8A6286940804E26981F83C2B789BD/ |
+| mtg4-exile-x8.mp3 | `exile_x8` | 55,238 bytes | `58e3e204d360b4c59f2e051e02ab96df758a76bc73a847f13108632bfb9e03e8` | https://steamusercontent-a.akamaihd.net/ugc/15810681250109920267/AB7833248EB102767DE58D9F8CE062C31BEB51FD/ |
+| mtg4-lifegain-x2.mp3 | `lifegain_x2` | 49,599 bytes | `0b809c6313104d79a2f046c08886a40214a80d9f6ff882066f3d7c743e0f496d` | https://steamusercontent-a.akamaihd.net/ugc/15339424935138826246/1444B69A779AA728EFDF604E0BDAB87C709BDE2D/ |
+| mtg4-lifegain-x3.mp3 | `lifegain_x3` | 49,599 bytes | `66eee27a70cb32fe99c13bd71a32bd63c1fb4e02c488e84afb73910da06dcf0e` | https://steamusercontent-a.akamaihd.net/ugc/17719154414524319005/5D58B34080D1067DA20E96974CFE6357539F29A5/ |
+| mtg4-lifegain-x4.mp3 | `lifegain_x4` | 49,599 bytes | `ef2dfd6016ec6ba3decda0fd2877e567002e61378208f1e4d729090e46a7a2a1` | https://steamusercontent-a.akamaihd.net/ugc/18102140899015148787/6CD1962F9508D7E9364D090732B8996563A343B6/ |
+| mtg4-lifegain-x6.mp3 | `lifegain_x6` | 49,599 bytes | `0d8bac2cef88f1d86ab154a9207bcca597bc611e8c1416d990a80919f8c75707` | https://steamusercontent-a.akamaihd.net/ugc/13527528297040637011/4C81282CAC5AA2CAD15ECC4B20BA029E9A8B3CB2/ |
+| mtg4-lifegain-x8.mp3 | `lifegain_x8` | 55,241 bytes | `867e5b38a1e2ec0d2299719a0d9df616624eecd48894896fa7d047237287f7d5` | https://steamusercontent-a.akamaihd.net/ugc/14653307058996790132/E8D8FD2B9D8CA49761FDD2729CA52FA035286611/ |
+| mtg4-playerhit-x2.mp3 | `playerhit_x2` | 49,600 bytes | `97799a7a41477a68d70f720a0859fca1dc348c2dcb3b6a5645fc4e440147a412` | https://steamusercontent-a.akamaihd.net/ugc/15301479630649839933/C414A6E2C196E53148B30626BE78521D1E00843F/ |
+| mtg4-playerhit-x3.mp3 | `playerhit_x3` | 49,600 bytes | `12ce902ca008869b0db62106a96dd0220217eaed8a96c65611439b2c44c672c7` | https://steamusercontent-a.akamaihd.net/ugc/14011261080340369559/79EC7CD4B9480EE39C2AD12564CE9F76C6CF5067/ |
+| mtg4-playerhit-x4.mp3 | `playerhit_x4` | 49,600 bytes | `3bceffd624bf7f7f0e0b6b1641f18fc7dd434214ac29cd45e0213a759647db0c` | https://steamusercontent-a.akamaihd.net/ugc/11616489111656235985/EBCE64F9B3D5A01A129CF554713D23F13472BEAC/ |
+| mtg4-playerhit-x6.mp3 | `playerhit_x6` | 49,600 bytes | `5f1283159e3917907978fe7c4014b1ed4ac7f56d4ddabfbc76a1aec785b04366` | https://steamusercontent-a.akamaihd.net/ugc/15803660923802238346/33D1A2940FA8EE1CC7B495703D55F8723ECE0399/ |
+| mtg4-playerhit-x8.mp3 | `playerhit_x8` | 49,600 bytes | `6ca07f004600fc8a45b116f4c1d66b6c4fe405cd2109134d185de7a0f635eefd` | https://steamusercontent-a.akamaihd.net/ugc/9578969410471442226/6AF64F6E1EBAB1724840868E3C869709EB78AD23/ |
+| mtg4-wipe-x3.mp3 | `wipe_x3` | 49,595 bytes | `30e303d8623cb4e0f157adfffbf7e8c61a7de95dc14a28465c0c53a5e5aaacaa` | https://steamusercontent-a.akamaihd.net/ugc/17918509475140877353/A5A47B70A0BA927059446A66327EDFDC6C2CA13B/ |
+| mtg4-wipe-x4.mp3 | `wipe_x4` | 49,595 bytes | `b43f54489c551e5767f432ed6820890b4830e7d232811012b38753b51d5b4121` | https://steamusercontent-a.akamaihd.net/ugc/11527446792693991431/417A49F207E5F1F4E5C5FB1C71B8D476FC83FE4F/ |
+| mtg4-wipe-x6.mp3 | `wipe_x6` | 49,595 bytes | `869870a5147f0ed60da07734a0e5e5d9f30d6d25675ddfea76bf695b97592123` | https://steamusercontent-a.akamaihd.net/ugc/9953796201784196604/979D6AC4A3B7413143E6C58F9703F0B52403DBDD/ |
+| mtg4-wipe-x8.mp3 | `wipe_x8` | 49,595 bytes | `77593ff1c302aa6ea3ab0878695d125664ef0939711b381b067e1a2ba4e13afa` | https://steamusercontent-a.akamaihd.net/ugc/12689661881266718549/61F509DB71B97DED9C31385ECD35D6A24AC92B15/ |
+| mtg4-treasure.mp3 | `treasure` | 54,611 bytes | `1440b7381607e62f228cf025f0e3d118cf5ee8340c7033e2d027540cd1b94073` | https://steamusercontent-a.akamaihd.net/ugc/13794614518614591327/CB0C3DB1DE80ED6670AE453526BC661BD65E285B/ |
+| mtg4-treasure-x2.mp3 | `treasure_x2` | 54,614 bytes | `74afb304add4584d5b001d55f8d54beae8d23544fdf6322d0d7a3712775ff9fd` | https://steamusercontent-a.akamaihd.net/ugc/17949130541744455112/65D1E290589FD73EB288EC6907C2FB640ABD6C4C/ |
+| mtg4-treasure-x3.mp3 | `treasure_x3` | 61,511 bytes | `9af75907a2b02b6a532ce3dea385bc48653dcec10020c0f0f0f54850a39e9270` | https://steamusercontent-a.akamaihd.net/ugc/11666964080657862260/B487C1E5D6DE6F6A9975B6989531CE7F4A4825A7/ |
+| mtg4-treasure-x4.mp3 | `treasure_x4` | 61,511 bytes | `67fa562f21c4099a337bb547be4239772def697361bf69c2527a3988b8f5d529` | https://steamusercontent-a.akamaihd.net/ugc/17660563052074390177/0A4C0DD264A4887F57D1B38252B9F487E82AC155/ |
+| mtg4-treasure-x6.mp3 | `treasure_x6` | 66,526 bytes | `83ebfc0364c95982567866997de80d99714167bed81aab159b83cf4702784ccb` | https://steamusercontent-a.akamaihd.net/ugc/16507546084760307611/BF94A7AF7BB947FBB9205880D3CC7A8C6B1BE7FD/ |
+| mtg4-treasure-x8.mp3 | `treasure_x8` | 73,422 bytes | `6e363159c4304f4fd6c48ecefc9bed5a28ee357c471ea99ad79eafb7fe1f9307` | https://steamusercontent-a.akamaihd.net/ugc/17585473593631833822/0F6C1788B92B63F4A55DF8342B807AA8276AA49C/ |
+
+## The sound bundle (route B, built 2026-11-13, rebuilt 2026-11-17; not uploaded, not heard)
+
+The same sounds as one AssetBundle, `mtg-sounds.unity3d` (1,604,936 bytes, sha256
+`fa09e04ddc637c3b74b10253da4a9591e24b6aebfe6833d9077b521a839eb4ca`, rebuilt 2026-11-17 from the mtg4 files above; the
+2026-11-13 build held the clips of the links before them): a trigger effect per `engineSounds` key (58), each the mp3
+that key's link was uploaded from (the "Twice as strong" table) with the music player's padding cut off, so it sounds
+the same through either route. Keys
 sharing a link share a clip (`treasurespend*` = death's), 52 clips. Index with every key's clip, length and link:
 `docs/fx-research/SOUNDS.md`; how it is made: `docs/m5-assetbundle-build.md` section 4, "Built".
 
