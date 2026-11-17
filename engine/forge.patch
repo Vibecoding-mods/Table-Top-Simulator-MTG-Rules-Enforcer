@@ -497,7 +497,7 @@ index 32394268..e7c90cb7 100644
          }
          print("---- choose ability  (phase = " + phaseStr + ")");
 diff --git a/forge-game/src/main/java/forge/game/Game.java b/forge-game/src/main/java/forge/game/Game.java
-index 8d204538..9919b9b3 100644
+index 8d204538..93a52607 100644
 --- a/forge-game/src/main/java/forge/game/Game.java
 +++ b/forge-game/src/main/java/forge/game/Game.java
 @@ -1016,7 +1016,7 @@ public class Game {
@@ -518,7 +518,7 @@ index 8d204538..9919b9b3 100644
      // turn is low THOUSANDS of objects/trigger-fires, so the cap sits an
      // order of magnitude above any legitimate game, yet 25k Cards is far
      // below 3g-heap exhaustion. Tunable at boot without a rebuild
-@@ -1134,33 +1134,153 @@ public class Game {
+@@ -1134,33 +1134,155 @@ public class Game {
          }
      }
  
@@ -604,6 +604,8 @@ index 8d204538..9919b9b3 100644
 +    public static final double RUNAWAY_HEAP_LIMIT = 0.85;
 +    public static final int RUNAWAY_STACK_ITEMS = 1_000;
 +    public static final long LOOP_WATCHDOG_SECONDS = 60;
++    /** The RunawayChoice's {@code what} for the watchdog's question (the host words it apart from the limits). */
++    public static final String STUCK_LOOP = "stuck loop";
 +
 +    private static final java.util.function.DoubleSupplier RUNTIME_HEAP = () -> {
 +        final Runtime rt = Runtime.getRuntime();
@@ -691,7 +693,7 @@ index 8d204538..9919b9b3 100644
  
      public static void setRunawayCardsPerTurnCap(final int cap) {
          runawayCardsPerTurnCap = cap > 0 ? cap : Integer.MAX_VALUE;
-@@ -1168,6 +1288,9 @@ public class Game {
+@@ -1168,6 +1290,9 @@ public class Game {
      public static void setRunawayTriggersPerTurnCap(final int cap) {
          runawayTriggersPerTurnCap = cap > 0 ? cap : Integer.MAX_VALUE;
      }
@@ -701,7 +703,7 @@ index 8d204538..9919b9b3 100644
  
      private int runawayTurnStamp = -1;
      private int cardsCreatedThisTurn = 0;
-@@ -1186,17 +1309,21 @@ public class Game {
+@@ -1186,17 +1311,21 @@ public class Game {
              runawayTurnStamp = turnNow;
              cardsCreatedThisTurn = 0;
              triggersFiredThisTurn = 0;
@@ -727,7 +729,7 @@ index 8d204538..9919b9b3 100644
              runawayFinalizing = true;
              try {
                  // Mirror the engine's OWN draw path, GameDrawEffect.resolve():
-@@ -1220,16 +1347,75 @@ public class Game {
+@@ -1220,16 +1349,75 @@ public class Game {
       *  TriggerHandler.runWaitingTriggers(). */
      public void recordTriggerFired() {
          resetRunawayWindowOnTurnChange();
@@ -778,7 +780,7 @@ index 8d204538..9919b9b3 100644
 +        if (stuck < LOOP_WATCHDOG_SECONDS * 1_000_000_000L) {
 +            return;
 +        }
-+        askOrDraw((int) (stuck / 1_000_000_000L), (int) LOOP_WATCHDOG_SECONDS, "stuck loop");
++        askOrDraw((int) (stuck / 1_000_000_000L), (int) LOOP_WATCHDOG_SECONDS, STUCK_LOOP);
      }
      // ---- end Endstep patch 24 ----
  
@@ -805,7 +807,7 @@ index 8d204538..9919b9b3 100644
          return ++cardIdCounter;
      }
      public int nextHiddenCardId() {
-@@ -1410,7 +1596,8 @@ public class Game {
+@@ -1410,7 +1598,8 @@ public class Game {
              player.onCleanupPhase();
          }
          for (final Card c : getCardsIncludePhasingIn(ZoneType.Battlefield)) {
@@ -815,7 +817,7 @@ index 8d204538..9919b9b3 100644
          }
          for (final Card card : getCardsInGame()) {
              card.resetActivationsPerTurn();
-@@ -1479,6 +1666,23 @@ public class Game {
+@@ -1479,6 +1668,23 @@ public class Game {
          countersRemovedThisTurn.clear();
      }
  
@@ -839,7 +841,7 @@ index 8d204538..9919b9b3 100644
      public void addCounterRemovedThisTurn(CounterType cType, Card card, Integer value) {
          countersRemovedThisTurn.put(cType, Pair.of(CardCopyService.getLKICopy(card), value));
      }
-@@ -1590,6 +1794,9 @@ public class Game {
+@@ -1590,6 +1796,9 @@ public class Game {
      public Boolean getDayTime() {
          return this.daytime;
      }
