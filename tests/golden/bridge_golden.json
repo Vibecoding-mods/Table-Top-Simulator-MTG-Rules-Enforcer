@@ -211688,9 +211688,10 @@
      "title": "Pestilence: pay {2} how many times? (Multikicker)",
      "mode": "number",
      "min": 0,
-     "max": 20,
-     "kind": "number",
-     "text": ""
+     "max": 999,
+     "text": "999 is the most the table offers.",
+     "note": "999 is the most the table offers.",
+     "kind": "number"
     }
    },
    {
@@ -697120,7 +697121,7 @@
      "title": "Minds Aglow: join forces: pay how much mana?",
      "mode": "number",
      "min": 0,
-     "max": 20,
+     "max": 99,
      "note": "Each player draws X cards, where X is the total amount of mana paid this way.",
      "text": "Each player draws X cards, where X is the total amount of mana paid this way.\nJoin forces — Starting with you, each player may pay any amount of mana. Each player draws X cards, where X is the total amount of mana paid this way.",
      "kind": "number"
@@ -925596,12 +925597,12 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Not started: Archenemy: Blue isn't in this game (seated: White; AI players take the free seats in turn order). Seat Blue, make it an AI seat (mtg ai Blue forge), or fill all four seats.\n"
+    "text": "[time] all    told: [MTG] Not started: Archenemy: Blue isn't in this game (seated: White; AI players take the free seats in turn order). Seat Blue, make it an AI seat (mtg ai Blue forge), or fill all four seats. The Archenemy switch is on for the next games: type  mtg archenemy off  to play without it.\n"
    },
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Not started: Archenemy: Blue isn't in this game (seated: White; AI players take the free seats in turn order). Seat Blue, make it an AI seat (mtg ai Blue forge), or fill all four seats.",
+     "text": "[MTG] Not started: Archenemy: Blue isn't in this game (seated: White; AI players take the free seats in turn order). Seat Blue, make it an AI seat (mtg ai Blue forge), or fill all four seats. The Archenemy switch is on for the next games: type  mtg archenemy off  to play without it.",
      "color": null
     }
    },
@@ -926181,6 +926182,19 @@
       ],
       "vote": null,
       "off": "Undo isn't available in Archenemy games: the schemes in play can't be rewound yet."
+     },
+     "teams": {
+      "rule": "teams",
+      "mode": "archenemy",
+      "sides": [
+       [
+        "Blue"
+       ],
+       [
+        "White"
+       ]
+      ],
+      "archenemy": "Blue"
      }
     }
    },
@@ -926537,6 +926551,19 @@
       ],
       "vote": null,
       "off": "Undo isn't available in Archenemy games: the schemes in play can't be rewound yet."
+     },
+     "teams": {
+      "rule": "teams",
+      "mode": "archenemy",
+      "sides": [
+       [
+        "Blue"
+       ],
+       [
+        "White"
+       ]
+      ],
+      "archenemy": "Blue"
      }
     }
    },

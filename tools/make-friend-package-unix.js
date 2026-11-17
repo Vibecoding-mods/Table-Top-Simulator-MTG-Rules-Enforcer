@@ -278,7 +278,10 @@ HOST REQUIREMENTS (the computer that runs the engine; friends who only join need
 - Podman (the Steam Deck has it built in) or Docker. Check in a terminal (Konsole on the Deck):
       podman info
   It should print a page about the host, not an error. On another Linux: install podman from your distribution
-  (e.g. sudo apt install podman), or use Docker if you have it (your account must be in the "docker" group).
+  (e.g. sudo apt install podman), or use Docker if you have it (your account must be in the "docker" group:
+  sudo usermod -aG docker "$USER", then sign out and back in). Podman and Docker Engine need no BIOS setting;
+  Docker Desktop for Linux does: SVM (AMD) or VT-x (Intel) on in the BIOS, and /dev/kvm usable
+  (sudo usermod -aG kvm "$USER"). More help: docs/docker-setup.md in the project's repository.
 - About 3 GB of free disk: about 1.5 GB for the engine inside Podman (in ~/.local/share/containers) and about
   1.2 GB for this folder (the .tar.gz can be deleted once it is unpacked).
 - A web browser on the same computer, for the companion's status page.
@@ -384,7 +387,9 @@ HOST REQUIREMENTS (the Mac that runs the engine; friends who only join need just
 - macOS 12 or newer${v.arch === "arm64" ? " on an Apple Silicon Mac (an Intel Mac needs the macos-x64 package)" : " on an Intel Mac (an Apple Silicon Mac needs the macos-arm64 package)"}.
 - Tabletop Simulator (Steam).
 - Docker Desktop: https://www.docker.com/products/docker-desktop/  Install it, start it once and finish its
-  first-run screens yourself (sign-in is optional).${v.arch === "arm64" ? `
+  first-run screens yourself (sign-in is optional). It asks for your Mac password once, to install its helper:
+  that's the Mac's "run as administrator". Macs need no BIOS setting. If it won't start, Docker Desktop's
+  Troubleshoot (bug icon) > Restart; more help in docs/docker-setup.md in the project's repository.${v.arch === "arm64" ? `
   The engine is built for Intel (x86-64) processors and runs on Apple Silicon through emulation: in Docker
   Desktop > Settings > General, turn on "Use Rosetta for x86_64/amd64 emulation on Apple Silicon" (macOS 13 or
   newer). Without it Docker uses a much slower emulator, and the engine may take minutes to answer.` : ""}

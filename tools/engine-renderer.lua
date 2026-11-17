@@ -364,10 +364,11 @@ local function badgeParts(c)
     local n, up = tonumber(c.ctr[k]) or 0, string.upper(k)
     if up == "P1P1" then plus = plus + n
     elseif up == "M1M1" then plus = plus - n
-    elseif up == "LOYALTY" or up == "DEFENSE" then special = tostring(n)
-    else ctr[#ctr + 1] = n .. " " .. (COUNTER_NAMES[up] or (string.upper(k:sub(1, 1)) .. string.lower(k:sub(2)))) end
+    elseif up == "LOYALTY" or up == "DEFENSE" then special = engineCompact(n)
+    else ctr[#ctr + 1] = engineCompact(n) .. " " .. (COUNTER_NAMES[up] or (string.upper(k:sub(1, 1)) .. string.lower(k:sub(2)))) end
   end
-  if plus ~= 0 then table.insert(ctr, 1, (plus > 0 and "+" or "") .. plus .. "/" .. (plus > 0 and "+" or "") .. plus) end
+  -- (the numbers compact past 9,999, "+12.3K/+12.3K", "∞" at the engine's cap: engineCompact, stress catalog #10)
+  if plus ~= 0 then table.insert(ctr, 1, (plus > 0 and "+" or "") .. engineCompact(plus) .. "/" .. (plus > 0 and "+" or "") .. engineCompact(plus)) end
   if #ctr > 0 then parts[#parts + 1] = { "ctr", table.concat(ctr, "\n"), BADGE.ctrBg } end
   if c.p ~= nil and c.t ~= nil then
     -- bp/bt: the numbers on the card's picture, nil when it shows none (an X/X token's */*, a Tarmogoyf) or isn't
@@ -379,7 +380,7 @@ local function badgeParts(c)
     local changed = tostring(c.p) ~= tostring(c.bp) or tostring(c.t) ~= tostring(c.bt)
     if changed or dmg > 0 then
       local lower = dmg > 0 or (p and bp and p < bp) or (t and bt and t < bt)
-      parts[#parts + 1] = { "pt", tostring(c.p) .. "/" .. tostring(t and (t - dmg) or c.t), lower and BADGE.down or (known and BADGE.up or BADGE.black) }
+      parts[#parts + 1] = { "pt", engineCompact(c.p) .. "/" .. engineCompact(t and (t - dmg) or c.t), lower and BADGE.down or (known and BADGE.up or BADGE.black) }
     end
   elseif special ~= nil then parts[#parts + 1] = { "pt", special, BADGE.black } end
   return parts
@@ -756,7 +757,11 @@ ENGINE_TEAM_MODE = nil -- "2hg" | "2v2" | "juggernaut" while ENGINE_TEAMS is set
 ENGINE_TEAM_TURNS = nil
 -- the Juggernaut's settings (bridge/teams.js JUGG_DEFAULTS; life nil: twice the format's, 80 or 40)
 ENGINE_JUGG = { color = "White", hand = 10, draw = 1, land = 0, cmd = 21, order = "first" }
-ENGINE_TEAM_NAMES = { ["2hg"] = "Two-Headed Giant", ["2v2"] = "2v2", juggernaut = "Juggernaut" }
+ENGINE_TEAM_NAMES = { ["2hg"] = "Two-Headed Giant", ["2v2"] = "2v2", juggernaut = "Juggernaut", ["3hg"] = "Three-Headed Giant" }
+-- Three-Headed Giant (3v3, rule 810.11; bridge/teams.js THREE_TEAMS): the six-seat table only, either game mode (not in
+-- ENGINE_TEAM_GAME_MODE), the teams its sides in turn order; the bridge sends no life (the engine's 45, 120 in Commander)
+ENGINE_3HG_TEAMS = { White = 1, Red = 1, Yellow = 1, Green = 2, Blue = 2, Purple = 2 }
+function engineSixSeats() return ENGINE_TABLE_SEATS ~= nil and #ENGINE_TABLE_SEATS == 6 end
 -- the one game mode (ENGINE_GAME_MODE) each team mode is played in: 2v2 Standard, the other two Commander (the owner's
 -- call; bridge/teams.js TEAM_MODES checks it again at start)
 ENGINE_TEAM_GAME_MODE = { ["2hg"] = "commander", ["2v2"] = "standard", juggernaut = "commander" }
@@ -781,7 +786,7 @@ end
 -- the teams as said in chat: "White + Red vs Yellow + Blue" (Juggernaut: "White (Juggernaut) vs Red + Yellow + Blue")
 function engineTeamsText()
   local s = { {}, {} }
-  for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do
+  for _, c in ipairs(ENGINE_TEAM_MODE == "3hg" and { "White", "Red", "Yellow", "Green", "Blue", "Purple" } or { "White", "Red", "Yellow", "Blue" }) do
     local n = ENGINE_TEAMS[c] or 1
     s[n][#s[n] + 1] = c
   end
@@ -807,12 +812,13 @@ ENGINE_JUGG_LIMITS = { life = { 1, 999 }, hand = { 0, 30 }, draw = { 0, 5 }, lan
 ENGINE_TEAM_HELP = {
   ["2hg"] = ". Partners share life (80 a team), poison (15) and a commander's damage (42), block for each other and see each other's hands; each player takes their own turn. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host). One turn for each team, attacking and blocking together:  mtg 2hg turns shared  (back:  mtg 2hg turns own).",
   ["2v2"] = ". Standard decks; each player has their own life (20) and turn, no commander; teammates can't attack each other; a team wins when both its opponents have lost. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host).",
+  ["3hg"] = ". Each side of the table is a team of three: they share life (120 a team in Commander, 45 in Standard), poison (20) and losing, block together and see each other's hands; each player takes their own turn, the team's back to back. All six seats play (AI players fill the empty ones).",
 }
 -- "mtg mode 2hg|2v2|juggernaut|ffa", "mtg team <colour> <1|2>" and "mtg juggernaut ..." (host): true when handled
 -- (engineChat, make-engine-copy.js); any other "mtg mode" word is left to the other game modes
 -- ("mtg 2hg turns shared|own" too: the chat's command word is letters only, so "2hg" comes in rest with cmd "")
 function engineTeamChat(cmd, rest, pl, isHost)
-  local isMode = cmd == "mode" and (rest == "2hg" or rest == "2v2" or rest == "juggernaut" or rest == "ffa")
+  local isMode = cmd == "mode" and (rest == "2hg" or rest == "2v2" or rest == "juggernaut" or rest == "ffa") or cmd == "mode" and rest == "3hg"
   local isLevel = cmd == "" and rest:sub(1, 3) == "2hg"
   if not isMode and not isLevel and cmd ~= "team" and cmd ~= "juggernaut" then return false end
   if not isHost then pl.broadcast("[MTG] Only the host can set up team games.") return true end
@@ -842,6 +848,15 @@ function engineTeamChat(cmd, rest, pl, isHost)
   end
   local refusal = isMode and engineTeamModeRefusal(rest) or nil
   if refusal ~= nil then pl.broadcast("[MTG] " .. refusal, { 1, 0.85, 0.4 }) return true end
+  if isMode and rest == "3hg" then
+    if not engineSixSeats() then pl.broadcast("[MTG] Three-Headed Giant is played on the six-seat table (three a side); this table has " .. tostring(ENGINE_TABLE_SEATS ~= nil and #ENGINE_TABLE_SEATS or 4) .. " seats.", { 1, 0.85, 0.4 }) return true end
+    ENGINE_TEAM_MODE = "3hg"
+    ENGINE_TEAMS = {}
+    for c, n in pairs(ENGINE_3HG_TEAMS) do ENGINE_TEAMS[c] = n end
+    broadcastToAll("[MTG] " .. who .. " set the next games to Three-Headed Giant: " .. engineTeamsText() .. ENGINE_TEAM_HELP["3hg"], { 1, 0.85, 0.4 })
+    redraw()
+    return true
+  end
   if isMode and rest == "juggernaut" then
     ENGINE_TEAM_MODE = "juggernaut"
     ENGINE_TEAMS = engineJuggTeams()
@@ -851,7 +866,7 @@ function engineTeamChat(cmd, rest, pl, isHost)
     return true
   end
   if isMode then
-    if ENGINE_TEAMS == nil or ENGINE_TEAM_MODE == "juggernaut" then ENGINE_TEAMS = { White = 1, Red = 1, Yellow = 2, Blue = 2 } end
+    if ENGINE_TEAMS == nil or ENGINE_TEAM_MODE == "juggernaut" or ENGINE_TEAM_MODE == "3hg" then ENGINE_TEAMS = { White = 1, Red = 1, Yellow = 2, Blue = 2 } end
     ENGINE_TEAM_MODE = rest
     broadcastToAll("[MTG] " .. who .. " set the next games to " .. ENGINE_TEAM_NAMES[rest] .. ": " .. engineTeamsText() .. ENGINE_TEAM_HELP[rest], { 1, 0.85, 0.4 })
     redraw()
@@ -884,6 +899,7 @@ function engineTeamChat(cmd, rest, pl, isHost)
     redraw()
     return true
   end
+  if ENGINE_TEAM_MODE == "3hg" then pl.broadcast("[MTG] In Three-Headed Giant the teams are the table's sides: White + Red + Yellow vs Green + Blue + Purple.") return true end
   local col, n = rest:match("^(%a+)%s+([12])$")
   local seat = nil
   for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do if col ~= nil and c:lower() == col then seat = c end end
@@ -895,18 +911,24 @@ function engineTeamChat(cmd, rest, pl, isHost)
   return true
 end
 -- The Teams button on the setup tile (host only, as typed), the game mode's team modes only (ENGINE_TEAM_GAME_MODE):
--- Commander none -> Two-Headed Giant -> Juggernaut -> none; Standard none <-> 2v2
+-- Commander none -> Two-Headed Giant -> Juggernaut -> none; Standard none <-> 2v2; on the six-seat table Three-Headed
+-- Giant before none in both
 TEAMS_SPOT = Vector(TABLE_PROFILE.spots.teams[1], TABLE_PROFILE.spots.teams[2], TABLE_PROFILE.spots.teams[3]) -- (the table's profile: on the 4-player table -47, 1.1, 17.5, right of Free mulligans on the same strip, 10 apart as the other two: not yet seen on the real table)
 function engineTeamsLabel()
   local m = ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil
   if m == "juggernaut" then return "Juggernaut\n" .. ENGINE_JUGG.color end
-  return "Teams\n" .. (m == "2hg" and (ENGINE_TEAM_TURNS == "shared" and "2HG team turns" or "2HG") or m == "2v2" and "2v2" or "None")
+  return "Teams\n" .. (m == "2hg" and (ENGINE_TEAM_TURNS == "shared" and "2HG team turns" or "2HG") or m == "2v2" and "2v2" or m == "3hg" and "3HG" or "None")
 end
 function onMtgSetupTeams(obj, playerColor)
   local pl = Player[playerColor]
   if pl == nil then return end
   local m = ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil
   local nextOf = ENGINE_GAME_MODE == "standard" and { ["2v2"] = "ffa" } or { ["2hg"] = "juggernaut", juggernaut = "ffa" }
+  -- (the six-seat table: Three-Headed Giant after the game mode's last team mode, then none)
+  if engineSixSeats() then
+    nextOf[ENGINE_GAME_MODE == "standard" and "2v2" or "juggernaut"] = "3hg"
+    nextOf["3hg"] = "ffa"
+  end
   engineChat("mtg mode " .. (m == nil and (ENGINE_GAME_MODE == "standard" and "2v2" or "2hg") or nextOf[m] or "ffa"), pl)
 end
 function engineTeamId(color, id) return "team:" .. tostring(color) .. ":" .. tostring(id) end
@@ -935,12 +957,15 @@ function engineTeamOf(t, color)
   return nil
 end
 -- after the phase bar's turn: whose team's turn it is ("(YOUR TEAM)", "(TEAM WHITE + RED)", the Juggernaut's
--- "(JUGGERNAUT)"); "" outside a team game
+-- "(JUGGERNAUT)", the archenemy's "(ARCHENEMY)"); "" outside a team game
 function engineTeamTurnTag(t, viewer)
   local side = t and t.active and engineTeamOf(t, t.active)
   if side == nil then return "" end
   if t.teams.juggernaut ~= nil and t.active == t.teams.juggernaut then
     return "  <color=#FFD27A>" .. (viewer == t.active and "(YOU, THE JUGGERNAUT)" or "(JUGGERNAUT)") .. "</color>"
+  end
+  if t.teams.archenemy ~= nil and t.active == t.teams.archenemy then
+    return "  <color=#FFD27A>" .. (viewer == t.active and "(YOU, THE ARCHENEMY)" or "(ARCHENEMY)") .. "</color>"
   end
   local mine = false
   for _, c in ipairs(side) do if c == viewer then mine = true end end
@@ -955,6 +980,21 @@ function engineMyTurn(t, color)
   if t.active == color then return true end
   for _, c in ipairs(t.activeTeam or {}) do if c == color then return true end end
   return false
+end
+-- the colour TTS's turn shows: the active player's when they are seated; in a shared team turn (the board's
+-- activeTeam) the first seated player of the team, so the team's turn lights a human partner of an AI; nil when nobody
+-- of the turn is seated
+function engineTurnColor(m)
+  if m == nil or m.active == nil then return nil end
+  if Player[m.active] ~= nil and Player[m.active].seated then return m.active end
+  for _, c in ipairs(m.activeTeam or {}) do
+    if Player[c] ~= nil and Player[c].seated then return c end
+  end
+  return nil
+end
+-- the turn, as the turn colour follows it: the active player and their team ("White" or "White+Yellow")
+function engineTurnKey(m)
+  return tostring(m.active) .. (m.activeTeam ~= nil and ("+" .. table.concat(m.activeTeam, "+")) or "")
 end
 -- whose turn in a shared-turn game: "YOUR TEAM'S TURN" or "TEAM WHITE + RED'S TURN"
 function engineTeamTurnWords(t, color)
@@ -1167,8 +1207,8 @@ function TL.clear()
 end
 -- From each board (updateTrackers), the end of a game (engineResetUi, m nil) and the setup redraw.
 function engineTeamLooks(m)
-  -- (2v2 and Juggernaut, rule "teams": the tint only, every side, the Juggernaut's gold; no team life panel, each player
-  -- has their own life)
+  -- (2v2, Juggernaut and Archenemy, rule "teams": the tint only, every side, the Juggernaut's and the archenemy's gold;
+  -- no team life panel, each player has their own life)
   local sides = ENGINE_MODE and m ~= nil and type(m.teams) == "table" and m.teams.sides or nil
   local shared = sides ~= nil and m.teams.rule ~= "teams"
   if type(sides) ~= "table" or #sides ~= 2 then
@@ -1183,7 +1223,7 @@ function engineTeamLooks(m)
   for _, side in ipairs(sides) do
     local k = 2
     for _, c in ipairs(side) do if c == "White" then k = 1 end end
-    if not shared and #side == 1 and side[1] == m.teams.juggernaut then k = 3 end
+    if not shared and #side == 1 and (side[1] == m.teams.juggernaut or side[1] == m.teams.archenemy) then k = 3 end
     if #side == 2 or not shared then
       for _, c in ipairs(side) do
         local l = TL.matLine(c, k)
@@ -1473,6 +1513,13 @@ function groupTokens(list, seen, hosts)
 end
 
 local ATTACH = { scale = 0.5, extraCols = 0.6 } -- auras/equipment: half size, beside their host
+-- A fan's step for its count (stress catalog #5): `step` apart up to `show` cards, then squeezed so the whole fan
+-- spans what `show` cards span: Sram's 30 auras reached 28 units from their host, under the next row and seat.
+ENGINE_FAN = { attach = { step = 1.0, show = 6 }, linked = { step = 0.35, show = 8 } }
+function engineFanStep(count, fan)
+  if count <= fan.show then return fan.step end
+  return fan.step * (fan.show - 1) / (count - 1)
+end
 local function layoutRow(g, cards, row, seen, color, hosts)
   local n = #cards
   if n == 0 then return end
@@ -1505,6 +1552,41 @@ end
 -- M5 step 2: a life change shows as a red "-N" / green "+N" under the counter's number for 3 s (the counter's own
 -- change line, see make-engine-copy "engineLifeChange"); changes within those 3 s add up, so a combat with five
 -- attackers shows one "-14". Only changes during a game: the first board of a game just sets the number.
+-- Compact numbers (docs/stress-catalog.md #10, #12): a number as the table shows it where space is short, the life
+-- counter and the counter badges. Up to 9,999 as it is; then "12.3K", "450K", "1.2M", "1B" (floored, so 99,999 is
+-- "99.9K", never "100K"); "∞" at ENGINE_HUGE or more (2^30: where the engine is to clamp numbers, catalog #12), "-∞" at minus that. Not
+-- a number (a "*" power): as it is. The hover gives the exact number.
+ENGINE_HUGE = 1073741824
+ENGINE_COMPACT_UNITS = { { 1000000000, "B" }, { 1000000, "M" }, { 1000, "K" } }
+function engineCompact(v)
+  local n = tonumber(v)
+  if n == nil or n ~= n then return tostring(v) end
+  if n >= ENGINE_HUGE then return "∞" elseif n <= -ENGINE_HUGE then return "-∞" end
+  local a = math.abs(n)
+  if a < 10000 then return tostring(v) end
+  local sign = n < 0 and "-" or ""
+  for _, u in ipairs(ENGINE_COMPACT_UNITS) do
+    if a >= u[1] then
+      -- (the number in tenths of the unit, floored: 12,345 is 123 tenths of a K)
+      local tenths = math.floor(a / (u[1] / 10))
+      if tenths >= 1000 then return sign .. string.format("%d", math.floor(a / u[1])) .. u[2] end
+      local whole, dec = math.floor(tenths / 10), tenths % 10
+      return sign .. string.format("%d", whole) .. (dec ~= 0 and ("." .. string.format("%d", dec)) or "") .. u[2]
+    end
+  end
+  return tostring(v)
+end
+-- The life counter's number (its button 0): the compact label and a font that keeps it clear of the commander-damage
+-- icons (the counter's own 1000 up to 3 letters, then 3000 / letters: "9999" 750, "12.3K" 600). compacted
+-- false: the label is the counter's own number (life under 10,000), which the counter writes itself.
+ENGINE_LIFE_FONT = { font = 1000, letters = 3 }
+function engineLifeLook(life)
+  local label = engineCompact(life)
+  -- (letters as TTS draws them: "∞" is three bytes and one letter)
+  local letters = #label - (string.find(label, "∞", 1, true) and 2 or 0)
+  local font = letters <= ENGINE_LIFE_FONT.letters and ENGINE_LIFE_FONT.font or math.floor(ENGINE_LIFE_FONT.font * ENGINE_LIFE_FONT.letters / letters)
+  return { label = label, font = font, letters = letters, compacted = label ~= tostring(life) }
+end
 engineLifeSeen = {} -- colour -> { life = last life the engine reported, base = life before the change on show, at = os.clock() }
 local function setLife(color, life)
   local o = getObjectFromGUID(LIFE_TRACKERS[color] or "")
@@ -1517,6 +1599,9 @@ local function setLife(color, life)
     o.setVar("count", life)
     if o.getVar("engineLifeChange") ~= nil then o.call("engineLifeChange", { life = life, delta = life - seen.base })
     else o.call("sL", life) end
+    -- (a change of 10,000 or more compact on its change line too, "+1.2M": the counter writes it in full)
+    local d = life - (seen.base or life)
+    if math.abs(d) >= 10000 then o.editButton({ index = 1, label = (d > 0 and "+" or "") .. engineCompact(d) }) end
     o.call("updateSave")
     return
   end
@@ -1577,10 +1662,13 @@ local function updateTrackers(m)
   end
   if engineStatusPieces ~= nil then pcall(engineStatusPieces, m) end -- (the pieces for the marks: under the last box)
   if engineTeamLooks ~= nil then pcall(engineTeamLooks, m) end -- (Two-Headed Giant: the team tint, life and commander damage)
-  if m.active ~= nil and m.active ~= lastTurnSet then
-    lastTurnSet = m.active
-    if Player[m.active] ~= nil and Player[m.active].seated and Turns.turn_color ~= m.active then
-      pcall(function() Turns.enable = true Turns.turn_color = m.active end)
+  -- (TTS's turn colour: the active player's; in a shared team turn, 2HG Level 2, the team's: the active player if seated,
+  -- else their seated partner, so an AI's team turn still lights the human partner, engineTurnColor)
+  if m.active ~= nil and engineTurnKey(m) ~= lastTurnSet then
+    lastTurnSet = engineTurnKey(m)
+    local turnColor = engineTurnColor(m)
+    if turnColor ~= nil and Turns.turn_color ~= turnColor then
+      pcall(function() Turns.enable = true Turns.turn_color = turnColor end)
     end
   end
 end
@@ -1637,7 +1725,20 @@ function engineLifeTip(o, pl)
   if main == nil or main.click_function ~= "option" then return end
   local want = ENGINE_LIFE_TIP
   if pl ~= nil and type(pl.lifeTip) == "string" and pl.lifeTip ~= "" then want = pl.lifeTip .. "\n\n" .. ENGINE_LIFE_TIP end
-  if main.tooltip ~= want then o.editButton({ index = 0, tooltip = want }) end
+  -- a life of 10,000 or more as "12.3K" (the exact number in the hover), 4 letters or more in a smaller font: "1000"
+  -- at the counter's 1000 ran past the heart into the commander-damage icons (stress catalog #10). The counter's sL
+  -- writes the plain number first (setLife); this follows it on the same board. No game (pl nil): its own font back.
+  local look = (pl ~= nil and tonumber(pl.life) ~= nil) and engineLifeLook(pl.life) or nil
+  local edit = { index = 0 }
+  if look ~= nil and look.compacted then
+    local n = tonumber(pl.life)
+    want = "Life: " .. (math.abs(n) < 1e15 and string.format("%d", math.floor(n)) or tostring(n)) .. "\n" .. want
+    if tostring(main.label) ~= look.label then edit.label = look.label end
+  end
+  local font = look ~= nil and look.font or ENGINE_LIFE_FONT.font
+  if (tonumber(main.font_size) or font) ~= font then edit.font_size = font end
+  if main.tooltip ~= want then edit.tooltip = want end
+  if edit.label ~= nil or edit.font_size ~= nil or edit.tooltip ~= nil then o.editButton(edit) end
 end
 -- (the label goes with the game: it stayed on the normal table after a reset, stage 3 review 2026-10-27)
 -- (the extra-turn number beside the life counter goes too, engineExtraTurnBadge, and the floating-mana chips,
@@ -2354,6 +2455,39 @@ end
 end
 -- A stack item's name, a run of one trigger counted (the bridge's stackGroups: x): "Soul Warden ×18"
 function engineStackLabel(st) return tostring(st.n) .. ((tonumber(st.x) or 1) > 1 and (" ×" .. st.x) or "") end
+-- "A, B, C" up to n names (ENGINE_FEW_NAMES), else the first n then " ... and N more" (the bridge's fewNames; stress
+-- catalog #3, #11)
+ENGINE_FEW_NAMES = 8
+function engineFewNames(list, n)
+  n = n or ENGINE_FEW_NAMES
+  if #list <= n then return table.concat(list, ", ") end
+  local first = {}
+  for k = 1, n do first[k] = list[k] end
+  return table.concat(first, ", ") .. " ... and " .. (#list - n) .. " more"
+end
+-- The stack on the table, at most ENGINE_STACK_SHOW objects a caster (stress catalog #3): 300 storm copies were 300
+-- objects strung out to x 435, far off the caster's mat. Past that, the caster's bottom items fold into one "+N more"
+-- card at their first spot, and the top ENGINE_STACK_SHOW (the ones that resolve first) take the spots after it, so a
+-- caster's stack never reaches past spot ENGINE_STACK_SHOW + 1. stack: the board's list, bottom first (its last item
+-- is the top). Returns { spot = item index -> its spot (1, 2, ...: the caster's count as before up to the cap),
+-- folded = item index -> true, more = caster -> { n = how many folded, names = their labels, top first } }.
+ENGINE_STACK_SHOW = 8
+function engineStackFold(stack)
+  local total, seenN, out = {}, {}, { spot = {}, folded = {}, more = {} }
+  for _, s in ipairs(stack) do local who = s.ctl or "?" total[who] = (total[who] or 0) + 1 end
+  for i, s in ipairs(stack) do
+    local who = s.ctl or "?"
+    local under = math.max(0, total[who] - ENGINE_STACK_SHOW)
+    seenN[who] = (seenN[who] or 0) + 1
+    if seenN[who] <= under then
+      out.folded[i], out.spot[i] = true, 1
+      out.more[who] = out.more[who] or { n = 0, names = {} }
+      out.more[who].n = out.more[who].n + 1
+      table.insert(out.more[who].names, 1, engineStackLabel(s))
+    else out.spot[i] = seenN[who] - under + (under > 0 and 1 or 0) end
+  end
+  return out
+end
 function enginePopups(m)
   local newest
   local now = {}
@@ -3701,7 +3835,8 @@ function engineRender(m)
       others = groupTokens(others, seen, allHosts)
       -- cards carrying auras/equipment get room beside them; the attachments sit there at half size, stacked
       local hosts, perHost = {}, {}
-      for _, c in ipairs(attached) do hosts[c.att] = true end
+      -- (hosts: each host's count of attachments, for its fan's step)
+      for _, c in ipairs(attached) do hosts[c.att] = (hosts[c.att] or 0) + 1 end
       layoutRow(g, creatures, ROWS.creature, seen, color, hosts)
       layoutRow(g, others, ROWS.other, seen, color, hosts)
       layoutRow(g, lands, ROWS.land, seen, color, hosts)
@@ -3711,7 +3846,8 @@ function engineRender(m)
         local k = perHost[c.att]
         local host = enginePlanned[c.att] or gridPos(g, 0, ROWS.other)
         -- toward the next column (the space layoutRow left), first one level with the host's top, then downward
-        local spot = host - g.right * (GRID.colStep * (0.5 + ATTACH.extraCols / 2)) + g.fwd * (0.8 - 1.0 * (k - 1)) + Vector(0, 0.02 * k, 0)
+        -- (closer together past ENGINE_FAN.attach.show of them, so the fan stays its size: engineFanStep)
+        local spot = host - g.right * (GRID.colStep * (0.5 + ATTACH.extraCols / 2)) + g.fwd * (0.8 - engineFanStep(hosts[c.att], ENGINE_FAN.attach) * (k - 1)) + Vector(0, 0.02 * k, 0)
         place(c, spot, Vector(0, g.rotY + (c.tap and 90 or 0), 0), seen, nil, { zone = "attached", color = color, host = c.att })
       end
       local pend = enginePending[color]
@@ -3782,15 +3918,15 @@ function engineRender(m)
   if not okPop then print("[MTG] pop-up: " .. tostring(errPop)) end
   sect("popups")
   -- The stack floats above its caster's own playmat (the table centre is where the life trackers are), newest on
-  -- top and a little to the side, so you can read every spell waiting to resolve.
-  local perCaster = {}
+  -- top and a little to the side, so you can read every spell waiting to resolve. At most ENGINE_STACK_SHOW objects a
+  -- caster: the rest fold into one "+N more" card at the caster's first spot (engineStackFold)
+  local stackFold = engineStackFold(m.stack or {})
   local stackGlow = {}
   local stackSpot = {} -- stack item id -> where its target lines start
   engineFxStackSpot = {} -- stack item id -> its spot on the stack (the next board's effects: where a countered spell stood)
   for i, s in ipairs(m.stack or {}) do
     local g = s.ctl and seatGeometry(s.ctl)
-    local n = (perCaster[s.ctl or "?"] or 0) + 1
-    perCaster[s.ctl or "?"] = n
+    local n = stackFold.spot[i]
     local pos, rot = nil, nil
     if g ~= nil then
       pos = g.mat + g.right * (1.4 * (n - 1) - 2) + Vector(0, 2.5 + 0.1 * i, 0)
@@ -3804,14 +3940,18 @@ function engineRender(m)
     stackSpot[s.id] = (not s.spell and s.src and (enginePlanned[s.src] or (srcObj ~= nil and not srcObj.isDestroyed() and srcObj.getPosition()))) or pos
     -- (a face-down spell, fd: never its card as its owner's hand knew it, which showed a morph's face to everyone)
     local st = s.src and not s.fd and engineStatic[s.src]
-    if s.spell and st then
+    local onTableSrc = not s.spell and s.src and (engineObjs[s.src] ~= nil or engineObjs[engineGroupOf[s.src] or ""] ~= nil)
+    -- (folded: no object of its own, the "+N more" card stands for it below; an ability whose source is on the table
+    -- still lights it)
+    if stackFold.folded[i] and not onTableSrc then
+    elseif s.spell and st then
       -- the spell's own card moves onto the stack (spawning a new object costs a frame hitch while its picture loads)
       local c = { id = s.src }
       for k, v in pairs(st) do c[k] = v end
       -- a card you dropped on your battlefield to cast waits right there, raised a little
       if engineManual[s.src] ~= nil then pos = engineManual[s.src] + Vector(0, 0.6, 0) end
       place(c, pos, rot, seen, nil, { zone = "stack", color = s.ctl })
-    elseif not s.spell and s.src and (engineObjs[s.src] ~= nil or engineObjs[engineGroupOf[s.src] or ""] ~= nil) then
+    elseif onTableSrc then
       -- an ability: its source glows purple; the panel lists the stack. A run of one trigger (x, the bridge's
       -- stackGroups) lights each of its sources; a token folded into a token stack lights that stack's card (a stack
       -- card each for 112 Second Harvest tokens' triggers before)
@@ -3824,6 +3964,16 @@ function engineRender(m)
       local x = tonumber(s.x) or 1
       place({ id = "stack:" .. tostring(s.id), n = s.n, tl = x > 1 and ("On the stack (×" .. x .. ")") or "On the stack", tx = s.tx, f = s.f, b = ENGINE_BACK, groupN = x > 1 and x or nil },
         pos, rot, seen, nil, { zone = "stack", color = s.ctl })
+    end
+  end
+  -- the folded part of each caster's stack: one card at their first spot, "+42 more on the stack", its hover naming
+  -- them top first (the Engine panel's stack list has them all)
+  for who, more in pairs(stackFold.more) do
+    local g = seatGeometry(who)
+    if g ~= nil then
+      place({ id = "stack:more:" .. who, n = "+" .. more.n .. " more on the stack", tl = "On the stack (" .. more.n .. " more under these)",
+        tx = "Under the cards beside it, top first: " .. engineFewNames(more.names, 20) .. ".\nThe Engine panel lists the whole stack.",
+        f = ENGINE_BACK, b = ENGINE_BACK, groupN = more.n }, g.mat + g.right * -2 + Vector(0, 2.5, 0), Vector(0, g.rotY, 0), seen, nil, { zone = "stack", color = who })
     end
   end
   -- what each card glows when no question is open: ability on the stack (purple), attacking (red), blocking (blue).
@@ -4210,7 +4360,8 @@ local function statusText()
     local names = {}
     -- (a run of one trigger once, counted: "Soul Warden ×18", the bridge's stackGroups)
     for i = #m.stack, 1, -1 do names[#names + 1] = engineStackLabel(m.stack[i]) end
-    s = s .. "\nStack (top first): " .. table.concat(names, ", ")
+    -- (the top ENGINE_FEW_NAMES, then "... and 42 more": a storm of 300 wrote every name, stress catalog #3)
+    s = s .. "\nStack (top first): " .. engineFewNames(names)
   end
   if m.gameOver then s = "GAME OVER" .. (m.winner and (" - winner: " .. tostring(m.winner)) or "") .. "\n" .. s end
   return s
@@ -4461,7 +4612,7 @@ function optionColor(p, index, picked)
   if picked then return "#E53935" end
   if o.id == "__endturn" then return "#2e3a59" end
   if o.id == "__resolve" then return "#b8860b" end -- yellow: pass until the stack is empty
-  if o.id == "__group" then return ENGINE_GROUP_COLOR end -- purple, as its corner button
+  if o.id == "__group" or o.id == "__loop" then return ENGINE_GROUP_COLOR end -- purple, as its corner button
   if p.mode == "single" and index == 1 then return "#e8711a" end
   return "#262626"
 end
@@ -4494,7 +4645,7 @@ function engineSidePrompt(color)
     local o = {}
     for k, pt in ipairs((engineRewind and engineRewind.points) or {}) do o[k] = { id = "undo:" .. k, label = tostring(pt.label) } end
     return { title = "Rewind to... (the others vote)", mode = "browse", nosearch = true, options = o,
-      text = #o == 0 and "No restore points yet." or "Pick a moment to go back to: the other players vote on it." }
+      text = #o == 0 and ((engineRewind and engineRewind.off) or "No restore points yet.") or "Pick a moment to go back to: the other players vote on it." }
   elseif tab == "settings" then
     -- (the host's switch: what moves on the table is the same for everyone; others see it greyed and can't press it)
     local host = Player[color] ~= nil and Player[color].host
@@ -4798,8 +4949,9 @@ function engineUpdateCorner(color, p)
       if i > 1 and o.id == "__cancel" and small == nil then small, smallLabel = i, "Cancel" end
     end
     for i, o in ipairs(p.options) do
-      -- (or a repeated yes/no's "No ×3": the bridge's offerRepeat, answering this one and the next ones alike)
-      if i > 1 and (o.id == "__group" or o.id == "__repeat:no") then group, groupTip = i, tostring(o.label) break end
+      -- (or a repeated yes/no's "No ×3": the bridge's offerRepeat, answering this one and the next ones alike; or a
+      -- loop's "Repeat ×N" at priority, the bridge's loopOfferFor, when no "Resolve N×" is offered)
+      if i > 1 and (o.id == "__group" or o.id == "__repeat:no" or o.id == "__loop") then group, groupTip = i, tostring(o.label) break end
     end
     -- (the whole label when it fits, "Resolve 12× Spirit Token"; else without "Resolve ", then cut; the tooltip keeps it all)
     if group ~= nil then
@@ -5126,7 +5278,9 @@ local function poolText(color)
       local parts = {}
       for _, k in ipairs(POOL_ORDER) do
         local n = tonumber(pl.pool[k] or 0) or 0
-        if n > 0 then parts[#parts + 1] = string.rep(k, n) end
+        -- (the symbols up to ENGINE_POOL_REP, then "G×150": Gaea's Cradle wrote 150 Gs, stress catalog #6)
+        if n > ENGINE_POOL_REP then parts[#parts + 1] = k .. "×" .. string.format("%d", math.floor(math.min(n, 1e15)))
+        elseif n > 0 then parts[#parts + 1] = string.rep(k, n) end
       end
       if #parts > 0 and pl.color == color then own = "\nYour mana pool: " .. table.concat(parts, " ")
       elseif #parts > 0 then others[#others + 1] = engineNameOf(pl.color) .. " " .. table.concat(parts, " ") end
@@ -5147,6 +5301,15 @@ end
 -- on a 1.258 tracker at x 3.5), clear of the commander-damage icons (from world 6.2). Checked in
 -- tests/test_table_floating_mana.js "fit".
 ENGINE_POOL_FIT = { w = 300, h = 300, gap = 25, font = 160, z = 1.5, perLocal = 480 }
+-- A chip's amount up to ENGINE_POOL_CHIP_MAX, then "999+" (the hover says the real number); a label of more than 3
+-- letters ("G999+") in a smaller font, so it fits the chip (0.583 of the font a letter, as engineMarksWidth reckons
+-- it). The panel's pool text: the symbols up to ENGINE_POOL_REP, then "G×150" (stress catalog #6).
+ENGINE_POOL_CHIP_MAX, ENGINE_POOL_REP = 999, 6
+function enginePoolChipLabel(k, n)
+  local label = k .. (n > ENGINE_POOL_CHIP_MAX and (ENGINE_POOL_CHIP_MAX .. "+") or tostring(n))
+  local fit = ENGINE_POOL_FIT
+  return label, math.min(fit.font, math.floor(fit.w / (#label * 0.583)))
+end
 -- colour letter -> { chip colour, letter colour, the word in the hover text }
 ENGINE_POOL_LOOK = {
   W = { { 0.97, 0.94, 0.78, 0.95 }, { 0.15, 0.12, 0.05 }, "white" },
@@ -5202,7 +5365,8 @@ function enginePoolChips(o, pl)
   local row = #list * fit.w + (#list - 1) * fit.gap
   for i, c in ipairs(list) do
     local look = ENGINE_POOL_LOOK[c.k]
-    local b = { label = sig[i], tooltip = tip, width = fit.w, height = fit.h, font_size = fit.font, color = look[1], font_color = look[2],
+    local chipLabel, chipFont = enginePoolChipLabel(c.k, c.n)
+    local b = { label = chipLabel, tooltip = tip, width = fit.w, height = fit.h, font_size = chipFont, color = look[1], font_color = look[2],
       position = { (-row / 2 + (i - 1) * (fit.w + fit.gap) + fit.w / 2) / fit.perLocal, 0.06, fit.z } }
     if at[i] ~= nil then
       b.index = at[i]
@@ -5600,7 +5764,17 @@ end
 -- yes/no about a card, a number, a reveal, how to split damage. The card asking (p.show) is pictured above them.
 local ROW_BUTTON_KINDS = { modal = true, color = true, choice = true, damage = true, yesno = true, number = true, reveal = true, place = true }
 local COLOR_BTN = { w = "#d8cfa8", u = "#2f6fb5", b = "#444444", r = "#c0392b", g = "#2e8b57", c = "#8e8e8e" }
-engineNumber = {}    -- colour -> { prompt = the number question, value = what the row's picker shows }
+engineNumber = {}    -- colour -> { prompt = the number question, value = what the row's picker shows, step = its - / + step }
+-- A number question of a wide range (more than ENGINE_NUMBER_WIDE: the bridge offers up to 999, stress catalog #1):
+-- the row's - and + go by a step of 1, 10 or 100 (its Step button cycles them), and Max turns to Min once the number is
+-- at the most; the Engine panel's search box finds a typed number. A narrow range keeps - + Min Max.
+ENGINE_NUMBER_WIDE, ENGINE_NUMBER_STEPS = 20, { 1, 10, 100 }
+function engineNumberWide(p) return p ~= nil and p.mode == "number" and ((p.max or 0) - (p.min or 0)) > ENGINE_NUMBER_WIDE end
+-- the step after `step` in ENGINE_NUMBER_STEPS (past the last: the first)
+function engineNumberNextStep(step)
+  for k, v in ipairs(ENGINE_NUMBER_STEPS) do if v == step then return ENGINE_NUMBER_STEPS[k + 1] or ENGINE_NUMBER_STEPS[1] end end
+  return ENGINE_NUMBER_STEPS[1]
+end
 -- colour -> { prompt, n = the page shown, pages }: a question showing more pictures than the row holds (Animist's
 -- Awakening's 8 cards, 2026-10-30; a revealed hand) pages through them with Back / More, ROW_MAX at a time
 engineRowPage = {}
@@ -5662,7 +5836,8 @@ function engineRowUpdate(color)
       st = { prompt = p, value = (d ~= nil and d >= (p.min or 0) and d <= (p.max or d)) and d or (p.min or 0) }
       engineNumber[color] = st
     end
-    sub = "Number: " .. tostring(st.value) .. "   (" .. tostring(p.min or 0) .. " to " .. tostring(p.max) .. ")   " .. sub
+    sub = "Number: " .. tostring(st.value) .. "   (" .. tostring(p.min or 0) .. " to " .. tostring(p.max) .. ")   "
+      .. (engineNumberWide(p) and ("Step " .. (st.step or 1) .. "; or type the number in the Engine panel's search.   ") or "") .. sub
   -- (an exact number answers at the last click, onMtgRow: the line said "then Done" for Kenrith's one target, hp-07 re-test)
   elseif p.mode == "multi" and #tiles > 0 and tiles[1].opt ~= nil then
     sub = (engineExactPick(p) and ("Click " .. (p.max == 1 and "the card" or (p.max .. " cards")) .. " you want: the last click answers.   ")
@@ -5688,8 +5863,15 @@ function engineRowUpdate(color)
   local b = {}
   if numberMode then
     local v = engineNumber[color].value
-    b = { { id = "num:-1", text = "-", ok = v > (p.min or 0) }, { id = "num:+1", text = "+", ok = v < (p.max or v) },
-      { id = "num:min", text = "Min" }, { id = "num:max", text = "Max" }, { id = "num:ok", text = "OK: " .. tostring(v), primary = true } }
+    local lo, hi = p.min or 0, p.max or v
+    local ok = { id = "num:ok", text = "OK: " .. tostring(v), primary = true }
+    if engineNumberWide(p) then
+      local step = engineNumber[color].step or 1
+      b = { { id = "num:-1", text = "-" .. step, ok = v > lo }, { id = "num:+1", text = "+" .. step, ok = v < hi },
+        { id = "num:step", text = "Step " .. engineNumberNextStep(step) }, v >= hi and { id = "num:min", text = "Min" } or { id = "num:max", text = "Max" }, ok }
+    else
+      b = { { id = "num:-1", text = "-", ok = v > lo }, { id = "num:+1", text = "+", ok = v < hi }, { id = "num:min", text = "Min" }, { id = "num:max", text = "Max" }, ok }
+    end
   end
   for _, i in ipairs(others) do
     local o = p.options[i]
@@ -5741,8 +5923,10 @@ function onMtgRowOpt(player, value, id)
     -- the number picker: change the value, or answer with it
     local lo, hi = p.min or 0, p.max or st.value
     if v == "num:ok" then pick(color, st.value) return end
-    if v == "num:-1" then st.value = math.max(lo, st.value - 1) elseif v == "num:+1" then st.value = math.min(hi, st.value + 1)
-    elseif v == "num:min" then st.value = lo elseif v == "num:max" then st.value = hi end
+    local step = engineNumberWide(p) and (st.step or 1) or 1
+    if v == "num:-1" then st.value = math.max(lo, st.value - step) elseif v == "num:+1" then st.value = math.min(hi, st.value + step)
+    elseif v == "num:min" then st.value = lo elseif v == "num:max" then st.value = hi
+    elseif v == "num:step" then st.step = engineNumberNextStep(step) end
     engineRowUpdate(color)
     return
   end
@@ -7705,7 +7889,11 @@ function enginePlaceSpecial(m, seen)
       end
     end
   end
-  local perHost = {}
+  local perHost, linkedOf = {}, {}
+  -- (each host's count of linked cards first, for its fan's step: engineFanStep)
+  for _, pl in ipairs(m.players or {}) do
+    for _, c in ipairs(pl.exile or {}) do if engineSpecial[c.id] == "linked" then linkedOf[c.ew] = (linkedOf[c.ew] or 0) + 1 end end
+  end
   for _, pl in ipairs(m.players or {}) do
     for _, c in ipairs(pl.exile or {}) do
       if engineSpecial[c.id] == "linked" then
@@ -7715,7 +7903,8 @@ function enginePlaceSpecial(m, seen)
         if g ~= nil and host ~= nil then
           perHost[c.ew] = (perHost[c.ew] or 0) + 1
           local n = perHost[c.ew]
-          local spot = host + g.fwd * (1.1 + 0.35 * (n - 1)) + g.right * (0.35 * (n - 1)) + Vector(0, -0.02 * n, 0)
+          local step = engineFanStep(linkedOf[c.ew], ENGINE_FAN.linked)
+          local spot = host + g.fwd * (1.1 + step * (n - 1)) + g.right * (step * (n - 1)) + Vector(0, -0.02 * n, 0)
           place(c, spot, Vector(0, g.rotY, c.fd and 180 or 0), seen, nil, { zone = "linked", color = hostColor, host = c.ew })
         end
       end
@@ -9307,6 +9496,8 @@ function engineSetGameMode(mode, pl)
       or "Commander (100-card decks with a commander, 40 life)") .. ". Everyone presses READY again" .. (running and " after this game." or "."), { 1, 0.85, 0.4 })
   engineSend("mode", { color = pl and pl.color or nil, mode = mode })
   -- (a team mode the new game mode doesn't play goes back to none, said: 2v2 is Standard's, the others Commander's)
+  -- (Three-Headed Giant plays in either game mode: kept through the switch)
+  ENGINE_TEAM_GAME_MODE["3hg"] = ENGINE_TEAM_MODE == "3hg" and mode or nil
   if ENGINE_TEAMS ~= nil and ENGINE_TEAM_GAME_MODE[ENGINE_TEAM_MODE] ~= mode then
     local was = ENGINE_TEAM_NAMES[ENGINE_TEAM_MODE] or tostring(ENGINE_TEAM_MODE)
     ENGINE_TEAMS = nil
@@ -9314,6 +9505,7 @@ function engineSetGameMode(mode, pl)
     broadcastToAll("[MTG] Teams set back to None: " .. was .. " is played in " .. (mode == "standard" and "Commander" or "Standard")
       .. " only, not " .. (mode == "standard" and "Standard" or "Commander") .. ".", { 1, 0.85, 0.4 })
   end
+  ENGINE_TEAM_GAME_MODE["3hg"] = nil
   if not running then engineModeLife(mode == "standard" and 20 or 40) end
   engineSetupButtons()
 end
@@ -11972,7 +12164,10 @@ function engineRejoin.onMessage(m)
   if type(m) ~= "table" or (m.t ~= "chat" and m.t ~= "rejoin") then return end
   local d = m
   if type(m.json) == "string" then
-    local ok, x = pcall(engineJsonDecode, m.json)
+    -- a chat line is decoded again only when it can be one of the lines below (every chat passes here)
+    local j = m.json
+    if m.t == "chat" and not (j:find("rejoining the game", 1, true) or j:find("the engine connection", 1, true) or j:find("reconnected to the engine", 1, true) or j:find(" couldn't ", 1, true)) then return end
+    local ok, x = pcall(engineJsonDecode, j)
     if not ok or type(x) ~= "table" then return end
     d = x
   end

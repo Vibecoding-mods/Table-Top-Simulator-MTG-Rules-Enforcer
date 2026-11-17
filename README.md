@@ -96,7 +96,11 @@ The PC that runs the engine (the host). Friends who only join need just Tabletop
   - In its installer, choose **"All-users installation"**: it turns on Windows' Virtual Machine Platform, which
     Docker needs. Or run `wsl --install` in an administrator PowerShell and restart the PC.
   - Then start Docker once, and sign out of Windows and back in (the install adds you to the `docker-users` group).
-  - If Docker says virtualization is off, enable SVM (AMD) or Intel VT-x (Intel) in the BIOS/UEFI.
+  - If Docker says virtualization is off, enable SVM (AMD) or Intel VT-x (Intel) in the BIOS/UEFI. Hold Shift
+    while clicking Restart, then Troubleshoot → Advanced options → UEFI Firmware Settings. It's usually under
+    Advanced, CPU Configuration or Overclocking. Save with F10.
+  - Step-by-step help for Docker that won't start (the BIOS, the administrator terminal, WSL, the docker-users
+    group), with the Mac and Linux equivalents: [docs/docker-setup.md](docs/docker-setup.md).
 - Tabletop Simulator (Steam).
 - The tables, subscribed on the Steam Workshop:
   [4 player](https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369) and

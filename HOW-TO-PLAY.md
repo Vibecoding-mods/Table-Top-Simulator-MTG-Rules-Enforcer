@@ -168,6 +168,13 @@ anyone into your server's games.
   to answer only some (pick the number, from 1 up). The chat says what was answered. Anything else that happens first
   (another question, a new spell or ability on the stack, a new step) stops it, and the rest are asked as usual. A
   "Pay?" offers only No ×3: paying asks for the mana each time.
+- **An infinite loop you may stop** (Kiki-Jiki + Zealous Conscripts, a sacrifice-outlet loop; rule 732.2): play one
+  pass by hand, back to the same board (your same permanents, tapped or untapped, and the same stack). Your priority then
+  offers **Repeat ×N** (the third button, bottom right): pick ×1, ×10, ×100, ×1000 or **How many…**, or type
+  `mtg repeat 100`. The table answers the same questions the same way that many more times and shows "Repeating 37/100"
+  with **Stop**. Every other player still gets priority each pass and may respond. It stops at once, and the chat says
+  why, when a question differs from your pass, a card or target is gone, someone plays something, the step changes or
+  the game ends; Stop or `mtg stop` ends it too.
 - **Long lists** (a creature type, a big search): the last button says **More...** and shows the next page; the
   search box narrows the list.
 - **Cancel a cost:** while you choose what to sacrifice, discard, exile or tap to pay for something, **Cancel** (the
