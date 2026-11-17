@@ -2169,7 +2169,7 @@ index 0000000..9d713d1
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..4f813e1 100644
+index 713e1ef..21900f7 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 @@ -26,27 +26,37 @@ import forge.card.MagicColor;
@@ -2589,7 +2589,7 @@ index 713e1ef..4f813e1 100644
          }
          if (card.isInPlay()) {
              if (card.getType().hasSubtype("Saga") && card.hasChapter()) {
-@@ -746,17 +938,64 @@ public final class InteractiveSnapshotExtractor {
+@@ -746,17 +938,65 @@ public final class InteractiveSnapshotExtractor {
          dto.isFaceDown = card.isFaceDown();
          dto.isBestowed = card.isBestowed();
          dto.phasedOut = card.isPhasedOut();
@@ -2629,6 +2629,7 @@ index 713e1ef..4f813e1 100644
 +                final String cardPrinted = PlayCost.text(card.isFaceDown() ? null : card.getManaCost());
 +                dto.playCost = play.pick.cost();
 +                dto.playCostMode = play.pick.mode;
++                dto.playCostExtra = play.pick.extra;
 +                dto.playCostPrinted = play.pick.printed.equals(cardPrinted) ? null : play.pick.printed;
 +                dto.playCostName = card.isSplitCard() || card.isAdventureCard() ? play.pick.name : null;
 +                if (!play.others.isEmpty()) {
@@ -2655,7 +2656,7 @@ index 713e1ef..4f813e1 100644
          }
          final List<String> attachmentIds = new ArrayList<>();
          for (final Card attachment : card.getAttachedCards()) {
-@@ -798,10 +1037,78 @@ public final class InteractiveSnapshotExtractor {
+@@ -798,10 +1038,78 @@ public final class InteractiveSnapshotExtractor {
          }
          if (castable) {
              dto.effectiveManaCost = effectiveManaCost(card);
@@ -2734,7 +2735,7 @@ index 713e1ef..4f813e1 100644
      private static String normalizedOracle(final Card card) {
          return card.getOracleText().replace("\\n", "\n");
      }
-@@ -941,7 +1248,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -941,7 +1249,7 @@ public final class InteractiveSnapshotExtractor {
      // casts (which would flip the card), run on a copied cost, and swallow any
      // failure back to the printed cost. null = no reduction (UI keeps printed).
      private static String effectiveManaCost(final Card card) {
@@ -2743,7 +2744,7 @@ index 713e1ef..4f813e1 100644
              return null;
          }
          final SpellAbility sa = card.getFirstSpellAbility();
-@@ -953,13 +1260,16 @@ public final class InteractiveSnapshotExtractor {
+@@ -953,13 +1261,16 @@ public final class InteractiveSnapshotExtractor {
              if (sa.getActivatingPlayer() == null) {
                  sa.setActivatingPlayer(card.getController());
              }
@@ -2764,7 +2765,7 @@ index 713e1ef..4f813e1 100644
          } catch (final RuntimeException error) {
              return null;
          } finally {
-@@ -1078,12 +1388,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -1078,12 +1389,14 @@ public final class InteractiveSnapshotExtractor {
              stackItem.put("identity", stackIdentity(name, source));
              stackItem.put("text", item.getStackDescription());
              putIfNotBlank(stackItem, "sourceAbilityText", sourceAbilityText(sa));
@@ -2779,7 +2780,7 @@ index 713e1ef..4f813e1 100644
              out.add(stackItem);
              index++;
          }
-@@ -1131,6 +1443,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -1131,6 +1444,7 @@ public final class InteractiveSnapshotExtractor {
          stackItem.put("isDoubleFaced", source.isDoubleFaced() || source.isModal());
          stackItem.put("faceIndex", stackFaceIndex(source, castingAbility));
          stackItem.put("targets", stackTargets(game, castingAbility));
@@ -2787,7 +2788,7 @@ index 713e1ef..4f813e1 100644
          return stackItem;
      }
  
-@@ -1163,6 +1476,25 @@ public final class InteractiveSnapshotExtractor {
+@@ -1163,6 +1477,25 @@ public final class InteractiveSnapshotExtractor {
          }
      }
  
@@ -5943,10 +5944,10 @@ index 0000000..9ca208b
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/PlayCost.java b/forge-harness/src/main/java/forge/harness/host/PlayCost.java
 new file mode 100644
-index 0000000..72db648
+index 0000000..8097831
 --- /dev/null
 +++ b/forge-harness/src/main/java/forge/harness/host/PlayCost.java
-@@ -0,0 +1,246 @@
+@@ -0,0 +1,313 @@
 +package forge.harness.host;
 +
 +import forge.card.CardStateName;
@@ -5958,6 +5959,9 @@ index 0000000..72db648
 +import forge.game.card.CardState;
 +import forge.game.cost.Cost;
 +import forge.game.cost.CostAdjustment;
++import forge.game.cost.CostPart;
++import forge.game.cost.CostPartMana;
++import forge.game.cost.CostPayLife;
 +import forge.game.keyword.Keyword;
 +import forge.game.mana.ManaCostBeingPaid;
 +import forge.game.player.Player;
@@ -5978,12 +5982,22 @@ index 0000000..72db648
 +        final String mode;
 +        final String name;
 +        final String printed;
++        final String extra;
++        final int parts;
++        final int life;
 +
-+        Way(final ManaCost mana, final String mode, final String name, final String printed) {
++        Way(final ManaCost mana, final String mode, final String name, final String printed, final String extra, final int parts, final int life) {
 +            this.mana = mana;
 +            this.mode = mode;
 +            this.name = name;
 +            this.printed = printed;
++            this.extra = extra;
++            this.parts = parts;
++            this.life = life;
++        }
++
++        Way(final ManaCost mana, final String mode, final String name, final String printed, final Cost cost) {
++            this(mana, mode, name, printed, extraOf(cost), partsOf(cost), lifeOf(cost));
 +        }
 +
 +        String cost() {
@@ -5991,7 +6005,7 @@ index 0000000..72db648
 +        }
 +
 +        SpellCostDto dto() {
-+            return new SpellCostDto(name, cost(), printed, mode);
++            return new SpellCostDto(name, cost(), printed, mode, extra);
 +        }
 +    }
 +
@@ -6020,9 +6034,9 @@ index 0000000..72db648
 +            boolean paidPermission = false;
 +            for (final CardPlayOption option : mayPlay) {
 +                if (option.getPayManaCost() == CardPlayOption.PayManaCost.NO) {
-+                    ways.add(new Way(ManaCost.ZERO, "free", cardName, cardPrinted));
++                    ways.add(new Way(ManaCost.ZERO, "free", cardName, cardPrinted, null, 0, 0));
 +                } else if (option.getAltManaCost() != null && option.getAltManaCost().getCostMana() != null) {
-+                    ways.add(new Way(option.getAltManaCost().getCostMana().getMana(), "may play", cardName, cardPrinted));
++                    ways.add(new Way(option.getAltManaCost().getCostMana().getMana(), "may play", cardName, cardPrinted, option.getAltManaCost()));
 +                } else {
 +                    paidPermission = true;
 +                }
@@ -6047,18 +6061,13 @@ index 0000000..72db648
 +                }
 +                final ManaCost mana = mana(sa, viewer);
 +                if (mana != null) {
-+                    ways.add(new Way(mana, mode, name, printed));
++                    ways.add(new Way(mana, mode, name, printed, sa.getPayCosts()));
 +                }
 +            }
 +            if (ways.isEmpty()) {
 +                return null;
 +            }
-+            Way pick = ways.get(0);
-+            for (final Way w : ways) {
-+                if (w.mana.getCMC() < pick.mana.getCMC()) {
-+                    pick = w;
-+                }
-+            }
++            final Way pick = cheapest(ways);
 +            final List<Way> others = new ArrayList<>();
 +            final List<String> seen = new ArrayList<>();
 +            seen.add(pick.mode + "|" + pick.name + "|" + pick.cost());
@@ -6104,12 +6113,71 @@ index 0000000..72db648
 +                final String printed = text(sa.getCardState().getManaCost());
 +                final String now = text(mana);
 +                changed |= !now.equals(printed);
-+                out.add(new SpellCostDto(sa.getCardState().getName(), now, printed, null));
++                out.add(new SpellCostDto(sa.getCardState().getName(), now, printed, null, extraOf(sa.getPayCosts())));
 +            }
 +            return changed ? out : null;
 +        } catch (final RuntimeException error) {
 +            return null;
 +        }
++    }
++
++    static Way cheapest(final List<Way> ways) {
++        Way pick = ways.get(0);
++        for (final Way w : ways) {
++            if (cheaper(w, pick)) {
++                pick = w;
++            }
++        }
++        return pick;
++    }
++
++    private static boolean cheaper(final Way a, final Way b) {
++        if (a.mana.getCMC() != b.mana.getCMC()) {
++            return a.mana.getCMC() < b.mana.getCMC();
++        }
++        if (a.parts != b.parts) {
++            return a.parts < b.parts;
++        }
++        return a.life < b.life;
++    }
++
++    private static List<CostPart> nonMana(final Cost cost) {
++        final List<CostPart> out = new ArrayList<>();
++        if (cost == null) {
++            return out;
++        }
++        for (final CostPart part : cost.getCostParts()) {
++            if (!(part instanceof CostPartMana)) {
++                out.add(part);
++            }
++        }
++        return out;
++    }
++
++    static String extraOf(final Cost cost) {
++        final List<String> words = new ArrayList<>();
++        for (final CostPart part : nonMana(cost)) {
++            final String w = part.toString();
++            if (w != null && !w.trim().isEmpty()) {
++                words.add(w.trim());
++            }
++        }
++        return words.isEmpty() ? null : String.join(", ", words);
++    }
++
++    private static int partsOf(final Cost cost) {
++        return nonMana(cost).size();
++    }
++
++    private static int lifeOf(final Cost cost) {
++        int life = 0;
++        for (final CostPart part : nonMana(cost)) {
++            if (part instanceof CostPayLife) {
++                final Integer n = part.convertAmount();
++                life += n != null ? n : 0;
++            }
++        }
++        return life;
 +    }
 +
 +    private static List<SpellAbility> spellsOf(final Card card, final CardState face, final Player viewer) {
@@ -11180,10 +11248,10 @@ index 0000000..ff5e353
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/CostBadgeTest.java b/forge-harness/src/test/java/forge/harness/host/CostBadgeTest.java
 new file mode 100644
-index 0000000..9ab750a
+index 0000000..7e17160
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/CostBadgeTest.java
-@@ -0,0 +1,369 @@
+@@ -0,0 +1,442 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonElement;
@@ -11246,6 +11314,13 @@ index 0000000..9ab750a
 +        CHECKS.put("aftermath: the graveyard half, against its own printed cost", CostBadgeTest::aftermathHalf);
 +        CHECKS.put("cheapest: of a permission and flashback, the cheaper way, the other listed", CostBadgeTest::cheapestWay);
 +        CHECKS.put("halves: a permission on a split card names the half and lists the other", CostBadgeTest::permissionHalves);
++        CHECKS.put("extra: escape's exiled cards are named", CostBadgeTest::escapeExtra);
++        CHECKS.put("extra: flashback's life payment is named", CostBadgeTest::lifeExtra);
++        CHECKS.put("extra: a flashback paid with sacrifices alone reads {0} with the sacrifices named", CostBadgeTest::sacrificeExtra);
++        CHECKS.put("extra: a flashback's discard is named", CostBadgeTest::discardExtra);
++        CHECKS.put("extra: a plain flashback names nothing more", CostBadgeTest::noExtra);
++        CHECKS.put("cheapest: a tie in mana value goes to the way with no other cost, the other listed with its life", CostBadgeTest::tieGoesToPlainWay);
++        CHECKS.put("cheapest: the tie-break, by the ways themselves", CostBadgeTest::tieBreakOrder);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
 +            check(e.getKey(), e.getValue());
 +        }
@@ -11475,6 +11550,72 @@ index 0000000..9ab750a
 +        final JsonObject c = f.seen(fire, 0);
 +        expect("{1}{R}".equals(field(c, "playCost")) && "Fire".equals(field(c, "playCostName")) && "{1}{R}".equals(field(c, "playCostPrinted")), "Fire // Ice beside Kess: " + c);
 +        expect(costs(c, "playCostOthers").equals(java.util.List.of("Ice {1}{U}/{1}{U} may play")), "the other half: " + costs(c, "playCostOthers"));
++    }
++
++    private static JsonObject other(final JsonObject card, final int i) {
++        return card.has("playCostOthers") && card.getAsJsonArray("playCostOthers").size() > i ? card.getAsJsonArray("playCostOthers").get(i).getAsJsonObject() : null;
++    }
++
++    private static void escapeExtra() {
++        final Fixture f = new Fixture();
++        final Card ox = f.add("Ox of Agonas", f.white, ZoneType.Graveyard);
++        final JsonObject c = f.seen(ox, 0);
++        expect("{R}{R}".equals(field(c, "playCost")) && "Exile eight other cards from your graveyard".equals(field(c, "playCostExtra")), "Ox of Agonas's escape: " + c);
++    }
++
++    private static void lifeExtra() {
++        final Fixture f = new Fixture();
++        final Card deep = f.add("Deep Analysis", f.white, ZoneType.Graveyard);
++        final JsonObject c = f.seen(deep, 0);
++        expect("{1}{U}".equals(field(c, "playCost")) && "Pay 3 life".equals(field(c, "playCostExtra")), "Deep Analysis's flashback: " + c);
++    }
++
++    private static void sacrificeExtra() {
++        final Fixture f = new Fixture();
++        final Card dread = f.add("Dread Return", f.white, ZoneType.Graveyard);
++        final JsonObject c = f.seen(dread, 0);
++        expect("{0}".equals(field(c, "playCost")) && "flashback".equals(field(c, "playCostMode")) && "Sacrifice three creatures".equals(field(c, "playCostExtra")), "Dread Return's flashback: " + c);
++    }
++
++    private static void discardExtra() {
++        final Fixture f = new Fixture();
++        final Card twin = f.add("Twinned Vision", f.white, ZoneType.Graveyard);
++        final JsonObject c = f.seen(twin, 0);
++        expect("flashback".equals(field(c, "playCostMode")) && "Discard a card".equals(field(c, "playCostExtra")), "Twinned Vision's flashback: " + c);
++    }
++
++    private static void noExtra() {
++        final Fixture f = new Fixture();
++        final Card looting = f.add("Faithless Looting", f.white, ZoneType.Graveyard);
++        final JsonObject c = f.seen(looting, 0);
++        expect(field(c, "playCostExtra") == null, "Faithless Looting's flashback: " + c);
++    }
++
++    private static void tieGoesToPlainWay() {
++        final Fixture f = new Fixture();
++        f.add("Kess, Dissident Mage", f.white, ZoneType.Battlefield);
++        f.settle();
++        final Card flash = f.add("Flash of Defiance", f.white, ZoneType.Graveyard);
++        final JsonObject c = f.seen(flash, 0);
++        expect("{1}{R}".equals(field(c, "playCost")) && "may play".equals(field(c, "playCostMode")) && field(c, "playCostExtra") == null, "Flash of Defiance beside Kess, the plain way: " + c);
++        final JsonObject o = other(c, 0);
++        expect(o != null && "flashback".equals(field(o, "mode")) && "{1}{R}".equals(field(o, "cost")) && "Pay 3 life".equals(field(o, "extra")), "the flashback listed with its life: " + c);
++    }
++
++    private static void tieBreakOrder() {
++        final forge.card.mana.ManaCost two = new forge.card.mana.ManaCost(new forge.card.mana.ManaCostParser("1 R"));
++        final forge.card.mana.ManaCost one = new forge.card.mana.ManaCost(new forge.card.mana.ManaCostParser("R"));
++        final PlayCost.Way life = new PlayCost.Way(two, "flashback", "A", "{1}{R}", "Pay 3 life", 1, 3);
++        final PlayCost.Way lifeMore = new PlayCost.Way(two, "flashback", "A", "{1}{R}", "Pay 5 life", 1, 5);
++        final PlayCost.Way plain = new PlayCost.Way(two, "may play", "A", "{1}{R}", null, 0, 0);
++        final PlayCost.Way twoParts = new PlayCost.Way(two, "escape", "A", "{1}{R}", "Pay 1 life, Discard a card", 2, 1);
++        final PlayCost.Way cheap = new PlayCost.Way(one, "escape", "A", "{1}{R}", "Exile eight other cards from your graveyard", 1, 0);
++        expect(PlayCost.cheapest(java.util.List.of(life, plain)) == plain, "a tie: the plain way");
++        expect(PlayCost.cheapest(java.util.List.of(twoParts, life)) == life, "a tie: fewer other parts");
++        expect(PlayCost.cheapest(java.util.List.of(lifeMore, life)) == life, "a tie: less life");
++        expect(PlayCost.cheapest(java.util.List.of(plain, cheap)) == cheap, "a lower mana value wins, whatever else it costs");
++        final PlayCost.Way plain2 = new PlayCost.Way(two, "cast", "B", "{1}{R}", null, 0, 0);
++        expect(PlayCost.cheapest(java.util.List.of(plain, plain2)) == plain && PlayCost.cheapest(java.util.List.of(plain2, plain)) == plain2, "still a tie: Forge's order");
 +    }
 +
 +    private static void handHasNone() {
@@ -22887,10 +23028,10 @@ index 3385214..d968b3c 100644
          Reorder(reorder::ReorderInput {
              presentation: common::PromptPresentation {
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
-index 76fdc4f..cd711b5 100644
+index 76fdc4f..e883f4f 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
-@@ -789,6 +789,35 @@ fn card_to_dto_for_viewer(game: &GameState, cid: CardId, viewer: Option<PlayerId
+@@ -789,6 +789,36 @@ fn card_to_dto_for_viewer(game: &GameState, cid: CardId, viewer: Option<PlayerId
          // Rust engine doesn't surface it yet.
          would_die_in_combat: false,
          zone: None,
@@ -22922,11 +23063,12 @@ index 76fdc4f..cd711b5 100644
 +        play_cost_printed: None,
 +        play_cost_name: None,
 +        play_cost_others: None,
++        play_cost_extra: None,
 +        spell_costs: None,
      }
  }
  
-@@ -859,6 +888,8 @@ impl GameViewDtoExt for GameViewDto {
+@@ -859,6 +889,8 @@ impl GameViewDtoExt for GameViewDto {
                          .cloned()
                          .unwrap_or_else(|| card.card_name.clone()),
                      room: card.svars.get("CurrentRoom").cloned().unwrap_or_default(),
@@ -22935,7 +23077,7 @@ index 76fdc4f..cd711b5 100644
                  })
              });
              let active_scheme_names: Vec<String> = command_zone
-@@ -936,9 +967,17 @@ impl GameViewDtoExt for GameViewDto {
+@@ -936,9 +968,17 @@ impl GameViewDtoExt for GameViewDto {
                  player_keywords,
                  commander_casts,
                  dungeon_state,
@@ -22953,7 +23095,7 @@ index 76fdc4f..cd711b5 100644
                  counters,
                  mana_pool: mana_pool_to_map(&pool),
                  commander_damage,
-@@ -1015,6 +1054,7 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1015,6 +1055,7 @@ impl GameViewDtoExt for GameViewDto {
                      identity,
                      text: entry.spell_ability.ability_text.clone(),
                      source_ability_text: stack_source_ability_text(game, &entry.spell_ability),
@@ -22961,7 +23103,7 @@ index 76fdc4f..cd711b5 100644
                      is_permanent_spell: entry.is_creature_spell || entry.is_permanent_spell,
                      is_casting: entry.is_pending_cast,
                      is_double_faced: source_card.map(|c| c.is_double_faced()).unwrap_or(false),
-@@ -1022,6 +1062,7 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1022,6 +1063,7 @@ impl GameViewDtoExt for GameViewDto {
                          .map(|c| u8::from(c.is_transformed))
                          .unwrap_or_default(),
                      targets: collect_stack_targets(&entry.spell_ability),
@@ -22969,7 +23111,7 @@ index 76fdc4f..cd711b5 100644
                  }
              })
              .collect();
-@@ -1061,9 +1102,17 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1061,9 +1103,17 @@ impl GameViewDtoExt for GameViewDto {
              initiative_holder_id: game.initiative_holder.map(player_id_str),
              day_time: day_time_of(game),
              active_plane_names: (!active_plane_names.is_empty()).then_some(active_plane_names),
@@ -22988,7 +23130,7 @@ index 76fdc4f..cd711b5 100644
      }
  
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
-index 0f579af..ed05598 100644
+index 0f579af..456d799 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
 +++ b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
 @@ -149,12 +149,194 @@ pub struct GameViewDto {
@@ -23285,7 +23427,7 @@ index 0f579af..ed05598 100644
      pub counters: BTreeMap<PlayerCounterKind, u32>,
      pub mana_pool: BTreeMap<ManaColor, u32>,
      #[ts(type = "Record<string, number>")]
-@@ -281,6 +544,18 @@ pub struct CardIdentity {
+@@ -281,6 +544,22 @@ pub struct CardIdentity {
      pub token_script: Option<TokenScript>,
  }
  
@@ -23299,12 +23441,16 @@ index 0f579af..ed05598 100644
 +    #[serde(default, skip_serializing_if = "Option::is_none")]
 +    #[ts(optional)]
 +    pub mode: Option<String>,
++    // What the way costs besides mana: escape's exiled cards, life, sacrifices, discards.
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub extra: Option<String>,
 +}
 +
  #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
  #[serde(rename_all = "camelCase", default)]
  #[ts(export, export_to = "game/index.ts")]
-@@ -380,6 +655,24 @@ pub struct CardDto {
+@@ -380,6 +659,28 @@ pub struct CardDto {
      pub effective_mana_cost: Option<String>,
      #[serde(default, skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
@@ -23321,6 +23467,10 @@ index 0f579af..ed05598 100644
 +    #[serde(default, skip_serializing_if = "Option::is_none")]
 +    #[ts(optional)]
 +    pub play_cost_others: Option<Vec<SpellCostDto>>,
++    // The play cost's parts besides mana, in Forge's words ("Exile eight other cards from your graveyard").
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub play_cost_extra: Option<String>,
 +    #[serde(default, skip_serializing_if = "Option::is_none")]
 +    #[ts(optional)]
 +    pub spell_costs: Option<Vec<SpellCostDto>>,
@@ -23329,7 +23479,7 @@ index 0f579af..ed05598 100644
      pub commander_tax: Option<i32>,
      #[serde(skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
-@@ -397,6 +690,61 @@ pub struct CardDto {
+@@ -397,6 +698,61 @@ pub struct CardDto {
      #[serde(default, skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub zone: Option<ZoneKind>,
@@ -23391,7 +23541,7 @@ index 0f579af..ed05598 100644
  }
  
  #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-@@ -412,11 +760,47 @@ pub struct StackObjectDto {
+@@ -412,11 +768,47 @@ pub struct StackObjectDto {
      #[serde(skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub source_ability_text: Option<String>,
@@ -23439,7 +23589,7 @@ index 0f579af..ed05598 100644
  }
  
  #[cfg(test)]
-@@ -433,11 +817,13 @@ mod stack_object_tests {
+@@ -433,11 +825,13 @@ mod stack_object_tests {
              identity: CardIdentity::default(),
              text: String::new(),
              source_ability_text: Some("When this enters, draw a card.".into()),

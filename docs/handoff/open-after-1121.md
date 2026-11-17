@@ -50,8 +50,9 @@ Also waiting on images:
 ## 3. Code not built (follow-ups)
 
 **Cost badge:**
-- The cheapest way is chosen by mana value only; life and other costs aren't weighed (followups-1).
-- Non-mana parts of a cost aren't shown, such as escape's exiled cards (cost-badge-2, followups-1).
+- Done on `cloud/cost-badge-4` (`engine1121-costbadge4`, not deployed): the non-mana parts of every way are in the
+  hover, and a tie in mana value goes to the way with fewer non-mana parts, then less life
+  (`docs/handoff/cost-badge-4-report.md`).
 
 **Big boards** (big-board-fixes, measure-big-boards):
 - `MagicStack.add`'s static pass for each mana ability is unchanged. Its cost is the CR 613.8 dependency

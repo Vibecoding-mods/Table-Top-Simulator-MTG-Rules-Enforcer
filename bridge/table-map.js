@@ -70,6 +70,7 @@ const CARD_FACTS = {
   playCostMode: { to: ["em"], show: "the way a playable row card is cast, in its hover text's \"Costs ... now by flashback\"" },
   playCostPrinted: { to: ["mc"], show: "a foretold card's own printed cost, which its cost badge compares against (Forge's manaCost is the face-down one's)" },
   playCostName: { to: ["nt"], show: "the half of a split or adventure card a playable row card casts, in its hover text (\"Castable: Memory {5}{U}{U} by aftermath\"); a half has no badge" },
+  playCostExtra: { to: ["nt"], show: "what the way a playable row card is cast now costs besides mana, in its hover text (\"Escape also costs: exile eight other cards from your graveyard.\")" },
   playCostOthers: { to: ["nt"], show: "the other ways a playable row card can be cast from its zone, in its hover text (\"Other ways to cast it: Ice {1}{U}; {2}{R} by flashback\")" },
   spellCosts: { to: ["nt"], show: "the halves of a split or adventure card in hand whose cost changed, in its hover text (\"Stomp: costs {2}{R} now (printed {1}{R})\")" },
   attackingPlayerId: { skip: "attackTargetId says the same for the table" },
