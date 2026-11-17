@@ -2814,7 +2814,7 @@ index 713e1ef..4f813e1 100644
          if (source == null) {
              return 0;
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
-index c69b549..92d71e9 100644
+index c69b549..04bd107 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
 @@ -47,6 +47,11 @@ import java.util.concurrent.ConcurrentHashMap;
@@ -2892,7 +2892,7 @@ index c69b549..92d71e9 100644
          session.attach(match, game, botSeats, request.isSnapshotRecording());
          if (request.checkpointMetrics) {
              session.enableCheckpointMetrics();
-@@ -357,6 +371,144 @@ public final class ManaBrewEngineAdapter {
+@@ -357,6 +371,145 @@ public final class ManaBrewEngineAdapter {
          }
      }
  
@@ -3020,6 +3020,7 @@ index c69b549..92d71e9 100644
 +        if (playerConfig.getCommanderDamageToLose() != null) {
 +            registeredPlayer.setCommanderDamageToLose(playerConfig.getCommanderDamageToLose());
 +        }
++        registeredPlayer.setOpeningCards(playerConfig.getOpeningCards());
 +    }
 +
 +    static boolean isSharedLife(final String teamRules) {
@@ -3037,7 +3038,7 @@ index c69b549..92d71e9 100644
      private static GameType resolveGameType(final StartGameRequest request) {
          final String variant = request.getVariant();
          if (variant != null && !variant.isBlank()) {
-@@ -380,7 +532,7 @@ public final class ManaBrewEngineAdapter {
+@@ -380,7 +533,7 @@ public final class ManaBrewEngineAdapter {
          return commanderGame ? GameType.Commander : GameType.Constructed;
      }
  
@@ -3046,7 +3047,7 @@ index c69b549..92d71e9 100644
          JsonObject root = JsonParser.parseString(requestJson).getAsJsonObject();
          String gameId = requiredString(root, "gameId");
          String variant = optionalString(root, "variant");
-@@ -426,11 +578,34 @@ public final class ManaBrewEngineAdapter {
+@@ -426,11 +579,35 @@ public final class ManaBrewEngineAdapter {
              boolean bot = playerObject.has("bot")
                      && !playerObject.get("bot").isJsonNull()
                      && playerObject.get("bot").getAsBoolean();
@@ -3067,7 +3068,8 @@ index c69b549..92d71e9 100644
 +                            optionalStrings(playerObject, "perks"),
 +                            optionalInt(playerObject, "commanderDamageToLose"),
 +                            playerObject.has("goesFirst") && !playerObject.get("goesFirst").isJsonNull()
-+                                    && playerObject.get("goesFirst").getAsBoolean()));
++                                    && playerObject.get("goesFirst").getAsBoolean())
++                    .withOpeningCards(optionalStrings(playerObject, "openingCards")));
          }
          final StartGameRequest request = new StartGameRequest(
                  gameId, variant, startingLife, seed, snapshotRecording, players);
@@ -3082,7 +3084,7 @@ index c69b549..92d71e9 100644
          return request;
      }
  
-@@ -455,6 +630,25 @@ public final class ManaBrewEngineAdapter {
+@@ -455,6 +632,25 @@ public final class ManaBrewEngineAdapter {
          return value;
      }
  
@@ -3108,7 +3110,7 @@ index c69b549..92d71e9 100644
      private static String optionalString(final JsonObject object, final String key) {
          if (!object.has(key) || object.get(key).isJsonNull()) {
              return null;
-@@ -470,6 +664,11 @@ public final class ManaBrewEngineAdapter {
+@@ -470,6 +666,11 @@ public final class ManaBrewEngineAdapter {
          private final boolean snapshotRecording;
          private boolean checkpointMetrics;
          private final List<PlayerConfig> players;
@@ -3120,7 +3122,7 @@ index c69b549..92d71e9 100644
  
          public StartGameRequest(
                  final String gameId,
-@@ -516,6 +715,47 @@ public final class ManaBrewEngineAdapter {
+@@ -516,6 +717,47 @@ public final class ManaBrewEngineAdapter {
          public List<PlayerConfig> getPlayers() {
              return players;
          }
@@ -3168,7 +3170,7 @@ index c69b549..92d71e9 100644
      }
  
      public static final class PlayerConfig {
-@@ -526,6 +766,14 @@ public final class ManaBrewEngineAdapter {
+@@ -526,6 +768,15 @@ public final class ManaBrewEngineAdapter {
          private final List<String> commanderNames;
          private final boolean ai;
          private final boolean bot;
@@ -3180,10 +3182,11 @@ index c69b549..92d71e9 100644
 +        private List<String> perks = List.of();
 +        private Integer commanderDamageToLose;
 +        private boolean goesFirst;
++        private List<String> openingCards = List.of();
  
          public PlayerConfig(
                  final String name,
-@@ -535,6 +783,19 @@ public final class ManaBrewEngineAdapter {
+@@ -535,6 +786,19 @@ public final class ManaBrewEngineAdapter {
                  final List<String> commanderNames,
                  final boolean ai,
                  final boolean bot
@@ -3203,7 +3206,7 @@ index c69b549..92d71e9 100644
          ) {
              if (name == null || name.isBlank()) {
                  throw new IllegalArgumentException("player name is required");
-@@ -549,6 +810,20 @@ public final class ManaBrewEngineAdapter {
+@@ -549,6 +813,20 @@ public final class ManaBrewEngineAdapter {
              this.commanderNames = commanderNames == null ? List.of() : List.copyOf(commanderNames);
              this.ai = ai;
              this.bot = bot;
@@ -3224,7 +3227,7 @@ index c69b549..92d71e9 100644
          }
  
          public String getName() {
-@@ -578,6 +853,45 @@ public final class ManaBrewEngineAdapter {
+@@ -578,6 +856,54 @@ public final class ManaBrewEngineAdapter {
          public boolean isBot() {
              return bot;
          }
@@ -3266,6 +3269,15 @@ index c69b549..92d71e9 100644
 +
 +        public boolean isGoesFirst() {
 +            return goesFirst;
++        }
++
++        public PlayerConfig withOpeningCards(final List<String> names) {
++            this.openingCards = names == null ? List.of() : List.copyOf(names);
++            return this;
++        }
++
++        public List<String> getOpeningCards() {
++            return openingCards;
 +        }
      }
  
@@ -14925,6 +14937,280 @@ index 0000000..9ff2732
 +        return card;
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/OpeningHandTest.java b/forge-harness/src/test/java/forge/harness/host/OpeningHandTest.java
+new file mode 100644
+index 0000000..6501480
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/OpeningHandTest.java
+@@ -0,0 +1,268 @@
++package forge.harness.host;
++
++import forge.ai.LobbyPlayerAi;
++import forge.ai.PlayerControllerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.PaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.Deque;
++import java.util.HashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++
++public final class OpeningHandTest {
++    private OpeningHandTest() {}
++
++    private static final List<String> PICKED = List.of("Grizzly Bears", "Lightning Bolt", "Mountain");
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        check("theStartRequestCarriesEachPlayersOpeningCards", OpeningHandTest::theStartRequestCarriesEachPlayersOpeningCards);
++        check("thePickedCardsAreTheHandAtTheMulliganQuestion", OpeningHandTest::thePickedCardsAreTheHandAtTheMulliganQuestion);
++        check("aPickedCardTheDeckHasIsItsOwnAndOneItHasntIsCreated", OpeningHandTest::aPickedCardTheDeckHasIsItsOwnAndOneItHasntIsCreated);
++        check("theOtherSeatIsDealtAsUsual", OpeningHandTest::theOtherSeatIsDealtAsUsual);
++        check("aMulliganShufflesThePickedHandAwayAndDealsAgain", OpeningHandTest::aMulliganShufflesThePickedHandAwayAndDealsAgain);
++        check("moreNamesThanTheHandTakesOnlyTheFirst", OpeningHandTest::moreNamesThanTheHandTakesOnlyTheFirst);
++        check("withoutOpeningCardsTheDealIsRandom", OpeningHandTest::withoutOpeningCardsTheDealIsRandom);
++        check("aRewindToTurnOneKeepsThePickedHand", OpeningHandTest::aRewindToTurnOneKeepsThePickedHand);
++        System.out.println(failed == 0 ? "PASS OpeningHandTest" : "FAIL OpeningHandTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static void theStartRequestCarriesEachPlayersOpeningCards() {
++        final ManaBrewEngineAdapter.StartGameRequest request = ManaBrewEngineAdapter.parseStartGameRequest(json(PICKED));
++        expect(request.getPlayers().get(0).getOpeningCards().equals(PICKED), "White's openingCards " + request.getPlayers().get(0).getOpeningCards());
++        expect(request.getPlayers().get(1).getOpeningCards().isEmpty(), "Blue's openingCards " + request.getPlayers().get(1).getOpeningCards());
++        final RegisteredPlayer rp = new RegisteredPlayer(new Deck());
++        ManaBrewEngineAdapter.configurePlayer(rp, request.getPlayers().get(0), request, GameType.Constructed);
++        expect(rp.getOpeningCards().equals(PICKED), "the registered player's openingCards " + rp.getOpeningCards());
++    }
++
++    private static void thePickedCardsAreTheHandAtTheMulliganQuestion() {
++        final Run r = new Run(PICKED, 0).play();
++        final List<String> hand = r.hands.get("White").get(0);
++        expect(hand.size() == 7, "White's hand at the question has " + hand.size() + " cards: " + hand);
++        expect(hand.containsAll(PICKED), "White's hand at the question " + hand + " hasn't " + PICKED);
++        expect(r.white.getCardsIn(ZoneType.Hand).size() == 7 && names(r.white, ZoneType.Hand).containsAll(PICKED),
++                "White's hand after keeping " + names(r.white, ZoneType.Hand));
++    }
++
++    private static void aPickedCardTheDeckHasIsItsOwnAndOneItHasntIsCreated() {
++        final Run r = new Run(PICKED, 0).play();
++        final List<String> all = new ArrayList<>(names(r.white, ZoneType.Hand));
++        all.addAll(names(r.white, ZoneType.Library));
++        expect(count(all, "Grizzly Bears") == 1 && count(all, "Lightning Bolt") == 1, "the deck's own Bears and Bolt became " + count(all, "Grizzly Bears") + " and " + count(all, "Lightning Bolt"));
++        expect(count(all, "Mountain") == 1 && all.size() == 23, "the Mountain the deck hasn't got: " + count(all, "Mountain") + ", cards in hand and library " + all.size() + " of 22 + 1");
++    }
++
++    private static void theOtherSeatIsDealtAsUsual() {
++        int bears = 0;
++        for (int i = 0; i < 6; i++) {
++            final Run r = new Run(PICKED, 0).play();
++            final List<String> all = new ArrayList<>(names(r.blue, ZoneType.Hand));
++            all.addAll(names(r.blue, ZoneType.Library));
++            expect(all.size() == 22 && count(all, "Mountain") == 0, "Blue's cards " + all.size() + " with " + count(all, "Mountain") + " Mountains");
++            bears += r.hands.get("Blue").get(0).contains("Grizzly Bears") ? 1 : 0;
++        }
++        expect(bears < 6, "Blue, who picked nothing, had the Grizzly Bears in all 6 opening hands");
++    }
++
++    private static void aMulliganShufflesThePickedHandAwayAndDealsAgain() {
++        int unchanged = 0;
++        for (int i = 0; i < 5; i++) {
++            final Run r = new Run(PICKED, 1).play();
++            final List<List<String>> hands = r.hands.get("White");
++            expect(hands.size() >= 2 && hands.get(0).containsAll(PICKED), "White's questions " + hands);
++            expect(hands.get(1).size() == 6 || hands.get(1).size() == 7, "the hand after a mulligan has " + hands.get(1).size() + " cards");
++            final List<String> all = new ArrayList<>(names(r.white, ZoneType.Hand));
++            all.addAll(names(r.white, ZoneType.Library));
++            expect(all.size() == 23 && count(all, "Mountain") == 1, "after the mulligan White has " + all.size() + " cards, " + count(all, "Mountain") + " Mountains");
++            unchanged += hands.get(1).containsAll(PICKED) ? 1 : 0;
++        }
++        expect(unchanged < 5, "after a mulligan the picked cards came back in all 5 new hands");
++    }
++
++    private static void moreNamesThanTheHandTakesOnlyTheFirst() {
++        final List<String> many = List.of("Mountain", "Mountain", "Mountain", "Mountain", "Mountain", "Mountain", "Mountain", "Shock", "Counterspell");
++        final Run r = new Run(many, 0).play();
++        final List<String> hand = r.hands.get("White").get(0);
++        expect(count(hand, "Mountain") == 7 && hand.size() == 7, "with 9 names White's hand is " + hand);
++        final List<String> all = new ArrayList<>(names(r.white, ZoneType.Hand));
++        all.addAll(names(r.white, ZoneType.Library));
++        expect(count(all, "Mountain") == 7 && all.size() == 29 && count(all, "Shock") == 0 && count(all, "Counterspell") == 0,
++                "White's cards " + all.size() + ", " + count(all, "Mountain") + " Mountains, " + count(all, "Shock") + " Shock: the names past the hand created anyway");
++    }
++
++    private static void withoutOpeningCardsTheDealIsRandom() {
++        int all = 0;
++        for (int i = 0; i < 6; i++) {
++            final Run r = new Run(List.of(), 0).play();
++            final List<String> hand = r.hands.get("White").get(0);
++            expect(hand.size() == 7 && !hand.contains("Mountain"), "without openingCards White's hand " + hand);
++            all += hand.contains("Grizzly Bears") && hand.contains("Lightning Bolt") ? 1 : 0;
++        }
++        expect(all < 6, "without openingCards the Bears and the Bolt were in all 6 hands");
++    }
++
++    private static void aRewindToTurnOneKeepsThePickedHand() throws Exception {
++        final Run r = new Run(PICKED, 0).play();
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("opening-hand-test");
++        session.attach(r.game.getMatch(), r.game, Set.of(), true);
++        final Method record = ManaBrewInteractiveSession.class.getDeclaredMethod("recordCheckpoint");
++        record.setAccessible(true);
++        record.invoke(session);
++        final Field field = ManaBrewInteractiveSession.class.getDeclaredField("checkpoints");
++        field.setAccessible(true);
++        final Deque<?> checkpoints = (Deque<?>) field.get(session);
++        expect(!checkpoints.isEmpty() && r.game.getPhaseHandler().getTurn() == 1, "no checkpoint in turn " + r.game.getPhaseHandler().getTurn());
++        for (final Card c : new ArrayList<>(r.white.getCardsIn(ZoneType.Hand))) {
++            r.game.getAction().moveToGraveyard(c, null, null);
++        }
++        expect(r.white.getCardsIn(ZoneType.Hand).isEmpty(), "the hand wasn't emptied");
++        for (final Method method : ManaBrewInteractiveSession.class.getDeclaredMethods()) {
++            if (method.getName().equals("restore") && method.getParameterCount() == 1) {
++                method.setAccessible(true);
++                method.invoke(session, checkpoints.peekFirst());
++            }
++        }
++        final Player white = session.getGame().getPlayers().get(0);
++        expect(names(white, ZoneType.Hand).containsAll(PICKED) && white.getCardsIn(ZoneType.Hand).size() == 7,
++                "after the rewind to turn 1 White's hand is " + names(white, ZoneType.Hand));
++    }
++
++    private static List<String> names(final Player p, final ZoneType zone) {
++        final List<String> out = new ArrayList<>();
++        for (final Card c : p.getCardsIn(zone)) {
++            out.add(c.getName());
++        }
++        return out;
++    }
++
++    private static int count(final List<String> names, final String name) {
++        int n = 0;
++        for (final String s : names) {
++            n += s.equals(name) ? 1 : 0;
++        }
++        return n;
++    }
++
++    private static String json(final List<String> picked) {
++        final StringBuilder cards = new StringBuilder();
++        for (final String name : picked) {
++            cards.append(cards.length() == 0 ? "" : ",").append('"').append(name).append('"');
++        }
++        return "{\"gameId\":\"opening-hand-test\",\"variant\":\"Constructed\",\"players\":["
++                + "{\"name\":\"White\",\"deck\":[{\"name\":\"Plains\"}]" + (picked.isEmpty() ? "" : ",\"openingCards\":[" + cards + "]") + "},"
++                + "{\"name\":\"Blue\",\"deck\":[{\"name\":\"Plains\"}]}]}";
++    }
++
++    private static final class Stop extends RuntimeException {
++        Stop() {
++            super("stopped at the first turn");
++        }
++    }
++
++    private static final class Run {
++        final Game game;
++        final Player white;
++        final Player blue;
++        final Map<String, List<List<String>>> hands = new HashMap<>();
++
++        Run(final List<String> picked, final int whiteMulligans) {
++            final ManaBrewEngineAdapter.StartGameRequest request = ManaBrewEngineAdapter.parseStartGameRequest(json(picked));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            final List<RegisteredPlayer> registered = new ArrayList<>();
++            for (final ManaBrewEngineAdapter.PlayerConfig config : request.getPlayers()) {
++                final Deck deck = new Deck(config.getName());
++                deck.getMain().add("Plains", 20);
++                deck.getMain().add(card("Grizzly Bears"), 1);
++                deck.getMain().add(card("Lightning Bolt"), 1);
++                final RegisteredPlayer rp = new RegisteredPlayer(deck);
++                ManaBrewEngineAdapter.configurePlayer(rp, config, request, GameType.Constructed);
++                rp.setPlayer(new LobbyPlayerAi(config.getName(), null));
++                registered.add(rp);
++            }
++            final Match match = new Match(rules, registered, "OpeningHandTest");
++            game = match.createGame();
++            white = game.getPlayers().get(0);
++            blue = game.getPlayers().get(1);
++            for (final Player p : game.getPlayers()) {
++                final int[] left = {p == white ? whiteMulligans : 0};
++                hands.put(p.getName(), new ArrayList<>());
++                p.dangerouslySetController(new PlayerControllerAi(game, p, p.getLobbyPlayer()) {
++                    @Override
++                    public boolean mulliganKeepHand(final Player firstPlayer, final int cardsToReturn) {
++                        hands.get(p.getName()).add(names(p, ZoneType.Hand));
++                        return left[0]-- <= 0;
++                    }
++                });
++            }
++            this.match = match;
++        }
++
++        private final Match match;
++
++        Run play() {
++            try {
++                match.startGame(game, () -> {
++                    throw new Stop();
++                });
++            } catch (final Stop stopped) {
++                return this;
++            }
++            throw new AssertionError("the game ran past its first turn");
++        }
++
++        private static PaperCard card(final String name) {
++            PaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                forge.StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            return paper;
++        }
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/OptionalCardChoiceTest.java b/forge-harness/src/test/java/forge/harness/host/OptionalCardChoiceTest.java
 new file mode 100644
 index 0000000..cea5051
@@ -24087,7 +24373,7 @@ index ed50370..6f54c53 100644
                          )
                          .await?;
 diff --git a/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs b/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
-index e19dcde..53dc343 100644
+index e19dcde..7c616e6 100644
 --- a/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
 +++ b/manabrew-rs/crates/self-hosted-node/src/engine_backend/java_backend.rs
 @@ -1427,6 +1427,7 @@ pub fn run_hosted_engine_game(
@@ -24155,7 +24441,7 @@ index e19dcde..53dc343 100644
                      }
                      Some("mulliganPutBack") if !*put_back_done => {
                          let count = prompt
-@@ -3041,6 +3048,53 @@ pub struct StartGameRequest {
+@@ -3041,6 +3048,55 @@ pub struct StartGameRequest {
      seed: u64,
      players: Vec<PlayerConfig>,
      checkpoint_metrics: bool,
@@ -24206,10 +24492,12 @@ index e19dcde..53dc343 100644
 +    pub goes_first: bool,
 +    #[serde(default)]
 +    pub schemes: Vec<String>,
++    #[serde(default)]
++    pub opening_cards: Vec<String>,
  }
  
  #[derive(Debug, Clone, Serialize)]
-@@ -3050,9 +3104,24 @@ pub struct PlayerConfig {
+@@ -3050,9 +3106,26 @@ pub struct PlayerConfig {
      deck: Vec<CardIdentityForJava>,
      sideboard: Vec<CardIdentityForJava>,
      attractions: Vec<CardIdentityForJava>,
@@ -24231,10 +24519,12 @@ index e19dcde..53dc343 100644
 +    commander_damage_to_lose: Option<i32>,
 +    #[serde(skip_serializing_if = "std::ops::Not::not")]
 +    goes_first: bool,
++    #[serde(skip_serializing_if = "Vec::is_empty")]
++    opening_cards: Vec<String>,
  }
  
  #[derive(Debug, Clone, Serialize)]
-@@ -3087,6 +3156,42 @@ impl StartGameRequest {
+@@ -3087,6 +3160,43 @@ impl StartGameRequest {
              seed,
              players,
              checkpoint_metrics: false,
@@ -24262,6 +24552,7 @@ index e19dcde..53dc343 100644
 +            player.perks = seat.perks.clone();
 +            player.commander_damage_to_lose = seat.commander_damage_to_lose;
 +            player.goes_first = seat.goes_first;
++            player.opening_cards = seat.opening_cards.iter().map(|name| java_card_name(name)).collect();
 +            if !seat.schemes.is_empty() {
 +                player.schemes = seat
 +                    .schemes
@@ -24277,7 +24568,7 @@ index e19dcde..53dc343 100644
          }
      }
  
-@@ -3102,9 +3207,17 @@ impl PlayerConfig {
+@@ -3102,9 +3212,18 @@ impl PlayerConfig {
              deck: deck.iter().map(CardIdentityForJava::from).collect(),
              sideboard: Vec::new(),
              attractions: Vec::new(),
@@ -24292,10 +24583,11 @@ index e19dcde..53dc343 100644
 +            perks: Vec::new(),
 +            commander_damage_to_lose: None,
 +            goes_first: false,
++            opening_cards: Vec::new(),
          }
      }
  
-@@ -3120,6 +3233,18 @@ impl PlayerConfig {
+@@ -3120,6 +3239,18 @@ impl PlayerConfig {
              .flatten()
              .map(|card| CardIdentityForJava::from(&card.identity))
              .collect();
@@ -24314,7 +24606,7 @@ index e19dcde..53dc343 100644
          self
      }
  }
-@@ -3219,8 +3344,8 @@ fn parse_gc_pause(line: &str) -> Option<GcPause> {
+@@ -3219,8 +3350,8 @@ fn parse_gc_pause(line: &str) -> Option<GcPause> {
  
  #[cfg(test)]
  mod gc_log_tests {
@@ -24325,7 +24617,7 @@ index e19dcde..53dc343 100644
  
      #[test]
      fn reads_a_full_collection() {
-@@ -3298,4 +3423,92 @@ mod gc_log_tests {
+@@ -3298,4 +3429,114 @@ mod gc_log_tests {
              r#""deck":[{"name":"Forest","setCode":"EOE","collectorNumber":"266","foil":true}]"#
          ));
      }
@@ -24382,6 +24674,28 @@ index e19dcde..53dc343 100644
 +
 +        assert!(json.contains(r#""schemes":[{"name":"Roots of All Evil","setCode":null,"collectorNumber":null,"foil":false},{"name":"I Am Untouchable","setCode":null,"collectorNumber":null,"foil":false}]"#), "{json}");
 +        assert_eq!(json.matches(r#""schemes""#).count(), 1, "{json}");
++    }
++
++    #[test]
++    fn a_game_config_seat_gives_its_player_opening_cards() {
++        let mut request = scheme_test_request(&Deck::default());
++        let names = ["White".to_string(), "Blue".to_string()];
++        request.apply_game_config(&GameConfig::default(), &names);
++        let json = request.to_json().expect("serialized");
++        assert!(!json.contains(r#""openingCards""#), "{json}");
++
++        let config = GameConfig {
++            players: vec![GameConfigPlayer {
++                username: "Blue".to_string(),
++                opening_cards: vec!["Grizzly Bears".to_string(), "Lightning Bolt".to_string()],
++                ..Default::default()
++            }],
++            ..Default::default()
++        };
++        request.apply_game_config(&config, &names);
++        let json = request.to_json().expect("serialized");
++        assert!(json.contains(r#""openingCards":["Grizzly Bears","Lightning Bolt"]"#), "{json}");
++        assert_eq!(json.matches(r#""openingCards""#).count(), 1, "{json}");
 +    }
 +
 +    #[test]
