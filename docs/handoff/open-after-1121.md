@@ -72,10 +72,11 @@ building the JSON.
   - Investigate, Amass and other effects with their own class, and energy not from `PutCounter`, aren't shared;
   - with Team draws on, every `Dig` of a library is shared (Blightwing Bandit's too);
   - HOW-TO-PLAY and `docs/game-modes-spec.md` don't describe the two house rules.
-- **Team blocks (team-block):**
-  - teams of three or more aren't tested for the re-ask order;
-  - the change notices use the acknowledged `revealCards` notice, so the bridge should print them rather than wait for
-    a click.
+- **Team blocks (team-block):** both items done in team-block-2 (`docs/handoff/team-block-2-report.md`):
+  - the re-ask order with teams of three is tested in `ThreeHeadedGiantTest` and, through the bridge, in
+    `tests/test_bridge_3hg_team_block.js`;
+  - the bridge already printed the change notices and acknowledged them at once (since 5ed5043); the new test checks it
+    for all three defenders.
 - **Level 2 tests (l2-tests):**
   - 805.9's "the active team chooses which player" and 805.10e's choice (an effect naming a defending player without
     an attacker) have no team choice in Forge and no check;
