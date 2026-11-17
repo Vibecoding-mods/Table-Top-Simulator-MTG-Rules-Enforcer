@@ -571,6 +571,9 @@ const ARCH_SWITCH_OFF = " The Archenemy switch is on for the next games: type  m
 const planeDeckCard = (name) => ({ identity: { name, setCode: "", cardNumber: "" }, manaCost: "", cmc: 0, types: [planeNamed(name)?.phenomenon ? "Phenomenon" : "Plane"],
   subtypes: [], supertypes: [], colorIdentity: [], text: "", uris: {} });
 const isPlanarCard = (c) => (c.types || []).some((t) => t === "Plane" || t === "Phenomenon");
+// (Archenemy: a scheme card, in its archenemy's command zone while it is set in motion, and an ongoing one until it is
+// abandoned)
+const isSchemeCard = (c) => (c.types || []).includes("Scheme");
 // What a chaos trigger does, from its own words, or null: Forge's planes word it "Whenever chaos ensues, <effect>"
 // (Mode$ ChaosEnsues; a few "When chaos ensues, ..."). The stack, the log and its target question say "chaos" for it.
 const chaosEffect = (text) => String(text || "").match(/^(?:When|Whenever) chaos ensues,\s*([^]+)$/i)?.[1] || null;
@@ -5865,6 +5868,30 @@ function slimmer(game) {
   return { slim, statics };
 }
 
+// Archenemy on the table (docs/team-turns-archenemy-plan.md step 9): the schemes in the command zones, each slimmed as a
+// card with its controller (ctl) and ong for an ongoing one (the engine's PlayerDto.schemes, else its supertype), and
+// schemeNow, the scheme set in motion last: { seq, card }, seq counting from 1 each game as a scheme the bridge hasn't
+// seen in a command zone arrives. The table shows schemeNow face up and large until the next one (its card kept from
+// the board it arrived on, as a scheme that isn't ongoing goes back under the deck when it resolves), the others in a
+// row beside it, and a "SET IN MOTION" banner once per seq.
+function schemeView(pub, schemeCards, slim, toCard) {
+  const ongoing = new Set();
+  for (const p of pub.players || []) for (const s of p.schemes || []) if (s?.ongoing && s.id) ongoing.add(String(s.id));
+  const isOngoing = (c) => ongoing.has(c.id) || (c.supertypes || []).includes("Ongoing");
+  const entry = (c) => ({ ...toCard(c), ctl: game.slotColor[c.controllerId] || null, ...(isOngoing(c) ? { ong: true } : {}) });
+  game.schemesSeen ??= new Set();
+  for (const c of schemeCards) {
+    if (game.schemesSeen.has(c.id)) continue;
+    game.schemesSeen.add(c.id);
+    game.schemeNow = { seq: (game.schemeNow?.seq || 0) + 1, card: entry(c) };
+  }
+  // (one gone back under the deck may come out again later: it is a new one then)
+  const here = new Set(schemeCards.map((c) => c.id));
+  for (const id of [...game.schemesSeen]) if (!here.has(id)) game.schemesSeen.delete(id);
+  const now = game.schemeNow ? { seq: game.schemeNow.seq, card: slim(here.has(game.schemeNow.card.id) ? entry(schemeCards.find((c) => c.id === game.schemeNow.card.id)) : game.schemeNow.card) } : null;
+  return { schemes: schemeCards.map((c) => slim(entry(c))), schemeNow: now };
+}
+
 // A player row's dungeon, from Forge's dungeonState (docs/planechase-dungeon-engine-spec.md D5-D7): `dungeon` {id, name,
 // room, next, text}, the room's text and the rooms it leads to from the state's room list (the first room when it is in
 // none yet), and `dungeonsDone`, the dungeons completed (left out at 0). The card's id from the state, else the dungeon
@@ -5989,6 +6016,10 @@ function sendTable() {
   // through, into the board's own planes list; the table draws them at its centre)
   const planeCards = (pub.zones || []).filter((z) => z.zone === "command").flatMap((z) => (z.cards || []).filter(isPlanarCard));
   const planeIds = new Set(planeCards.map((c) => c.id));
+  // (Archenemy: the schemes come out of the command zone the same way, into the board's schemes list; the table draws
+  // them by the archenemy's seat, schemeView)
+  const schemeCards = (pub.zones || []).filter((z) => z.zone === "command").flatMap((z) => (z.cards || []).filter(isSchemeCard));
+  for (const c of schemeCards) planeIds.add(c.id);
   const players = (pub.players || []).map((p) => {
     const own = seats.find((s) => s.slot === p.id)?.board.state.gameView;
     const command = zoneOf(pub, "command", p.id).cards;
@@ -6017,6 +6048,9 @@ function sendTable() {
       exile: zoneOf(pub, "exile", p.id).cards.map((c) => withPeek(tableCard(faceDownAnyView(c, views), { blockers, zone: "exile" }), true)),
       command: command.filter((c) => !planeIds.has(c.id)).map((c) => tableCard(c, { blockers, zone: "command" })), // (zone: a commander's tax, costNow)
       ...dungeonRow(p, command),
+      // (Archenemy, engine1119: the archenemy, and their scheme deck's size)
+      ...(p.isArchenemy ? { arch: true } : {}),
+      ...(p.isArchenemy && Number.isInteger(p.schemeDeckCount) ? { schemeDeck: p.schemeDeckCount } : {}),
     };
     // (the dungeon card's own label, its room, where it leads and the dungeons completed: dungeonRow)
     if (row.dungeon?.id) row.command = row.command.map((c) => (c.id === row.dungeon.id ? { ...c, ...dungeonLabel(row.dungeon, row.dungeonsDone) } : c));
@@ -6050,6 +6084,7 @@ function sendTable() {
   for (const pl of players) for (const z of ZONE_KEYS) if (pl[z]) pl[z] = pl[z].map(slim);
   const planar = planarRow(pub);
   const planes = planeCards.map((c) => slim({ ...toCard(c), ctl: planar?.controller || game.slotColor[c.controllerId] || null }));
+  const { schemes, schemeNow } = schemeView(pub, schemeCards, (c) => slim(c), toCard);
   // (the stack's instant and sorcery spells by card, ins / sor, for the board they resolve on: resolvedSpells)
   game.fxKinds = new Map();
   const kindOn = (s, k) => { if (s.sourceId) game.fxKinds.set(s.sourceId, k); return true; };
@@ -6093,6 +6128,7 @@ function sendTable() {
     ...(pub.dayTime === "day" || pub.dayTime === "night" ? { day: pub.dayTime } : {}), // (shown beside the turn on the table)
     winner: pub.winnerId ? game.slotColor[pub.winnerId] || nameOf(pub.winnerId) : null, players, stack, cards: statics,
     rewind, // restore points and the open vote (in the board update: a message of its own doubled the traffic)
+    ...(schemes.length ? { schemes } : {}), ...(schemeNow ? { schemeNow } : {}), // (Archenemy: schemeView)
     ...(tie ? { tie } : {}), // (a tie offer: a player who can't lose, tieNews)
     ...(planes.length || planar ? { planes, planar } : {}), // (Planechase: planarRow)
     ...teams2hg.teamsField(pub, game.slotColor, game.teamMode, game.arch?.color || null), // (a team game: the sides, 2HG's poison limit, the Juggernaut, who won)
