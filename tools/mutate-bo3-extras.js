@@ -19,9 +19,9 @@ const FILES = {
 const B = "bridge/bridge.js", R = "tools/engine-renderer.lua", C = "tools/make-engine-copy.js";
 // [label, file, from, to, the check that must fail]: `from` must occur exactly once
 const MUTATIONS = [
-  ["roll: not rolled", B, "return game?.tableFirst || game?.leader || matchFirst() || matchRollFirst() || null;", "return game?.tableFirst || game?.leader || matchFirst() || null;", "roll: game 1's first player is the roll's winner (Blue 14, seat 1)"],
+  ["roll: not rolled", B, "return game?.tableFirst || game?.leader || matchFirst() || matchRollFirst() || null;", "return game?.tableFirst || game?.leader || matchFirst() || null;", "roll: the roll's winner, Blue, chooses to play: Blue (seat 1) goes first"],
   ["roll: a tie not rolled again", B, "  do r = order.map(matchDie); while (r[0] === r[1]);", "  r = order.map(matchDie);", "roll: a tie is rolled again (9\u20139, then AI 1 18)"],
-  ["roll: the loser goes first", B, "const first = r[0] > r[1] ? order[0] : order[1];", "const first = r[0] > r[1] ? order[1] : order[0];", "roll: game 1's first player is the roll's winner (Blue 14, seat 1)"],
+  ["roll: the loser goes first", B, "const winner = r[0] > r[1] ? order[0] : order[1];", "const winner = r[0] > r[1] ? order[1] : order[0];", "roll: the roll's winner, Blue, chooses to play: Blue (seat 1) goes first"],
   ["roll: rolled again each time asked", B, "  if (game.matchRoll) return game.matchRoll.first;\n", "", "roll: asked once a game (the start config again keeps it, rolls nothing more)"],
   ["roll: not on the board", B, "    ...(game.matchRoll ? { matchRoll: { seq: game.matchRoll.seq, text: game.matchRoll.text } } : {}),\n", "", "roll: on the table, the board's matchRoll"],
   ["phase bar: always of 3", B, "  return `GAME ${n} OF ${n > 3 ? MATCH_GAMES : 3}`;", "  return `GAME ${n} OF 3`;", "phase bar: after a draw, game 4 of 5"],
