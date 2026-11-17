@@ -4134,7 +4134,8 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     {
       const spirit = (k, p) => ["player-0", `engine-card-62${k}`, "Spirit Token", ["Creature"], "Flying", { token: true, power: p, toughness: p }];
       s = four([spirit(1, 1), spirit(2, 3), spirit(3, 1), TEFERI]);
-      ui = await ask(s, [1, 2, 3].map((k) => [`engine-card-62${k}`, ALL]), ALL);
+      // (the 1/1s can attack one player only, so they are no stack to split among players: attackSplit)
+      ui = await ask(s, [1, 2, 3].map((k) => [`engine-card-62${k}`, k === 2 ? ALL : ["player-1", "engine-card-504"]]), ALL);
       const got = ui.options.map((o) => o.label);
       const whomOf = got.filter((l) => / → whom\? \(asked next\)$/.test(l));
       ok("whom: tokens of one name are sized and numbered in 'whom?'", JSON.stringify(whomOf) === JSON.stringify(["Spirit Token 1/1 #1 → whom? (asked next)", "Spirit Token 1/1 #2 → whom? (asked next)", "Spirit Token 3/3 → whom? (asked next)"]), JSON.stringify(whomOf));

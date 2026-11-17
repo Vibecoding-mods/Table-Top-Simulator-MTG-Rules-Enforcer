@@ -22,7 +22,7 @@ index b363b43..228c02a 100644
 +  }
  ]
 diff --git a/forge-harness/src/main/java/forge/harness/AGENTS.md b/forge-harness/src/main/java/forge/harness/AGENTS.md
-index 54173c6..af496a2 100644
+index 54173c6..cc03ff5 100644
 --- a/forge-harness/src/main/java/forge/harness/AGENTS.md
 +++ b/forge-harness/src/main/java/forge/harness/AGENTS.md
 @@ -15,7 +15,7 @@ Dependency rule (do not violate): `parity → common`, `host → common`, `Main
@@ -34,7 +34,7 @@ index 54173c6..af496a2 100644
  
  ### Host payability probes must stay silent
  
-@@ -74,18 +74,48 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
+@@ -74,18 +74,50 @@ Concede mirrors native Forge's out-of-band contract: `player.concede()` sets the
  The node can opt into `checkpointMetrics` on its internal start request. `recordCheckpoint` records copy and bookkeeping nanoseconds only for successful checkpoints. The session owns the samples; `drainCheckpointMetrics` serializes and clears them under the same lock used to append. WASM games also enable collection: `WasmMain` supplies a session drain to `SabTransport`, which posts `forge:checkpoints` before each new prompt and at game end. `forge:decision.checkpointMs` accumulates checkpoints across bot prompts within the same human-response window. Keep checkpoint instrumentation separate from per-viewer board snapshot timing.
  
  
@@ -81,12 +81,14 @@ index 54173c6..af496a2 100644
 +
 +### The attackers prompt carries Forge's taxes, refusals and limits
 +
-+`publishAttackersPrompt` fills, from Forge's own combat rules rather than card text: each attacker's `costs`, one per legal defender with a cost (`CombatUtil.getAttackCost`'s total as `Cost.toSimpleString`, plus the statics whose `getAttackCost` is not null as `sourceIds`/`sourceNames`); `unavailable`, one entry per creature that can't attack at all (no `defenderId`) or can't attack one defender, with the first reason in `CombatUtil.canAttack`'s own order (`tapped`, `phasedOut`, `summoningSick`, `goaded`, `keyword`, `detained`, `defender`, `static` with its source, else `other`); and `limits`, one per `AttackRestrict` static (`max`, and `defenderId` when it has `ValidDefender`). A rule hosted on an immutable effect card is named after `getEffectSource`, so War Tax's effect reads War Tax. `unavailable` and `limits` are always serialized, even empty, so a client can tell this engine from one that sends neither.
++`publishAttackersPrompt` fills, from Forge's own combat rules rather than card text: each attacker's `costs`, one per legal defender with a cost (`CombatUtil.getAttackCost`'s total as `Cost.toSimpleString`, plus the statics whose `getAttackCost` is not null as `sourceIds`/`sourceNames`); `unavailable`, one entry per creature that can't attack at all (no `defenderId`) or can't attack one defender, with the first reason in `CombatUtil.canAttack`'s own order (`tapped`, `phasedOut`, `summoningSick`, `goaded`, `keyword`, `detained`, `defender`, `static` with its source, else `other`); and `limits`, one per `AttackRestrict` static (`max`, and `defenderId` when it has `ValidDefender`). A rule hosted on an immutable effect card is named after `getEffectSource`, so War Tax's effect reads War Tax. `unavailable` and `limits` are always serialized, even empty, so a client can tell this engine from one that sends neither. Each attacker also carries `damage`, one per legal defender, from forge-ai's own estimates: `ComputerUtilCombat.damageIfUnblocked` (pumps, double strike, prevention; 0 with infect and for a player who can't lose life), `poisonIfUnblocked`, and `commander` (that damage again) only for a commander attacking a player under the Commander variant. Each attack target carries `life` (a planeswalker's loyalty, a battle's defense), `poisonLeft`, `commanderLeft` (per commander among the offered attackers, Commander only, the team's damage counted) and `canLose` (false under `cantLose` or `cantLoseForZeroOrLessLife`), so a client can work out the fewest lethal attackers before paying a tax. `AttackTaxLethalTest` pins them.
++
++`payCombatCost` repairs the combat after a cancelled tax: the mana-payment snapshot restore (`GameSnapshot.restoreGameState`) ends the live combat and installs a copy whose `AttackConstraints` were built with the attackers already tapped (Forge taps them before the taxes), so `validateAttackers` would reject the declaration and Forge would ask for it again with the other taxes already spent. The controller rebuilds the copy's constraints with those attackers untapped for the count. Forge pays the taxes in `combat.getAttackers()` order, each defender's attackers in the order declared.
 +
  ## Typed prompt emission (compile-time protocol check)
  
  The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the source of truth: `scripts/gen-harness-prompts.mjs` reads its generated TS bindings and emits one Java class per prompt input + referenced shared type into `forge-harness/src/main/java/forge/harness/protocol/` (package `forge.harness.protocol.*`), each baking in its own `type` discriminator. `scripts/harness.mjs` regenerates them before every build. The package is generated, gitignored (`forge-harness/.gitignore`), and lives under the standard `src/main/java` root on purpose: m2e/JDTLS has no build-helper connector, so an out-of-tree generated-sources dir never lands on the IDE classpath. Never hand-edit anything in this package.
-@@ -94,7 +124,11 @@ The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the
+@@ -94,7 +126,11 @@ The host **does not hand-build prompt JSON.** `manabrew-protocol` (Rust) is the
  
  `publishAgentPrompt` resolves an omitted source from the currently resolving stack item. It emits `sourceAbilityText` from that stack ability, or from `castingAbility` during cast-time prompts, only when the ability host matches an explicit source. Keep this centralized fallback: Forge callbacks such as `arrangeForScry`, `arrangeForSurveil`, and `reveal` do not receive the originating `SpellAbility`, but their prompts still need the source card and ability in the envelope. Prompts outside stack resolution remain source-less unless their caller provides a source explicitly, and unmatched abilities remain absent rather than being misattributed.
  
@@ -2698,7 +2700,7 @@ index c69b549..92d71e9 100644
  
      public static final class CardIdentity {
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
-index fb82e6d..8084ad2 100644
+index fb82e6d..76fdfbf 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 @@ -11,6 +11,8 @@ import forge.harness.common.HarnessPlayPlumbing;
@@ -2975,7 +2977,32 @@ index fb82e6d..8084ad2 100644
      }
  
      @Override
-@@ -2514,6 +2634,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -1826,7 +1946,23 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+ 
+     @Override
+     public boolean payCombatCost(final Card card, final Cost cost, final SpellAbility sa, final String prompt) {
+-        return costPlumbing.payWithControllerDecision(cost, sa, true);
++        final Combat combat = getGame().getPhaseHandler().getCombat();
++        final boolean paid = costPlumbing.payWithControllerDecision(cost, sa, true);
++        final Combat restored = getGame().getPhaseHandler().getCombat();
++        if (combat != null && restored != null && restored != combat) {
++            final List<Card> tapped = new ArrayList<>();
++            for (final Card attacker : restored.getAttackers()) {
++                if (attacker.isTapped() && !attacker.attackVigilance()) {
++                    attacker.setTapped(false);
++                    tapped.add(attacker);
++                }
++            }
++            restored.initConstraints();
++            for (final Card attacker : tapped) {
++                attacker.setTapped(true);
++            }
++        }
++        return paid;
+     }
+ 
+     // ── Mana payment (interactive) ────────────────────────────────────
+@@ -2514,6 +2650,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public void notifyOfValue(final SpellAbility saSource, final GameObject realtedTarget, final String value) {
@@ -2986,7 +3013,7 @@ index fb82e6d..8084ad2 100644
          final String message = MessageUtil.formatNotificationMessage(saSource, player, realtedTarget, value);
          if (saSource != null && saSource.isManaAbility()) {
              game.getGameLog().add(GameLogEntryType.LAND, message);
-@@ -2620,7 +2744,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2620,7 +2760,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      }
  
      private <T extends GameEntity> T chooseSingleEntityGeneric(
@@ -2996,7 +3023,7 @@ index fb82e6d..8084ad2 100644
          final List<T> opts = new ArrayList<>();
          for (final T option : optionList) {
              opts.add(option);
-@@ -2632,7 +2757,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2632,7 +2773,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          for (final T option : opts) {
              labels.add(option == null ? "?" : option.toString());
          }
@@ -3011,10 +3038,10 @@ index fb82e6d..8084ad2 100644
              return null;
          }
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..175adc2 100644
+index 643e5de..2228dbd 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-@@ -6,12 +6,15 @@ import forge.harness.common.ParityCardMap;
+@@ -6,33 +6,50 @@ import forge.harness.common.ParityCardMap;
  import forge.harness.common.ParityOrder;
  import forge.harness.common.SnapshotExtractor;
  
@@ -3029,8 +3056,10 @@ index 643e5de..175adc2 100644
 +import forge.game.ability.AbilityUtils;
  import forge.game.ability.ApiType;
  import forge.game.GameEntity;
++import forge.game.GameType;
++import forge.ai.ComputerUtilCombat;
  import forge.game.Match;
-@@ -19,20 +22,32 @@ import forge.game.card.Card;
+ import forge.game.card.Card;
  import forge.game.card.CardCollection;
  import forge.game.card.CardCollectionView;
  import forge.game.card.CardView;
@@ -3063,7 +3092,7 @@ index 643e5de..175adc2 100644
  import org.apache.commons.lang3.tuple.ImmutablePair;
  import org.apache.commons.lang3.tuple.Pair;
  
-@@ -45,6 +60,7 @@ import java.util.HashSet;
+@@ -45,6 +62,7 @@ import java.util.HashSet;
  import java.util.List;
  import java.util.LinkedHashMap;
  import java.util.Locale;
@@ -3071,7 +3100,7 @@ index 643e5de..175adc2 100644
  import java.util.Map;
  import java.util.Objects;
  import java.util.Random;
-@@ -52,6 +68,7 @@ import java.util.Set;
+@@ -52,6 +70,7 @@ import java.util.Set;
  import java.util.TreeSet;
  import java.util.concurrent.BlockingQueue;
  import java.util.concurrent.LinkedBlockingQueue;
@@ -3079,7 +3108,7 @@ index 643e5de..175adc2 100644
  
  public final class ManaBrewInteractiveSession {
  
-@@ -59,9 +76,11 @@ public final class ManaBrewInteractiveSession {
+@@ -59,9 +78,11 @@ public final class ManaBrewInteractiveSession {
      private Match match;
      private Game game;
      private final BlockingQueue<JsonObject> actions = new LinkedBlockingQueue<>();
@@ -3091,7 +3120,7 @@ index 643e5de..175adc2 100644
      private volatile boolean closed;
      private volatile Thread gameThread;
      private static volatile InteractiveBridge bridge;
-@@ -70,16 +89,27 @@ public final class ManaBrewInteractiveSession {
+@@ -70,16 +91,27 @@ public final class ManaBrewInteractiveSession {
      private final InteractiveSnapshotExtractor.SecretChoiceVisibility secretChoiceVisibility =
              new InteractiveSnapshotExtractor.SecretChoiceVisibility();
      private static final int CHECKPOINT_TURNS = 3;
@@ -3119,7 +3148,7 @@ index 643e5de..175adc2 100644
      private boolean checkpointMetricsEnabled;
      private final List<long[]> checkpointTimings = new ArrayList<>();
      private boolean priorityPromptOpen;
-@@ -91,7 +121,7 @@ public final class ManaBrewInteractiveSession {
+@@ -91,7 +123,7 @@ public final class ManaBrewInteractiveSession {
          private final PhaseType phase;
          private final Player activePlayer;
          private final Player priorityPlayer;
@@ -3128,7 +3157,7 @@ index 643e5de..175adc2 100644
  
          private Checkpoint(
                  final int id,
-@@ -99,16 +129,49 @@ public final class ManaBrewInteractiveSession {
+@@ -99,16 +131,49 @@ public final class ManaBrewInteractiveSession {
                  final PhaseType phase,
                  final Player activePlayer,
                  final Player priorityPlayer,
@@ -3179,7 +3208,7 @@ index 643e5de..175adc2 100644
      private enum RestoreVoteStatus { PENDING, APPROVED, DECLINED, UNAVAILABLE }
  
      private static final class RestoreVote {
-@@ -136,6 +199,63 @@ public final class ManaBrewInteractiveSession {
+@@ -136,6 +201,63 @@ public final class ManaBrewInteractiveSession {
          this.game = Objects.requireNonNull(game, "game");
          this.botSeats = Set.copyOf(botSeats);
          this.snapshotRecording = snapshotRecording;
@@ -3243,7 +3272,7 @@ index 643e5de..175adc2 100644
      }
  
      public String getSessionId() {
-@@ -155,26 +275,26 @@ public final class ManaBrewInteractiveSession {
+@@ -155,26 +277,26 @@ public final class ManaBrewInteractiveSession {
          requireAttached();
          Objects.requireNonNull(rng, "rng");
          if (bridge != null) {
@@ -3284,7 +3313,7 @@ index 643e5de..175adc2 100644
      public void close() {
          closed = true;
          JsonObject action = new JsonObject();
-@@ -216,9 +336,15 @@ public final class ManaBrewInteractiveSession {
+@@ -216,9 +338,15 @@ public final class ManaBrewInteractiveSession {
  
      public String getSnapshotJson(final int viewer) {
          requireAttached();
@@ -3303,7 +3332,7 @@ index 643e5de..175adc2 100644
      }
  
      void rememberSecretNumberViewer(final String sourceCardId, final Player viewer) {
-@@ -266,7 +392,7 @@ public final class ManaBrewInteractiveSession {
+@@ -266,7 +394,7 @@ public final class ManaBrewInteractiveSession {
  
      static final String TRIGGER_ORDER_TITLE = "Order triggered abilities";
  
@@ -3312,7 +3341,7 @@ index 643e5de..175adc2 100644
  
      static final class PriorityChoice {
          private final PriorityActionKind kind;
-@@ -362,6 +488,11 @@ public final class ManaBrewInteractiveSession {
+@@ -362,6 +490,11 @@ public final class ManaBrewInteractiveSession {
              if (isRestoreDirective(action)) {
                  return new PriorityChoice(PriorityActionKind.RESTORE, null, null, null);
              }
@@ -3324,7 +3353,7 @@ index 643e5de..175adc2 100644
              try {
                  return interpretPriorityAction(action, actionsForPrompt, untappableCards);
              } catch (IllegalArgumentException | UnsupportedOperationException | NullPointerException invalid) {
-@@ -823,6 +954,9 @@ public final class ManaBrewInteractiveSession {
+@@ -823,6 +956,9 @@ public final class ManaBrewInteractiveSession {
                  }
                  return chosen;
              }
@@ -3334,7 +3363,7 @@ index 643e5de..175adc2 100644
              throw new UnsupportedOperationException("unsupported action kind: " + actionKind);
          }
          return new ArrayList<>();
-@@ -833,7 +967,13 @@ public final class ManaBrewInteractiveSession {
+@@ -833,7 +969,13 @@ public final class ManaBrewInteractiveSession {
          final Random rng = forge.util.MyRandom.getRandom();
          final int sides = 20;
          final Map<Player, Integer> openingRolls = new LinkedHashMap<Player, Integer>();
@@ -3349,7 +3378,7 @@ index 643e5de..175adc2 100644
          Player winner;
          boolean firstRound = true;
          while (true) {
-@@ -881,6 +1021,12 @@ public final class ManaBrewInteractiveSession {
+@@ -881,6 +1023,12 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3362,7 +3391,7 @@ index 643e5de..175adc2 100644
      boolean awaitMulliganDecision(final int playerId, final int cardsToReturn) {
          requireAttached();
          final List<Card> cards = new ArrayList<Card>(
-@@ -896,6 +1042,7 @@ public final class ManaBrewInteractiveSession {
+@@ -896,6 +1044,7 @@ public final class ManaBrewInteractiveSession {
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
              if ("mulligan_decision".equals(actionKind)) {
@@ -3370,7 +3399,7 @@ index 643e5de..175adc2 100644
                  return action.has("keep") && action.get("keep").getAsBoolean();
              }
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
-@@ -1004,15 +1151,40 @@ public final class ManaBrewInteractiveSession {
+@@ -1004,15 +1153,40 @@ public final class ManaBrewInteractiveSession {
          return new ArrayList<>();
      }
  
@@ -3412,7 +3441,7 @@ index 643e5de..175adc2 100644
          while (!closed && !game.isGameOver()) {
              final JsonObject action = takeActionOrNull();
              if (action == null) {
-@@ -1104,14 +1276,31 @@ public final class ManaBrewInteractiveSession {
+@@ -1104,14 +1278,31 @@ public final class ManaBrewInteractiveSession {
              final String description,
              final boolean optionalDecline,
              final String error
@@ -3447,7 +3476,7 @@ index 643e5de..175adc2 100644
      }
  
      void awaitRevealCards(
-@@ -1188,6 +1377,18 @@ public final class ManaBrewInteractiveSession {
+@@ -1188,6 +1379,18 @@ public final class ManaBrewInteractiveSession {
          return awaitModeChoice(playerId, unweightedOptions(options, allowRepeat), min, max, sourceName, null, null);
      }
  
@@ -3466,7 +3495,7 @@ index 643e5de..175adc2 100644
      List<Integer> awaitModeChoice(
              final int playerId,
              final List<SelectionOption> options,
-@@ -1196,6 +1397,19 @@ public final class ManaBrewInteractiveSession {
+@@ -1196,6 +1399,19 @@ public final class ManaBrewInteractiveSession {
              final String sourceName,
              final String description,
              final String sourceCardId
@@ -3486,7 +3515,7 @@ index 643e5de..175adc2 100644
      ) {
          requireAttached();
          if (options.isEmpty() && min > 0) {
-@@ -1207,7 +1421,7 @@ public final class ManaBrewInteractiveSession {
+@@ -1207,7 +1423,7 @@ public final class ManaBrewInteractiveSession {
          final int clampedMax = anyRepeatable ? max : Math.min(max, totalWeight);
          final String title = sourceName != null ? sourceName : "Choose";
          final PromptPresentation presentation =
@@ -3495,7 +3524,7 @@ index 643e5de..175adc2 100644
          publishAgentPrompt("player-" + playerId, sourceCardId,
                  new ChooseFromSelectionInput(presentation, options, clampedMin, clampedMax));
          while (!closed && !game.isGameOver()) {
-@@ -1762,24 +1976,29 @@ public final class ManaBrewInteractiveSession {
+@@ -1762,24 +1978,29 @@ public final class ManaBrewInteractiveSession {
              final CardCollectionView valid,
              final int min,
              final int max,
@@ -3527,7 +3556,7 @@ index 643e5de..175adc2 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (chosen.size() >= cappedMin) {
                      break;
-@@ -1821,7 +2040,8 @@ public final class ManaBrewInteractiveSession {
+@@ -1821,7 +2042,8 @@ public final class ManaBrewInteractiveSession {
              final List<Pair<GameEntity, forge.game.GameObject>> candidates,
              final int min,
              final int max,
@@ -3537,7 +3566,7 @@ index 643e5de..175adc2 100644
      ) {
          final Card source = sa == null ? null : sa.getHostCard();
          final List<TargetRef> candidateRefs = new java.util.ArrayList<>();
-@@ -1834,7 +2054,11 @@ public final class ManaBrewInteractiveSession {
+@@ -1834,7 +2056,11 @@ public final class ManaBrewInteractiveSession {
                  new ChooseBoardTargetsInput(
                          presentation("Sacrifice", null),
                          candidateRefs, true, enumFromWire("sacrifice", TargetingIntent.class),
@@ -3550,7 +3579,7 @@ index 643e5de..175adc2 100644
      }
  
      Map<GameEntity, Integer> awaitDividedAllocation(
-@@ -1882,6 +2106,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1882,6 +2108,16 @@ public final class ManaBrewInteractiveSession {
              final int min,
              final int max,
              final boolean allowEmpty
@@ -3567,7 +3596,7 @@ index 643e5de..175adc2 100644
      ) {
          while (!closed && !game.isGameOver()) {
              final JsonObject action;
-@@ -1892,6 +2126,12 @@ public final class ManaBrewInteractiveSession {
+@@ -1892,6 +2128,12 @@ public final class ManaBrewInteractiveSession {
                  return new CardCollection();
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
@@ -3580,7 +3609,7 @@ index 643e5de..175adc2 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (allowEmpty) {
                      return new CardCollection();
-@@ -1911,10 +2151,10 @@ public final class ManaBrewInteractiveSession {
+@@ -1911,10 +2153,10 @@ public final class ManaBrewInteractiveSession {
                      }
                  }
              }
@@ -3594,7 +3623,7 @@ index 643e5de..175adc2 100644
                  throw new IllegalArgumentException("selected card count out of range: " + selected.size());
              }
              return selected;
-@@ -1940,10 +2180,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1940,10 +2182,16 @@ public final class ManaBrewInteractiveSession {
  
      private JsonObject takeAction() throws InterruptedException {
          while (true) {
@@ -3612,7 +3641,7 @@ index 643e5de..175adc2 100644
              if (action == null) {
                  if (closed || game.isGameOver()) {
                      return syntheticPass();
-@@ -1966,6 +2212,14 @@ public final class ManaBrewInteractiveSession {
+@@ -1966,6 +2214,17 @@ public final class ManaBrewInteractiveSession {
                  announceState();
                  continue;
              }
@@ -3624,10 +3653,13 @@ index 643e5de..175adc2 100644
 +                announceState();
 +                continue;
 +            }
++            if ("offer_tie".equals(kind) || "tie_vote".equals(kind) || "release_hold".equals(kind)) {
++                continue;
++            }
              if ("set_snapshot_recording".equals(kind)) {
                  if (action.get("player").getAsInt() == InteractiveBridge.HOST_SEAT) {
                      setSnapshotRecording(action.get("enabled").getAsBoolean());
-@@ -1987,6 +2241,17 @@ public final class ManaBrewInteractiveSession {
+@@ -1987,6 +2246,17 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3645,7 +3677,7 @@ index 643e5de..175adc2 100644
      private static JsonObject syntheticPass() {
          final JsonObject pass = new JsonObject();
          pass.addProperty("kind", "pass");
-@@ -2010,6 +2275,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2010,6 +2280,8 @@ public final class ManaBrewInteractiveSession {
          if (!restoreApproved()) {
              return false;
          }
@@ -3654,7 +3686,7 @@ index 643e5de..175adc2 100644
          final RestoreVote vote = restoreVote;
          if (!checkpoints.contains(vote.checkpoint)) {
              vote.status = RestoreVoteStatus.UNAVAILABLE;
-@@ -2067,22 +2334,16 @@ public final class ManaBrewInteractiveSession {
+@@ -2067,22 +2339,16 @@ public final class ManaBrewInteractiveSession {
          if (handler.getTurn() == checkpointTurn && handler.getPhase() == checkpointPhase) {
              return;
          }
@@ -3681,7 +3713,7 @@ index 643e5de..175adc2 100644
          if (checkpointMetricsEnabled) {
              final long finished = System.nanoTime();
              synchronized (checkpointTimings) {
-@@ -2091,6 +2352,168 @@ public final class ManaBrewInteractiveSession {
+@@ -2091,6 +2357,168 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3850,7 +3882,7 @@ index 643e5de..175adc2 100644
      private void publishCheckpointViews() {
          final List<Map<String, Object>> views = new ArrayList<>();
          for (final Checkpoint checkpoint : checkpoints) {
-@@ -2124,6 +2547,10 @@ public final class ManaBrewInteractiveSession {
+@@ -2124,6 +2552,10 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
@@ -3861,7 +3893,7 @@ index 643e5de..175adc2 100644
          if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
                  || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
              return;
-@@ -2157,11 +2584,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2157,11 +2589,7 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void restore(final Checkpoint target) {
@@ -3874,7 +3906,7 @@ index 643e5de..175adc2 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2598,431 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2603,431 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4306,7 +4338,7 @@ index 643e5de..175adc2 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +3055,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +3060,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -4323,7 +4355,7 @@ index 643e5de..175adc2 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +3099,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +3104,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -4332,7 +4364,7 @@ index 643e5de..175adc2 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +3142,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +3147,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -4355,7 +4387,7 @@ index 643e5de..175adc2 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +3186,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +3191,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -4386,7 +4418,7 @@ index 643e5de..175adc2 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,16 +3450,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,24 +3455,176 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -4406,17 +4438,59 @@ index 643e5de..175adc2 100644
                      a.isGoaded() || !StaticAbilityMustAttack.entitiesMustAttack(a).isEmpty();
              attackers.add(new AttackerOptionDto(
 -                    SnapshotExtractor.javaCardId(a), validTargetIds, mustAttack));
-+                    SnapshotExtractor.javaCardId(a), validTargetIds, mustAttack, attackCosts(a, combat)));
++                    SnapshotExtractor.javaCardId(a), validTargetIds, mustAttack, attackCosts(a, combat),
++                    attackDamage(a, combat)));
++        }
++        final List<Card> commanders = new java.util.ArrayList<>();
++        for (final Card a : availableAttackers) {
++            if (a.isCommander()) {
++                commanders.add(a);
++            }
          }
          final List<AttackTargetDto> attackTargets = new java.util.ArrayList<>();
          for (final GameEntity defender : combat.getDefenders()) {
-@@ -2596,7 +3472,114 @@ public final class ManaBrewInteractiveSession {
-                     defenderId(defender), defender.getName(),
-                     enumFromWire(defenderKind(defender), AttackTargetKind.class)));
-         }
--        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets));
+-            attackTargets.add(new AttackTargetDto(
+-                    defenderId(defender), defender.getName(),
+-                    enumFromWire(defenderKind(defender), AttackTargetKind.class)));
++            attackTargets.add(attackTarget(defender, commanders));
++        }
 +        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets,
 +                attackRefusals(combat, availableAttackers), attackLimits(combat)));
++    }
++
++    private boolean commanderDamageCounts() {
++        return game.getRules().hasAppliedVariant(GameType.Commander);
++    }
++
++    private List<AttackDamageDto> attackDamage(final Card attacker, final Combat combat) {
++        final List<AttackDamageDto> out = new java.util.ArrayList<>();
++        for (final GameEntity defender : CombatChoiceSpace.legalDefendersForAttacker(attacker, combat)) {
++            final int damage = ComputerUtilCombat.damageIfUnblocked(attacker, defender, combat, false);
++            final boolean atPlayer = defender instanceof Player;
++            final int poison = atPlayer ? ComputerUtilCombat.poisonIfUnblocked(attacker, (Player) defender) : 0;
++            final Integer commander = atPlayer && attacker.isCommander() && commanderDamageCounts() ? damage : null;
++            out.add(new AttackDamageDto(defenderId(defender), damage, poison, commander));
++        }
++        return out;
++    }
++
++    private AttackTargetDto attackTarget(final GameEntity defender, final List<Card> commanders) {
++        final AttackTargetKind kind = enumFromWire(defenderKind(defender), AttackTargetKind.class);
++        if (defender instanceof Player p) {
++            final List<CommanderLeftDto> commanderLeft = new java.util.ArrayList<>();
++            if (commanderDamageCounts()) {
++                for (final Card c : commanders) {
++                    commanderLeft.add(new CommanderLeftDto(SnapshotExtractor.javaCardId(c),
++                            p.getCommanderDamageToLose() - p.getTeamCommanderDamage(c)));
++                }
++            }
++            return new AttackTargetDto(defenderId(defender), defender.getName(), kind, p.getLife(),
++                    game.getRules().getPoisonCountersToLose() - p.getPoisonCounters(), commanderLeft,
++                    !p.cantLose() && !p.cantLoseForZeroOrLessLife());
++        }
++        final Card card = (Card) defender;
++        return new AttackTargetDto(defenderId(defender), defender.getName(), kind,
++                card.isBattle() ? card.getCurrentDefense() : card.getCurrentLoyalty(), null, null, true);
 +    }
 +
 +    private List<AttackCostDto> attackCosts(final Card attacker, final Combat combat) {
@@ -4517,7 +4591,8 @@ index 643e5de..175adc2 100644
 +                    }
 +                }
 +            }
-+        }
+         }
+-        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets));
 +        return out;
 +    }
 +
@@ -4526,7 +4601,7 @@ index 643e5de..175adc2 100644
      }
  
      private void publishBlockersPrompt(
-@@ -2604,7 +3587,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2604,7 +3632,8 @@ public final class ManaBrewInteractiveSession {
              final List<Card> attackers,
              final List<Card> availableBlockers,
              final Map<Card, List<Card>> validBlockersByAttacker,
@@ -4536,7 +4611,7 @@ index 643e5de..175adc2 100644
      ) {
          final Player defendingPlayer = game.getRegisteredPlayers().get(playerId);
          final List<BlockableAttackerDto> attackerOptions = new java.util.ArrayList<>();
-@@ -2627,7 +3611,17 @@ public final class ManaBrewInteractiveSession {
+@@ -2627,7 +3656,17 @@ public final class ManaBrewInteractiveSession {
              availableBlockerIds.add(SnapshotExtractor.javaCardId(blocker));
          }
          publishAgentPrompt("player-" + playerId, null,
@@ -4555,7 +4630,7 @@ index 643e5de..175adc2 100644
      }
  
      private void publishDamageAssignmentOrderPrompt(
-@@ -2918,7 +3912,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2918,7 +3957,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4565,7 +4640,7 @@ index 643e5de..175adc2 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +3923,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +3968,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -4591,7 +4666,7 @@ index 643e5de..175adc2 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +3955,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +4000,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -4602,7 +4677,7 @@ index 643e5de..175adc2 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +3983,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +4028,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -4618,7 +4693,7 @@ index 643e5de..175adc2 100644
  
      private String sourceAbilityText(final String sourceCardId) {
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManabrewProtocolAdapter.java b/forge-harness/src/main/java/forge/harness/host/ManabrewProtocolAdapter.java
-index 18db021..195090f 100644
+index 18db021..b504e7f 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManabrewProtocolAdapter.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManabrewProtocolAdapter.java
 @@ -49,12 +49,19 @@ final class ManabrewProtocolAdapter {
@@ -4641,7 +4716,7 @@ index 18db021..195090f 100644
                  flat.addProperty("kind", "choose_cards");
                  flat.add("card_ids", copyStringArray(output, "chosenCardIds"));
                  return flat;
-@@ -220,6 +227,11 @@ final class ManabrewProtocolAdapter {
+@@ -220,6 +227,22 @@ final class ManabrewProtocolAdapter {
                  flat.addProperty("kind", "set_snapshot_recording");
                  flat.addProperty("enabled", directive.get("enabled").getAsBoolean());
                  break;
@@ -4649,6 +4724,17 @@ index 18db021..195090f 100644
 +                flat.addProperty("kind", "apply_state");
 +                flat.addProperty("fixId", directive.get("fixId").getAsInt());
 +                flat.add("ops", directive.getAsJsonArray("ops"));
++                break;
++            case "offerTie":
++                flat.addProperty("kind", "offer_tie");
++                break;
++            case "tieVote":
++                flat.addProperty("kind", "tie_vote");
++                flat.addProperty("voteId", directive.get("voteId").getAsInt());
++                flat.addProperty("accept", directive.get("accept").getAsBoolean());
++                break;
++            case "releaseHold":
++                flat.addProperty("kind", "release_hold");
 +                break;
              default:
                  throw new UnsupportedOperationException("unsupported directive: " + kind);
@@ -6912,6 +6998,416 @@ index 0000000..c11442b
 +        card.setGameTimestamp(p.getGame().getNextTimestamp());
 +        p.getZone(zone).add(card);
 +        return card;
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/AttackTaxLethalTest.java b/forge-harness/src/test/java/forge/harness/host/AttackTaxLethalTest.java
+new file mode 100644
+index 0000000..a8335ed
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/AttackTaxLethalTest.java
+@@ -0,0 +1,404 @@
++package forge.harness.host;
++
++import com.google.gson.JsonArray;
++import com.google.gson.JsonElement;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.card.CounterEnumType;
++import forge.game.card.CounterType;
++import forge.game.combat.Combat;
++import forge.game.phase.PhaseHandler;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.CombatChoiceSpace;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.EnumSet;
++import java.util.List;
++import java.util.Set;
++import java.util.concurrent.locks.ReentrantLock;
++
++public final class AttackTaxLethalTest {
++    private AttackTaxLethalTest() {}
++
++    private static int failed;
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        check("twentyBearsDealTwoEachIntoGhostlyPrison", AttackTaxLethalTest::twentyBearsDealTwoEachIntoGhostlyPrison);
++        check("aPumpCounts", AttackTaxLethalTest::aPumpCounts);
++        check("doubleStrikeDoubles", AttackTaxLethalTest::doubleStrikeDoubles);
++        check("infectIsPoisonNotDamage", AttackTaxLethalTest::infectIsPoisonNotDamage);
++        check("preventionIsNoDamage", AttackTaxLethalTest::preventionIsNoDamage);
++        check("aCommanderCountsTowardItsLimit", AttackTaxLethalTest::aCommanderCountsTowardItsLimit);
++        check("noCommanderDamageOutsideCommander", AttackTaxLethalTest::noCommanderDamageOutsideCommander);
++        check("platinumAngelCantLose", AttackTaxLethalTest::platinumAngelCantLose);
++        check("aPlaneswalkersLifeIsItsLoyalty", AttackTaxLethalTest::aPlaneswalkersLifeIsItsLoyalty);
++        check("paymentFollowsTheDeclarationOrder", AttackTaxLethalTest::paymentFollowsTheDeclarationOrder);
++        check("aCancelLeavesOnlyThatAttackerHome", AttackTaxLethalTest::aCancelLeavesOnlyThatAttackerHome);
++        check("twoHundredTokensAreQuick", AttackTaxLethalTest::twoHundredTokensAreQuick);
++        System.out.println(failed == 0 ? "PASS AttackTaxLethalTest" : "FAIL AttackTaxLethalTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static void twentyBearsDealTwoEachIntoGhostlyPrison() throws Exception {
++        final Fixture f = new Fixture(GameType.Constructed);
++        add("Ghostly Prison", f.ai, ZoneType.Battlefield);
++        f.ai.setLife(40, null);
++        final List<Card> bears = new ArrayList<>();
++        for (int i = 0; i < 20; i++) {
++            bears.add(creature("Grizzly Bears", f.white));
++        }
++        final JsonObject input = f.attackPrompt();
++        final String ai = playerId(f, f.ai);
++        for (final Card bear : bears) {
++            final JsonObject d = damageOf(input, bear, ai);
++            expect(d.get("damage").getAsInt() == 2 && d.get("poison").getAsInt() == 0 && !d.has("commander"),
++                    "a bear's damage at AI: " + d);
++            final JsonObject a = attacker(input, bear);
++            expect(a.getAsJsonArray("costs").size() == 1, "a bear has no Ghostly Prison tax: " + a);
++        }
++        final JsonObject t = target(input, ai);
++        expect(t.get("life").getAsInt() == 40, "AI's life: " + t);
++        expect(t.get("poisonLeft").getAsInt() == 10, "AI's poison left: " + t);
++        expect(t.get("canLose").getAsBoolean(), "AI can't lose: " + t);
++        expect(t.getAsJsonArray("commanderLeft").isEmpty(), "commander damage outside Commander: " + t);
++    }
++
++    private static void aPumpCounts() throws Exception {
++        final Fixture f = new Fixture(GameType.Constructed);
++        final Card bear = creature("Grizzly Bears", f.white);
++        bear.addPTBoost(3, 3, f.game.getNextTimestamp(), 0);
++        final JsonObject d = damageOf(f.attackPrompt(), bear, playerId(f, f.ai));
++        expect(d.get("damage").getAsInt() == 5, "a pumped bear's damage: " + d);
++    }
++
++    private static void doubleStrikeDoubles() throws Exception {
++        final Fixture f = new Fixture(GameType.Constructed);
++        final Card ace = creature("Fencing Ace", f.white);
++        final JsonObject d = damageOf(f.attackPrompt(), ace, playerId(f, f.ai));
++        expect(d.get("damage").getAsInt() == 2, "a 1/1 double striker's damage: " + d);
++    }
++
++    private static void infectIsPoisonNotDamage() throws Exception {
++        final Fixture f = new Fixture(GameType.Constructed);
++        final Card elf = creature("Glistener Elf", f.white);
++        f.ai.setCounters(CounterEnumType.POISON, 3, null, false);
++        final JsonObject input = f.attackPrompt();
++        final JsonObject d = damageOf(input, elf, playerId(f, f.ai));
++        expect(d.get("damage").getAsInt() == 0 && d.get("poison").getAsInt() == 1, "an infect elf: " + d);
++        expect(target(input, playerId(f, f.ai)).get("poisonLeft").getAsInt() == 7, "poison left after 3");
++    }
++
++    private static void preventionIsNoDamage() throws Exception {
++        final Fixture f = new Fixture(GameType.Constructed);
++        final Card bear = creature("Grizzly Bears", f.white);
++        add("Energy Field", f.ai, ZoneType.Battlefield);
++        final JsonObject d = damageOf(f.attackPrompt(), bear, playerId(f, f.ai));
++        expect(d.get("damage").getAsInt() == 0, "damage through Energy Field: " + d);
++    }
++
++    private static void aCommanderCountsTowardItsLimit() throws Exception {
++        final Fixture f = new Fixture(GameType.Commander);
++        final Card commander = creature("Grizzly Bears", f.white);
++        commander.setCommander(true);
++        final Card bear = creature("Grizzly Bears", f.white);
++        f.ai.addCommanderDamage(commander, 5);
++        final JsonObject input = f.attackPrompt();
++        final String ai = playerId(f, f.ai);
++        final JsonObject d = damageOf(input, commander, ai);
++        expect(d.has("commander") && d.get("commander").getAsInt() == 2, "the commander's damage: " + d);
++        expect(!damageOf(input, bear, ai).has("commander"), "a plain bear counts as a commander");
++        final JsonArray left = target(input, ai).getAsJsonArray("commanderLeft");
++        expect(left.size() == 1, "commanderLeft: " + left);
++        final JsonObject one = left.get(0).getAsJsonObject();
++        expect(SnapshotExtractor.javaCardId(commander).equals(one.get("commanderId").getAsString())
++                && one.get("left").getAsInt() == 16, "commander damage left after 5: " + one);
++    }
++
++    private static void noCommanderDamageOutsideCommander() throws Exception {
++        final Fixture f = new Fixture(GameType.Constructed);
++        final Card commander = creature("Grizzly Bears", f.white);
++        commander.setCommander(true);
++        final JsonObject input = f.attackPrompt();
++        expect(!damageOf(input, commander, playerId(f, f.ai)).has("commander"), "commander damage in a Constructed game");
++    }
++
++    private static void platinumAngelCantLose() throws Exception {
++        final Fixture f = new Fixture(GameType.Constructed);
++        creature("Grizzly Bears", f.white);
++        add("Platinum Angel", f.ai, ZoneType.Battlefield);
++        final JsonObject t = target(f.attackPrompt(), playerId(f, f.ai));
++        expect(!t.get("canLose").getAsBoolean(), "a player with Platinum Angel can lose: " + t);
++    }
++
++    private static void aPlaneswalkersLifeIsItsLoyalty() throws Exception {
++        final Fixture f = new Fixture(GameType.Constructed);
++        final Card bear = creature("Grizzly Bears", f.white);
++        final Card jace = add("Jace Beleren", f.ai, ZoneType.Battlefield);
++        jace.setCounters(CounterType.getType("LOYALTY"), 3);
++        final JsonObject input = f.attackPrompt();
++        final String jaceId = SnapshotExtractor.javaCardId(jace);
++        final JsonObject t = target(input, jaceId);
++        expect(t.get("life").getAsInt() == 3 && !t.has("poisonLeft") && t.get("canLose").getAsBoolean(), "Jace as a defender: " + t);
++        expect(damageOf(input, bear, jaceId).get("damage").getAsInt() == 2, "a bear's damage at Jace");
++    }
++
++    private static void paymentFollowsTheDeclarationOrder() throws Exception {
++        final Fixture f = new Fixture(GameType.Constructed);
++        add("Ghostly Prison", f.ai, ZoneType.Battlefield);
++        for (int i = 0; i < 6; i++) {
++            add("Plains", f.white, ZoneType.Battlefield);
++        }
++        final List<Card> bears = new ArrayList<>();
++        for (int i = 0; i < 3; i++) {
++            bears.add(creature("Grizzly Bears", f.white));
++        }
++        final List<Card> declared = List.of(bears.get(2), bears.get(0), bears.get(1));
++        final List<String> paidFor = f.declareAndPay(declared, Set.of());
++        final List<String> expected = new ArrayList<>();
++        for (final Card c : declared) {
++            expected.add(SnapshotExtractor.javaCardId(c));
++        }
++        expect(paidFor.equals(expected), "payment order " + paidFor + ", declared " + expected);
++        expect(f.combat().getAttackers().size() == 3, "attackers after paying for all: " + f.combat().getAttackers());
++    }
++
++    private static void aCancelLeavesOnlyThatAttackerHome() throws Exception {
++        final Fixture f = new Fixture(GameType.Constructed);
++        add("Ghostly Prison", f.ai, ZoneType.Battlefield);
++        for (int i = 0; i < 4; i++) {
++            add("Plains", f.white, ZoneType.Battlefield);
++        }
++        final List<Card> bears = new ArrayList<>();
++        for (int i = 0; i < 3; i++) {
++            bears.add(creature("Grizzly Bears", f.white));
++        }
++        final List<String> asked = f.declareAndPay(bears, Set.of());
++        expect(asked.size() == 3, "payments asked: " + asked);
++        final List<Card> attacking = f.combat().getAttackers();
++        expect(attacking.size() == 2 && attacking.contains(bears.get(0)) && attacking.contains(bears.get(1))
++                && !attacking.contains(bears.get(2)), "after paying for two of three: " + attacking);
++        expect(!bears.get(2).isTapped(), "the attacker left home is still tapped");
++        expect(f.combat().getDefenders().contains(f.ai) && f.combat().getAttackersOf(f.ai).size() == 2,
++                "the combat lost its defender: " + f.combat().getDefenders());
++    }
++
++    private static void twoHundredTokensAreQuick() throws Exception {
++        final Fixture f = new Fixture(GameType.Constructed);
++        add("Ghostly Prison", f.ai, ZoneType.Battlefield);
++        for (int i = 0; i < 200; i++) {
++            creature("Grizzly Bears", f.white);
++        }
++        final long start = System.nanoTime();
++        final JsonObject input = f.attackPrompt();
++        final long ms = (System.nanoTime() - start) / 1_000_000;
++        System.out.println("time attackPrompt200 " + ms + " ms");
++        expect(input.getAsJsonArray("attackers").size() == 200, "attackers offered: " + input.getAsJsonArray("attackers").size());
++        expect(ms < 5_000, "the attack question for 200 bears took " + ms + " ms");
++    }
++
++    private static String playerId(final Fixture f, final Player p) {
++        return "player-" + SnapshotExtractor.playerIndex(f.game, p);
++    }
++
++    private static JsonObject attacker(final JsonObject input, final Card card) {
++        final String id = SnapshotExtractor.javaCardId(card);
++        for (final JsonElement e : input.getAsJsonArray("attackers")) {
++            if (id.equals(e.getAsJsonObject().get("attackerId").getAsString())) {
++                return e.getAsJsonObject();
++            }
++        }
++        throw new AssertionError(card + " is not offered as an attacker");
++    }
++
++    private static JsonObject damageOf(final JsonObject input, final Card card, final String defenderId) {
++        final JsonObject a = attacker(input, card);
++        if (!a.has("damage")) {
++            throw new AssertionError("no damage on " + a);
++        }
++        for (final JsonElement e : a.getAsJsonArray("damage")) {
++            if (defenderId.equals(e.getAsJsonObject().get("defenderId").getAsString())) {
++                return e.getAsJsonObject();
++            }
++        }
++        throw new AssertionError("no damage at " + defenderId + " on " + a);
++    }
++
++    private static JsonObject target(final JsonObject input, final String id) {
++        for (final JsonElement e : input.getAsJsonArray("attackTargets")) {
++            if (id.equals(e.getAsJsonObject().get("id").getAsString())) {
++                return e.getAsJsonObject();
++            }
++        }
++        throw new AssertionError("no attack target " + id + " in " + input.getAsJsonArray("attackTargets"));
++    }
++
++    private static Card creature(final String name, final Player p) {
++        final Card c = add(name, p, ZoneType.Battlefield);
++        c.setSickness(false);
++        return c;
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("attack-tax-lethal-test");
++        final Game game;
++        final Player white;
++        final Player ai;
++        final ReentrantLock lock;
++
++        Fixture(final GameType type) throws Exception {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final Deck deck = new Deck();
++            players.add(new RegisteredPlayer(deck).setPlayer(new ManaBrewInteractiveLobbyPlayer("White", session)));
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("AI 1", null)));
++            final GameRules rules = new GameRules(type);
++            rules.setAppliedVariants(EnumSet.of(type));
++            game = new Game(players, rules, new Match(rules, players, "AttackTaxLethalTest"));
++            game.setAge(GameStage.Play);
++            white = game.getPlayers().get(0);
++            ai = game.getPlayers().get(1);
++            game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, white);
++            session.attach(game.getMatch(), game, Set.of(), false);
++            final Field field = ManaBrewInteractiveSession.class.getDeclaredField("gameLock");
++            field.setAccessible(true);
++            lock = (ReentrantLock) field.get(session);
++        }
++
++        Combat combat() {
++            return game.getPhaseHandler().getCombat();
++        }
++
++        JsonObject attackPrompt() throws Exception {
++            final Combat combat = new Combat(white);
++            game.getPhaseHandler().setCombat(combat);
++            final Method publish = ManaBrewInteractiveSession.class.getDeclaredMethod(
++                    "publishAttackersPrompt", int.class, Combat.class, List.class);
++            publish.setAccessible(true);
++            publish.invoke(session, SnapshotExtractor.playerIndex(game, white), combat,
++                    CombatChoiceSpace.legalAttackers(white, combat));
++            return JsonParser.parseString(session.getLatestPromptJson()).getAsJsonObject().getAsJsonObject("input");
++        }
++
++        List<String> declareAndPay(final List<Card> declared, final Set<Card> refuse) throws Exception {
++            game.getPhaseHandler().setCombat(new Combat(white));
++            final Method declare = PhaseHandler.class.getDeclaredMethod("declareAttackersTurnBasedAction");
++            declare.setAccessible(true);
++            final Throwable[] failure = new Throwable[1];
++            final Thread thread = new Thread(() -> {
++                lock.lock();
++                try {
++                    declare.invoke(game.getPhaseHandler());
++                } catch (final Throwable thrown) {
++                    failure[0] = thrown;
++                } finally {
++                    lock.unlock();
++                }
++            }, "declare-attackers");
++            thread.setDaemon(true);
++            thread.start();
++            final List<String> paymentsFor = new ArrayList<>();
++            final String ai = "player-" + SnapshotExtractor.playerIndex(game, this.ai);
++            long seen = -1;
++            boolean sent = false;
++            final long deadline = System.currentTimeMillis() + 60_000;
++            while (thread.isAlive() && System.currentTimeMillis() < deadline) {
++                final String json = session.getLatestPromptJson();
++                final JsonObject prompt = json == null ? null : JsonParser.parseString(json).getAsJsonObject();
++                if (prompt == null || prompt.get("promptId").getAsLong() == seen) {
++                    Thread.sleep(10);
++                    continue;
++                }
++                seen = prompt.get("promptId").getAsLong();
++                final JsonObject input = prompt.getAsJsonObject("input");
++                final String type = input.get("type").getAsString();
++                if ("chooseAttackers".equals(type)) {
++                    expect(!sent, "the attack was asked again: " + input);
++                    sent = true;
++                    final StringBuilder assignments = new StringBuilder();
++                    for (final Card c : declared) {
++                        assignments.append(assignments.length() == 0 ? "" : ",").append("{\"attackerId\":\"")
++                                .append(SnapshotExtractor.javaCardId(c)).append("\",\"targetId\":\"").append(ai).append("\"}");
++                    }
++                    session.submitAction("{\"type\":\"chooseAttackers\",\"output\":{\"type\":\"declareAttackers\",\"assignments\":["
++                            + assignments + "]}}");
++                } else if ("payManaCost".equals(type)) {
++                    final String cardId = input.has("cardId") ? input.get("cardId").getAsString() : "";
++                    final boolean confirm = input.has("canConfirmFromPool") && input.get("canConfirmFromPool").getAsBoolean();
++                    final boolean again = !paymentsFor.isEmpty() && paymentsFor.get(paymentsFor.size() - 1).equals(cardId);
++                    if (!again) {
++                        paymentsFor.add(cardId);
++                    }
++                    final boolean refused = refuse.stream().anyMatch(c -> SnapshotExtractor.javaCardId(c).equals(cardId));
++                    final String output = confirm ? "{\"type\":\"pay\",\"auto\":false}"
++                            : refused || again ? "{\"type\":\"cancel\"}" : "{\"type\":\"pay\",\"auto\":true}";
++                    session.submitAction("{\"type\":\"payManaCost\",\"output\":" + output + "}");
++                } else {
++                    session.submitAction("{\"type\":\"" + type + "\",\"output\":{\"type\":\"pass\"}}");
++                }
++            }
++            thread.join(5_000);
++            if (failure[0] != null) {
++                throw new AssertionError("declaring attackers failed", failure[0]);
++            }
++            expect(!thread.isAlive(), "declaring attackers did not finish");
++            return paymentsFor;
++        }
 +    }
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/BigTurnTimingTest.java b/forge-harness/src/test/java/forge/harness/host/BigTurnTimingTest.java
@@ -12373,6 +12869,94 @@ index 0000000..2461701
 +        }
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/ProtocolDefaultsTest.java b/forge-harness/src/test/java/forge/harness/host/ProtocolDefaultsTest.java
+new file mode 100644
+index 0000000..fd6df22
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/ProtocolDefaultsTest.java
+@@ -0,0 +1,82 @@
++package forge.harness.host;
++
++import com.google.gson.Gson;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.harness.protocol.AttackTargetDto;
++import forge.harness.protocol.AttackTargetKind;
++import forge.harness.protocol.AttackerOptionDto;
++import forge.harness.protocol.CardDto;
++
++import java.util.List;
++
++public final class ProtocolDefaultsTest {
++    private ProtocolDefaultsTest() {}
++
++    private static final Gson GSON = new Gson();
++    private static int failed;
++
++    public static void main(final String[] args) {
++        check("offerTie", () -> {
++            final JsonObject flat = decode("{\"type\":\"offerTie\"}", 2);
++            expect("offer_tie".equals(kind(flat)) && flat.get("player").getAsInt() == 2, "offerTie: " + flat);
++        });
++        check("tieVote", () -> {
++            final JsonObject flat = decode("{\"type\":\"tieVote\",\"voteId\":7,\"accept\":true}", 1);
++            expect("tie_vote".equals(kind(flat))
++                    && flat.get("voteId").getAsInt() == 7
++                    && flat.get("accept").getAsBoolean()
++                    && flat.get("player").getAsInt() == 1, "tieVote: " + flat);
++        });
++        check("releaseHold", () -> {
++            final JsonObject flat = decode("{\"type\":\"releaseHold\"}", 0);
++            expect("release_hold".equals(kind(flat)), "releaseHold: " + flat);
++        });
++        check("attackerWithoutDamageKeepsItsWire", () -> {
++            final JsonObject obj = GSON.toJsonTree(
++                    new AttackerOptionDto("card-1", List.of("player-1"), false, List.of(), null)).getAsJsonObject();
++            expect(!obj.has("damage") && obj.has("costs"), "attacker: " + obj);
++        });
++        check("attackTargetWithoutTaxDataKeepsItsWire", () -> {
++            final JsonObject obj = GSON.toJsonTree(new AttackTargetDto(
++                    "player-1", "Blue", AttackTargetKind.PLAYER, null, null, null, null)).getAsJsonObject();
++            expect(obj.keySet().equals(java.util.Set.of("id", "label", "kind")), "target: " + obj);
++        });
++        check("cardIsBoundedByDefault", () -> {
++            final CardDto dto = new CardDto();
++            expect(!dto.unbounded, "a new card is unbounded");
++        });
++        System.out.println(failed == 0 ? "PASS ProtocolDefaultsTest" : "FAIL ProtocolDefaultsTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private static JsonObject decode(final String directive, final int player) {
++        final JsonObject canonical = JsonParser.parseString(
++                "{\"type\":\"directive\",\"player\":" + player + ",\"directive\":" + directive + "}").getAsJsonObject();
++        return ManabrewProtocolAdapter.decodeAction(canonical);
++    }
++
++    private static String kind(final JsonObject flat) {
++        return flat.has("kind") ? flat.get("kind").getAsString() : "";
++    }
++
++    private interface Check {
++        void run();
++    }
++
++    private static void check(final String name, final Check body) {
++        try {
++            body.run();
++            System.out.println("ok " + name);
++        } catch (RuntimeException | AssertionError error) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + error.getMessage());
++        }
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/RejoinRewindTest.java b/forge-harness/src/test/java/forge/harness/host/RejoinRewindTest.java
 new file mode 100644
 index 0000000..849bb01
@@ -17116,18 +17700,19 @@ index c778de5..a8a9364 100644
          None,
      );
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs b/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs
-index 358c48f..ee1dcb7 100644
+index 358c48f..aec532f 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/combat.rs
-@@ -44,6 +44,7 @@ pub(super) fn choose_attackers<T: Responder>(
+@@ -44,6 +44,8 @@ pub(super) fn choose_attackers<T: Responder>(
              attacker_id,
              valid_target_ids: all_target_ids.clone(),
              must_attack: false,
 +            costs: Vec::new(),
++            damage: Vec::new(),
          })
          .collect();
      agent.send_prompt(
-@@ -51,6 +52,8 @@ pub(super) fn choose_attackers<T: Responder>(
+@@ -51,6 +53,8 @@ pub(super) fn choose_attackers<T: Responder>(
              manabrew_protocol::prompts::choose_attackers::ChooseAttackersInput {
                  attackers,
                  attack_targets,
@@ -17136,7 +17721,7 @@ index 358c48f..ee1dcb7 100644
              },
          ),
          None,
-@@ -103,6 +106,10 @@ pub(super) fn choose_blockers<T: Responder>(
+@@ -103,6 +107,10 @@ pub(super) fn choose_blockers<T: Responder>(
                  attackers,
                  available_blocker_ids,
                  error: None,
@@ -17160,26 +17745,54 @@ index 35a1b62..ac4f860 100644
          None,
      );
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/mod.rs b/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/mod.rs
-index bac285e..a8e0d58 100644
+index bac285e..f92555d 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/mod.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/agent_impl/mod.rs
-@@ -221,7 +221,8 @@ impl<R: Responder> PromptAgent<R> {
+@@ -221,7 +221,11 @@ impl<R: Responder> PromptAgent<R> {
              DirectiveInput::Concede => self.conceded = true,
              DirectiveInput::RequestRestore { .. }
              | DirectiveInput::RestoreVote { .. }
 -            | DirectiveInput::SetSnapshotRecording { .. } => {}
 +            | DirectiveInput::SetSnapshotRecording { .. }
-+            | DirectiveInput::ApplyState { .. } => {}
++            | DirectiveInput::ApplyState { .. }
++            | DirectiveInput::OfferTie
++            | DirectiveInput::TieVote { .. }
++            | DirectiveInput::ReleaseHold => {}
          }
      }
  
-@@ -657,7 +658,8 @@ impl<R: Responder> PlayerAgent for PromptAgent<R> {
+@@ -268,6 +272,10 @@ impl<R: Responder> PromptAgent<R> {
+                     id: format!("player-{}", pid.0),
+                     label: format!("Player {}", pid.0),
+                     kind: AttackTargetKind::Player,
++                    life: None,
++                    poison_left: None,
++                    commander_left: Vec::new(),
++                    can_lose: None,
+                 },
+                 // The Rust engine can't distinguish a planeswalker from a
+                 // battle yet; approximate any permanent target as a walker.
+@@ -275,6 +283,10 @@ impl<R: Responder> PromptAgent<R> {
+                     id: format!("card-{}", cid.0),
+                     label: format!("Permanent {}", cid.0),
+                     kind: AttackTargetKind::Planeswalker,
++                    life: None,
++                    poison_left: None,
++                    commander_left: Vec::new(),
++                    can_lose: None,
+                 },
+             })
+             .collect()
+@@ -657,7 +669,11 @@ impl<R: Responder> PlayerAgent for PromptAgent<R> {
                  directive:
                      DirectiveInput::RequestRestore { .. }
                      | DirectiveInput::RestoreVote { .. }
 -                    | DirectiveInput::SetSnapshotRecording { .. },
 +                    | DirectiveInput::SetSnapshotRecording { .. }
-+                    | DirectiveInput::ApplyState { .. },
++                    | DirectiveInput::ApplyState { .. }
++                    | DirectiveInput::OfferTie
++                    | DirectiveInput::TieVote { .. }
++                    | DirectiveInput::ReleaseHold,
              } => Self::default_pass(),
          };
          match action {
@@ -17214,10 +17827,10 @@ index 3385214..d968b3c 100644
          Reorder(reorder::ReorderInput {
              presentation: common::PromptPresentation {
 diff --git a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
-index 76fdc4f..2dbf963 100644
+index 76fdc4f..d769ff7 100644
 --- a/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
 +++ b/manabrew-rs/crates/manabrew-agent-interface/src/game_view_dto.rs
-@@ -789,6 +789,28 @@ fn card_to_dto_for_viewer(game: &GameState, cid: CardId, viewer: Option<PlayerId
+@@ -789,6 +789,29 @@ fn card_to_dto_for_viewer(game: &GameState, cid: CardId, viewer: Option<PlayerId
          // Rust engine doesn't surface it yet.
          would_die_in_combat: false,
          zone: None,
@@ -17243,10 +17856,11 @@ index 76fdc4f..2dbf963 100644
 +        cant_attack: false,
 +        cant_block: false,
 +        must_attack: false,
++        unbounded: false,
      }
  }
  
-@@ -859,6 +881,8 @@ impl GameViewDtoExt for GameViewDto {
+@@ -859,6 +882,8 @@ impl GameViewDtoExt for GameViewDto {
                          .cloned()
                          .unwrap_or_else(|| card.card_name.clone()),
                      room: card.svars.get("CurrentRoom").cloned().unwrap_or_default(),
@@ -17255,7 +17869,7 @@ index 76fdc4f..2dbf963 100644
                  })
              });
              let active_scheme_names: Vec<String> = command_zone
-@@ -936,9 +960,17 @@ impl GameViewDtoExt for GameViewDto {
+@@ -936,9 +961,17 @@ impl GameViewDtoExt for GameViewDto {
                  player_keywords,
                  commander_casts,
                  dungeon_state,
@@ -17273,7 +17887,7 @@ index 76fdc4f..2dbf963 100644
                  counters,
                  mana_pool: mana_pool_to_map(&pool),
                  commander_damage,
-@@ -1015,6 +1047,7 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1015,6 +1048,7 @@ impl GameViewDtoExt for GameViewDto {
                      identity,
                      text: entry.spell_ability.ability_text.clone(),
                      source_ability_text: stack_source_ability_text(game, &entry.spell_ability),
@@ -17281,7 +17895,7 @@ index 76fdc4f..2dbf963 100644
                      is_permanent_spell: entry.is_creature_spell || entry.is_permanent_spell,
                      is_casting: entry.is_pending_cast,
                      is_double_faced: source_card.map(|c| c.is_double_faced()).unwrap_or(false),
-@@ -1022,6 +1055,7 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1022,6 +1056,7 @@ impl GameViewDtoExt for GameViewDto {
                          .map(|c| u8::from(c.is_transformed))
                          .unwrap_or_default(),
                      targets: collect_stack_targets(&entry.spell_ability),
@@ -17289,7 +17903,7 @@ index 76fdc4f..2dbf963 100644
                  }
              })
              .collect();
-@@ -1061,9 +1095,15 @@ impl GameViewDtoExt for GameViewDto {
+@@ -1061,9 +1096,18 @@ impl GameViewDtoExt for GameViewDto {
              initiative_holder_id: game.initiative_holder.map(player_id_str),
              day_time: day_time_of(game),
              active_plane_names: (!active_plane_names.is_empty()).then_some(active_plane_names),
@@ -17302,14 +17916,17 @@ index 76fdc4f..2dbf963 100644
 +            delayed: None,
 +            storm_count: None,
 +            team_rules: None,
++            tie_vote: None,
++            stalemate: None,
++            draw_reason: None,
          }
      }
  
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
-index 0f579af..de354f8 100644
+index 0f579af..85a1eac 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
 +++ b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
-@@ -149,12 +149,147 @@ pub struct GameViewDto {
+@@ -149,12 +149,198 @@ pub struct GameViewDto {
      pub day_time: DayTime,
      #[ts(optional)]
      pub active_plane_names: Option<Vec<String>>,
@@ -17336,6 +17953,57 @@ index 0f579af..de354f8 100644
 +    #[serde(default, skip_serializing_if = "Option::is_none")]
 +    #[ts(optional)]
 +    pub team_rules: Option<TeamRulesDto>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub tie_vote: Option<TieVoteDto>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub stalemate: Option<StalemateDto>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub draw_reason: Option<String>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "game/index.ts")]
++pub struct TieVoteDto {
++    pub vote_id: u32,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub requested_by_player_id: Option<String>,
++    pub awaiting_player_ids: Vec<String>,
++    pub status: TieVoteStatus,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(
++    tag = "type",
++    rename_all = "camelCase",
++    rename_all_fields = "camelCase"
++)]
++#[ts(export, export_to = "game/index.ts")]
++pub enum TieVoteStatus {
++    Pending,
++    Accepted,
++    Declined { player_id: String },
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "game/index.ts")]
++pub struct StalemateDto {
++    pub player_id: String,
++    pub lock: String,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub card_id: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub card_name: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub rounds_without_progress: Option<u32>,
 +}
 +
 +#[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -17457,7 +18125,7 @@ index 0f579af..de354f8 100644
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-@@ -216,6 +351,58 @@ pub enum PlayerStatus {
+@@ -216,6 +402,58 @@ pub enum PlayerStatus {
  pub struct DungeonStateDto {
      pub name: String,
      pub room: String,
@@ -17516,7 +18184,7 @@ index 0f579af..de354f8 100644
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-@@ -254,10 +441,36 @@ pub struct PlayerDto {
+@@ -254,10 +492,36 @@ pub struct PlayerDto {
      pub commander_casts: HashMap<String, u32>,
      #[ts(optional)]
      pub dungeon_state: Option<DungeonStateDto>,
@@ -17553,7 +18221,7 @@ index 0f579af..de354f8 100644
      pub counters: BTreeMap<PlayerCounterKind, u32>,
      pub mana_pool: BTreeMap<ManaColor, u32>,
      #[ts(type = "Record<string, number>")]
-@@ -397,6 +610,59 @@ pub struct CardDto {
+@@ -397,6 +661,61 @@ pub struct CardDto {
      #[serde(default, skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub zone: Option<ZoneKind>,
@@ -17610,10 +18278,12 @@ index 0f579af..de354f8 100644
 +    pub cant_block: bool,
 +    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
 +    pub must_attack: bool,
++    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
++    pub unbounded: bool,
  }
  
  #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-@@ -412,11 +678,47 @@ pub struct StackObjectDto {
+@@ -412,11 +731,47 @@ pub struct StackObjectDto {
      #[serde(skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub source_ability_text: Option<String>,
@@ -17661,7 +18331,7 @@ index 0f579af..de354f8 100644
  }
  
  #[cfg(test)]
-@@ -433,11 +735,13 @@ mod stack_object_tests {
+@@ -433,11 +788,13 @@ mod stack_object_tests {
              identity: CardIdentity::default(),
              text: String::new(),
              source_ability_text: Some("When this enters, draw a card.".into()),
@@ -17676,15 +18346,29 @@ index 0f579af..de354f8 100644
  
          let value = serde_json::to_value(stack_object).unwrap();
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_attackers.rs b/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_attackers.rs
-index 7df4820..561562b 100644
+index 7df4820..68f410e 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_attackers.rs
 +++ b/manabrew-rs/crates/manabrew-protocol/src/prompts/choose_attackers.rs
-@@ -10,6 +10,47 @@ pub struct AttackerOptionDto {
+@@ -10,6 +10,61 @@ pub struct AttackerOptionDto {
      pub attacker_id: String,
      pub valid_target_ids: Vec<String>,
      pub must_attack: bool,
 +    #[serde(default)]
 +    pub costs: Vec<AttackCostDto>,
++    #[serde(default, skip_serializing_if = "Vec::is_empty")]
++    pub damage: Vec<AttackDamageDto>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "prompts/chooseAttackers.ts")]
++pub struct AttackDamageDto {
++    pub defender_id: String,
++    pub damage: u32,
++    pub poison: u32,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub commander: Option<u32>,
 +}
 +
 +#[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -17727,7 +18411,7 @@ index 7df4820..561562b 100644
  }
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
-@@ -18,6 +59,10 @@ pub struct AttackerOptionDto {
+@@ -18,6 +73,10 @@ pub struct AttackerOptionDto {
  pub struct ChooseAttackersInput {
      pub attackers: Vec<AttackerOptionDto>,
      pub attack_targets: Vec<AttackTargetDto>,
@@ -17785,6 +18469,36 @@ index 41bcd1f..91a01ed 100644
      ChooseCardsDecision { chosen_card_ids: Vec<String> },
 +    Cancel,
  }
+diff --git a/manabrew-rs/crates/manabrew-protocol/src/prompts/common.rs b/manabrew-rs/crates/manabrew-protocol/src/prompts/common.rs
+index 8a554b2..9f373ee 100644
+--- a/manabrew-rs/crates/manabrew-protocol/src/prompts/common.rs
++++ b/manabrew-rs/crates/manabrew-protocol/src/prompts/common.rs
+@@ -181,6 +181,25 @@ pub struct AttackTargetDto {
+     pub id: String,
+     pub label: String,
+     pub kind: AttackTargetKind,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub life: Option<i32>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub poison_left: Option<i32>,
++    #[serde(default, skip_serializing_if = "Vec::is_empty")]
++    pub commander_left: Vec<CommanderLeftDto>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub can_lose: Option<bool>,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize, TS)]
++#[serde(rename_all = "camelCase")]
++#[ts(export, export_to = "prompts/common.ts")]
++pub struct CommanderLeftDto {
++    pub commander_id: String,
++    pub left: i32,
+ }
+ 
+ #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/prompts/mod.rs b/manabrew-rs/crates/manabrew-protocol/src/prompts/mod.rs
 index 0594ad2..7533fd8 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/prompts/mod.rs
@@ -17816,7 +18530,7 @@ index 88b5700..882ac92 100644
 +    },
  }
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs b/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs
-index a1bcdce..c6fb754 100644
+index a1bcdce..4b66617 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs
 +++ b/manabrew-rs/crates/manabrew-protocol/src/transport/mod.rs
 @@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
@@ -17837,11 +18551,14 @@ index a1bcdce..c6fb754 100644
  #[serde(
      tag = "type",
      rename_all = "camelCase",
-@@ -33,6 +33,84 @@ pub enum DirectiveInput {
+@@ -33,6 +33,87 @@ pub enum DirectiveInput {
      RequestRestore { checkpoint_id: u32 },
      RestoreVote { vote_id: u32, accept: bool },
      SetSnapshotRecording { enabled: bool },
 +    ApplyState { fix_id: u32, ops: Vec<StateOp> },
++    OfferTie,
++    TieVote { vote_id: u32, accept: bool },
++    ReleaseHold,
 +}
 +
 +#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -18347,7 +19064,7 @@ index e19dcde..53dc343 100644
 +    }
  }
 diff --git a/manabrew-rs/crates/self-hosted-node/src/host.rs b/manabrew-rs/crates/self-hosted-node/src/host.rs
-index 7e1ddef..848b90b 100644
+index 7e1ddef..0524bf1 100644
 --- a/manabrew-rs/crates/self-hosted-node/src/host.rs
 +++ b/manabrew-rs/crates/self-hosted-node/src/host.rs
 @@ -183,6 +183,7 @@ struct HostSnapshot {
@@ -18415,14 +19132,17 @@ index 7e1ddef..848b90b 100644
                          remote_prompt_tx,
                          remote_response_rxs,
                          game_over_tx,
-@@ -2178,7 +2203,9 @@ fn route_remote_directive(
+@@ -2178,7 +2203,12 @@ fn route_remote_directive(
      info!(claimed_slot, player_index, ?directive, "routing directive");
      match directive {
          DirectiveInput::Concede => concede_seat(engine_session, player_index),
 -        DirectiveInput::RequestRestore { .. } | DirectiveInput::RestoreVote { .. } => {
 +        DirectiveInput::RequestRestore { .. }
 +        | DirectiveInput::RestoreVote { .. }
-+        | DirectiveInput::ApplyState { .. } => {
++        | DirectiveInput::ApplyState { .. }
++        | DirectiveInput::OfferTie
++        | DirectiveInput::TieVote { .. }
++        | DirectiveInput::ReleaseHold => {
              send_seat_message(
                  engine_session,
                  player_index,
@@ -18439,10 +19159,10 @@ index 9c35616..8fa7268 100644
                          )
                          .await?;
 diff --git a/src/lib/gameCard.ts b/src/lib/gameCard.ts
-index 5bcb862..b9adca0 100644
+index 5bcb862..25e77d6 100644
 --- a/src/lib/gameCard.ts
 +++ b/src/lib/gameCard.ts
-@@ -41,6 +41,19 @@ export const GAME_CARD_DEFAULTS: ClientCardDto = {
+@@ -41,6 +41,20 @@ export const GAME_CARD_DEFAULTS: ClientCardDto = {
    isWarpExiled: false,
    foil: false,
    wouldDieInCombat: false,
@@ -18459,6 +19179,7 @@ index 5bcb862..b9adca0 100644
 +  cantAttack: false,
 +  cantBlock: false,
 +  mustAttack: false,
++  unbounded: false,
  };
  
  export function isFacelessCard(card: Pick<CardDto, "isFaceDown" | "identity">): boolean {

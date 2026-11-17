@@ -184,6 +184,8 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-16 (not built; tested as an overlay in `mtg-harness-test:l2-ai` with hand-mirrored generated classes) | big-turns-2 B (attack tax, split stacks) | The attack question now fills the step-0 fields: per attacker and legal defender `damage` (`ComputerUtilCombat.damageIfUnblocked`: pumps, double strike, prevention, 0 for infect and for a player who can't lose life), `poison` (`poisonIfUnblocked`) and, in Commander, `commander`; per defender `life` (a planeswalker's loyalty, a battle's defense; team life is mirrored), `poisonLeft`, `commanderLeft` per attacking commander (`getCommanderDamageToLose` minus the team's damage) and `canLose` (false under `cantLose` or `cantLoseForZeroOrLessLife`). Fix: cancelling one attack-tax payment no longer asks the whole declaration again (the mana-payment snapshot's restore replaced the combat with a copy whose attack constraints counted the already-tapped attackers as unable to attack, so `validateAttackers` failed and Forge re-asked and charged every attacker again); `payCombatCost` rebuilds the copy's constraints with the attackers untapped for the count. New `AttackTaxLethalTest` (12 checks: damage, pump, double strike, infect, prevention, commander, Platinum Angel, a planeswalker's loyalty, payment order follows the declaration order, a cancel leaves only that attacker home, 200 attackers in about 0.5 s). Bridge: the lethal-minimum tax question and its automatic payments; a token stack waiting for "whom?" splits among the players | node only (no new protocol field) | outer branch `big-turns-2b`; engine/manabrew.patch (ManaBrewInteractiveSession.java, ManaBrewInteractiveController.java, AttackTaxLethalTest.java, harness AGENTS.md) regenerated in a clean `fd16e2f` tree, `git apply --check` clean; `forge.patch` unchanged; `AttackTaxLethalTest` added to the harness-tests.sh defaults | not built | big-turns-2 step 0 |
+| 2026-11-16 (not built; tested as an overlay in `mtg-harness-test:l2-ai` with hand-mirrored generated classes) | big-turns-2 step 0 (protocol fields) | Every protocol field of `docs/big-turns-2-spec.md` added with its default, so nothing changes yet: `CardDto.unbounded`; `AttackerOptionDto.damage` (`AttackDamageDto`); `AttackTargetDto.life`/`poisonLeft`/`commanderLeft` (`CommanderLeftDto`)/`canLose`; directives `offerTie`, `tieVote`, `releaseHold` (the harness reads and drops them); `GameViewDto.tieVote` (`TieVoteDto`), `stalemate` (`StalemateDto`), `drawReason`. Harness sends none of them (null/false). Bridge: `inf` on a card when `unbounded`, and `engineAttackData` keeps `damage`/`defenders`; nothing reads them. New `ProtocolDefaultsTest` (6 checks) | **Protocol** (node and relay must both be rebuilt: the relay drops a directive it doesn't know, and the java-builder image must regenerate the Java DTOs) | outer branch `big-turns-2`; `engine/manabrew.patch` regenerated in a clean `fd16e2f` tree, `git apply --check` clean; `forge.patch` unchanged | not built | the patches before it |
 | 2026-11-16 (no image; built in a cloud session) | `engine1117-3hg` (no image ids) | main's engine + Three-Headed Giant: a revise round's title names the partner who changed the team's block (a team of three); `ThreeHeadedGiantTest` | Node only (no protocol change) | outer branch `cloud/three-headed-giant`; branch `cloud/three-headed-giant` (`b9d3c34`) merged on `engine-queue`: both patches regenerated from a source-level merge in a clean `fd16e2f` / `e7d2b93b` tree (base `1558cdb`, no source conflicts), `git apply --check` clean; `ThreeHeadedGiantTest` added to the harness-tests.sh defaults | not deployed | main's engine |
 | 2026-11-16 (not built; tested as an overlay in `mtg-harness-test:l2-ai`) | big-turns (on top of Archenemy rules) | Big turns (`docs/big-turns.md`): a held exhaust pass also ends after 20 resolutions; at the runaway limit the active person is asked "Keep going" / "End in a draw" (3 a turn) instead of a silent draw; Forge `StackMerge` resolves up to 20 allowlisted alike items (fixed-number GainLife, nothing watching) back to back while every player is a person holding a pass | node only (no protocol change) | branch `big-turns` (outer repo); branch `big-turns` (`cee1f5f`) merged on `engine-queue`: both patches regenerated from a source-level merge in a clean `fd16e2f` / `e7d2b93b` tree (base: main's patches, no source conflicts), `git apply --check` clean | not deployed | engine1117-cap |
 | 2026-11-16 (not built yet) | rewind card state (on top of the Archenemy patches) | A rewind now puts back what Forge's `GameSnapshot` never copied. Each card's state is copied both ways (`GameSnapshot.copyCardState`): counters (a creature kept counters put on after the point, and one that died came back with none; a planeswalker that died came back with no loyalty and died again), marked damage, the turn it entered its zone, its controllers (`Card.copyControllersFrom`: a creature stolen after the point stayed with the thief and sat on both battlefields; the zone move now takes a card out of whatever zone holds it), activation counts (`Card.copyActivationsFrom`: loyalty activations, "activate only once each turn", "triggers only once each turn"; trigger abilities mapped by trigger), remembered (it was appended, never cleared, and mapped into the snapshot's own game), imprinted, exiled cards, exiled-with/by, chosen cards/player/type/name/number; and, on the same card object only, until-end-of-turn effects with no static ability behind them (`Card.copyEffectsFrom`: power/toughness boosts and set P/T, keywords, hidden keywords, types, colours). Game state: the zones' entered-this-turn history (`Zone.copyTurnHistoryTo`: morbid, landfall counts, gravestorm), `Game`'s left-the-battlefield/graveyard lists and counters put on/removed this turn (`Game.copyTurnHistoryTo`: revolt, void), the phase counts (`PhaseHandler.copyTurnCountsTo`: first combat, first upkeep), extra phases (extra combats), the delayed triggers (`TriggerHandler.copyDelayedTriggersTo`: a Sneak Attack sacrifice that fired after the point comes back, one made after it goes), the until-phase commands (`Phase.restoreCommands`: the point's commands come back, commands made since are kept, so a pump from before the point still ends at cleanup), the monarch, initiative and day/night going back to nobody/neither (day/night set without firing its trigger, `Game.dangerouslySetDayTime`), the Ring's tempt count and ring-bearer, speed. New harness test `CardStateRewindTest` (23 checks; all 26 `harness-tests.sh` default classes pass on the overlay of `mtg-harness-test:l2-ai`); on the patches before it 21 fail; the other two (the monarch passing between players, a foretell undone) already passed there and stay as regression checks; with each fix taken out on its own, every fix fails its own checks by name (counters 3, damage 1, effects 3, activations 3, zone history 2, game history 3, controllers 1, zone move 1, monarch/day 1, remembered 1, exiled-with 1, delayed triggers 2, phase commands 1, turn in zone 1, Ring/speed 1, phase counts 1). Not changed: an until-end-of-turn effect on a card that changed zones after the point is dropped (its ending command holds the older object), `CardDamageHistory` (attacked/blocked/dealt damage this turn per creature), the per-card leaves-play/untap command lists, clone states of a clone that died after the point, the plotted flag, player keyword changes (still ended by their kept command), the achievement tracker and the Archenemy flag (set once per game) | no | outer repo engine/forge.patch (GameSnapshot.java, Game.java, card/Card.java, phase/Phase.java, phase/PhaseHandler.java, trigger/TriggerHandler.java, zone/Zone.java), engine/manabrew.patch (CardStateRewindTest.java, harness AGENTS.md); `CardStateRewindTest` added to the `harness-tests.sh` defaults; branch `rewind-audit` (`02496f5`), merged on `engine-queue`: both patches regenerated from a source-level merge in a clean `fd16e2f` / `e7d2b93b` tree (base `b68aae7`, no source conflicts), `git apply --check` clean | not yet | the patches before it |
@@ -268,6 +270,69 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-16 big-turns-2 B: attack tax at the lethal minimum, one stack per defender (not built)
+- **Why:** `docs/big-turns-2-spec.md` items 3 and 4, with the user's decisions 5 ("Pay for all" next to the lethal
+  minimum) and 7 (attacks split into one stack per defending player automatically).
+- **Harness** (`publishAttackersPrompt`): each attacker's `damage` per legal defender, from Forge's own AI helpers:
+  `damageIfUnblocked(attacker, defender, combat, false)` (net combat damage, known pumps, double strike, prevention; 0
+  with infect and for a player who can't lose life), `poisonIfUnblocked` (0 at a planeswalker or battle) and, when the
+  Commander variant applies and the attacker is a commander attacking a player, `commander` = its damage. Each
+  defender: `life` (a player's life, mirrored team life in 2HG; a planeswalker's loyalty; a battle's defense),
+  `poisonLeft` (`GameRules.getPoisonCountersToLose` minus the player's poison), `commanderLeft` (one entry per
+  commander among the offered attackers, Commander only: the player's `getCommanderDamageToLose` minus
+  `getTeamCommanderDamage`), `canLose` (false when `cantLose()` or `cantLoseForZeroOrLessLife()`; true for a
+  planeswalker or battle).
+- **Fix:** cancelling one attack-tax payment asked the whole declaration again. The payment's `GameSnapshot` restore
+  replaces the combat with a copy (`Combat(Combat, map)`) whose `AttackConstraints` are built while the attackers are
+  already tapped (CR 508.1f taps them before the taxes), so `validateAttackers` counted every attacker as illegal;
+  Forge then cleared the attack and asked again, and the mana already paid for the others was gone (Forge's own TODO:
+  no refund). `ManaBrewInteractiveController.payCombatCost` now rebuilds the restored combat's constraints with its
+  tapped attackers untapped for the count (`initConstraints`), then taps them again. Found by `AttackTaxLethalTest`.
+- **Measured:** the attack question for 200 attackers under Ghostly Prison is built in about 0.5 s (`time attackPrompt200`).
+- **Proved:** Forge pays the taxes in declaration order within a defender (`combat.getAttackers()` walks each
+  defender's bands in the order they were added, and the controller adds the declaration in the order sent), so the
+  bridge sending its plan highest damage first makes Forge charge those first.
+- **Bridge:** `attackTaxPlan` asks once per taxed defender with two or more attackers: "Pay {X} for k" (the fewest
+  attackers lethal by life, 10 poison or one commander's 21, highest damage first), "Pay for all n", "Don't attack",
+  Back. `taxPlanPay` answers the payments by itself (auto-pay, then the pool; the first that can't finish and every later
+  one at that defender are cancelled) and priority says "Paid for 9 of 14 attackers at Blue; the other 5 stay home."
+  `attackSplit` splits a token stack waiting for "whom?" among the players (seat order from the attacker's left,
+  floor(N/k) and the first N mod k one more; one share per team with shared life), and the log says it in one line.
+  The plan never picks paying life itself; what Forge's auto-pay does with Norn's Annex's {W/P} is unchecked. A player
+  under `cantLoseForZeroOrLessLife` (Phyrexian Unlife) is sent `canLose: false`, so the poison and commander routes are
+  not offered for them either (the fail-safe side: "Pay for all").
+- **Tests:** `AttackTaxLethalTest` (harness, in the defaults); `tests/test_bridge_attack_tax_lethal.js` (57),
+  `tests/test_bridge_stack_split.js` (24) in the deploy gates; a table check in `test_table_claims.js` that a split
+  stack draws as three stacks. Break-its fail by name; an adversary pass of 27 bridge mutations caught all but one
+  equivalent program after five new checks (poison order, planned-first order, a full share, sizes, a gone target).
+
+### 2026-11-16 big-turns-2 step 0: the protocol fields (not built)
+- **Why:** a new protocol field needs a new `java-builder` image, so every field the five big-turns-2 items need goes in
+  one step (`docs/big-turns-2-spec.md` section 7, with the user's decisions at its end). Nothing fills them yet.
+- **New fields** (all optional; an old relay, node or bridge ignores them):
+  - `CardDto.unbounded: bool` (skipped when false; the harness's Gson writes `"unbounded": false` like the other card
+    flags).
+  - `AttackerOptionDto.damage: [AttackDamageDto { defenderId, damage: u32, poison: u32, commander?: u32 }]` (skipped
+    when empty; the harness passes null, so the attack question's JSON is unchanged).
+  - `AttackTargetDto.life?: i32`, `poisonLeft?: i32`, `commanderLeft: [CommanderLeftDto { commanderId, left: i32 }]`,
+    `canLose?: bool` (all null from the harness).
+  - `GameViewDto.tieVote?: TieVoteDto { voteId, requestedByPlayerId? (none = the engine offered it on a stalemate),
+    awaitingPlayerIds, status: pending | accepted | declined { playerId } }`, `stalemate?: StalemateDto { playerId, lock
+    (cantLose, lifeCantFall, damageCantKill, damagePrevented or fogLock), cardId?, cardName?, roundsWithoutProgress? }`,
+    `drawReason?: string` (why the engine drew a game: the missed runaway questions, the heap backstop, a forced or an
+    agreed tie; the bridge's `gameEndWords` says no reason today). The harness's snapshot map doesn't add them.
+  - Directives `{type: "offerTie"}`, `{type: "tieVote", voteId, accept}`, `{type: "releaseHold"}`: the node routes them
+    to the seat like `restoreVote`; `ManabrewProtocolAdapter` turns them into `offer_tie`, `tie_vote`, `release_hold`;
+    the session's `takeAction` drops them.
+- **Not protocol** (the decisions' "Pay for all" button, the automatic split per defender): bridge-only, no field needed.
+- **Files:** manabrew-protocol `game/mod.rs`, `prompts/choose_attackers.rs`, `prompts/common.rs`, `transport/mod.rs`;
+  manabrew-agent-interface `game_view_dto.rs`, `agent_impl/mod.rs`, `agent_impl/combat.rs`; self-hosted-node `host.rs`;
+  `src/lib/gameCard.ts`; harness Session, `ManabrewProtocolAdapter`, new `ProtocolDefaultsTest`; bridge.js.
+- **Not checked here:** no Rust toolchain or image was used, so `cargo check` and the real `gen-protocol` run happen at
+  the next image build. The harness tests compiled against hand-made copies of the generated Java (`AttackerOptionDto`,
+  `AttackTargetDto`, `CardDto`, new `AttackDamageDto` and `CommanderLeftDto`), written the way
+  `scripts/gen-harness-prompts.mjs` writes them (field order = Rust order).
 
 ### 2026-11-16 engine1117-3hg: Three-Headed Giant checks and the revise title (built in the cloud, no image)
 - **Checked:** the team code takes three members as it is: shared life and poison mirror to all three
