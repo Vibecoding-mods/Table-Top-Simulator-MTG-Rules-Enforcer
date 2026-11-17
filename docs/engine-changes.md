@@ -184,6 +184,9 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-16 (not built; tested as an overlay in `mtg-harness-test:l2-ai`) | big-turns-2 item 1 (infinite tokens) | One pile of tokens alike (`TokenPile.key`: controller, name, base P/T) and one token effect each make at most `Game.UNBOUNDED_TOKENS` = 500 (the benchmark's number), clamped in `TokenEffectBase.makeTokenTable` after the CreateToken replacements (doublers count). A clamped pile is marked in `Game.unboundedTokenKeys` (copied by `GameSnapshot`, pruned when the pile empties) and sent as `CardDto.unbounded`; the bridge sends it as `inf`, its log says "creates infinitely many X tokens (the engine stops counting at 500)", the table's stack badge says "x∞" with the hover "Infinitely many (the engine keeps 500 real tokens)". The token-limit ask and draw (`recordTokenRequest`, 100 a effect) are removed. New `UnboundedTokensTest` (15 checks) | **Protocol** (`CardDto.unbounded`, added in step 0) | outer branch `big-turns-2`; `engine/forge.patch` (`Game`, `GameSnapshot`, `TokenEffectBase`, new `card/TokenPile`) and `engine/manabrew.patch` (`InteractiveSnapshotExtractor`) regenerated, `git apply --check` clean | not built | the patches before it |
+| 2026-11-16 (not built; tested as an overlay in `mtg-harness-test:l2-ai`) | big-turns-2 item 2 (runaway limits) | Every limit asks; the automatic draw at the fourth limit of a turn is gone. Limits: 5,000 triggers a turn, 2,500 cards a turn (the benchmark's numbers; were 25,000), and Forge's 1,000 items on the stack, which drew silently and now asks the same question. A timeout (`Session.RUNAWAY_ANSWER_SECONDS` = 90) counts as Keep going; two missed in a row in one turn draw (`RUNAWAY_MISSES_TO_DRAW` = 2). AI-only games still draw. A heap over 85% (`Game.RUNAWAY_HEAP_LIMIT`) draws at a limit without asking, and two card limits before an ask draw only then. Every engine draw sets `Game.getDrawReason` (chosen, unanswered, noPerson, heap, stuckLoop, tieForced, tieAgreed), sent as `gameView.drawReason`; the bridge's game-over words say it. The table's turn timer leaves the runaway question to the engine. Held passes: an exhaust hold ends when the held player's playable non-mana actions gain one (`ManaBrewInteractiveController.heldActionsChanged`). `BigTurnsTest` 38 checks, new `HeldPassResponseTest` (5) | **Protocol** (`drawReason`, added in step 0) | outer branch `big-turns-2`; both patches regenerated (`Game`, `MagicStack`; Session, Controller, extractor, `TieOffer`) | not built | the patches before it |
+| 2026-11-16 (not built; tested as an overlay in `mtg-harness-test:l2-ai`) | big-turns-2 decision 8 (stuck-loop watchdog) | A mandatory loop that fires no trigger and makes no card (stress catalog #19) is caught: every ability resolution (`AbilityUtils.resolve`) and replacement run (`ReplacementHandler.run`) checks how long the game has gone without progress (a trigger, a card, a stack resolution starting, a priority, an answered question); past `Game.LOOP_WATCHDOG_SECONDS` = 60 it asks the same Keep going / End in a draw question. A yes gives it another 60 s; nobody answering draws (stuckLoop). 8 new `BigTurnsTest` checks on a fake clock | No | outer branch `big-turns-2`; both patches regenerated (`Game`, `AbilityUtils`, `ReplacementHandler`, `MagicStack`, `PhaseHandler`; Session) | not built | the patches before it |
 | 2026-11-16 (not built; tested as an overlay in `mtg-harness-test:l2-ai`) | big-turns-2 + tie offer (merge) | `cloud/tie-offer` (`4e43c56`) merged into big-turns-2. One tie protocol, the cloud's: `GameViewDto.tieOffer` (`TieOfferDto`, `TieLockDto`, `TieOfferStatus`) and the directive `tieVote {voteId, accept}`. Step 0's overlapping `tieVote` view field (`TieVoteDto`, `TieVoteStatus`), `stalemate` (`StalemateDto`) and the `offerTie` directive are removed (`ProtocolDefaultsTest` now checks `offerTie` is refused); `drawReason` and `releaseHold` stay. The user's three open tie questions are built as the current behaviour, each behind one constant: `TieOffer.OFFER_WAITS_UNTIL_ONE_CAN_LOSE` (true: with three or more players the offer waits until at most one living player can still lose; a 2-player game is unchanged), `TieOffer.DECKING_BREAKS_LOCK` (true: a lock that doesn't stop a loss for drawing from an empty library, `cantLoseCheck(Milled)` false, isn't a lock; Platinum Angel still is), bridge `STALEMATE_EARNED_BY` ("everyone"; "locked" and "decliners" are the other two). `TieOfferTest` 27 checks (5 new; the per-signal checks pass the decking flag off, the vote and forcing checks build `TieOffer(game, false, false)`, the session checks take Red out first) | **Protocol** (the merged protocol; node and relay rebuilt together) | outer branch `big-turns-2`; `engine/manabrew.patch` regenerated from a source-level merge in a clean `fd16e2f` tree (side commits from big-turns-2's, the tie branch's and the merge-base `b9d3c34`'s patches, merged with git; conflicts in the Session constructor, `game/mod.rs`, `game_view_dto.rs` and `host.rs`), `git apply --check` clean; `forge.patch` unchanged; `TieOfferTest` added to the harness-tests.sh defaults | not built | the patches before it |
 | 2026-11-16 (not built; tested as an overlay in `mtg-harness-test:l2-ai` with hand-mirrored generated classes) | big-turns-2 step 0 (protocol fields) | Every protocol field of `docs/big-turns-2-spec.md` added with its default, so nothing changes yet: `CardDto.unbounded`; `AttackerOptionDto.damage` (`AttackDamageDto`); `AttackTargetDto.life`/`poisonLeft`/`commanderLeft` (`CommanderLeftDto`)/`canLose`; directives `offerTie`, `tieVote`, `releaseHold` (the harness reads and drops them); `GameViewDto.tieVote` (`TieVoteDto`), `stalemate` (`StalemateDto`), `drawReason`. Harness sends none of them (null/false). Bridge: `inf` on a card when `unbounded`, and `engineAttackData` keeps `damage`/`defenders`; nothing reads them. New `ProtocolDefaultsTest` (6 checks) | **Protocol** (node and relay must both be rebuilt: the relay drops a directive it doesn't know, and the java-builder image must regenerate the Java DTOs) | outer branch `big-turns-2`; `engine/manabrew.patch` regenerated in a clean `fd16e2f` tree, `git apply --check` clean; `forge.patch` unchanged | not built | the patches before it |
 | 2026-11-16 (no image; built in a cloud session) | `engine1117-tie` (no image ids) | On top of `engine1117-3hg`: a tie offer when a player can't lose. New harness class `TieOffer`, rechecked at every priority question (`awaitPriorityAction`): Forge's `Player.cantLose()`, `canLoseLife()` false, `cantLoseForZeroOrLessLife()` with no poison (`canReceiveCounters(POISON)` false) and no opponent's commander, or a plain `DamageDone` / `Prevent$ True` replacement for that player. It offers the people a tie (an AI seat accepts); all yes ends the game as `GameEndReason.Draw` with each player's `intentionalDraw`. After a no, three full rounds (the turn coming back to the player whose turn it was at the no) with no progress (a life total down, poison, commander damage, a permanent leaving, a card from a library into a graveyard, a player losing) force the same draw. `TieOfferTest` 22 checks, break-it 24 of 24 | **Yes, optional:** `GameViewDto.tieOffer` (`TieOfferDto`, `TieLockDto`, `TieOfferStatus`; `serde(default)`, skipped when absent) and the directive `DirectiveInput::TieVote { voteId, accept }`. The relay parses directives against the protocol, so the relay must be rebuilt with the node | outer branch `cloud/tie-offer` (engine/manabrew.patch only; forge.patch unchanged) | not deployed | `engine1117-3hg` |
@@ -271,6 +274,54 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-16 big-turns-2 items 1 and 2, decision 8: infinite tokens, runaway limits, the stuck-loop watchdog (not built)
+- **Why:** `docs/big-turns-2-spec.md` items 1 and 2 and the user's decision 8; the numbers are the benchmark's
+  (`docs/big-turns-benchmark.md`): 500 tokens a pile and an effect, the trigger ask at 5,000, the card ask at 2,500, the
+  exhaust batch still 20.
+- **Infinite tokens (item 1):**
+  - `Game.UNBOUNDED_TOKENS = 500`. `TokenEffectBase.makeTokenTable` counts each pile on the battlefield
+    (`TokenPile.key`: controller id, name, base power/toughness; tapped, counters and damage left out) and makes at most
+    `min(500 - pile, 500 - made by this effect)` of each cell, after the CreateToken replacements, so doublers count.
+  - A cut cell marks its pile in `Game.unboundedTokenKeys`: game state, copied by `GameSnapshot.copyGameState`
+    (rewinds keep it), pruned when no token of the pile is left (a wipe clears it, a sacrifice keeps it).
+  - Cut tokens are never made, so they never fire enter triggers or count toward the card limit; counts (`Count$Valid`)
+    see the real 500. A stolen token gets its new controller's key and isn't infinite.
+  - `InteractiveSnapshotExtractor` sets `CardDto.unbounded`; the bridge sends `inf` and logs "creates infinitely many
+    X tokens (the engine stops counting at 500)"; the renderer's stack badge says "x∞" (`ENGINE_INF_BADGE`, "xINF" if
+    TTS's font draws a box: not yet seen on real TTS) with the hover "Infinitely many (the engine keeps 500 real tokens)".
+  - Removed: `recordTokenRequest` and its per-effect ask (100 copies), `DEFAULT_RUNAWAY_TOKENS_PER_EFFECT`.
+  - **Rules note:** with an optional loop the shortcut rules (CR 732.2a in recent Comprehensive Rules, the user's
+    "732?"; the number was not checked against the current document here) have the player name how many times it repeats.
+    500 is that number, named for them. A loop of mandatory actions nobody can stop is a draw (CR 104.4b).
+- **Runaway limits (item 2):**
+  - Every limit asks; `RUNAWAY_CONTINUES_PER_TURN` (the draw at the fourth limit) is gone. The words: "Keep going allows
+    as many again. The engine asks again at the next limit. ... No answer in 90 seconds counts as Keep going; two
+    unanswered in a row this turn end the game in a draw."
+  - `DEFAULT_RUNAWAY_TRIGGERS_PER_TURN = 5_000`, `DEFAULT_RUNAWAY_CARDS_PER_TURN = 2_500`.
+  - `MagicStack.add`'s stock draw at 1,000 items (`Game.RUNAWAY_STACK_ITEMS`) asks through `Game.recordStackSize`;
+    a yes allows 1,000 more this turn.
+  - Timeouts: the Session waits `RUNAWAY_ANSWER_SECONDS` = 90 for the answer (`takeAction` returns a timeout past
+    its deadline). A miss is Keep going; `RUNAWAY_MISSES_TO_DRAW` = 2 misses in a row in one turn draw; an answer or a
+    new turn starts the count over. The bridge's turn timer no longer answers the question (it said End in a draw).
+    The WASM build's blocking bridge exchange never times out; only the node path does.
+  - Kept: AI-only games draw at a limit (noPerson); the players' End in a draw button.
+  - Memory backstop: before any ask, a heap over `RUNAWAY_HEAP_LIMIT` = 0.85 draws (heap). Two card limits passed
+    before an ask draw only with the heap that full; otherwise the ask waits for the next trigger or token effect.
+  - `Game.getDrawReason`: chosen, unanswered, noPerson, heap, stuckLoop (and the tie's tieForced, tieAgreed), sent as
+    `gameView.drawReason` at game over; `gameEndWords` says it ("a draw: the engine was running out of memory").
+  - Held passes: `chooseSpellAbilityToPlay` keeps the non-mana actions the player had when an exhaust pass began;
+    the hold ends (and `heldResolutionsLeft` is 0, so StackMerge stops) when a new one appears mid-run. A lost action
+    or a new mana ability doesn't end it.
+- **The stuck-loop watchdog (decision 8, stress catalog #19):** `Game.checkLoopWatchdog` in `AbilityUtils.resolve`
+  and `ReplacementHandler.run`. Progress: a trigger fired, a card made, a stack resolution starting, a priority
+  (`PhaseHandler`), an answered question, a yes. Past `LOOP_WATCHDOG_SECONDS` = 60 without one it asks the same
+  question ("The engine has spent N seconds on one action ..."); a yes gives it another 60 s, End in a draw or no
+  answer in 90 s draws (stuckLoop).
+- **Tests:** `BigTurnsTest` 38, `UnboundedTokensTest` 15, `HeldPassResponseTest` 5, with every default class of
+  harness-tests.sh; break-its `tools/mutate-engine-docker.js --set tokens|runaway|held|watchdog`;
+  `test_bridge_unbounded_tokens` (new, in the GATES), `test_bridge_big_turns`, `test_table_trigger_groups` (5 new
+  checks); `tools/mutate-big-turns-2.js` for the bridge and table.
 
 ### 2026-11-16 big-turns-2: the tie offer merged, one tie protocol (not built)
 - **Merge:** `cloud/tie-offer` (`4e43c56`) into big-turns-2. The cloud's shape is the protocol: `gameView.tieOffer` and the

@@ -315,7 +315,12 @@ local function badgeParts(c)
   -- a dungeon's room, where it leads and the dungeons completed, the bridge's words (dungeonLabel), the room's text as
   -- its tooltip (docs/planechase-dungeon-engine-spec.md D7)
   if type(c.dg) == "string" and c.dg ~= "" then parts[#parts + 1] = { "room", c.dg, BADGE.roomBg, type(c.dgt) == "string" and c.dgt or "" } end
-  if (c.groupN or 1) > 1 then parts[#parts + 1] = { "grp", "x" .. c.groupN, BADGE.black } end
+  -- (a stack of a pile the engine stopped counting at its cap, the bridge's inf: "infinitely many" by the rules, the
+  -- engine keeping ENGINE_TOKEN_CAP real tokens; docs/big-turns-2-spec.md 1.6)
+  if (c.groupN or 1) > 1 then
+    if c.groupInf then parts[#parts + 1] = { "grp", ENGINE_INF_BADGE, BADGE.black, "Infinitely many (the engine keeps " .. ENGINE_TOKEN_CAP .. " real tokens)" }
+    else parts[#parts + 1] = { "grp", "x" .. c.groupN, BADGE.black } end
+  end
   -- a copy of another card (Phantasmal Image as Kenrith): which of two alike is the copy (legend rule, playtest 2026-10-26)
   if c.cp then parts[#parts + 1] = { "cp", "COPY", BADGE.cpBg } end
   -- its text as changed (Mind Bend's "islandwalk", Deadpool's exchanged text box): a box over the card's own text box,
@@ -1406,6 +1411,10 @@ end
 -- picked to attack (by target), those blocking (by attacker), each attacker blocked. So picking one token out of a
 -- stack of 20 draws a stack of 19 and a card of 1, two objects, never the 20 a split lays out.
 ENGINE_GROUP_MIN = 5
+-- the badge of a stack of infinitely many tokens (inf), and the engine's cap on one pile (Game.UNBOUNDED_TOKENS); the
+-- infinity sign is in Arial and Liberation Sans, the fonts TTS draws button labels with ("xINF" if it ever shows a box)
+ENGINE_INF_BADGE = "x∞"
+ENGINE_TOKEN_CAP = 500
 engineGroupOf = {} -- engine card id -> representative id while it is drawn as part of a group
 engineGroupKey = {} -- representative id -> its group's key (the kind's: a split splits every stack of the kind)
 engineGroupList = {} -- representative id -> the ids of its stack in board order, the representative first
@@ -1442,12 +1451,14 @@ function groupTokens(list, seen, hosts)
       if rep == nil then
         byKey[key .. "#" .. sub] = c
         c.groupN = 1
+        c.groupInf = c.inf == true
         engineGroupOf[c.id] = nil
         engineGroupKey[c.id] = key
         engineGroupList[c.id] = { c.id }
         out[#out + 1] = c
       else
         rep.groupN = rep.groupN + 1
+        if c.inf then rep.groupInf = true end
         engineGroupOf[c.id] = rep.id
         engineGroupKey[c.id] = nil -- (it led a stack on an earlier draw)
         engineGroupList[c.id] = nil
@@ -1466,6 +1477,7 @@ function groupTokens(list, seen, hosts)
       engineGroupList[c.id] = nil
       engineSubDrawn[c.id] = nil
       c.groupN = nil -- (a redraw of the same board after a split: this card led the stack last time)
+      c.groupInf = nil
       out[#out + 1] = c
     end
   end

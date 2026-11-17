@@ -8,6 +8,8 @@
 //  - tokens folded into a token stack (ENGINE_GROUP_MIN or more alike): their triggers light the token stack's card,
 //    no stack card each (Second Harvest's 112 tokens: a stack card a trigger before)
 //  - the status line's stack list names the run once, counted
+//  - a token stack of a pile the engine stopped counting (inf, docs/big-turns-2-spec.md 1.6): "x∞" with a tooltip that
+//    says so; one member with inf is enough; the same stack without inf keeps its count; inf doesn't split a stack
 //   node tests/test_table_trigger_groups.js
 const { simulate } = require("./lua/run-sim");
 const { buildSave } = require("./golden/table-run");
@@ -22,12 +24,13 @@ const card = (id, name, ty) => { cards[id] = { n: name, f: "https://example.inva
 const wardens = ["sw1", "sw2", "sw3"].map((id) => card(id, "Soul Warden", ["Creature"]));
 const goblins = Array.from({ length: 6 }, (_, k) => card(`gob${k + 1}`, "Goblin", ["Creature"]));
 card("bl1", "Island", ["Land"]);
-// the bridge's table message: Blue's battlefield, White's empty, the stack given
+// the bridge's table message: Blue's battlefield, White's empty, the stack given (inf on the ids in infinite)
+let infinite = new Set();
 function board(bf, stack) {
   const pl = (color, slot, ids) => ({
     color, slot, name: color, ai: color === "White", life: 40, status: "playing", pool: {}, poison: 0, energy: 0, cmdDamage: {}, tax: [0], library: 50, handCount: 0,
     hand: color === "Blue" ? [] : null, graveyard: [], exile: [], command: [],
-    battlefield: ids.map((id) => ({ s: 1, id, ctl: color, p: "1", t: "1", dmg: 0, ctr: {}, ...(/^gob/.test(id) ? { tok: true } : {}) })),
+    battlefield: ids.map((id) => ({ s: 1, id, ctl: color, p: "1", t: "1", dmg: 0, ctr: {}, ...(/^gob/.test(id) ? { tok: true } : {}), ...(infinite.has(id) ? { inf: true } : {}) })),
   });
   return JSON.stringify({ t: "table", turn: 3, step: "main1", active: "Blue", activeTurnNo: 2, priority: "Blue", gameOver: false, winner: null,
     players: [pl("Blue", "player-0", bf), pl("White", "player-1", [])], stack, cards });
@@ -87,6 +90,33 @@ const look = (r, mark) => JSON.parse(valueOf(r, mark) || "{}");
   ok("down to one: the same card, no count", d.stack.length === 1 && /^stack:engine-stack-2=Soul Warden\/On the stack\/[^=]*=#$/.test(d.stack[0]), JSON.stringify(d.stack));
   ok("tokens: no stack card a trigger", t.stack.length === 0, JSON.stringify(t.stack));
   ok("tokens: the token stack's card lights", t.glows.length === 1 && /^gob/.test(t.glows[0]), JSON.stringify(t.glows));
+}
+
+{
+  // the badge of a token stack and its tooltip, as drawn (the fake TTS keeps the buttons)
+  const BADGE = (mark) => q(`
+    local rep = nil
+    for _, id in ipairs({ "gob1", "gob2", "gob3", "gob4", "gob5", "gob6" }) do if engineGroupList[id] ~= nil then rep = id end end
+    local o = nil
+    for _, x in ipairs(getObjects()) do if rep ~= nil and tostring(x.getGMNotes()) == "engine:" .. rep then o = x end end
+    local grp = {}
+    for _, b in ipairs(o and o.getButtons() or {}) do if tostring(b.label):sub(1, 1) == "x" then grp[#grp + 1] = { label = b.label, tip = b.tooltip } end end
+    return JSON.encode({ rep = tostring(rep), n = rep and #engineGroupList[rep] or 0, badge = rep and tostring(engineBadge[rep] or "") or "", grp = grp })`, mark);
+  const all = new Set(goblins), one = new Set(["gob4"]);
+  infinite = new Set();
+  const r1 = sim([send(["bl1", ...goblins], []), BADGE("plain")]);
+  infinite = all;
+  const r2 = sim([send(["bl1", ...goblins], []), BADGE("all inf")]);
+  infinite = one;
+  const r3 = sim([send(["bl1", ...goblins], []), BADGE("one inf")]);
+  infinite = new Set();
+  for (const r of [r1, r2, r3]) ok("inf: no script errors", !r.errors.length, r.errors.slice(0, 3).join(" | "));
+  const plain = look(r1, "plain"), inf = look(r2, "all inf"), part = look(r3, "one inf");
+  ok("inf: a plain stack of 6 says x6", plain.n === 6 && plain.grp.some((b) => b.label === "x6"), JSON.stringify(plain));
+  ok("inf: a stack of infinitely many says x∞", inf.n === 6 && inf.grp.some((b) => b.label === "x∞") && !inf.grp.some((b) => b.label === "x6"), JSON.stringify(inf));
+  ok("inf: its tooltip says the engine keeps 500", inf.grp.some((b) => b.tip === "Infinitely many (the engine keeps 500 real tokens)"), JSON.stringify(inf.grp));
+  ok("inf: the badge string changes with it", inf.badge.includes("grp=x∞=") && plain.badge.includes("grp=x6="), `${inf.badge} | ${plain.badge}`);
+  ok("inf: one member with inf is enough, and inf doesn't split the stack", part.n === 6 && part.grp.some((b) => b.label === "x∞"), JSON.stringify(part));
 }
 
 console.log(`${failed ? failed + " failed, " : ""}${failed ? "" : "all "}${passed} passed`);
