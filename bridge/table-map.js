@@ -155,10 +155,10 @@ const PLAYER_FACTS = {
   spellsCastThisTurn: { to: ["allMarks"], show: "SPELLS THIS TURN: 2 (STORM 3) on the active player" },
   lifeGainedThisTurn: { to: ["lifeTip"], show: "the life counter's hover: Gained 5 life this turn" },
   lifeLostThisTurn: { to: ["lifeTip"], show: "the life counter's hover: Lost 4 life this turn" },
-  // (engine1119, the Archenemy view; the marker is plan step 9, cloud/archenemy-polish)
-  isArchenemy: { gap: "the table marks the archenemy (phase bar tag, gold mat line), but from the board's teams.archenemy, which the bridge fills from its own setting; this field itself isn't read (no player-row key carries it)" },
-  schemeDeckCount: { gap: "the scheme deck's size isn't shown yet" },
-  schemes: { gap: "schemes in motion aren't shown yet; the log says each set in motion" },
+  // (engine1119, the Archenemy view, plan step 9: the bridge's schemeView, engine-renderer.lua engineSchemes)
+  isArchenemy: { to: ["arch"], show: "the scheme deck's stand-in by that seat says ARCHENEMY and the count; the gold mat line and the phase bar's (ARCHENEMY) as before (engineArchColor reads arch, else the board's teams.archenemy)" },
+  schemeDeckCount: { to: ["schemeDeck"], show: "the scheme deck's stand-in card by the archenemy's seat: ARCHENEMY / 17 SCHEMES, hover \"17 left\"" },
+  schemes: { to: ["schemes"], show: "the board's schemes and schemeNow: the scheme set in motion last, face up and large by the archenemy's seat with its text in its hover, a SET IN MOTION: <NAME> banner once per scheme; the ongoing schemes in a row beside it; the log says each set in motion" },
 };
 
 module.exports = { CARD_FACTS, TABLE_ONLY_KEYS, ZONES, GESTURES, PLAYER_FACTS };
