@@ -671,7 +671,7 @@ local function place(c, pos, rot, seen, handColor, meta)
   -- "Creature — Rat", hp-22 #4 2026-10-28)
   if o.getName() ~= nickname(c) then op("name") o.setName(nickname(c)) end
   if o.getDescription() ~= description(c) then op("desc") o.setDescription(description(c)) end
-  local wantScale = (meta and (meta.zone == "attached" or meta.zone == "linked" or meta.zone == "revealed" or meta.zone == "suspended")) and ATTACH_SCALE or (meta and meta.zone == "plane") and 1.5 or 1
+  local wantScale = (meta and (meta.zone == "attached" or meta.zone == "linked" or meta.zone == "revealed" or meta.zone == "suspended")) and ATTACH_SCALE or (meta and (meta.zone == "plane" or meta.zone == "schemenow")) and 1.5 or 1
   if math.abs(o.getScale().x - wantScale) > 0.01 then op("scale") o.setScale(Vector(wantScale, 1, wantScale)) end
   if handColor ~= nil then
     engineInHand[c.id] = true
@@ -937,6 +937,31 @@ function onMtgSetupTeams(obj, playerColor)
   engineChat("mtg mode " .. (m == nil and (ENGINE_GAME_MODE == "standard" and "2v2" or "2hg") or nextOf[m] or "ffa"), pl)
 end
 function engineTeamId(color, id) return "team:" .. tostring(color) .. ":" .. tostring(id) end
+-- The Archenemy button beside it (docs/team-turns-archenemy-plan.md step 9, host only): off, then each seat in turn as
+-- the archenemy, then off, the same as  mtg archenemy <colour> / off  (the bridge keeps the setting and says it in
+-- chat). ENGINE_ARCH_SETUP: the colour the table last asked for, nil for off. The 4-player table only (the bridge's
+-- team colours). Its spot: the profile's spots.archenemy, else 10 past the Teams button on the same strip.
+ENGINE_ARCH_SETUP = nil
+ENGINE_ARCH_SEATS = { "White", "Red", "Yellow", "Blue" }
+ENGINE_ARCH_SPOT = TABLE_PROFILE.spots.archenemy and Vector(TABLE_PROFILE.spots.archenemy[1], TABLE_PROFILE.spots.archenemy[2], TABLE_PROFILE.spots.archenemy[3])
+  or Vector(TEAMS_SPOT.x, TEAMS_SPOT.y, TEAMS_SPOT.z + 10)
+function engineArchLabel() return "Archenemy\n" .. (ENGINE_ARCH_SETUP or "Off") end
+function engineArchNext(cur)
+  if cur == nil then return ENGINE_ARCH_SEATS[1] end
+  for i, c in ipairs(ENGINE_ARCH_SEATS) do if c == cur then return ENGINE_ARCH_SEATS[i + 1] end end
+  return nil
+end
+function onMtgSetupArch(obj, playerColor)
+  local pl = Player[playerColor]
+  if pl == nil then return end
+  engineChat("mtg archenemy " .. (engineArchNext(ENGINE_ARCH_SETUP) or "off"), pl)
+end
+-- what  mtg archenemy <text>  asked for, as the button shows it (a colour, "off", or nothing: unchanged)
+function engineArchNoted(text)
+  local t = string.lower(tostring(text or ""))
+  if t == "off" then ENGINE_ARCH_SETUP = nil return end
+  for _, c in ipairs(ENGINE_ARCH_SEATS) do if string.lower(c) == t then ENGINE_ARCH_SETUP = c end end
+end
 -- A partner's hand (810.5): the bridge sends it as teamHand with the seated partner who sees it, teamBy. Look-only
 -- stand-ins, team:<partner>:<id>, in that partner's second hand zone, which only they see; dragged out they snap back
 -- (zone "partner", onObjectDrop's last case). Their own hand keeps the real cards.
@@ -2157,6 +2182,13 @@ function engineStoreStatic(id, st)
   engineStatic[id] = st
 end
 
+-- a slim entry's fixed details, as sent before (s = 1), filled in
+function engineFillStatic(c)
+  if c == nil or c.s == nil then return end
+  for k, v in pairs(engineStatic[c.id] or {}) do if c[k] == nil then c[k] = v end end
+  c.s = nil
+end
+
 local function mergeStatic(m)
   if m == nil then return end
   -- the restore points the bridge left out because they didn't change (keepRewind): the last board's
@@ -2199,6 +2231,9 @@ local function mergeStatic(m)
       c.s = nil
     end
   end
+  -- (and the schemes, Archenemy: engineSchemes)
+  for _, c in ipairs(m.schemes or {}) do engineFillStatic(c) end
+  if m.schemeNow ~= nil then engineFillStatic(m.schemeNow.card) end
 end
 
 -- Rules texts arrive after the cards (in small messages): store them, fill them into the current board and update
@@ -2220,6 +2255,16 @@ function engineOnTexts(m)
       end
     end
   end
+  -- (and the schemes', Archenemy: engineSchemes)
+  for _, c in ipairs((lastTable and lastTable.schemes) or {}) do engineTextInto(c, t) end
+  if lastTable ~= nil and lastTable.schemeNow ~= nil then engineTextInto(lastTable.schemeNow.card, t) end
+end
+-- a rules text that arrived into a card of the current board, and its object's hover
+function engineTextInto(c, t)
+  if c == nil or t[c.id] == nil or c.n == nil or c.fd then return end
+  c.tx = t[c.id]
+  local o = engineObjs[c.id]
+  if o ~= nil and not o.isDestroyed() then o.setDescription(description(c)) end
 end
 
 -- An option's words on its own card (its buttons, its menu): the ability alone. The bridge sends it as "ab"; for an
@@ -3979,6 +4024,10 @@ function engineRender(m)
     place(pc, Vector(4.6 * (i - (#m.planes + 1) / 2), 2.4, 0), Vector(0, ((pg and pg.rotY) or 180) + 90, 0), seen, nil, { zone = "plane", color = pc.ctl })
   end
   pcall(enginePlanarBanner, m)
+  -- (Archenemy: the scheme set in motion, the ongoing ones and the scheme deck by the archenemy's seat, engineSchemes)
+  local okSch, errSch = pcall(engineSchemes, m, seen)
+  if not okSch then print("[MTG] schemes: " .. tostring(errSch)) end
+  pcall(engineSchemeBanner, m)
   local okCtl, errCtl = pcall(engineCtlHands, m, seen) -- (a controlled player's hand, see engineCtlHands)
   if not okCtl then print("[MTG] controlled hand: " .. tostring(errCtl)) end
   okCtl, errCtl = pcall(engineTeamHands, m, seen) -- (a Two-Headed Giant partner's hand, look-only: engineTeamHands)
@@ -4279,6 +4328,7 @@ function engineClear()
   if enginePileReset ~= nil then enginePileReset() end -- piles, groups and glows: ids repeat in the next game
   lastTable = nil
   enginePlanarRollSeen = nil -- (the next game's planar die rolls count from 1 again)
+  engineSchemeSeen = nil -- (and its schemes set in motion)
   enginePrompts = {}
   restoreStash()
   engineRunningMode = nil -- (no game: the host's pick for the next one, engineModeNow)
@@ -4808,6 +4858,71 @@ function enginePlanarBanner(m)
       setAttr("eng_banner_" .. c, "outline", "#101010E0")
       setAttr("eng_banner_" .. c, "active", "true")
       Wait.time(function() if enginePlanarRollSeen == last.seq then setAttr("eng_banner_" .. c, "active", "false") end end, 4)
+    end
+  end
+end
+-- ── Archenemy on the table (docs/team-turns-archenemy-plan.md step 9; the bridge's schemeView and the player row's
+-- arch / schemeDeck) ──
+-- By the archenemy's seat, between their mat and the table's centre: the scheme set in motion last, face up and large
+-- (as a plane is), turned to read from their seat, its text in its hover; the other schemes in the command zone (the
+-- ongoing ones) in a row to its right; and to its left the scheme deck, a stand-in card with ARCHENEMY and the count
+-- on it. All look-only. The archenemy: the player row's arch, else the board's teams.archenemy.
+ENGINE_SCHEME = { toward = 0.42, row = 3.4, rowStart = 4.4, deck = -4.6, y = 2.4 }
+function engineArchColor(m)
+  for _, pl in ipairs(m.players or {}) do if pl.arch and pl.color ~= nil then return pl.color end end
+  return m.teams and m.teams.archenemy or nil
+end
+-- where a scheme lies: k = 0 the scheme set in motion, 1, 2, ... the row, -1 the deck
+function engineSchemeSpot(g, k)
+  local side = k == 0 and 0 or (k < 0 and ENGINE_SCHEME.deck or (ENGINE_SCHEME.rowStart + (k - 1) * ENGINE_SCHEME.row))
+  return Vector(g.mat.x * ENGINE_SCHEME.toward + g.right.x * side, ENGINE_SCHEME.y, g.mat.z * ENGINE_SCHEME.toward + g.right.z * side)
+end
+function engineSchemes(m, seen)
+  local color = engineArchColor(m)
+  local g = color and seatGeometry(color)
+  if g == nil then return end
+  local rot = Vector(0, g.rotY, 0)
+  local nowCard = m.schemeNow and m.schemeNow.card or nil
+  if nowCard ~= nil then place(nowCard, engineSchemeSpot(g, 0), rot, seen, nil, { zone = "schemenow", color = color }) end
+  local k = 0
+  for _, c in ipairs(m.schemes or {}) do
+    if nowCard == nil or c.id ~= nowCard.id then
+      k = k + 1
+      place(c, engineSchemeSpot(g, k), rot, seen, nil, { zone = "scheme", color = color })
+    end
+  end
+  local deck = engineSchemeDeckCard(m, color)
+  if deck ~= nil then place(deck, engineSchemeSpot(g, -1), rot, seen, nil, { zone = "schemedeck", color = color }) end
+end
+-- the scheme deck's stand-in: a card back with ARCHENEMY and the count on it (the room box's place and look)
+function engineSchemeDeckCard(m, color)
+  for _, pl in ipairs(m.players or {}) do
+    if pl.color == color and pl.schemeDeck ~= nil then return engineSchemeDeckOf(color, tonumber(pl.schemeDeck) or 0) end
+  end
+  return nil
+end
+function engineSchemeDeckOf(color, n)
+  local words = "ARCHENEMY\n" .. tostring(n) .. (n == 1 and " SCHEME" or " SCHEMES")
+  return { id = "schemedeck:" .. color, n = "Scheme deck", f = ENGINE_BACK, b = ENGINE_BACK, tl = "Archenemy's scheme deck", cmc = 0,
+    tx = engineNameOf(color) .. " is the archenemy: " .. tostring(n) .. " scheme" .. (n == 1 and "" or "s") .. " left, face down. At the start of each of their first main phases the top one is set in motion.",
+    dg = words, dgt = "The archenemy's scheme deck: " .. tostring(n) .. " left" }
+end
+-- "SET IN MOTION: <NAME>" on everyone's screen for 4 s, once per scheme (the bridge's schemeNow.seq; a jump board, a
+-- rewind or a reload only records it)
+engineSchemeSeen = nil
+function engineSchemeBanner(m)
+  local now = m.schemeNow
+  if now == nil or now.seq == nil or now.seq == engineSchemeSeen then return end
+  engineSchemeSeen = now.seq
+  if m.jump then return end
+  local words = "SET IN MOTION: " .. string.upper(tostring((now.card and now.card.n) or "a scheme"))
+  for _, c in ipairs(getSeatedPlayers()) do
+    if Player[c] ~= nil then
+      setText("eng_banner_" .. c, words)
+      setAttr("eng_banner_" .. c, "color", "#FFD27A")
+      setAttr("eng_banner_" .. c, "outline", "#101010E0")
+      setAttr("eng_banner_" .. c, "active", "true")
+      Wait.time(function() if engineSchemeSeen == now.seq then setAttr("eng_banner_" .. c, "active", "false") end end, 4)
     end
   end
 end
@@ -9312,7 +9427,7 @@ function engineSetupIntact()
   local want = SETUP.drawn.tile
   local have = tile ~= nil and (tile.getButtons() or {})[1] or nil
   if (want == nil) ~= (have == nil) or (have ~= nil and have.label ~= want) then return false end
-  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < (SETUP.drawn.mode and (SETUP.drawn.teams and 4 or 3) or 2) then return false end
+  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < (SETUP.drawn.mode and (SETUP.drawn.teams and 4 or 3) or 2) + (SETUP.drawn.arch and 1 or 0) then return false end
   for c in pairs(SETUP.drawn.mats) do
     local mat = data[c] and data[c].playmat
     local any = false
@@ -9441,7 +9556,7 @@ function engineSetupButtons()
   for _, pl in ipairs((game and game.players) or {}) do if pl.status == "playing" then alive[#alive + 1] = tostring(pl.color) end end
   table.sort(alive)
   local sig = table.concat({ tostring(ENGINE_MODE), tostring(running), tostring(over), table.concat(seated, ","), tostring(ready), table.concat(alive, ","),
-    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly), tostring(ENGINE_GAME_MODE), engineTeamsLabel ~= nil and engineTeamsLabel() or "", dcKey }, "|")
+    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly), tostring(ENGINE_GAME_MODE), engineTeamsLabel ~= nil and engineTeamsLabel() or "", engineArchLabel ~= nil and engineArchLabel() or "", dcKey }, "|")
   -- (unchanged, and the buttons are still there: TTS's own scripts or a reload can wipe an object's buttons, and after a
   -- game ended the READY buttons and the middle tile stayed gone or stale, "Engine: off" with engine mode on, playtest
   -- 2026-10-24; engineSetupHeal below looks every 2 s)
@@ -9528,6 +9643,11 @@ function engineSetupButtons()
       if engineTeamsLabel ~= nil then
         SETUP.drawn.teams = true
         setupButton(tile, "onMtgSetupTeams", engineTeamsLabel(), SETUP.color.idle, TEAMS_SPOT, nil, 1700, 620, 90)
+      end
+      -- (and Archenemy past it, the 4-player table only: onMtgSetupArch)
+      if engineArchLabel ~= nil and not engineSixSeats() then
+        SETUP.drawn.arch = true
+        setupButton(tile, "onMtgSetupArch", engineArchLabel(), SETUP.color.idle, ENGINE_ARCH_SPOT, nil, 1700, 620, 90)
       end
     end
   end
