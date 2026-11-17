@@ -276,10 +276,48 @@ index 1dfd5d98..d652baab 100644
          for (final Card attacker : attackers) {
              final List<Card> blockers = combat.getBlockers(attacker);
 diff --git a/forge-ai/src/main/java/forge/ai/ComputerUtilMana.java b/forge-ai/src/main/java/forge/ai/ComputerUtilMana.java
-index 5f96dead..362cf575 100644
+index 5f96dead..58bc7a11 100644
 --- a/forge-ai/src/main/java/forge/ai/ComputerUtilMana.java
 +++ b/forge-ai/src/main/java/forge/ai/ComputerUtilMana.java
-@@ -1618,6 +1618,28 @@ public class ComputerUtilMana {
+@@ -1496,7 +1496,37 @@ public class ComputerUtilMana {
+         return sortedManaSources;
+     }
+ 
++    // A caller that checks many costs against one unchanged board (the harness's action list) shares one look at the
++    // mana sources: beginSharedSources() ... endSharedSources(). Each caller gets its own copy.
++    private static final ThreadLocal<Map<String, ListMultimap<Integer, SpellAbility>>> SHARED_SOURCES = new ThreadLocal<>();
++
++    public static boolean beginSharedSources() {
++        if (SHARED_SOURCES.get() != null) {
++            return false;
++        }
++        SHARED_SOURCES.set(new HashMap<>());
++        return true;
++    }
++
++    public static void endSharedSources() {
++        SHARED_SOURCES.remove();
++    }
++
+     private static ListMultimap<Integer, SpellAbility> groupSourcesByManaColor(final Player ai, boolean checkPlayable) {
++        final Map<String, ListMultimap<Integer, SpellAbility>> shared = SHARED_SOURCES.get();
++        if (shared == null) {
++            return buildSourcesByManaColor(ai, checkPlayable);
++        }
++        final String key = ai.getId() + ":" + checkPlayable;
++        ListMultimap<Integer, SpellAbility> sources = shared.get(key);
++        if (sources == null) {
++            sources = buildSourcesByManaColor(ai, checkPlayable);
++            shared.put(key, sources);
++        }
++        return ArrayListMultimap.create(sources);
++    }
++
++    private static ListMultimap<Integer, SpellAbility> buildSourcesByManaColor(final Player ai, boolean checkPlayable) {
+         final ListMultimap<Integer, SpellAbility> manaMap = ArrayListMultimap.create();
+         final Game game = ai.getGame();
+ 
+@@ -1618,6 +1648,28 @@ public class ComputerUtilMana {
       * @return a int.
       * @since 1.0.15
       */
@@ -2515,6 +2553,55 @@ index a95828ff..de1bea5c 100644
          final List<Card> freeBlockers = findFreeBlockers(defendersArmy, combat);
  
          // if a creature does not block but should, return false
+diff --git a/forge-game/src/main/java/forge/game/cost/CostAdjustment.java b/forge-game/src/main/java/forge/game/cost/CostAdjustment.java
+index b836db57..d4da6048 100644
+--- a/forge-game/src/main/java/forge/game/cost/CostAdjustment.java
++++ b/forge-game/src/main/java/forge/game/cost/CostAdjustment.java
+@@ -22,6 +22,7 @@ import forge.game.spellability.SpellAbilityPredicates;
+ import forge.game.spellability.TargetChoices;
+ import forge.game.staticability.StaticAbility;
+ import forge.game.staticability.StaticAbilityMode;
++import forge.game.staticability.StaticSourceScope;
+ import forge.game.trigger.TriggerType;
+ import forge.game.zone.Zone;
+ import forge.game.zone.ZoneType;
+@@ -62,16 +63,10 @@ public class CostAdjustment {
+             }
+         }
+ 
+-        CardCollection cardsOnBattlefield = new CardCollection(game.getCardsIn(ZoneType.Battlefield));
+-        cardsOnBattlefield.addAll(game.getCardsIn(ZoneType.Stack));
+-        cardsOnBattlefield.addAll(game.getCardsIn(ZoneType.Command));
+-        if (!cardsOnBattlefield.contains(host)) {
+-            cardsOnBattlefield.add(host);
+-        }
+         final List<StaticAbility> raiseAbilities = Lists.newArrayList();
+ 
+         // Sort abilities to apply them in proper order
+-        for (Card c : cardsOnBattlefield) {
++        for (Card c : StaticSourceScope.costSources(game, host, StaticAbilityMode.RaiseCost)) {
+             for (final StaticAbility stAb : c.getStaticAbilities()) {
+                 if (stAb.checkMode(StaticAbilityMode.RaiseCost)) {
+                     raiseAbilities.add(stAb);
+@@ -189,17 +184,11 @@ public class CostAdjustment {
+             isStateChangeToFaceDown = true;
+         }
+ 
+-        CardCollection cardsOnBattlefield = new CardCollection(game.getCardsIn(ZoneType.Battlefield));
+-        cardsOnBattlefield.addAll(game.getCardsIn(ZoneType.Stack));
+-        cardsOnBattlefield.addAll(game.getCardsIn(ZoneType.Command));
+-        if (!cardsOnBattlefield.contains(host)) {
+-            cardsOnBattlefield.add(host);
+-        }
+         final List<StaticAbility> reduceAbilities = Lists.newArrayList();
+         final List<StaticAbility> setAbilities = Lists.newArrayList();
+ 
+         // Sort abilities to apply them in proper order
+-        for (Card c : cardsOnBattlefield) {
++        for (Card c : StaticSourceScope.costSources(game, host, StaticAbilityMode.ReduceCost, StaticAbilityMode.SetCost)) {
+             for (final StaticAbility stAb : c.getStaticAbilities()) {
+                 if (stAb.checkMode(StaticAbilityMode.ReduceCost) && checkRequirement(sa, stAb)) {
+                     reduceAbilities.add(stAb);
 diff --git a/forge-game/src/main/java/forge/game/keyword/KeywordWithCost.java b/forge-game/src/main/java/forge/game/keyword/KeywordWithCost.java
 index 58a41b9d..d7d011e6 100644
 --- a/forge-game/src/main/java/forge/game/keyword/KeywordWithCost.java
@@ -4500,6 +4587,19 @@ index 60226a90..fb97935c 100644
                  return false;
              }
          }
+diff --git a/forge-game/src/main/java/forge/game/staticability/StaticAbilityAlternativeCost.java b/forge-game/src/main/java/forge/game/staticability/StaticAbilityAlternativeCost.java
+index c5185889..e431a7d3 100644
+--- a/forge-game/src/main/java/forge/game/staticability/StaticAbilityAlternativeCost.java
++++ b/forge-game/src/main/java/forge/game/staticability/StaticAbilityAlternativeCost.java
+@@ -18,7 +18,7 @@ public class StaticAbilityAlternativeCost {
+     public static List<SpellAbility> alternativeCosts(final SpellAbility sa, final Card source, final Player pl) {
+         List<SpellAbility> result = Lists.newArrayList();
+         // source first in case it's LKI (alternate host)
+-        for (final Card ca : source.getGame().getStaticSourceCards(source)) {
++        for (final Card ca : StaticSourceScope.staticSources(source.getGame(), source, StaticAbilityMode.AlternativeCost)) {
+             for (final StaticAbility stAb : ca.getStaticAbilities()) {
+                 if (!stAb.checkMode(StaticAbilityMode.AlternativeCost)) {
+                     continue;
 diff --git a/forge-game/src/main/java/forge/game/staticability/StaticAbilityCantBeBeamedUp.java b/forge-game/src/main/java/forge/game/staticability/StaticAbilityCantBeBeamedUp.java
 index bf8a95fe..627f5674 100644
 --- a/forge-game/src/main/java/forge/game/staticability/StaticAbilityCantBeBeamedUp.java
@@ -4541,6 +4641,19 @@ index bf8a95fe..627f5674 100644
 +        return stAb.matchesValidParam("ValidSA", sa);
      }
  }
+diff --git a/forge-game/src/main/java/forge/game/staticability/StaticAbilityManaConvert.java b/forge-game/src/main/java/forge/game/staticability/StaticAbilityManaConvert.java
+index 87f94552..bc482096 100644
+--- a/forge-game/src/main/java/forge/game/staticability/StaticAbilityManaConvert.java
++++ b/forge-game/src/main/java/forge/game/staticability/StaticAbilityManaConvert.java
+@@ -13,7 +13,7 @@ public class StaticAbilityManaConvert {
+     public static boolean manaConvert(ManaConversionMatrix matrix, Player p, Card card, SpellAbility sa) {
+         final Game game = p.getGame();
+         boolean changed = false;
+-        for (final Card ca : game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
++        for (final Card ca : StaticSourceScope.staticSources(game, StaticAbilityMode.ManaConvert)) {
+             for (final StaticAbility stAb : ca.getStaticAbilities()) {
+                 if (!stAb.checkConditions(StaticAbilityMode.ManaConvert)) {
+                     continue;
 diff --git a/forge-game/src/main/java/forge/game/staticability/StaticAbilityTapPowerValue.java b/forge-game/src/main/java/forge/game/staticability/StaticAbilityTapPowerValue.java
 index 91d34317..c4c32924 100644
 --- a/forge-game/src/main/java/forge/game/staticability/StaticAbilityTapPowerValue.java
@@ -4562,6 +4675,154 @@ index 91d34317..c4c32924 100644
              }
          }
          return i;
+diff --git a/forge-game/src/main/java/forge/game/staticability/StaticSourceScope.java b/forge-game/src/main/java/forge/game/staticability/StaticSourceScope.java
+new file mode 100644
+index 00000000..6a5138ad
+--- /dev/null
++++ b/forge-game/src/main/java/forge/game/staticability/StaticSourceScope.java
+@@ -0,0 +1,142 @@
++package forge.game.staticability;
++
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.HashMap;
++import java.util.List;
++import java.util.Map;
++
++import forge.game.Game;
++import forge.game.card.Card;
++import forge.game.card.CardCollection;
++import forge.game.zone.ZoneType;
++
++// A caller that checks many abilities against one unchanged board (the harness's action list) opens a scope: within
++// it the loops over every card's static abilities visit only the cards that have a static of the mode they look for,
++// in the same order. A card without one adds nothing to those loops, so the result is the same. The lead card (the
++// ability's host) is always read live. Without a scope the lists are built as before.
++public final class StaticSourceScope {
++    private static final ThreadLocal<Map<String, Sources>> SCOPE = new ThreadLocal<>();
++
++    private record Sources(List<Card> all, Map<Card, Integer> at, List<Card> having) {
++    }
++
++    private StaticSourceScope() {
++    }
++
++    public static boolean begin() {
++        if (SCOPE.get() != null) {
++            return false;
++        }
++        SCOPE.set(new HashMap<>());
++        return true;
++    }
++
++    // after something that can change which cards have which static abilities (stack statics applied)
++    public static void clear() {
++        final Map<String, Sources> scope = SCOPE.get();
++        if (scope != null) {
++            scope.clear();
++        }
++    }
++
++    public static void end() {
++        SCOPE.remove();
++    }
++
++    // CostAdjustment's cards: the battlefield, the stack and the command zone, then the host if none of them has it
++    public static Iterable<Card> costSources(final Game game, final Card host, final StaticAbilityMode... modes) {
++        final Map<String, Sources> scope = SCOPE.get();
++        if (scope == null) {
++            final CardCollection cards = costCards(game);
++            if (!cards.contains(host)) {
++                cards.add(host);
++            }
++            return cards;
++        }
++        final Sources s = scope.computeIfAbsent("cost:" + Arrays.toString(modes), k -> index(costCards(game), modes));
++        final Integer hostAt = s.at().get(host);
++        final List<Card> out = new ArrayList<>(s.having().size() + 1);
++        if (hostAt == null) {
++            out.addAll(s.having());
++            out.add(host);
++            return out;
++        }
++        final Card listed = s.all().get(hostAt);
++        boolean placed = false;
++        for (final Card c : s.having()) {
++            if (!placed && s.at().get(c) >= hostAt) {
++                out.add(listed);
++                placed = true;
++                if (c.equals(listed)) {
++                    continue;
++                }
++            }
++            out.add(c);
++        }
++        if (!placed) {
++            out.add(listed);
++        }
++        return out;
++    }
++
++    // Game.getStaticSourceCards(lead): the lead first, then the static source zones without it
++    public static Iterable<Card> staticSources(final Game game, final Card lead, final StaticAbilityMode... modes) {
++        final Map<String, Sources> scope = SCOPE.get();
++        if (scope == null) {
++            return game.getStaticSourceCards(lead);
++        }
++        final Sources s = scope.computeIfAbsent("src:" + Arrays.toString(modes),
++                k -> index(new ArrayList<>(game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)), modes));
++        final List<Card> out = new ArrayList<>(s.having().size() + 1);
++        out.add(lead);
++        for (final Card c : s.having()) {
++            if (!c.equals(lead)) {
++                out.add(c);
++            }
++        }
++        return out;
++    }
++
++    // the static source zones, as Game.getCardsIn(STATIC_ABILITIES_SOURCE_ZONES)
++    public static Iterable<Card> staticSources(final Game game, final StaticAbilityMode... modes) {
++        final Map<String, Sources> scope = SCOPE.get();
++        if (scope == null) {
++            return game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES);
++        }
++        return scope.computeIfAbsent("src:" + Arrays.toString(modes),
++                k -> index(new ArrayList<>(game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)), modes)).having();
++    }
++
++    private static CardCollection costCards(final Game game) {
++        final CardCollection cards = new CardCollection(game.getCardsIn(ZoneType.Battlefield));
++        cards.addAll(game.getCardsIn(ZoneType.Stack));
++        cards.addAll(game.getCardsIn(ZoneType.Command));
++        return cards;
++    }
++
++    private static Sources index(final List<Card> all, final StaticAbilityMode[] modes) {
++        final List<Card> list = new ArrayList<>(all);
++        final Map<Card, Integer> at = new HashMap<>();
++        final List<Card> having = new ArrayList<>();
++        for (int i = 0; i < list.size(); i++) {
++            final Card c = list.get(i);
++            at.putIfAbsent(c, i);
++            if (hasMode(c, modes)) {
++                having.add(c);
++            }
++        }
++        return new Sources(list, at, having);
++    }
++
++    private static boolean hasMode(final Card c, final StaticAbilityMode[] modes) {
++        for (final StaticAbility st : c.getStaticAbilities()) {
++            for (final StaticAbilityMode mode : modes) {
++                if (st.checkMode(mode)) {
++                    return true;
++                }
++            }
++        }
++        return false;
++    }
++}
 diff --git a/forge-game/src/main/java/forge/game/trigger/Trigger.java b/forge-game/src/main/java/forge/game/trigger/Trigger.java
 index 34215d42..edab1c3e 100644
 --- a/forge-game/src/main/java/forge/game/trigger/Trigger.java
