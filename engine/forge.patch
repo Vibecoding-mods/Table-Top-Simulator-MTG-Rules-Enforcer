@@ -1320,7 +1320,7 @@ index 8d204538..c41c160c 100644
          return noGUIUser;
      }
 diff --git a/forge-game/src/main/java/forge/game/GameAction.java b/forge-game/src/main/java/forge/game/GameAction.java
-index e6cbe012..5b2c3767 100644
+index e6cbe012..2629ed28 100644
 --- a/forge-game/src/main/java/forge/game/GameAction.java
 +++ b/forge-game/src/main/java/forge/game/GameAction.java
 @@ -1049,6 +1049,17 @@ public class GameAction {
@@ -1379,7 +1379,66 @@ index e6cbe012..5b2c3767 100644
          if (losers != null) {
              for (Player p : losers) {
                  game.onPlayerLost(p);
-@@ -2451,6 +2477,12 @@ public class GameAction {
+@@ -2380,6 +2406,50 @@ public class GameAction {
+     public void startGame(GameOutcome lastGameOutcome) {
+         startGame(lastGameOutcome, null);
+     }
++
++    // A picked opening hand (RegisteredPlayer.getOpeningCards, the harness's openingCards: debug tools, a game against
++    // the AI): the named cards go on top of the shuffled library, in order, so the deal below makes them the opening
++    // hand and the rest of it is dealt at random; the keep-or-mulligan question then sees them, and a mulligan shuffles
++    // and deals again as usual. A name the library has a copy of takes that copy; one it hasn't is created there (the
++    // deck grows by it). Only the first starting-hand-size names count.
++    private void stackOpeningCards(final Player p) {
++        final RegisteredPlayer rp = p.getRegisteredPlayer();
++        if (rp == null || rp.getOpeningCards().isEmpty()) {
++            return;
++        }
++        final PlayerZone library = p.getZone(ZoneType.Library);
++        final List<Card> rest = new ArrayList<>(library.getCards());
++        final List<Card> top = new ArrayList<>();
++        for (final String name : rp.getOpeningCards()) {
++            if (top.size() >= p.getStartingHandSize()) {
++                break;
++            }
++            Card card = null;
++            for (final Card c : rest) {
++                if (c.getName().equals(name)) {
++                    card = c;
++                    break;
++                }
++            }
++            if (card != null) {
++                rest.remove(card);
++            } else {
++                PaperCard paper = StaticData.instance().getCommonCards().getCard(name);
++                if (paper == null) {
++                    StaticData.instance().attemptToLoadCard(name);
++                    paper = StaticData.instance().getCommonCards().getCard(name);
++                }
++                if (paper == null) {
++                    continue;
++                }
++                card = Card.fromPaperCard(paper, p);
++                card.setCollectible(true);
++            }
++            top.add(card);
++        }
++        top.addAll(rest);
++        library.setCards(top);
++    }
+     public void startGame(GameOutcome lastGameOutcome, Runnable startGameHook) {
+         Player first = determineFirstTurnPlayer(lastGameOutcome);
+ 
+@@ -2395,6 +2465,7 @@ public class GameAction {
+ 
+             game.setAge(GameStage.Mulligan);
+             for (final Player p1 : game.getPlayers()) {
++                stackOpeningCards(p1);
+                 // Choose starting hand for each player with multiple hands
+                 if (StaticData.instance().getFilteredHandsEnabled() ) {
+                     drawStartingHand(p1);
+@@ -2451,6 +2522,12 @@ public class GameAction {
                  return game.getPlayers().get(0);
              }
  
@@ -1392,7 +1451,7 @@ index e6cbe012..5b2c3767 100644
              // 904.6: in Archenemy games the Archenemy goes first
              if (game.getRules().hasAppliedVariant(GameType.Archenemy)) {
                  for (Player p : game.getPlayers()) {
-@@ -2471,7 +2503,7 @@ public class GameAction {
+@@ -2471,7 +2548,7 @@ public class GameAction {
          if (!powerPlayers.isEmpty()) {
              List<Player> players = Lists.newArrayList(powerPlayers);
              Collections.shuffle(players, MyRandom.getRandom());
@@ -1401,7 +1460,7 @@ index e6cbe012..5b2c3767 100644
          }
  
          boolean isFirstGame = lastGameOutcome == null;
-@@ -2499,9 +2531,36 @@ public class GameAction {
+@@ -2499,9 +2576,36 @@ public class GameAction {
              }
          }
          goesFirst = goesFirst.getController().chooseStartingPlayer(isFirstGame);
@@ -4801,21 +4860,29 @@ index 70f867b9..91ecc5ec 100644
          this.turnsPlayed++;
      }
 diff --git a/forge-game/src/main/java/forge/game/player/RegisteredPlayer.java b/forge-game/src/main/java/forge/game/player/RegisteredPlayer.java
-index 927afb99..a73b6ede 100644
+index 927afb99..8d4d639d 100644
 --- a/forge-game/src/main/java/forge/game/player/RegisteredPlayer.java
 +++ b/forge-game/src/main/java/forge/game/player/RegisteredPlayer.java
-@@ -36,6 +36,7 @@ public class RegisteredPlayer {
+@@ -36,6 +36,8 @@ public class RegisteredPlayer {
      private List<PaperCard> vanguardAvatars = null;
      private PaperCard planeswalker = null;
      private int teamNumber = -1; // members of teams with negative id will play FFA.
 +    private int commanderDamageToLose = 0; // this player's own limit (Juggernaut); 0 is the game's
++    private List<String> openingCards = Collections.emptyList(); // a picked opening hand (GameAction.stackOpeningCards)
      private Integer id = null;
      private boolean randomFoil = false;
      private boolean enableETBCountersEffect = false;
-@@ -63,6 +64,13 @@ public class RegisteredPlayer {
+@@ -63,6 +65,20 @@ public class RegisteredPlayer {
          this.startingLife = startingLife;
      }
  
++    public final List<String> getOpeningCards() {
++        return openingCards;
++    }
++    public final void setOpeningCards(List<String> names) {
++        openingCards = names == null ? Collections.emptyList() : Collections.unmodifiableList(new java.util.ArrayList<>(names));
++    }
++
 +    public final int getCommanderDamageToLose() {
 +        return commanderDamageToLose;
 +    }
@@ -4826,7 +4893,7 @@ index 927afb99..a73b6ede 100644
      public final int getManaShards() {
          return manaShards;
      }
-@@ -107,6 +115,10 @@ public class RegisteredPlayer {
+@@ -107,6 +123,10 @@ public class RegisteredPlayer {
      public Iterable<? extends IPaperCard> getSchemes() {
          return schemes == null ? EmptyList : schemes;
      }
