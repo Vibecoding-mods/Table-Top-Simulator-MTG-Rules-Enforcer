@@ -8299,6 +8299,9 @@ const HELD_RESOLUTIONS = 20;
 const HELD_MIN = 5;
 // the engine's question at its runaway limit (ManaBrewInteractiveSession.keepGoingPastCap), told by its exact title
 const RUNAWAY_TITLE = "This turn passed the engine's limit";
+// (the engine's own clock on it, ManaBrewInteractiveSession.RUNAWAY_ANSWER_SECONDS: once it runs out the engine has
+// moved on, so the table takes the question down; the engine drops a later answer to it too)
+const RUNAWAY_ANSWER_SECONDS = 90;
 // (the engine's own cap on one pile of tokens alike, Game.UNBOUNDED_TOKENS: past it the pile is "infinitely many")
 const ENGINE_TOKEN_CAP = 500;
 // Why the engine drew a game at a limit (the view's drawReason; the tie's own two are told by its tieOffer)
@@ -10532,6 +10535,7 @@ function onPrompt(seat, prompt) {
   // counts that player's floating mana, Mindslaver's turn, PLAN 2026-11-13)
   toTTS({ t: "prompt", color: seat.color, promptId: prompt.promptId, ...ui, ...(forP && game?.slotColor?.[forP] ? { forColor: game.slotColor[forP] } : {}) });
   armTimer(seat);
+  if (ui.title === RUNAWAY_TITLE) setTimeout(() => guarded("runaway question", () => runawayExpired(seat, prompt.promptId)), RUNAWAY_ANSWER_SECONDS * 1000).unref?.();
 }
 
 // ───────────────────────── Turn timers (host's toggle, "mtg timer") ─────────────────────────
@@ -10592,6 +10596,11 @@ function timerExpired(seat, promptId) {
     onAnswer(seat.color, promptId, timeoutChoice(before));
     if (seat.prompt?.promptId === promptId && seat.prompt.ui === before) break;
   }
+}
+function runawayExpired(seat, promptId) {
+  if (seat.prompt?.promptId !== promptId) return;
+  closePrompt(seat);
+  chat(`[MTG] The engine's ${RUNAWAY_ANSWER_SECONDS} seconds for that question ran out: no answer counts as Keep going.`, seat.color);
 }
 function setTimer(on, seconds) {
   if (!game) { chat("[MTG] Timer: no game running."); return; }

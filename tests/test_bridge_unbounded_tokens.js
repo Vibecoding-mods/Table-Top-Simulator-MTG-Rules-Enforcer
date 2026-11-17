@@ -82,10 +82,10 @@ const logOf = (h, before, after) => h.B.logEvents(h.B.logSnapshot(before), h.B.l
     h.B._getGame().timer = { on: true, seconds: 30 };
     h.B.onPrompt(seat, { promptId: 701, decidingPlayerId: "player-0", sourceCard: null,
       input: { type: "chooseBoolean", presentation: { title: "This turn passed the engine's limit", description: "x", targets: [] }, confirmLabel: "Keep going", denyLabel: "End in a draw" } });
-    await h.flush();
+    await h.settle();
     let from = h.effects.length;
     h.B._timerExpired(seat, 701);
-    await h.flush();
+    await h.settle();
     const fx = h.effects.slice(from);
     ok("timer: the runaway question is left to the engine", seat.prompt?.promptId === 701 && !fx.some((e) => e.relay), JSON.stringify(fx.map((e) => e.relay || e.tts?.text)));
     ok("timer: the player is told no answer counts as Keep going", fx.some((e) => e.tts?.t === "chat" && /no answer counts as Keep going/.test(e.tts.text)), JSON.stringify(fx.map((e) => e.tts?.text)));

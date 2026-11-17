@@ -165,7 +165,7 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     const prompt = { promptId: 555, decidingPlayerId: "player-0", sourceCard: null,
       input: { type: "chooseBoolean", presentation: { title: "This turn passed the engine's limit", description: body, targets: [] }, confirmLabel: "Keep going", denyLabel: "End in a draw" } };
     h.B.onPrompt(seat, prompt);
-    await h.flush();
+    await h.settle();
     const ui = seat.prompt?.ui || {};
     ok("runaway: asked with the engine's title", ui.title === "This turn passed the engine's limit", JSON.stringify(ui));
     ok("runaway: the engine's words under it", ui.text === body, JSON.stringify(ui.text));
@@ -181,11 +181,45 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     const seat = setup(h, blank([]));
     h.B.onPrompt(seat, { promptId: 556, decidingPlayerId: "player-0", sourceCard: null,
       input: { type: "chooseBoolean", presentation: { title: "This turn passed the engine's limit", description: "x", targets: [] }, confirmLabel: "Keep going", denyLabel: "End in a draw" } });
-    await h.flush();
+    await h.settle();
     const from = h.effects.length;
     await answer(h, 556, "yes");
     ok("runaway: Keep going answers Yes and says so", h.effects.slice(from).some((e) => e.relay && JSON.stringify(e.relay).includes("\"value\":true"))
       && h.effects.slice(from).some((e) => e.tts?.t === "chat" && /kept the turn going past the engine's limit/.test(e.tts.text)), JSON.stringify(h.effects.slice(from).map((e) => e.relay || e.tts?.text)));
+  });
+  await run(async (h) => {
+    const seat = setup(h, blank([]));
+    h.B.onPrompt(seat, { promptId: 557, decidingPlayerId: "player-0", sourceCard: null,
+      input: { type: "chooseBoolean", presentation: { title: "This turn passed the engine's limit", description: "x", targets: [] }, confirmLabel: "Keep going", denyLabel: "End in a draw" } });
+    await h.settle();
+    ok("runaway: the question stays up before the engine's clock runs out", seat.prompt?.promptId === 557, JSON.stringify(seat.prompt?.promptId));
+    let from = h.effects.length;
+    await h.flush();
+    const fx = h.effects.slice(from);
+    ok("runaway: the question closes on the table when the engine's 90 s run out", seat.prompt == null && fx.some((e) => e.tts?.t === "prompt" && e.tts.color === "Blue" && e.tts.promptId === null), JSON.stringify(fx.map((e) => e.tts?.t)));
+    ok("runaway: the player is told no answer counts as Keep going", fx.some((e) => e.tts?.t === "chat" && e.tts.color === "Blue" && /90 seconds for that question ran out: no answer counts as Keep going/.test(e.tts.text)), JSON.stringify(fx.map((e) => e.tts?.text)));
+    from = h.effects.length;
+    await answer(h, 557, "no");
+    ok("runaway: a click after it closed sends the engine nothing", !h.effects.slice(from).some((e) => e.relay), JSON.stringify(h.effects.slice(from).map((e) => e.relay)));
+  });
+  await run(async (h) => {
+    const seat = setup(h, blank([]));
+    h.B.onPrompt(seat, { promptId: 558, decidingPlayerId: "player-0", sourceCard: null,
+      input: { type: "chooseBoolean", presentation: { title: "Draw a card?", description: "", targets: [] } } });
+    await h.flush();
+    ok("runaway: any other question stays up", seat.prompt?.promptId === 558, JSON.stringify(seat.prompt?.promptId));
+  });
+  await run(async (h) => {
+    const seat = setup(h, blank([]));
+    h.B.onPrompt(seat, { promptId: 559, decidingPlayerId: "player-0", sourceCard: null,
+      input: { type: "chooseBoolean", presentation: { title: "This turn passed the engine's limit", description: "x", targets: [] }, confirmLabel: "Keep going", denyLabel: "End in a draw" } });
+    await h.settle();
+    h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: 559, choice: ["yes"] }) });
+    await h.settle();
+    h.B.onPrompt(seat, { promptId: 560, decidingPlayerId: "player-0", sourceCard: null,
+      input: { type: "chooseBoolean", presentation: { title: "Draw a card?", description: "", targets: [] } } });
+    await h.flush();
+    ok("runaway: an answered question's clock leaves the next question up", seat.prompt?.promptId === 560, JSON.stringify(seat.prompt?.promptId));
   });
   // ── the table's "mtg stop" ──
   {
