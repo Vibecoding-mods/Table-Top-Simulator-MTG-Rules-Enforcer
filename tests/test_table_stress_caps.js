@@ -64,6 +64,10 @@ const inMat = (o) => mats.some((m) => o.x >= m.x0 && o.x <= m.x1 && o.z >= m.z0 
   const r = simulate({ save, steps: [q(lua, "compact")] });
   const got = json(r, "compact") || [];
   CASES.forEach(([n, want], i) => ok(`compact: ${n} reads ${want}`, got[i] === want, got[i]));
+  const names = (k) => Array.from({ length: k }, (_, i) => `N${i + 1}`);
+  const r2 = simulate({ save, steps: [q(`return engineFewNames(JSON.decode([==[${JSON.stringify(names(8))}]==]))`, "eight"), q(`return engineFewNames(JSON.decode([==[${JSON.stringify(names(9))}]==]))`, "nine")] });
+  ok("names: 8 read in full", valueOf(r2, "eight") === names(8).join(", "), valueOf(r2, "eight"));
+  ok("names: 9 read 8 ... and 1 more", valueOf(r2, "nine") === `${names(8).join(", ")} ... and 1 more`, valueOf(r2, "nine"));
 }
 // the life counter: Blue's counter is given its own button first (the counter's script doesn't run on the fake TTS), as
 // the real counter makes it (Amuzet's LifeTracker: click function option, font 1000, 950 wide)
@@ -120,7 +124,10 @@ const inMat = (o) => mats.some((m) => o.x >= m.x0 && o.x <= m.x1 && o.z >= m.z0 
   const STATUS = (mark) => q('return tostring(UI.getValue("eng_status_Blue"))', mark);
   const PRIO = ask({ promptId: 901, kind: "priority", title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, { id: "__endturn", label: "End turn" }] });
   const r = run([board({ blue: { pool: { G: 150, R: 6 } } }), PRIO, q('onMtgToggle(Player.Blue, nil, "eng_toggle_Blue") return "open"', "open"), CHIPS("150"), STATUS("status 150"),
-    board({ blue: { pool: { G: 5000 } } }), CHIPS("5000"), board({ blue: { pool: { G: 99 } } }), CHIPS("99")]);
+    board({ blue: { pool: { G: 5000 } } }), CHIPS("5000"), board({ blue: { pool: { G: 99 } } }), CHIPS("99"),
+    board({ blue: { pool: { G: 999 } } }), CHIPS("999"), board({ blue: { pool: { G: 1000 } } }), CHIPS("1000")]);
+  ok("pool: 999 is G999 (the most said as is)", ((json(r, "999") || [])[0] || {}).label === "G999", valueOf(r, "999"));
+  ok("pool: 1000 is G999+", ((json(r, "1000") || [])[0] || {}).label === "G999+", valueOf(r, "1000"));
   ok("pool: no script errors", !r.errors.length, r.errors.slice(0, 3).join(" | "));
   const c150 = json(r, "150") || [];
   ok("pool: G150 on its chip, R6 beside it", c150.map((c) => c.label).join(" ") === "R6 G150", JSON.stringify(c150));
@@ -201,6 +208,8 @@ const inMat = (o) => mats.some((m) => o.x >= m.x0 && o.x <= m.x1 && o.z >= m.z0 
   const r = run([board(), ask({ promptId: 903, kind: "number", title: "Torment of Hailfire: choose X", mode: "number", min: 0, max: 999, text: "999 is the most the table offers." }), BTNS("wide"), SUB("sub"),
     q(press(2), "+1"), VALUE("v1"), q(press(3), "step"), BTNS("step 10"), q(`${press(2)} ${press(2)}`, "+10 +10"), VALUE("v21"), q(press(3), "step 100"), q(press(2), "+100"), VALUE("v121"),
     q(press(1), "-100"), VALUE("v21b"), q(press(4), "max"), VALUE("v999"), BTNS("at max"), q(press(4), "min"), VALUE("v0"), q(press(3), "back to 1"), BTNS("step 1"),
+    // (the line's "type the number in the Engine panel's search": 150 typed there lists 150 first)
+    q('onMtgToggle(Player.Blue, nil, "eng_toggle_Blue") onMtgSearch(Player.Blue, "150", "eng_search_Blue") return tostring(UI.getAttribute("eng_opt_Blue_1", "text") or UI.getValue("eng_opt_Blue_1"))', "search"),
     ask({ promptId: 904, kind: "number", title: "Choose X", mode: "number", min: 0, max: 5 }), BTNS("narrow"), q(`${press(2)} ${press(2)}`, "narrow +2"), VALUE("n2")]);
   ok("number row: no script errors", !r.errors.length, r.errors.slice(0, 3).join(" | "));
   ok("number row: 0..999 shows -1 +1 Step 10 Max OK: 0", valueOf(r, "wide") === "-1|+1|Step 10|Max|OK: 0", valueOf(r, "wide"));
@@ -214,6 +223,7 @@ const inMat = (o) => mats.some((m) => o.x >= m.x0 && o.x <= m.x1 && o.z >= m.z0 
   ok("number row: at 999, Max turns to Min", String(valueOf(r, "at max")).split("|")[3] === "Min", valueOf(r, "at max"));
   ok("number row: Min makes 0", valueOf(r, "v0") === "0", valueOf(r, "v0"));
   ok("number row: Step past 100 goes back to 1", String(valueOf(r, "step 1")).startsWith("-1|+1|Step 10|"), valueOf(r, "step 1"));
+  ok("number row: 150 typed in the Engine panel's search lists 150 first", valueOf(r, "search") === "150", valueOf(r, "search"));
   ok("number row: 0..5 as before, - + Min Max", valueOf(r, "narrow") === "-|+|Min|Max|OK: 0", valueOf(r, "narrow"));
   ok("number row: 0..5's + goes by 1", valueOf(r, "n2") === "2", valueOf(r, "n2"));
 }

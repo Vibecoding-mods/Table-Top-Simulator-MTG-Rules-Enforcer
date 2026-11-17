@@ -1515,7 +1515,7 @@ end
 -- attackers shows one "-14". Only changes during a game: the first board of a game just sets the number.
 -- Compact numbers (docs/stress-catalog.md #10, #12): a number as the table shows it where space is short, the life
 -- counter and the counter badges. Up to 9,999 as it is; then "12.3K", "450K", "1.2M", "1B" (floored, so 99,999 is
--- "99.9K", never "100K"); "∞" at ENGINE_HUGE or more (the engine clamps a number there: 2^30), "-∞" at minus that. Not
+-- "99.9K", never "100K"); "∞" at ENGINE_HUGE or more (2^30: where the engine is to clamp numbers, catalog #12), "-∞" at minus that. Not
 -- a number (a "*" power): as it is. The hover gives the exact number.
 ENGINE_HUGE = 1073741824
 ENGINE_COMPACT_UNITS = { { 1000000000, "B" }, { 1000000, "M" }, { 1000, "K" } }
@@ -1538,8 +1538,8 @@ function engineCompact(v)
   return tostring(v)
 end
 -- The life counter's number (its button 0): the compact label and a font that keeps it clear of the commander-damage
--- icons (the counter's own 1000 up to 3 letters, then 3000 / letters: "9999" 750, "12.3K" 600). nil label: the
--- counter's own number stands (life under 10,000 and 3 letters or fewer: the counter as it always was).
+-- icons (the counter's own 1000 up to 3 letters, then 3000 / letters: "9999" 750, "12.3K" 600). compacted
+-- false: the label is the counter's own number (life under 10,000), which the counter writes itself.
 ENGINE_LIFE_FONT = { font = 1000, letters = 3 }
 function engineLifeLook(life)
   local label = engineCompact(life)
@@ -3878,13 +3878,13 @@ function engineRender(m)
   -- The stack floats above its caster's own playmat (the table centre is where the life trackers are), newest on
   -- top and a little to the side, so you can read every spell waiting to resolve. At most ENGINE_STACK_SHOW objects a
   -- caster: the rest fold into one "+N more" card at the caster's first spot (engineStackFold)
-  local perCaster = engineStackFold(m.stack or {})
+  local stackFold = engineStackFold(m.stack or {})
   local stackGlow = {}
   local stackSpot = {} -- stack item id -> where its target lines start
   engineFxStackSpot = {} -- stack item id -> its spot on the stack (the next board's effects: where a countered spell stood)
   for i, s in ipairs(m.stack or {}) do
     local g = s.ctl and seatGeometry(s.ctl)
-    local n = perCaster.spot[i]
+    local n = stackFold.spot[i]
     local pos, rot = nil, nil
     if g ~= nil then
       pos = g.mat + g.right * (1.4 * (n - 1) - 2) + Vector(0, 2.5 + 0.1 * i, 0)
@@ -3901,7 +3901,7 @@ function engineRender(m)
     local onTableSrc = not s.spell and s.src and (engineObjs[s.src] ~= nil or engineObjs[engineGroupOf[s.src] or ""] ~= nil)
     -- (folded: no object of its own, the "+N more" card stands for it below; an ability whose source is on the table
     -- still lights it)
-    if perCaster.folded[i] and not onTableSrc then
+    if stackFold.folded[i] and not onTableSrc then
     elseif s.spell and st then
       -- the spell's own card moves onto the stack (spawning a new object costs a frame hitch while its picture loads)
       local c = { id = s.src }
@@ -3926,7 +3926,7 @@ function engineRender(m)
   end
   -- the folded part of each caster's stack: one card at their first spot, "+42 more on the stack", its hover naming
   -- them top first (the Engine panel's stack list has them all)
-  for who, more in pairs(perCaster.more) do
+  for who, more in pairs(stackFold.more) do
     local g = seatGeometry(who)
     if g ~= nil then
       place({ id = "stack:more:" .. who, n = "+" .. more.n .. " more on the stack", tl = "On the stack (" .. more.n .. " more under these)",
@@ -5820,13 +5820,14 @@ function engineRowUpdate(color)
   local b = {}
   if numberMode then
     local v = engineNumber[color].value
-    b = { { id = "num:-1", text = "-", ok = v > (p.min or 0) }, { id = "num:+1", text = "+", ok = v < (p.max or v) },
-      { id = "num:min", text = "Min" }, { id = "num:max", text = "Max" }, { id = "num:ok", text = "OK: " .. tostring(v), primary = true } }
+    local lo, hi = p.min or 0, p.max or v
+    local ok = { id = "num:ok", text = "OK: " .. tostring(v), primary = true }
     if engineNumberWide(p) then
       local step = engineNumber[color].step or 1
-      b[1].text, b[2].text = "-" .. step, "+" .. step
-      b[3] = { id = "num:step", text = "Step " .. engineNumberNextStep(step) }
-      b[4] = v >= p.max and { id = "num:min", text = "Min" } or { id = "num:max", text = "Max" }
+      b = { { id = "num:-1", text = "-" .. step, ok = v > lo }, { id = "num:+1", text = "+" .. step, ok = v < hi },
+        { id = "num:step", text = "Step " .. engineNumberNextStep(step) }, v >= hi and { id = "num:min", text = "Min" } or { id = "num:max", text = "Max" }, ok }
+    else
+      b = { { id = "num:-1", text = "-", ok = v > lo }, { id = "num:+1", text = "+", ok = v < hi }, { id = "num:min", text = "Min" }, { id = "num:max", text = "Max" }, ok }
     end
   end
   for _, i in ipairs(others) do
