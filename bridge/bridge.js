@@ -2836,6 +2836,8 @@ function cardNotes(c, zone, row = false) {
     nt.push(cost ? `Flashback ${cost}` : "Has flashback");
   }
   if (zone === "graveyard") nt.push(...graveKeywordNotes(c));
+  // (the halves of a split or adventure card and the other ways to cast it, priced by our Forge build: spellCostNotes)
+  nt.push(...spellCostNotes(c, row));
   // (a face-down card in its owner's playable row, a foretold one: what it costs now in words only, as the table's cost
   // badge text says it, engineCostChange; its badge buttons might show to the other players)
   if (row && c.isFaceDown) {
@@ -3072,6 +3074,9 @@ const playWay = (mode) => (mode === "foretold" ? "foretell" : mode === "plotted"
 function costNow(c, zone, row = false) {
   const printed = c.playCostPrinted || (c.manaCost && c.manaCost !== "no cost" ? String(c.manaCost) : "");
   if (row && !c.effectiveManaCost && c.playCost) {
+    // (a half of a split or adventure card has no badge: the picture shows a cost for each half, and the badge sits on
+    // the card's one cost; its words go in the hover, spellCostNotes)
+    if (c.playCostName) return {};
     const mode = String(c.playCostMode || "");
     const em = mode && mode !== "may play" && mode !== "free" ? playWay(mode) : null;
     return c.playCost !== printed ? { ec: String(c.playCost), mc: printed, ...(em ? { em: em } : {}) } : {};
@@ -3084,6 +3089,32 @@ function costNow(c, zone, row = false) {
     now = `{${(generic ? Number(generic[1]) : 0) + tax}}${generic ? base.slice(generic[0].length) : base}`;
   }
   return now && now !== printed ? { ec: now, mc: printed } : {};
+}
+// Our Forge build's halves and ways (engine1117-costbadge3, docs/cost-badge-spec.md Step 5 "Follow-ups"), as hover lines:
+// - spellCosts, a split or adventure card's halves where it may be cast (the hand): each half whose cost changed,
+//   "Stomp: costs {2}{R} now (printed {1}{R})". A split card has no badge (Forge's effectiveManaCost is left out for
+//   it: its first half against the whole card's printed cost read cheaper); an adventure card's creature keeps its own.
+// - in the seat's playable row only: the half playCost casts, playCostName, "Castable: Memory {5}{U}{U} by aftermath
+//   (printed {4}{U}{U})", and the other ways, playCostOthers, "Other ways to cast it: Ice {1}{U}; {2}{R} by flashback"
+//   (a half named; a permission's and a free cast's way not).
+function spellCostNotes(c, row) {
+  const out = [];
+  for (const s of Array.isArray(c.spellCosts) ? c.spellCosts : []) {
+    if (s && s.cost && s.cost !== s.printed) out.push(`${s.name}: costs ${s.cost} now (printed ${s.printed || "no mana cost"})`);
+  }
+  if (!row || !c.playCost) return out;
+  const way = (m) => (m && m !== "may play" && m !== "free" ? playWay(m) : null);
+  if (c.playCostName) {
+    const w = way(c.playCostMode);
+    out.push(`Castable: ${c.playCostName} ${c.playCost}${w ? ` by ${w}` : ""}${c.playCostPrinted && c.playCostPrinted !== c.playCost ? ` (printed ${c.playCostPrinted})` : ""}`);
+  }
+  const others = (Array.isArray(c.playCostOthers) ? c.playCostOthers : []).filter((s) => s && s.cost).map((s) => {
+    const w = way(s.mode);
+    const half = c.playCostName || (s.name && s.name !== c.identity?.name) ? `${s.name} ` : "";
+    return `${half}${s.cost}${w ? ` by ${w}` : ""}`;
+  });
+  if (others.length) out.push(`Other ways to cast it: ${others.join("; ")}`);
+  return out;
 }
 // the generic part of a mana cost string, "{3}{U}" -> 3 (none: 0)
 const genericOf = (cost) => Number(/^\{(\d+)\}/.exec(cost || "")?.[1] || 0);

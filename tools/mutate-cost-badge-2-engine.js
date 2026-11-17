@@ -17,19 +17,30 @@ const P = H + "PlayCost.java";
 const X = H + "InteractiveSnapshotExtractor.java";
 // [label, file (in the tree), from, to, check that must fail]
 const MUTATIONS = [
-  ["a permission to cast is ignored", P, "final boolean byPermission = !mayPlay.isEmpty() && plain != null;", "final boolean byPermission = false && plain != null;", "may play: a permission to cast from the graveyard, the card's own cost"],
-  ["the alternative costs aren't listed", P, "                spells.addAll(GameActionUtil.getAlternativeCosts(base, viewer, false));\n", "", "flashback: the flashback cost from the graveyard"],
-  ["the way isn't named", P, "otherMode = alt.name().toLowerCase(Locale.ROOT);", "otherMode = \"alternative\";", "flashback: the flashback cost from the graveyard"],
+  ["a permission to cast is ignored", P, "                } else if (paidPermission) {", "                } else if (false) {", "may play: a permission to cast from the graveyard, the card's own cost"],
+  ["the alternative costs aren't listed", P, "for (final SpellAbility alt : GameActionUtil.getAlternativeCosts(base, viewer, false)) {", "for (final SpellAbility alt : new ArrayList<SpellAbility>()) {", "flashback: the flashback cost from the graveyard"],
+  ["the way isn't named", P, "mode = alt.name().toLowerCase(Locale.ROOT);", "mode = \"alternative\";", "flashback: the flashback cost from the graveyard"],
   ["a foretold card read face down", P, "card.getState(CardStateName.Original) : card.getCurrentState()", "card.getCurrentState() : card.getCurrentState()", "foretell: the foretell cost from exile"],
-  ["the foretold card's printed cost not sent", X, "                dto.playCostPrinted = play[2];\n", "", "foretell: the foretell cost from exile"],
+  ["the foretold card's printed cost not sent", X, "dto.playCostPrinted = play.pick.printed.equals(cardPrinted) ? null : play.pick.printed;", "dto.playCostPrinted = null;", "foretell: the foretell cost from exile"],
   ["raises not applied", P, "final Cost adjusted = CostAdjustment.adjust(sa.getPayCosts().copy(), sa, false);", "final Cost adjusted = sa.getPayCosts().copy();", "flashback: Thalia's tax on it"],
   ["reductions not applied", P, "            if (choosesToReduce(sa)) {", "            if (true) {", "reduced: Goblin Electromancer on a flashback cost"],
   ["reductions not applied to a hand cost", P, "            if (choosesToReduce(sa)) {", "            if (true) {", "reduced: Goblin Electromancer on a hand cost"],
   ["a reduction to nothing not read as {0} (hand)", X, "? (printed.isEmpty() || printed.equals(\"no cost\") ? null : \"{0}\") : effective", "? null : effective", "zero: a hand cost reduced to nothing reads {0}"],
-  ["no cost not read as {0} (play cost)", P, "return mana == null || mana.isEmpty() || mana.equals(\"no cost\") ? \"{0}\" : mana;", "return mana;", "plot: a plotted card is free"],
+  ["no cost not read as {0} (play cost)", P, "return s.isEmpty() || s.equals(\"no cost\") ? \"{0}\" : s;", "return s;", "plot: a plotted card is free"],
   ["assist not guarded", P, "Keyword.ASSIST, Keyword.DELVE, Keyword.CONVOKE", "Keyword.DELVE, Keyword.CONVOKE", "assist: an assist card in hand is priced with no question asked"],
   ["every seat's view priced", X, "if (dto.mayPlay && viewerPlayer != null && !card.isInZone(ZoneType.Hand)) {", "if (viewerPlayer != null && !card.isInZone(ZoneType.Hand)) {", "none: another player's view of my graveyard"],
-  ["the cost not sent", X, "                dto.playCost = play[0];\n", "", "escape: the escape cost"],
+  ["split cards keep one badge", X, "        if (card.isLand() || card.isSplitCard()) {", "        if (card.isLand()) {", "split: an untaxed split card in hand sends nothing"],
+  ["the halves not sent", X, "            dto.spellCosts = PlayCost.halves(card, card.getController());\n", "", "split: a taxed split card in hand has no one badge, and each half is priced"],
+  ["the adventure not read", P, "            if (card.isAdventureCard()) {\n                spells.addAll(card.getState(CardStateName.Secondary).getSpellAbilities());", "            if (false) {\n                spells.addAll(card.getState(CardStateName.Secondary).getSpellAbilities());", "adventure: the adventure is priced beside the creature"],
+  ["the half's state not taken for its pricing", P, "            if (flip) {\n                host.setState(want, false);", "            if (false) {\n                host.setState(want, false);", "adventure: the adventure is priced beside the creature"],
+  ["the card's state not put back", P, "            if (flip) {\n                host.setState(was, false);\n            }\n", "", "adventure: the card is back in its own state after the pricing"],
+  ["a fuse card's whole taken as a half", P, "        return !(card.isSplitCard() && sa.getCardState() != null && sa.getCardState().getStateName() == CardStateName.Original);", "        return true;", "split: a fuse card's whole is not a half"],
+  ["the first way, not the cheapest", P, "                if (w.mana.getCMC() < pick.mana.getCMC()) {", "                if (false) {", "cheapest: of a permission and flashback, the cheaper way, the other listed"],
+  ["the other ways not sent", X, "                    dto.playCostOthers = others;\n", "", "halves: a permission on a split card names the half and lists the other"],
+  ["aftermath not priced", P, "                    mode = sa.isAftermath() ? \"aftermath\" : \"cast\";", "                    mode = null;", "aftermath: the graveyard half, against its own printed cost"],
+  ["the half not named", X, "                dto.playCostName = card.isSplitCard() || card.isAdventureCard() ? play.pick.name : null;\n", "", "aftermath: the graveyard half, against its own printed cost"],
+  ["a half against the whole card's printed cost", P, "                final String printed = halves ? text(sa.getCardState().getManaCost()) : cardPrinted;", "                final String printed = cardPrinted;", "halves: a permission on a split card names the half and lists the other"],
+  ["the cost not sent", X, "                dto.playCost = play.pick.cost();\n", "", "escape: the escape cost"],
 ];
 
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
