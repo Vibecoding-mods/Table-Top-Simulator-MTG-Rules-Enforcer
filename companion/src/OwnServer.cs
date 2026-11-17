@@ -94,7 +94,7 @@ namespace MtgCompanion
             return true;
         }
 
-        // "host[:port]" (--server, the page's box) as a setting object, or null when it is empty
+        // "host[:port]" (--server) as a setting object, or null when it is empty
         static readonly Regex Spec = new Regex(@"^(\[[^\]]+\]|[^:\s]+)(?::(\d+))?$");
         public static Dictionary<string, object> SpecOf(string spec)
         {
@@ -169,7 +169,7 @@ namespace MtgCompanion
 
         // The start light with a server: whether it answers, from one relay login (Probes.RelayLogin; Skipped during a
         // game). Red lights say what to check and have Try again.
-        public static Verdict Decide(ServerSetting setting, LoginResult login, Game game)
+        public static Verdict Decide(ServerSetting setting, LoginResult login, Game game, string wantBuild = null)
         {
             if (setting == null || !setting.Ok)
                 return new Verdict(Light.Red, "Own server: " + (setting == null ? "no server set." : setting.Problem)).WithFix(Fixes.Retry, "Try again").WithHint(Help);
@@ -183,15 +183,19 @@ namespace MtgCompanion
                 case LoginKind.Ok:
                     if (!login.RoomFound)
                         v = new Verdict(Light.Red, "Connected to your server (" + at + "), but its Forge room (" + Logic.Room + ") isn't open. Start the Forge room on the server, then press Try again.");
-                    else if (login.RoomStatus == "Lobby")
-                        return new Verdict(Light.Green, "Your server answers (" + at + "): room " + Logic.Room + " is open (login " + login.Ms + " ms).");
-                    else if (Logic.Locked(game))
-                        return new Verdict(Light.Green, "Your server answers (" + at + "): room " + Logic.Room + " is in a game.");
+                    else if (login.RoomStatus == "Lobby" || Logic.Locked(game))
+                    {
+                        var warn = EngineBuildWarning(login.EngineBuild, wantBuild);
+                        if (warn != null) return new Verdict(Light.Amber, warn).WithFix(Fixes.Retry, "Try again").WithHint(Help);
+                        return new Verdict(Light.Green, login.RoomStatus == "Lobby"
+                            ? "Your server answers (" + at + "): room " + Logic.Room + " is open (login " + login.Ms + " ms)."
+                            : "Your server answers (" + at + "): room " + Logic.Room + " is in a game.");
+                    }
                     else
                         v = new Verdict(Light.Red, "Your server's room (" + at + ") is busy with an earlier game, so a new start would be refused. Restart the relay and the Forge room on the server.");
                     break;
                 case LoginKind.AuthFailed:
-                    v = new Verdict(Light.Red, "Your server (" + at + ") refused the key" + why + ". Put the server's key (its MANABREW_SERVER_KEY) in " + File + " as \"key\", or in the status page's Own server box.");
+                    v = new Verdict(Light.Red, "Your server (" + at + ") refused the key" + why + ". Put the server's key (its MANABREW_SERVER_KEY) in " + File + " as \"key\" (it is encrypted for your Windows account on the next start).");
                     break;
                 case LoginKind.Refused:
                     v = new Verdict(Light.Red, "Your server (" + at + ") refused the connection" + why + ": nothing listens on port " + s.Port + " there. Check the port and that the engine runs on the server.");
@@ -209,7 +213,7 @@ namespace MtgCompanion
             return v.WithFix(Fixes.Retry, "Try again").WithHint(Help);
         }
 
-        public const string Help = "Own server: the engine runs on the host's computer, and this companion connects to it.\n1. The host runs the engine (tools/setup-server.sh, or their own companion) and gives you its address and key.\n2. On the status page, Own server: type the address (name or IP, :port if not 9443) and the key, then press Use this server.\n3. The host's firewall must let this computer reach the relay's port.\nUse this computer goes back to the engine in Docker here.";
+        public const string Help = "Own server: the engine runs on the host's computer, and this companion connects to it.\n1. Both computers join the same Tailscale network; the host runs the engine (tools/setup-server.sh) and gives you its Tailscale address and key.\n2. Write server.json in this package's folder: { \"host\": \"100.64.0.5\", \"key\": \"...\" } (the key is encrypted for your Windows account on the next start), or start the companion with --server.\n3. Delete server.json to go back to the engine in Docker here.";
 
         // What a running bridge's GET /versions says it connects to: { relay, remote }, or null for a bridge too old to say
         public static bool BridgeRelay(string versionsBody, out string relay, out bool remote)
@@ -247,43 +251,62 @@ namespace MtgCompanion
                 : new Dictionary<string, string> { { "MTG_RELAY", Url(server) }, { "MTG_KEY", server.Key }, { "MTG_REMOTE_ENGINE", "1" } };
         }
 
-        // ── the status page's Own server box (WebUi /api/server)
+        // ── the key at rest (KeyVault.cs): server.json keeps it encrypted, never as plain text
 
-        // What the page may show: never the key, only whether one is set and its last 2 characters
-        public static Dictionary<string, object> View(ServerSetting setting)
+        // server.json as stored -> the text SettingOf reads (an encrypted key opened into "key"). resave: the file's new
+        // text when it held a plain key (the key encrypted; null: nothing to save). problem: an encrypted key this account
+        // can't open (null: none). protect/unprotect: KeyVault's (the self-test passes its own). Text that isn't a JSON
+        // object is handed on as it is: SettingOf says what is wrong with it.
+        public static string OpenKey(string fileText, Func<string, string> unprotect, Func<string, string> protect, out string resave, out string problem)
         {
-            if (setting == null) return new Dictionary<string, object> { { "mode", "local" } };
-            if (!setting.Ok) return new Dictionary<string, object> { { "mode", "problem" }, { "problem", setting.Problem } };
-            var s = setting.Server;
-            return new Dictionary<string, object> { { "mode", "server" }, { "host", s.Host }, { "port", s.Port }, { "secure", s.Secure },
-                { "keySet", !string.IsNullOrEmpty(s.Key) }, { "keyEnds", KeyEnds(s.Key) } };
-        }
-        public static string KeyEnds(string key) { return string.IsNullOrEmpty(key) || key.Length < 8 ? "" : key.Substring(key.Length - 2); }
-
-        // The box's Use this server: "host[:port]", a key (blank: keep server.json's for the same host), secure ->
-        // server.json's new text, or a problem (and nothing is written). oldFile: server.json now (null: none)
-        public static string FileFromBox(string hostPort, string key, bool secure, string oldFile, out string problem)
-        {
-            problem = null;
-            var spec = SpecOf(hostPort);
-            if (spec == null) { problem = "Type your server's address (its name or IP, with :port if it isn't " + DefaultPort + ")."; return null; }
-            var d = new Dictionary<string, object>(spec);
-            var k = key == null ? "" : key.Trim();
-            if (k.Length == 0)
+            resave = null; problem = null;
+            if (fileText == null) return null;
+            var text = fileText.TrimStart('\uFEFF');
+            Dictionary<string, object> d = null;
+            try { d = new System.Web.Script.Serialization.JavaScriptSerializer().DeserializeObject(text) as Dictionary<string, object>; } catch { d = null; }
+            if (d == null || !text.Trim().EndsWith("}")) return fileText;
+            object plain, sealedKey;
+            d.TryGetValue("key", out plain); d.TryGetValue(KeyVault.Field, out sealedKey);
+            if (plain is string && ((string)plain).Trim().Length > 0)
             {
-                var old = J.Parse(oldFile == null ? null : oldFile.TrimStart('﻿')) as Dictionary<string, object>;
-                object oldHost = null, oldKey = null;
-                if (old != null) { old.TryGetValue("host", out oldHost); old.TryGetValue("key", out oldKey); }
-                if (old != null && SameHost(oldHost, d["host"]) && oldKey is string) k = (string)oldKey;
+                // (a key typed into the file wins over an older encrypted one: it is the one the player means now)
+                var stored = new Dictionary<string, object>();
+                foreach (var kv in d)
+                {
+                    if (kv.Key == KeyVault.Field) continue;
+                    if (kv.Key == "key")
+                    {
+                        string blob = null;
+                        try { blob = protect(((string)plain).Trim()); } catch { blob = null; }
+                        if (blob == null) { stored = null; break; }
+                        stored[KeyVault.Field] = blob;
+                    }
+                    else stored[kv.Key] = kv.Value;
+                }
+                if (stored != null) resave = J.Write(stored);
+                var used = new Dictionary<string, object>(d);
+                used.Remove(KeyVault.Field);
+                return J.Write(used);
             }
-            if (k.Length == 0) { problem = "Type your server's key (the host's MANABREW_SERVER_KEY)."; return null; }
-            d["key"] = k;
-            if (secure) d["secure"] = true;
-            var r = Parse(d);
-            if (!r.Ok) { problem = r.Problem; return null; }
-            var o = new Dictionary<string, object> { { "host", r.Server.Host }, { "port", r.Server.Port }, { "key", r.Server.Key } };
-            if (r.Server.Secure) o["secure"] = true;
-            return J.Write(o);
+            if (sealedKey == null) return fileText;
+            string key = null;
+            try { key = sealedKey is string ? unprotect((string)sealedKey) : null; } catch { key = null; }
+            if (key == null || key.Trim().Length == 0)
+            {
+                problem = File + "'s key was saved encrypted for another Windows account or PC, so it can't be read here. Put the server's key in " + File + " again as \"key\": it is encrypted for you on the next start.";
+                return null;
+            }
+            var opened = new Dictionary<string, object>();
+            foreach (var kv in d) { if (kv.Key == KeyVault.Field) opened["key"] = key; else opened[kv.Key] = kv.Value; }
+            return J.Write(opened);
+        }
+
+        // The server's engine build against the one this table was deployed with (version.json / stack/deployed.json
+        // engineBuild): words for the warning, or null when they match or either is unknown (an older server or deploy)
+        public static string EngineBuildWarning(string have, string want)
+        {
+            if (string.IsNullOrEmpty(have) || string.IsNullOrEmpty(want) || have == want) return null;
+            return "Your server runs engine " + have + ", but this table was deployed with engine " + want + ". They may not work together: ask the host to update the server, or update this package.";
         }
     }
 }

@@ -35,8 +35,11 @@ echo "== Applying our patches"
 git -C "$src" apply --whitespace=nowarn "$here/manabrew.patch"
 git -C "$src/forge" apply --whitespace=nowarn "$here/forge.patch"
 
-echo "== Building mtg-forge-node:$tag (the long one)"
-docker build -f "$src/manabrew-rs/crates/self-hosted-node/Dockerfile" -t "mtg-forge-node:$tag" "$src"
+# (the engine build id: a hash of the pins and the patches, never the tag, so a server built with the default tag and
+# the owner's engine1122 compare as the same engine when they are; engine/engine-build-id.sh)
+build_id="$(bash "$here/engine-build-id.sh" "$here")"
+echo "== Building mtg-forge-node:$tag (the long one), engine build $build_id"
+docker build -f "$src/manabrew-rs/crates/self-hosted-node/Dockerfile" --build-arg ENGINE_BUILD="$build_id" -t "mtg-forge-node:$tag" "$src"
 echo "== Building mtg-relay:$tag"
 docker build -f "$src/manabrew-rs/crates/manabrew-server/Dockerfile" -t "mtg-relay:$tag" "$src"
 echo "== Done: mtg-forge-node:$tag and mtg-relay:$tag"

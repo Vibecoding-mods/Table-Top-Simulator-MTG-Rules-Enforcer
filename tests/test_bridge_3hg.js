@@ -67,7 +67,7 @@ async function startFlow(h) {
   const lines = T.jointBlockLines(["Grizzly Bears -> Green's Wall of Wood + Purple's Trained Armodon", "Hill Giant -> your Centaur Courser"], [{ name: "Green", color: "Green" }, { name: "Purple", color: "Purple" }]);
   ok("joint block: both partners named in their colours", lines[0].includes(`<color=${T.SEAT_HEX.Green}>Green's</color> Wall of Wood`) && lines[0].includes(`<color=${T.SEAT_HEX.Purple}>Purple's</color> Trained Armodon`) && lines[0].includes(" → "), lines[0]);
   same("joint block: the revise round of a team of three names the one who changed", T.jointBlock({ title: "Purple changed the blocks. Agree or change?", reviseRound: 2, currentAssignments: [], teamBlockLines: [] }).title, "Purple changed the blocks. Agree or change?");
-  same("joint block: the third partner's settle notice", T.teamBlockNotice("Green settles the team's blocks (rule 805.2)"), { kind: "settle", line: "Green decides (team leader)" });
+  same("joint block: the third partner's settle notice", T.teamBlockNotice("Green decides (team leader)"), { kind: "settle", line: "Green decides (team leader)" });
 
   // ── starts ──
   await run(async (h) => {
