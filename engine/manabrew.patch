@@ -118,7 +118,7 @@ index da0433a..78ed941 100644
                  FModel.initialize(null, null);
              }
 diff --git a/forge-harness/src/main/java/forge/harness/common/ActionSpace.java b/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
-index 972f4ae..7054803 100644
+index 972f4ae..a38c33c 100644
 --- a/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
 +++ b/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
 @@ -1,6 +1,7 @@
@@ -196,6 +196,7 @@ index 972f4ae..7054803 100644
 +        final boolean ownsMemo = MANA_ABILITIES.get() == null;
 +        final boolean ownsSources = shareManaSources && ComputerUtilMana.beginSharedSources();
 +        final boolean ownsStatics = shareManaSources && StaticSourceScope.begin();
+         try {
 +        if (ownsMemo) {
 +            MANA_ABILITIES.set(new IdentityHashMap<>());
 +            if (shareManaSources) {
@@ -205,7 +206,6 @@ index 972f4ae..7054803 100644
 +                BATTLEFIELD_SOURCES.set(new IdentityHashMap<>());
 +            }
 +        }
-         try {
          final List<SpellAbility> possible = new ArrayList<>();
          for (final Card c : candidates) {
 -            for (final SpellAbility sa : c.getAllPossibleAbilities(player, true)) {
