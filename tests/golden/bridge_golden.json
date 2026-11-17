@@ -539176,13 +539176,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Flusterstorm\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Blue casts Flusterstorm targeting Chart a Course\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Blue casts Flusterstorm"
+      "Blue casts Flusterstorm targeting Chart a Course"
      ]
     }
    },
@@ -540009,7 +540009,7 @@
    }
   ],
   "result": [
-   "Blue casts Flusterstorm",
+   "Blue casts Flusterstorm targeting Chart a Course",
    "Blue copies Flusterstorm",
    "Blue copies Flusterstorm",
    "AI 1 draws 2 cards",
