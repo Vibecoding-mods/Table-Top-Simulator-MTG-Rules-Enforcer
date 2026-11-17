@@ -637,11 +637,13 @@ function askSideboard(color) {
   matchAsk(color, { title: `Game ${match.games + 1}: sideboard?`, text: `Main deck ${d.main.length}, sideboard ${d.side.length}. Swap cards between them for game ${match.games + 1}, or keep your deck. The next game starts when every player is done.`,
     options: [{ id: "__sb_keep", label: "Keep deck" }, { id: "__sb_swap", label: "Swap cards" }, ...(changed ? [{ id: "__sb_reset", label: "Reset to registered" }] : []), { id: "__concede", label: "Concede match" }] });
 }
+// (sideboards are hidden information: the table hears only that a player is done, never which cards or how many; the owner gets the detail)
 function sideboardDone(color, line) {
   delete match.sb[color];
   match.waiting.delete(color);
   matchClose(color);
-  chat(`[MTG] ${line}`);
+  chat(`[MTG] ${matchName(color)} is done sideboarding for game ${match.games + 1}.`);
+  chat(`[MTG] ${line}`, color);
 }
 function onSideboardAnswer(color, picks) {
   const st = match.sb[color], d = match.decks?.by[color];
@@ -6707,6 +6709,7 @@ function sendTable() {
 }
 
 function resetGame(reason) {
+  match.waiting.clear(); match.sb = {}; match.confirm = {}; // (best of three: a reset abandons the questions; decks stay as swapped so far)
   if (game) { game.closing = true; for (const s of allSeats()) s.close(); }
   clearResume(); // (a reset game is never rejoined)
   if (game) for (const seat of game.seats.values()) stopTimer(seat, true);
@@ -12336,6 +12339,8 @@ function onTTS(m) {
       if (game) for (const s of game.seats.values()) { scheduleView(s); }
       break;
     case "start": {
+      // (best of three: while a player is sideboarding the game stays set, so their questions can still be answered)
+      if (game && matchWaiting()) { chat(`[MTG] Not started: ${matchWaiting()}. The question is on their panel (Keep deck, if nothing changes).`); return; }
       noteStamp(m);
       warnIfOutOfStep();
       const go = () => {
