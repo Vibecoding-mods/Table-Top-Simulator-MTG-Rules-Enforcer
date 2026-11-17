@@ -2710,7 +2710,7 @@ index c69b549..92d71e9 100644
  
      public static final class CardIdentity {
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
-index fb82e6d..57036e4 100644
+index fb82e6d..0a85bfc 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 @@ -11,6 +11,8 @@ import forge.harness.common.HarnessPlayPlumbing;
@@ -2804,7 +2804,7 @@ index fb82e6d..57036e4 100644
              final SpellAbility selected = choice.action();
              if (selected != null && selected.isManaAbility() && selected.getManaPart() != null) {
                  if (choice.color() == null) {
-@@ -230,6 +251,31 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -230,6 +251,29 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          passUntilPhase = null;
          passUntilThroughCombat = false;
          exhaustStackIds = null;
@@ -2828,15 +2828,13 @@ index fb82e6d..57036e4 100644
 +    private static Set<Integer> responseIds(final List<SpellAbility> actions) {
 +        final Set<Integer> ids = new HashSet<>();
 +        for (final SpellAbility sa : actions) {
-+            if (!sa.isManaAbility()) {
-+                ids.add(sa.getId());
-+            }
++            ids.add(sa.getId());
 +        }
 +        return ids;
      }
  
      private List<Card> undoableManaSources() {
-@@ -248,9 +294,11 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -248,9 +292,11 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      private void undoManaSource(final Card source) {
          final MagicStack stack = game.getStack();
          if (source == null) {
@@ -2848,7 +2846,7 @@ index fb82e6d..57036e4 100644
          for (final SpellAbility sa : Lists.newArrayList(stack.filterUndoStackByHost(source))) {
              if (sa.undo()) {
                  stack.clearUndoStack(sa);
-@@ -269,10 +317,44 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -269,10 +315,44 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          final Integer staleX = sa.getXManaCostPaid();
          sa.setXManaCostPaid(null);
          session.beginCast(sa);
@@ -2893,7 +2891,7 @@ index fb82e6d..57036e4 100644
              }
              return played;
          } finally {
-@@ -290,6 +372,9 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -290,6 +370,9 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public List<SpellAbility> orderSimultaneousSa(final List<SpellAbility> activePlayerSAs) {
@@ -2903,7 +2901,7 @@ index fb82e6d..57036e4 100644
          return playPlumbing.orderSimultaneousSa(activePlayerSAs);
      }
  
-@@ -382,6 +467,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -382,6 +465,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          combat.clearAttackers();
          if (passUntilPhase != null
                  && !PriorityFastForward.reachedTarget(game, passUntilPlayer, passUntilPhase)
@@ -2911,7 +2909,7 @@ index fb82e6d..57036e4 100644
                  && CombatUtil.validateAttackers(combat)) {
              return;
          }
-@@ -403,9 +489,28 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -403,9 +487,28 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public void declareBlockers(final Player defender, final Combat combat) {
@@ -2941,7 +2939,7 @@ index fb82e6d..57036e4 100644
                  attackers.add(attacker);
              }
          }
-@@ -415,10 +520,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -415,10 +518,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          final Map<Card, List<Card>> validByAttacker =
                  EngineHandler.validBlockersByAttacker(combat, attackers, blockers);
          final int defenderIndex = SnapshotExtractor.playerIndex(game, defender);
@@ -2955,7 +2953,7 @@ index fb82e6d..57036e4 100644
              error = EngineHandler.applyBlockerAssignments(combat, defender, assignments);
              if (error == null || session.isClosed() || game.isGameOver()) {
                  return;
-@@ -426,6 +533,36 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -426,6 +531,36 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          }
      }
  
@@ -2992,7 +2990,7 @@ index fb82e6d..57036e4 100644
      @Override
      public CardCollection orderBlockers(final Card attacker, final CardCollection blockers) {
          return session.awaitDamageAssignmentOrder(me(), attacker, blockers);
-@@ -730,7 +867,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -730,7 +865,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      public CardCollection chooseCardsToDiscardFrom(
              final Player playerDiscard, final SpellAbility sa, final CardCollection validCards, final int min, final int max,
              final CardCollectionView visibleToChooser) {
@@ -3004,7 +3002,7 @@ index fb82e6d..57036e4 100644
      }
  
      @Override
-@@ -760,8 +900,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -760,8 +898,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      @Override
      public CardCollectionView chooseCardsForCost(final CardCollectionView optionList, final SpellAbility sa,
              final CostPartWithList cpl, final int amount, final boolean isOptional, final String prompt) {
@@ -3015,7 +3013,7 @@ index fb82e6d..57036e4 100644
          if (isOptional && selected.size() != amount) {
              return null;
          }
-@@ -790,8 +930,16 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -790,8 +928,16 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          if (sourceList.isEmpty()) {
              return CardCollection.EMPTY;
          }
@@ -3034,7 +3032,7 @@ index fb82e6d..57036e4 100644
      }
  
      @Override
-@@ -832,7 +980,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -832,7 +978,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          final CardCollection cards = cardOptions(optionList);
          if (cards == null) {
              return rememberSecretPlayerViewer(
@@ -3043,7 +3041,7 @@ index fb82e6d..57036e4 100644
          }
          final CardCollection selected = session.awaitCardChoice(
                  "choose_cards_for_effect", me(), cards, 1, 1, sourceName(sa), sourceCardId(sa), title, isOptional);
-@@ -895,7 +1043,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -895,7 +1041,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
              CardLists.sortByCmcDesc(sorted);
              return new CardCollection(sorted.subList(0, Math.max(min, Math.min(cappedMax, 1))));
          }
@@ -3053,7 +3051,7 @@ index fb82e6d..57036e4 100644
      }
  
      @Override
-@@ -2514,6 +2663,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2514,6 +2661,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public void notifyOfValue(final SpellAbility saSource, final GameObject realtedTarget, final String value) {
@@ -3064,7 +3062,7 @@ index fb82e6d..57036e4 100644
          final String message = MessageUtil.formatNotificationMessage(saSource, player, realtedTarget, value);
          if (saSource != null && saSource.isManaAbility()) {
              game.getGameLog().add(GameLogEntryType.LAND, message);
-@@ -2620,7 +2773,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2620,7 +2771,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      }
  
      private <T extends GameEntity> T chooseSingleEntityGeneric(
@@ -3074,7 +3072,7 @@ index fb82e6d..57036e4 100644
          final List<T> opts = new ArrayList<>();
          for (final T option : optionList) {
              opts.add(option);
-@@ -2632,7 +2786,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2632,7 +2784,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          for (final T option : opts) {
              labels.add(option == null ? "?" : option.toString());
          }
@@ -7676,10 +7674,10 @@ index 0000000..4e0fa6e
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java b/forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java
 new file mode 100644
-index 0000000..666afad
+index 0000000..edcce9c
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java
-@@ -0,0 +1,667 @@
+@@ -0,0 +1,689 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonObject;
@@ -7903,10 +7901,10 @@ index 0000000..666afad
 +    }
 +
 +    private static void theDefaultLimitsAreTheMeasuredOnes() {
-+        expect(Game.DEFAULT_RUNAWAY_TRIGGERS_PER_TURN == 5_000 && Game.DEFAULT_RUNAWAY_CARDS_PER_TURN == 2_500
-+                && Game.UNBOUNDED_TOKENS == 500 && Game.RUNAWAY_STACK_ITEMS == 1_000 && Game.LOOP_WATCHDOG_SECONDS == 60
-+                && Game.RUNAWAY_HEAP_LIMIT == 0.85 && PriorityFastForward.EXHAUST_RESOLUTIONS == 20,
-+                "the limits moved");
++        final String limits = List.of("DEFAULT_RUNAWAY_TRIGGERS_PER_TURN", "DEFAULT_RUNAWAY_CARDS_PER_TURN", "UNBOUNDED_TOKENS",
++                "RUNAWAY_STACK_ITEMS", "LOOP_WATCHDOG_SECONDS", "RUNAWAY_HEAP_LIMIT").stream()
++                .map(BigTurnsTest::limit).collect(java.util.stream.Collectors.joining(" "));
++        expect(limits.equals("5000 2500 500 1000 60 0.85") && PriorityFastForward.EXHAUST_RESOLUTIONS == 20, "the limits moved: " + limits);
 +        Game.setRunawayTriggersPerTurnCap(Game.DEFAULT_RUNAWAY_TRIGGERS_PER_TURN);
 +        final Game game = aiGame();
 +        final List<String> asked = new ArrayList<>();
@@ -7915,6 +7913,14 @@ index 0000000..666afad
 +        expect(asked.isEmpty(), "asked before 5,000 triggers: " + asked);
 +        fire(game, 1);
 +        expect(asked.equals(List.of("triggers fired 5001/5000")), "asked " + asked);
++    }
++
++    private static String limit(final String name) {
++        try {
++            return String.valueOf(Game.class.getField(name).get(null));
++        } catch (final ReflectiveOperationException e) {
++            throw new AssertionError("no limit " + name);
++        }
 +    }
 +
 +    private static void aFullHeapDrawsAtALimitWithoutAsking() {
@@ -7959,7 +7965,21 @@ index 0000000..666afad
 +        Game.setRunawayTriggersPerTurnCap(5);
 +        final Seated f = new Seated();
 +        f.session.runawayAnswerMillis = 300;
++        final Thread late = new Thread(() -> {
++            try {
++                Thread.sleep(8_000);
++            } catch (final InterruptedException e) {
++                return;
++            }
++            f.session.submitAction("{\"type\":\"chooseBoolean\",\"output\":{\"type\":\"chooseBooleanDecision\",\"value\":true}}");
++        });
++        late.setDaemon(true);
++        late.start();
++        final long start = System.nanoTime();
 +        fire(f.game, 6);
++        late.interrupt();
++        final long waited = (System.nanoTime() - start) / 1_000_000L;
++        expect(waited < 5_000, "the question waited " + waited + " ms for an answer, not 300");
 +        expect(!f.game.isGameOver(), "a timeout ended the game");
 +        final String text = f.session.getLatestPromptJson();
 +        expect(text.contains("This turn passed the engine's limit") && text.contains("No answer in 90 seconds counts as Keep going"), "prompt " + text);
@@ -18619,10 +18639,10 @@ index 0000000..0141732
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/UnboundedTokensTest.java b/forge-harness/src/test/java/forge/harness/host/UnboundedTokensTest.java
 new file mode 100644
-index 0000000..0296174
+index 0000000..32d5b69
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/UnboundedTokensTest.java
-@@ -0,0 +1,300 @@
+@@ -0,0 +1,301 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -18700,8 +18720,9 @@ index 0000000..0296174
 +        }
 +    }
 +
-+    private static void theCapIsFiveHundred() {
-+        expect(Game.UNBOUNDED_TOKENS == 500, "the cap is " + Game.UNBOUNDED_TOKENS);
++    private static void theCapIsFiveHundred() throws Exception {
++        final Object cap = Game.class.getField("UNBOUNDED_TOKENS").get(null);
++        expect(Integer.valueOf(500).equals(cap), "the cap is " + cap);
 +    }
 +
 +    private static void oneOverTheCapMakesTheCapAndFlagsThePile() {

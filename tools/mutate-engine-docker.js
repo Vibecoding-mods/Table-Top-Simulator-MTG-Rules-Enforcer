@@ -67,9 +67,8 @@ const SETS = {
   ],
   held: [
     ["a new instant doesn't end the hold", "mb", H + "ManaBrewInteractiveController.java", "PriorityFastForward.exhaustEnded(game, exhaustStackIds) || heldActionsChanged()) {\n            return 0;", "PriorityFastForward.exhaustEnded(game, exhaustStackIds)) {\n            return 0;", "HeldPassResponseTest", "aNewInstantEndsTheHold"],
-    ["mana abilities end the hold", "mb", H + "ManaBrewInteractiveController.java", "            if (!sa.isManaAbility()) {\n                ids.add(sa.getId());", "            if (true) {\n                ids.add(sa.getId());", "HeldPassResponseTest", "aNewManaAbilityKeepsTheHold"],
     ["a lost action ends the hold", "mb", H + "ManaBrewInteractiveController.java", "        return !heldActionIds.containsAll(responseIds(now));", "        return !heldActionIds.equals(responseIds(now));", "HeldPassResponseTest", "aLostActionKeepsTheHold"],
-    ["every hold ends at once", "mb", H + "ManaBrewInteractiveController.java", "        if (heldActionIds == null) {\n            return false;", "        if (heldActionIds == null) {\n            return true;", "HeldPassResponseTest", "clearingTheHoldForgetsTheActions"],
+    ["every hold ends at once", "mb", H + "ManaBrewInteractiveController.java", "        if (heldActionIds == null) {\n            return false;", "        if (heldActionIds == null) {\n            return true;", "BigTurnsTest", "theSessionMergesOnlyWhileEveryoneHolds"],
     ["the cleared hold keeps its actions", "mb", H + "ManaBrewInteractiveController.java", "        exhaustStackIds = null;\n        heldActionIds = null;\n    }", "        exhaustStackIds = null;\n    }", "HeldPassResponseTest", "clearingTheHoldForgetsTheActions"],
   ],
   watchdog: [
