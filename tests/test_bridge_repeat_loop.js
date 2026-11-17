@@ -229,7 +229,14 @@ async function started(h, seat, n = 2) {
     const said = chats(h, mark);
     ok(`stop ${name}: ended`, !seat.loop, JSON.stringify(seat.loop && { i: seat.loop.i, done: seat.loop.done }));
     ok(`stop ${name}: said why`, said.some((t) => t === `[MTG] Blue's loop stopped after ${why[0]} of 3 (Kiki-Jiki, Mirror Breaker): ${why[1]}.`), JSON.stringify(said));
-    if (!after && asked) ok(`stop ${name}: the question is asked`, seat.prompt?.promptId === ids[ids.length - 1], JSON.stringify({ open: seat.prompt?.promptId, ids }));
+    if (!after && asked === true) ok(`stop ${name}: the question is asked`, seat.prompt?.promptId === ids[ids.length - 1], JSON.stringify({ open: seat.prompt?.promptId, ids }));
+    // (the runaway question keeps the engine's own 90-second clock, and the harness runs every timer: it is shown, then
+    // closed as Keep going when that clock runs out)
+    if (!after && asked === "shown") {
+      const last = ids[ids.length - 1];
+      ok(`stop ${name}: the question is shown`, h.effects.slice(mark).some((e) => e.tts?.t === "prompt" && e.tts.promptId === last), JSON.stringify({ ids }));
+      ok(`stop ${name}: unanswered, it closes as Keep going`, chats(h, mark).some((c) => /seconds for that question ran out: no answer counts as Keep going/.test(c)), JSON.stringify(chats(h, mark)));
+    }
   });
   await stopCase("another question", (h, seat) => ({ t2: () => trigTarget(h, seat, 1, "Choose target creature") }), [0, 'the question changed ("Choose target creature")']);
   await stopCase("a target gone", (h, seat) => ({ t1: () => kikiTarget(h, seat, 1, ["engine-card-20"]) }), [0, "Zealous Conscripts isn't there to choose"]);
@@ -260,7 +267,7 @@ async function started(h, seat, n = 2) {
     ok("another seat's mana ability: it goes on", !!seat.loop, "ended");
   });
   await stopCase("the runaway question", (h, seat) => ({ t2: () => ask(h, seat, board({ kikiTapped: true, tokens: 2 }),
-    { type: "chooseBoolean", presentation: { title: "This turn passed the engine's limit", description: "x" }, confirmLabel: "Keep going", denyLabel: "End in a draw" }) }), [0, "the engine's runaway limit asks first"]);
+    { type: "chooseBoolean", presentation: { title: "This turn passed the engine's limit", description: "x" }, confirmLabel: "Keep going", denyLabel: "End in a draw" }) }), [0, "the engine's runaway limit asks first"], { asked: "shown" });
   await stopCase("the game ended", (h, seat) => ({ t2: () => ask(h, seat, { ...board({ tokens: 2 }), gameOver: true, winnerId: "player-0" }, { type: "gameOver" }) }), [0, "the game ended"], { asked: false }); // (the game-over question shows nothing to answer)
   await stopCase("mtg stop", null, [0, "you typed mtg stop"], { after: async (h) => { await say(h, "stopchain", {}); } });
   await stopCase("Stop on the panel", null, [0, "you pressed Stop"], { after: async (h) => { await answer(h, "__loop", "__loopstop"); } });
