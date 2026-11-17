@@ -27,7 +27,11 @@ const RUST_TEST = "a_game_config_seat_gives_its_player_opening_cards";
 const MUTATIONS = [
   ["forge: not stacked", GA, "                stackOpeningCards(p1);\n", "", "thePickedCardsAreTheHandAtTheMulliganQuestion"],
   ["forge: stacked at the bottom", GA, "        top.addAll(rest);\n        library.setCards(top);", "        rest.addAll(top);\n        library.setCards(rest);", "thePickedCardsAreTheHandAtTheMulliganQuestion"],
-  ["forge: the deck's own copy never taken", GA, "                if (c.getName().equals(name)) {", "                if (false) {", "aPickedCardTheDeckHasIsItsOwnAndOneItHasntIsCreated"],
+  ["forge: the deck's own copy never taken", GA, "                if (c.getRules() == rules || rules.getName().equals(c.getRules() == null ? c.getName() : c.getRules().getName())) {", "                if (false) {", "aPickedCardTheDeckHasIsItsOwnAndOneItHasntIsCreated"],
+  ["forge: names compared as typed", GA, "                if (c.getRules() == rules || rules.getName().equals(c.getRules() == null ? c.getName() : c.getRules().getName())) {", "                if (c.getName().equals(name)) {", "aSplitCardPickedWholeOrByOneHalfIsTheDecksOwn"],
+  ["forge: no face or half names", GA, "getCommonCards().getRules(name, true);", "getCommonCards().getRules(name, false);", "aSplitCardPickedWholeOrByOneHalfIsTheDecksOwn"],
+  ["forge: an unknown name not skipped", GA, "            if (rules == null) {\n                continue;\n            }\n", "", "anUnknownNameIsSkippedAndTheRestDealt"],
+  ["bridge: names compared as typed", BR, "    const i = left.findIndex((c) => sameCardName(c.identity?.name, n));", "    const i = left.findIndex((c) => c.identity?.name === n);", "dealt, shown by its half: the mulligan question is Blue's, nothing at the first priority"],
   ["forge: names past the hand used", GA, "            if (top.size() >= p.getStartingHandSize()) {\n                break;\n            }\n", "", "moreNamesThanTheHandTakesOnlyTheFirst"],
   ["harness: not read from the start", AD, ".withOpeningCards(optionalStrings(playerObject, \"openingCards\")));", ".withOpeningCards(List.of()));", "theStartRequestCarriesEachPlayersOpeningCards"],
   ["harness: every seat gets a Mountain", AD, ".withOpeningCards(optionalStrings(playerObject, \"openingCards\")));", ".withOpeningCards(List.of(\"Mountain\")));", "theOtherSeatIsDealtAsUsual"],

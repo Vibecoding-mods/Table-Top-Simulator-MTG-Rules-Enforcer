@@ -13977,6 +13977,9 @@ function takePickedHands(seatList) {
     chat(`[MTG] ${poss(color)} picked hand: ${handWords(color, h.names, deck)} ${HAND_WHEN}`);
   }
 }
+// two names for one card, as the engine's card database reads them: any case, either face of a double-faced card, either
+// half of a split card or the whole "A // B" (forge-cards.json's index)
+const sameCardName = (a, b) => (forgeIndex()[normName(a)] || normName(a)) === (forgeIndex()[normName(b)] || normName(b));
 // The changes that turn the dealt hand into the picked one, as a debug fix's list (the table's form: players by colour).
 // Picked cards that were dealt stay; the others are added, after one dealt card each goes to the bottom of the library
 // (the last dealt ones). The hand ends as the dealt cards kept, in their order, then the added ones in the order picked.
@@ -13985,7 +13988,7 @@ function handOps(names, color, pub) {
   const left = ((pub.zones || []).find((z) => z.zone === "hand" && z.ownerId === slot)?.cards || []).filter((c) => c.id);
   const add = [];
   for (const n of names) {
-    const i = left.findIndex((c) => c.identity?.name === n);
+    const i = left.findIndex((c) => sameCardName(c.identity?.name, n));
     if (i >= 0) left.splice(i, 1); else add.push(n);
   }
   const out = left.slice(Math.max(0, left.length - add.length)).map((c) => ({ op: "move", card: c.id, zone: "library", position: "bottom",
