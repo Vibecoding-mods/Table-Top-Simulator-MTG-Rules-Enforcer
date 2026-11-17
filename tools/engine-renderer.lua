@@ -4115,6 +4115,7 @@ function engineRender(m)
   local okSch, errSch = pcall(engineSchemes, m, seen)
   if not okSch then print("[MTG] schemes: " .. tostring(errSch)) end
   pcall(engineSchemeBanner, m)
+  pcall(engineMatchRollBanner, m) -- (best of three: game 1's roll, the bridge's matchRoll)
   local okCtl, errCtl = pcall(engineCtlHands, m, seen) -- (a controlled player's hand, see engineCtlHands)
   if not okCtl then print("[MTG] controlled hand: " .. tostring(errCtl)) end
   okCtl, errCtl = pcall(engineTeamHands, m, seen) -- (a Two-Headed Giant partner's hand, look-only: engineTeamHands)
@@ -5006,6 +5007,29 @@ function engineSchemeBanner(m)
     end
   end
 end
+-- Best of three's roll for game 1 on everyone's banner for 4 s: "BLUE WINS THE ROLL (14–7)" (the bridge's matchRoll,
+-- said once by its sequence number; a jump board, a rewind or a reload, only records it)
+engineMatchRollSeen = nil
+function engineMatchRollBanner(m)
+  local roll = m.matchRoll
+  if roll == nil or roll.seq == nil or roll.seq == engineMatchRollSeen then return end
+  engineMatchRollSeen = roll.seq
+  if m.jump or roll.text == nil then return end
+  for _, c in ipairs(getSeatedPlayers()) do
+    if Player[c] ~= nil then
+      setText("eng_banner_" .. c, tostring(roll.text))
+      setAttr("eng_banner_" .. c, "color", "#FFD27A")
+      setAttr("eng_banner_" .. c, "outline", "#101010E0")
+      setAttr("eng_banner_" .. c, "active", "true")
+      Wait.time(function() if engineMatchRollSeen == roll.seq then setAttr("eng_banner_" .. c, "active", "false") end end, 4)
+    end
+  end
+end
+-- Best of three's game number on the phase bar, after DAY or NIGHT: "GAME 2 OF 3" (the bridge's match); "" outside a match
+function engineMatchTag(t)
+  if t == nil or t.match == nil or t.match == "" then return "" end
+  return "      <b><color=#FFD27A>" .. tostring(t.match) .. "</color></b>"
+end
 function engineGameOverBanner(m)
   for _, c in ipairs(getSeatedPlayers()) do
     if Player[c] ~= nil and engineEffectsOff[c] then
@@ -5112,6 +5136,7 @@ function engineUpdateCorner(color, p)
     local st = engineStatic[pc.id] or pc
     day = day .. "      <b><color=#C9A7FF>" .. (hasType(st, "Phenomenon") and "PHENOMENON: " or "PLANE: ") .. string.upper(tostring(st.n or "?")) .. "</color></b>"
   end
+  day = day .. engineMatchTag(t) -- (best of three: GAME 2 OF 3)
   -- (a finished game shows no turn: the bar read "YOUR TURN ... MAIN 1" after the engine ended Kykar's game, #16)
   if t ~= nil and t.gameOver then
     setText("eng_phase_" .. color, "<b><color=#FFD27A>GAME OVER</color></b>" .. (t.overWhy and ("      " .. engineCut(tostring(t.overWhy), 150)) or ""))
