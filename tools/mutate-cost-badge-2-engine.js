@@ -35,7 +35,7 @@ const MUTATIONS = [
   ["the half's state not taken for its pricing", P, "            if (flip) {\n                host.setState(want, false);", "            if (false) {\n                host.setState(want, false);", "adventure: the adventure is priced beside the creature"],
   ["the card's state not put back", P, "            if (flip) {\n                host.setState(was, false);\n            }\n", "", "adventure: the card is back in its own state after the pricing"],
   ["a fuse card's whole taken as a half", P, "        return !(card.isSplitCard() && sa.getCardState() != null && sa.getCardState().getStateName() == CardStateName.Original);", "        return true;", "split: a fuse card's whole is not a half"],
-  ["the first way, not the cheapest", P, "                if (w.mana.getCMC() < pick.mana.getCMC()) {", "                if (false) {", "cheapest: of a permission and flashback, the cheaper way, the other listed"],
+  ["the first way, not the cheapest", P, "            return a.mana.getCMC() < b.mana.getCMC();", "            return false;", "cheapest: of a permission and flashback, the cheaper way, the other listed"],
   ["the other ways not sent", X, "                    dto.playCostOthers = others;\n", "", "halves: a permission on a split card names the half and lists the other"],
   ["aftermath not priced", P, "                    mode = sa.isAftermath() ? \"aftermath\" : \"cast\";", "                    mode = null;", "aftermath: the graveyard half, against its own printed cost"],
   ["the half not named", X, "                dto.playCostName = card.isSplitCard() || card.isAdventureCard() ? play.pick.name : null;\n", "", "aftermath: the graveyard half, against its own printed cost"],
