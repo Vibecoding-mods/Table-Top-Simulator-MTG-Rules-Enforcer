@@ -52,7 +52,7 @@ stack or waiting to be put on it. `stateBasedAction_Scheme` moves the scheme onl
   - After everything resolves, both are back.
 - `cr904_10 aSchemeStaysWhileAnotherSchemesTriggerWaits`: Skyward's trigger resolved and Roots's trigger waiting.
   Skyward must stay.
-- The other 15 `ArchenemyTest` checks pass, including `aNonOngoingSchemeReturnsToTheBottom`.
+- The other 14 `ArchenemyTest` checks pass (16 in all), including `aNonOngoingSchemeReturnsToTheBottom`.
 
 **Break-it:** `node tools/mutate-archenemy-audit.js <tree>`, **4 of 4 caught by name**, restored by sha256:
 
