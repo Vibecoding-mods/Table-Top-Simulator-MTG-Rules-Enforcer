@@ -6916,6 +6916,15 @@ function attackTaxWords(gv, attackerId, targetId, E = null) {
 // attack the one picked is asked again with the rest. o: { asked: the attackers' options, byAttacker: attacker id ->
 // target id or "?", cname(id): an attacker's words (chooseAttackers' attackerLabel), defender(id): its words, taxAt(id): the taxes on attacking it, done(byAttacker): the answer
 // once none is left, back(): the attack question again }; each: one creature at a time.
+// The planned attacks a step after the attack question shows the table (the user 2026-11-16: lines "to show who
+// you're targeting before attacks"): "attackerId|targetId" for each attacker whose target is chosen, the attack
+// question's own option ids, sorted; one still at "whom?" has none. A token stack split among players (attackSplit) is
+// there token by token, so the table draws one stack, and one planned line, per player (engine-renderer.lua
+// enginePlannedAttacks). byAttacker: attacker id -> target id or "?".
+function attackPlanIds(byAttacker) {
+  return Object.entries(byAttacker).filter(([, t]) => t && t !== "?").map(([a, t]) => `${a}|${t}`).sort();
+}
+
 function attackWhom(o, each = false) {
   const left = o.asked.filter((at) => o.byAttacker[at.attackerId] === "?");
   if (!left.length) return o.done(o.byAttacker);
@@ -6934,6 +6943,7 @@ function attackWhom(o, each = false) {
       ...(group.length > 1 ? [{ id: "__each", label: "One by one" }] : []), { id: "__back", label: "Back" }],
     // (a timed-out player gets Forge's first target, not Back, which timeoutChoice takes first)
     onTimeout: optId(targets[0]),
+    plan: attackPlanIds(o.byAttacker),
   };
   const toOutput = (a) => {
     if (a[0] === "__back") return o.back();
@@ -7058,11 +7068,12 @@ function attackTaxPlan(o, at = 0, plan = {}) {
   };
   const defenders = [...new Set(o.assignments.map((a) => a.targetId))]
     .filter((d) => o.assignments.filter((a) => a.targetId === d && taxAt(a.attackerId, d)).length >= 2);
+  // (the attack as answered so far: the defenders asked keep only the attackers chosen for them)
+  const asked = Object.keys(plan);
+  const sent = asked.flatMap((d) => plan[d].ids.map((attackerId) => ({ attackerId, targetId: d })));
+  const rest = o.assignments.filter((a) => !asked.includes(a.targetId));
   if (at >= defenders.length) {
-    const asked = Object.keys(plan);
     if (!asked.length) return o.done(o.assignments, null);
-    const sent = asked.flatMap((d) => plan[d].ids.map((attackerId) => ({ attackerId, targetId: d })));
-    const rest = o.assignments.filter((a) => !asked.includes(a.targetId));
     const taxPlan = {};
     for (const d of asked) if (plan[d].ids.length) taxPlan[d] = { ids: plan[d].ids, name: plan[d].name, paid: 0, tried: null, failed: false };
     return o.done([...sent, ...rest], Object.keys(taxPlan).length ? taxPlan : null);
@@ -7097,6 +7108,7 @@ function attackTaxPlan(o, at = 0, plan = {}) {
       { id: "__all", label: `Pay ${total(ids)} for all ${n}` }, { id: "__none", label: `Don't attack ${who}` }, { id: "__back", label: "Back" }],
     // (out of time: nobody is there to want the mana spent)
     onTimeout: "__none",
+    plan: attackPlanIds(Object.fromEntries([...sent, ...rest].map((a) => [a.attackerId, a.targetId]))),
   };
   const toOutput = (a) => {
     if (a[0] === "__back") return o.back();

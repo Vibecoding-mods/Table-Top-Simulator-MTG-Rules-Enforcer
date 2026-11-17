@@ -32335,6 +32335,9 @@
       }
      ],
      "onTimeout": "player|player-1",
+     "plan": [
+      "engine-card-35|player-1"
+     ],
      "min": 1,
      "max": 1
     }
@@ -32363,6 +32366,9 @@
       }
      ],
      "onTimeout": "player|player-1",
+     "plan": [
+      "engine-card-35|player-1"
+     ],
      "min": 1,
      "max": 1
     }
@@ -34844,6 +34850,7 @@
       }
      ],
      "onTimeout": "player|player-1",
+     "plan": [],
      "min": 1,
      "max": 1
     }
@@ -34880,6 +34887,7 @@
       }
      ],
      "onTimeout": "player|player-1",
+     "plan": [],
      "min": 1,
      "max": 1
     }
@@ -35004,6 +35012,7 @@
       }
      ],
      "onTimeout": "player|player-1",
+     "plan": [],
      "min": 1,
      "max": 1
     }
@@ -35173,6 +35182,7 @@
       }
      ],
      "onTimeout": "player|player-1",
+     "plan": [],
      "min": 1,
      "max": 1
     }
@@ -35342,6 +35352,7 @@
       }
      ],
      "onTimeout": "player|player-1",
+     "plan": [],
      "min": 1,
      "max": 1
     }
@@ -35388,6 +35399,7 @@
       }
      ],
      "onTimeout": "player|player-1",
+     "plan": [],
      "min": 1,
      "max": 1
     }
@@ -35434,6 +35446,9 @@
       }
      ],
      "onTimeout": "player|player-1",
+     "plan": [
+      "engine-card-601|player-1"
+     ],
      "min": 1,
      "max": 1
     }
@@ -35603,6 +35618,7 @@
       }
      ],
      "onTimeout": "player|player-1",
+     "plan": [],
      "min": 1,
      "max": 1
     }
@@ -35850,6 +35866,9 @@
       }
      ],
      "onTimeout": "player|player-1",
+     "plan": [
+      "engine-card-602|player-1"
+     ],
      "min": 1,
      "max": 1
     }
