@@ -26,7 +26,7 @@ const MUTATIONS = [
     "const byCount = (names) => [...names.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(\", \");"],
   ["discard: the list uncut", B, "  discard: (w, names) => `${w} discards ${fewNames(names)}`,", "  discard: (w, names) => `${w} discards ${names.join(\", \")}`,"],
   ["exile from a graveyard: the list uncut", B, "  graveyard: (w, names, k) => `${fewNames(names)} ${names.length === 1", "  graveyard: (w, names, k) => `${names.join(\", \")} ${names.length === 1"],
-  ["effects hover: every text listed", B, "${tips.slice(0, FEW_NAMES).join(\"\\n\")}", "${tips.join(\"\\n\")}"],
+  ["effects hover: every text listed", B, "${tips.slice(0, EFFECT_HOVER).join(\"\\n\")}", "${tips.join(\"\\n\")}"],
   ["compact: never compact", R, "  if a < 10000 then return tostring(v) end", "  if true then return tostring(v) end"],
   ["compact: no ∞ at the cap", R, "  if n >= ENGINE_HUGE then return \"∞\" elseif", "  if false then return \"∞\" elseif"],
   ["life: the font never smaller", R, "or math.floor(ENGINE_LIFE_FONT.font * ENGINE_LIFE_FONT.letters / letters)", "or ENGINE_LIFE_FONT.font"],
