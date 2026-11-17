@@ -557,16 +557,153 @@ function noteFirstPlayer(m) {
 // the games played) between them. After a game the loser chooses to play or draw: a question on the table's own panel
 // (MATCH_PROMPT, answered in onTTS "answer"; an AI loser plays), after a draw the last chooser again; the choice goes
 // with the next game's start as gameConfig.firstPlayer (matchFirst). The score goes in the log and chat after each game
-// and under each life total (playerMarks: MATCH 1–0, GAME 2). Game 1's first player is the engine's own roll. Not built:
-// sideboarding between games and "Concede match" (the spec's §3.6, later).
+// and under each life total (playerMarks: MATCH 1–0, GAME 2). The extras (cloud/bo3-extras):
+// - game 1's first player is a roll of two d20 (again on a tie), said in chat and the log and shown on the table's banner
+//   (the board's matchRoll); the roll's winner goes first (matchRollFirst);
+// - the phase bar's "GAME 2 OF 3" (the board's match, matchGameWords);
+// - sideboarding between games: each human player whose deck has a sideboard is asked Keep deck / Swap cards / Reset to
+//   registered on the same panel; a swap takes cards out of the main deck, then brings sideboard cards in, checked here
+//   (60 or more main, at most 15 side); the next game's deck is the swapped one, and no game starts until every one of
+//   them is done (matchWaiting, startGame);
+// - "Concede match": mtg match concede twice within 15 s, or the option on a between-games question with a Yes / No.
 const MATCH_PROMPT = "__match";
 const MATCH_WINS = 2, MATCH_GAMES = 5;
-const match = { on: false, pair: null, wins: {}, games: 0, chooser: null, first: null, asked: null };
-const matchReset = () => Object.assign(match, { pair: null, wins: {}, games: 0, chooser: null, first: null, asked: null });
+// (decks: the pair's decks by colour, { pair, by: colour -> { deckName, commanderName, main, side, reg: game 1's } };
+// waiting: the colours still sideboarding; sb: colour -> the sideboard question's step; confirm: colour -> the question a
+// Concede match's Yes / No goes back to; concedeAsk: colour -> when mtg match concede was first typed)
+const match = { on: false, pair: null, wins: {}, games: 0, chooser: null, first: null, asked: null, decks: null, waiting: new Set(), sb: {}, confirm: {}, concedeAsk: {}, step: 0 };
+const matchReset = () => Object.assign(match, { pair: null, wins: {}, games: 0, chooser: null, first: null, asked: null, decks: null, waiting: new Set(), sb: {}, confirm: {}, concedeAsk: {} });
+// game 1 of a match: no game of this pair played yet
+const matchNew = () => match.pair !== matchPair() || match.games === 0;
+// a d20 (Math.random: the tests give it their rolls)
+const matchDie = () => 1 + Math.floor(Math.random() * 20);
+let matchRollSeq = 0;
+// Game 1's first player, by a roll (once a game): the human seats first, then the others, two d20 again on a tie
+function matchRollFirst() {
+  if (!matchGame() || !matchNew()) return null;
+  if (game.matchRoll) return game.matchRoll.first;
+  const order = [...game.seatColors].sort((x, y) => (game.seats.has(y) ? 1 : 0) - (game.seats.has(x) ? 1 : 0));
+  let r;
+  do r = order.map(matchDie); while (r[0] === r[1]);
+  const first = r[0] > r[1] ? order[0] : order[1];
+  const said = `${matchName(order[0])} ${r[0]}, ${matchName(order[1])} ${r[1]}`;
+  game.matchRoll = { first, seq: ++matchRollSeq, text: `${String(matchName(first)).toUpperCase()} WINS THE ROLL (${Math.max(...r)}–${Math.min(...r)})` };
+  chat(`[MTG] Game 1: a roll for who goes first: ${said}. ${matchName(first)} goes first.`);
+  gameLogLine(`Roll for game 1: ${said}: ${matchName(first)} goes first`);
+  return first;
+}
+// the phase bar's words: "GAME 2 OF 3", "GAME 4 OF 5" once draws make it longer
+function matchGameWords() {
+  if (!matchGame()) return null;
+  const played = match.pair === matchPair() ? match.games : 0;
+  const n = game.matchDone ? played : played + 1;
+  return `GAME ${n} OF ${n > 3 ? MATCH_GAMES : 3}`;
+}
+// ── sideboarding (between games of a match)
+const MAIN_MIN = 60, SIDE_MAX = 15;
+const cardName = (c) => c?.identity?.name || c?.name || "?";
+const deckWords = (d) => `main deck ${d.main.length}, sideboard ${d.side.length}`;
+const swapWords = (list) => [...list.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(", ");
+const sameDeck = (a, b) => JSON.stringify(a.map(cardName).sort()) === JSON.stringify(b.map(cardName).sort());
+// a seat's deck for this game of the match: game 1's is kept as registered; a later game's is the one left by the last
+// swap. d: the deck the seat would bring ({ deckName, deck, commanderName }) -> the deck to send
+function matchDeck(color, d) {
+  if (!matchGame() || !d?.deck) return d;
+  if (matchNew() || match.decks?.pair !== matchPair() || !match.decks.by[color]) {
+    if (!match.decks || match.decks.pair !== matchPair()) match.decks = { pair: matchPair(), by: {} };
+    const main = [...(d.deck.cards || [])], side = [...(d.deck.sideboard || [])];
+    match.decks.by[color] = { deckName: d.deckName, commanderName: d.commanderName, main, side, reg: { main: [...main], side: [...side] } };
+    return d;
+  }
+  const m = match.decks.by[color];
+  return { deckName: m.deckName, commanderName: m.commanderName, deck: { ...d.deck, cards: [...m.main], sideboard: [...m.side] } };
+}
+// who is still sideboarding, in words, or null
+function matchWaiting() {
+  if (!match.on || !match.waiting.size) return null;
+  return `${andList([...match.waiting].map(matchName))} ${match.waiting.size > 1 ? "are" : "is"} still sideboarding for game ${match.games + 1}`;
+}
+// a question of the match's on the seat's panel (MATCH_PROMPT; a new step each, so the panel starts it afresh)
+const matchAsk = (color, q) => toTTS({ t: "prompt", color, promptId: MATCH_PROMPT, step: ++match.step, kind: "match", min: 1, max: 1, mode: "single", ...q });
+const matchClose = (color) => toTTS({ t: "prompt", color, promptId: null });
+// the sideboard question's first step: keep, swap, reset to registered (after a swap), concede the match
+function askSideboard(color) {
+  const d = match.decks?.by[color];
+  if (!d) { match.waiting.delete(color); return; }
+  match.sb[color] = { step: "menu" };
+  const changed = !sameDeck(d.main, d.reg.main);
+  matchAsk(color, { title: `Game ${match.games + 1}: sideboard?`, text: `Main deck ${d.main.length}, sideboard ${d.side.length}. Swap cards between them for game ${match.games + 1}, or keep your deck. The next game starts when every player is done.`,
+    options: [{ id: "__sb_keep", label: "Keep deck" }, { id: "__sb_swap", label: "Swap cards" }, ...(changed ? [{ id: "__sb_reset", label: "Reset to registered" }] : []), { id: "__concede", label: "Concede match" }] });
+}
+function sideboardDone(color, line) {
+  delete match.sb[color];
+  match.waiting.delete(color);
+  matchClose(color);
+  chat(`[MTG] ${line}`);
+}
+function onSideboardAnswer(color, picks) {
+  const st = match.sb[color], d = match.decks?.by[color];
+  if (!st || !d) return;
+  const n = match.games + 1;
+  if (st.step === "menu") {
+    if (picks[0] === "__sb_keep") return sideboardDone(color, `${matchName(color)} keeps their deck for game ${n} (${deckWords(d)}).`);
+    if (picks[0] === "__sb_reset") {
+      d.main = [...d.reg.main]; d.side = [...d.reg.side];
+      return sideboardDone(color, `${matchName(color)} goes back to the registered deck for game ${n} (${deckWords(d)}).`);
+    }
+    if (picks[0] !== "__sb_swap") return;
+    match.sb[color] = { step: "out" };
+    return matchAsk(color, { title: `Game ${n}: take out which cards of your main deck?`, mode: "multi", min: 0, max: d.main.length,
+      text: `Pick the cards to take out, then the sideboard cards to bring in. The main deck keeps ${MAIN_MIN} or more, the sideboard at most ${SIDE_MAX}.`,
+      options: d.main.map((c, i) => ({ id: `out:${i}`, label: cardName(c) })) });
+  }
+  if (st.step === "out") {
+    const out = picks.map((x) => /^out:(\d+)$/.exec(String(x))?.[1]).filter((x) => x != null).map(Number).filter((i) => i < d.main.length);
+    match.sb[color] = { step: "in", out };
+    return matchAsk(color, { title: `Game ${n}: bring in which sideboard cards? (${out.length} out)`, mode: "multi", min: 0, max: d.side.length,
+      text: `${out.length} out: ${swapWords(out.map((i) => cardName(d.main[i]))) || "none"}. Pick the cards to bring in from your sideboard.`,
+      options: d.side.map((c, i) => ({ id: `in:${i}`, label: cardName(c) })) });
+  }
+  if (st.step === "in") {
+    const inn = picks.map((x) => /^in:(\d+)$/.exec(String(x))?.[1]).filter((x) => x != null).map(Number).filter((i) => i < d.side.length);
+    const outSet = new Set(st.out), inSet = new Set(inn);
+    const main = [...d.main.filter((c, i) => !outSet.has(i)), ...d.side.filter((c, i) => inSet.has(i))];
+    const side = [...d.side.filter((c, i) => !inSet.has(i)), ...d.main.filter((c, i) => outSet.has(i))];
+    const bad = main.length < MAIN_MIN ? `That swap leaves ${main.length} cards in your main deck: it needs ${MAIN_MIN} or more.`
+      : side.length > SIDE_MAX ? `That swap leaves ${side.length} cards in your sideboard: at most ${SIDE_MAX}.` : null;
+    if (bad) { chat(`[MTG] ${bad} Nothing was changed.`, color); return askSideboard(color); }
+    const outNames = [...outSet].map((i) => cardName(d.main[i])), inNames = [...inSet].map((i) => cardName(d.side[i]));
+    d.main = main; d.side = side;
+    if (!outNames.length && !inNames.length) return sideboardDone(color, `${matchName(color)} keeps their deck for game ${n} (${deckWords(d)}).`);
+    return sideboardDone(color, `${matchName(color)} sideboarded for game ${n}: out ${swapWords(outNames) || "nothing"}; in ${swapWords(inNames) || "nothing"} (${deckWords(d)}).`);
+  }
+}
+// ── Concede match
+function matchOther(color) { const [a, b] = game.seatColors; return color === a ? b : a; }
+// the match ends: the other player wins it; a game still running is conceded too
+function concedeMatch(color) {
+  const other = matchOther(color);
+  const seat = game.seats.get(color);
+  const gv = seat?.board?.state?.gameView;
+  if (seat && gv && !gv.gameOver && isPlaying(gv, seat.slot)) seat.directive({ type: "concede" });
+  game.matchDone = true; // (the game's end that follows counts for nothing and asks nothing)
+  for (const c of game.seatColors) if (match.asked === c || match.sb[c] || match.confirm[c]) matchClose(c);
+  const line = `MATCH WON: ${matchName(other)} wins the match (${matchName(color)} conceded the match).`;
+  chat(`[MTG] ${line}`);
+  gameLogLine(line);
+  matchReset();
+}
+// a between-games question's Concede match: a Yes / No first; No asks the question again (back)
+function askConcede(color, back) {
+  match.confirm[color] = back;
+  matchAsk(color, { title: `Concede the match? ${matchName(matchOther(color))} wins it.`, text: "Yes ends the match now. No goes back.",
+    options: [{ id: "__concede_yes", label: "Yes, concede the match" }, { id: "__concede_no", label: "No" }] });
+}
 // a game of the match: on, Standard, two seats
 const matchGame = () => match.on && !!game && game.mode === "standard" && game.total === 2 && (game.seatColors || []).length === 2;
 const matchPair = () => [...game.seatColors].sort().join("+");
-const matchName = (c) => nameOf(slotOfColor(c)) || c;
+// (by the match's own record between games, when no game is set up: the start's refusal names who sideboards)
+const matchName = (c) => (game?.slotColor ? nameOf(slotOfColor(c)) : null) || match.names?.[c] || c;
 const matchWins = (c) => (match.pair === matchPair() ? match.wins[c] || 0 : 0);
 function matchScore() {
   const [a, b] = game.seatColors;
@@ -579,7 +716,14 @@ function onMatch(m) {
     return chat(`[MTG] Best of three: on. ${match.games && game?.seatColors?.length === 2 ? `Match: ${matchScore()} after ${match.games} game${match.games > 1 ? "s" : ""}.` : "No games played yet."} The host turns it off:  mtg match bo1`, m.color);
   }
   if (text === "bo1") { match.on = false; matchReset(); return chat("[MTG] Best of three off: each game stands alone (best of one)."); }
-  if (text !== "bo3") return chat("[MTG] Use:  mtg match bo3  (best of three, Standard 1v1) or  mtg match bo1", m.color);
+  if (text === "concede") {
+    if (!match.on || !game || !matchGame() || !game.seatColors.includes(m.color) || !game.seats.has(m.color)) return chat("[MTG] There is no best-of-three match of yours to concede.", m.color);
+    const at = match.concedeAsk[m.color];
+    if (at && Date.now() - at < 15000) { delete match.concedeAsk[m.color]; return concedeMatch(m.color); }
+    match.concedeAsk[m.color] = Date.now();
+    return chat(`[MTG] Concede the match? ${matchName(matchOther(m.color))} wins it. Type  mtg match concede  again within 15 seconds to confirm.`, m.color);
+  }
+  if (text !== "bo3") return chat("[MTG] Use:  mtg match bo3  (best of three, Standard 1v1),  mtg match bo1  or  mtg match concede", m.color);
   if (gameMode.mode !== "standard") return chat("[MTG] Best of three is for Standard 1v1: set  mtg mode standard  first.", m.color);
   match.on = true;
   matchReset();
@@ -592,8 +736,9 @@ function matchFirst() { return matchGame() && match.pair === matchPair() ? match
 function matchGameOver(gv) {
   if (!matchGame() || game.matchDone) return;
   game.matchDone = true;
-  if (match.pair !== matchPair()) { matchReset(); match.pair = matchPair(); }
+  if (match.pair !== matchPair()) { const decks = match.decks; matchReset(); match.pair = matchPair(); if (decks?.pair === matchPair()) match.decks = decks; }
   match.games++;
+  match.names = Object.fromEntries(game.seatColors.map((c) => [c, nameOf(slotOfColor(c)) || c]));
   match.first = null;
   match.asked = null;
   const winner = gv?.winnerId ? game.slotColor[gv.winnerId] || null : null;
@@ -617,24 +762,48 @@ function matchGameOver(gv) {
   }
   const chooser = winner ? (winner === a ? b : a) : match.chooser || (game.seats.has(a) ? a : b);
   match.chooser = chooser;
-  if (!game.seats.has(chooser)) return matchChoice(chooser, true);
+  // (every human player with a sideboard sideboards for the next game: the chooser after the play-or-draw answer)
+  for (const c of game.seatColors) if (game.seats.has(c) && match.decks?.pair === matchPair() && match.decks.by[c]?.side.length) match.waiting.add(c);
+  if (!game.seats.has(chooser)) matchChoice(chooser, true);
+  else askPlayDraw(chooser, winner);
+  for (const c of match.waiting) if (c !== match.asked) askSideboard(c);
+}
+function askPlayDraw(chooser, winner = true) {
+  const n = match.games;
   match.asked = chooser;
-  toTTS({ t: "prompt", color: chooser, promptId: MATCH_PROMPT, kind: "match", title: `Game ${n + 1}: play or draw?`, mode: "single", min: 1, max: 1,
+  matchAsk(chooser, { title: `Game ${n + 1}: play or draw?`,
     text: `${winner ? `You lost game ${n}` : `Game ${n} was a draw`}. Match: ${matchScore()}. Play: you go first in game ${n + 1}. Draw: you go second (and draw on your first turn).`,
-    options: [{ id: "__play", label: "Play" }, { id: "__draw", label: "Draw" }] });
+    options: [{ id: "__play", label: "Play" }, { id: "__draw", label: "Draw" }, { id: "__concede", label: "Concede match" }] });
 }
 // the chooser's play or draw, for the next game
 function matchChoice(color, play) {
   const [a, b] = game.seatColors;
   match.first = play ? color : (color === a ? b : a);
-  if (match.asked === color) toTTS({ t: "prompt", color, promptId: null });
+  const wasAsked = match.asked === color;
+  if (wasAsked) matchClose(color);
   match.asked = null;
-  chat(`[MTG] ${matchName(color)} chooses to ${play ? "play" : "draw"}: ${matchName(match.first)} goes first in game ${match.games + 1}. Press New game when you're ready.`);
+  chat(`[MTG] ${matchName(color)} chooses to ${play ? "play" : "draw"}: ${matchName(match.first)} goes first in game ${match.games + 1}. ${match.waiting.has(color) ? "Now your sideboard." : "Press New game when you're ready."}`);
+  if (wasAsked && match.waiting.has(color)) askSideboard(color);
 }
 function onMatchAnswer(color, choice) {
-  if (!game || match.asked !== color) return;
-  const pick = asList(choice).map(String)[0];
-  if (pick === "__play" || pick === "__draw") matchChoice(color, pick === "__play");
+  if (!game) return;
+  const picks = asList(choice).map(String);
+  const pick = picks[0];
+  if (match.confirm[color]) {
+    const back = match.confirm[color];
+    delete match.confirm[color];
+    if (pick === "__concede_yes") return concedeMatch(color);
+    return back();
+  }
+  if (match.asked === color) {
+    if (pick === "__concede") return askConcede(color, () => askPlayDraw(color));
+    if (pick === "__play" || pick === "__draw") matchChoice(color, pick === "__play");
+    return;
+  }
+  if (match.sb[color]) {
+    if (pick === "__concede" && match.sb[color].step === "menu") return askConcede(color, () => askSideboard(color));
+    onSideboardAnswer(color, picks);
+  }
 }
 // the score under each life total in a match game: MATCH <theirs>–<the other's>, GAME <n>
 function matchMarks(p) {
@@ -646,7 +815,7 @@ function matchMarks(p) {
 }
 // the colour to go first, or null: the engine's own pick
 function firstColorOf() {
-  return game?.tableFirst || game?.leader || matchFirst() || null;
+  return game?.tableFirst || game?.leader || matchFirst() || matchRollFirst() || null;
 }
 // the gameConfig sent before StartGame, or null when there is nothing to say: a team mode's, with firstPlayer added
 // when it names no first player of its own; else firstPlayer alone
@@ -1874,6 +2043,9 @@ const forgeBotCount = () => game.bots - (game.harmlessWanted || []).length;
 // arch: Archenemy's { color, schemes } (schemes null: 20 at random), withArchenemy.
 function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0, mode = gameMode.mode, teams = null, teamMode = "2hg", jugg = null, turns = null, arch = null) {
   if (game) { chat('[MTG] A game is already set up. Type "mtg reset" first.'); return; }
+  // (best of three: every human player with a sideboard is done sideboarding first)
+  const sideboarding = matchWaiting();
+  if (sideboarding) { chat(`[MTG] Not started: ${sideboarding}. The question is on their panel (Keep deck, if nothing changes).`); return; }
   const std = mode === "standard";
   // (a deck checked for the other mode is no deck for this one: checked again with Ready)
   const notReady = requireReady ? seatList.filter((c) => !readyFor(c, mode)) : [];
@@ -1964,7 +2136,8 @@ function onRoomUpdate(seat, room) {
   const me = room.players.find((p) => p.username === seat.username);
   if (me && !seat.joined) {
     seat.joined = true;
-    const d = seat.deck || (readyFor(seat.color, game.mode) ? engineDeckFromTable(readyDecks[seat.color]) : loadPreset(seat.deckId));
+    // (a match game's deck: game 1's registered, a later game's as the last sideboarding left it, matchDeck)
+    const d = matchDeck(seat.color, seat.deck || (readyFor(seat.color, game.mode) ? engineDeckFromTable(readyDecks[seat.color]) : loadPreset(seat.deckId)));
     const planes = game.planes && seat.color === game.planeSeat && !seat.harmless ? game.planes : null;
     seat.send({ type: "SetDeckSelection", deck_name: d.deckName, deck: planes ? { ...d.deck, planes: planes.map(planeDeckCard) } : d.deck, commander_name: d.commanderName });
     if (planes) chat(`[MTG] Planechase: ${planes.length} planes and phenomena dealt to the planar decks.`);
@@ -6230,6 +6403,9 @@ function sendTable() {
     priority: game.slotColor[pub.priorityPlayerId] || null, gameOver: !!pub.gameOver,
     ...(pub.gameOver ? { overWhy: gameEndWords(pub) } : {}), // (why it ended, on the top bar: Kykar hand test #16)
     ...(pub.dayTime === "day" || pub.dayTime === "night" ? { day: pub.dayTime } : {}), // (shown beside the turn on the table)
+    // (best of three: the phase bar's "GAME 2 OF 3", and game 1's roll for the table's banner, matchGameWords, matchRollFirst)
+    ...(matchGameWords() ? { match: matchGameWords() } : {}),
+    ...(game.matchRoll ? { matchRoll: { seq: game.matchRoll.seq, text: game.matchRoll.text } } : {}),
     winner: pub.winnerId ? game.slotColor[pub.winnerId] || nameOf(pub.winnerId) : null, players, stack, cards: statics,
     rewind, // restore points and the open vote (in the board update: a message of its own doubled the traffic)
     ...(tie ? { tie } : {}), // (a tie offer: a player who can't lose, tieNews)
@@ -13524,7 +13700,7 @@ if (require.main === module) {
     alignment, tableCard, costNow, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
     summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword, playWindow,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
-    _spellsMark: spellsMark, _actingFor: actingFor, _startConfig: () => startConfig(), _match: match, _tieState: tieState, _stalemateEarners: stalemateEarners, _forcedTieEarned: forcedTieEarned, STALEMATE_EARNED_BY, _steamIds: steamIds, _harmlessVotes: harmlessVotes, _accomplishments: accomplishments, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice,
+    _spellsMark: spellsMark, _actingFor: actingFor, _startConfig: () => startConfig(), _match: match, _matchWaiting: () => matchWaiting(), _tieState: tieState, _stalemateEarners: stalemateEarners, _forcedTieEarned: forcedTieEarned, STALEMATE_EARNED_BY, _steamIds: steamIds, _harmlessVotes: harmlessVotes, _accomplishments: accomplishments, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice,
     _archenemy: archenemy, _onArchenemy: onArchenemy, _onSchemes: onSchemes, _withArchenemy: withArchenemy, _forgeSchemes: forgeSchemes, ARCH_NO_UNDO, ARCH_SWITCH_OFF,
     _engineSetting: () => ({ RELAY, KEY, REMOTE_ENGINE }), _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, setPickedHand, splitHandText, handOps, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
