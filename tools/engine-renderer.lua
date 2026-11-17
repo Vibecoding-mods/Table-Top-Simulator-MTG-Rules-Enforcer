@@ -2302,9 +2302,25 @@ end
 -- player's life counter or the other spell), per attacker (red-pink, to the player's life counter or the planeswalker
 -- / battle) and per block (gold, blocker to attacker). Global vector lines are shared with what players draw by
 -- hand: ours are told apart by their exact thickness and only ours are replaced.
+-- Planned attacks (the user 2026-11-16: "targeting lines ... to show who you're targeting before attacks"): while the
+-- turn player answers the attack question, each attacker picked so far is drawn dashed, in a light shade of their seat
+-- colour, to whom it will attack (enginePlannedAttacks); the declared board's attack lines replace them.
 do -- (its own scope, as the setup buttons below: the main chunk is at standard Lua's 200-locals limit)
 local LINE_STYLE = { target = { color = {0.35, 0.85, 1}, thickness = 0.3001 }, attack = { color = {1, 0.32, 0.4}, thickness = 0.2201 },
-  block = { color = {1, 0.8, 0.25}, thickness = 0.1601 } }
+  block = { color = {1, 0.8, 0.25}, thickness = 0.1601 }, planned = { color = {1, 0.75, 0.8}, thickness = 0.1201 } }
+-- TTS's seat colours, for the planned lines (mixed halfway to white when drawn, so they read lighter than a declared line)
+local SEAT_RGB = { White = {1, 1, 1}, Brown = {0.44, 0.23, 0.09}, Red = {0.86, 0.1, 0.09}, Orange = {0.96, 0.39, 0.11},
+  Yellow = {0.9, 0.9, 0.17}, Green = {0.19, 0.7, 0.17}, Teal = {0.13, 0.69, 0.61}, Blue = {0.12, 0.53, 1},
+  Purple = {0.63, 0.13, 0.94}, Pink = {0.96, 0.44, 0.81} }
+local plannedStyles = {} -- seat colour -> its planned style (made once)
+local function plannedStyle(color)
+  if plannedStyles[color] == nil then
+    local rgb = SEAT_RGB[tostring(color)]
+    plannedStyles[color] = rgb == nil and LINE_STYLE.planned or
+      { color = { (1 + rgb[1]) / 2, (1 + rgb[2]) / 2, (1 + rgb[3]) / 2 }, thickness = LINE_STYLE.planned.thickness }
+  end
+  return plannedStyles[color]
+end
 local linesSig = ""
 local function isOurLine(l)
   for _, st in pairs(LINE_STYLE) do if math.abs((tonumber(l.thickness) or 0) - st.thickness) < 0.00005 then return true end end
@@ -2406,16 +2422,51 @@ function engineCombatLunge(m)
   end
   return n
 end
+-- The attacks the turn player (or their partner, in a shared turn) has planned but not declared: the open attack
+-- question's picks with a target ("attacker|target"; "attacker|?" waits for "whom?", "__allattack" has no "|"),
+-- an answered one's picks held until the next board (engineCombatHeld), and the plan the bridge puts on the steps after
+-- it ("whom?", the attack tax: p.plan, ids of the same form, with token stacks already split per player). A player's
+-- engine id is turned into their colour. { { attacker id, target colour or card id, the planner's colour }, ... }
+function enginePlannedAttacks(m)
+  local out = {}
+  if m == nil then return out end
+  local colorOf = {}
+  for _, pl in ipairs(m.players or {}) do if pl.slot ~= nil then colorOf[tostring(pl.slot)] = pl.color end end
+  local function turnSide(color) return color == m.active or engineTurnPartners(m, m.active, color) end
+  local function add(color, ids)
+    for _, oid in ipairs(ids or {}) do
+      local s = tostring(oid)
+      local bar = s:find("|", 1, true)
+      if bar ~= nil and s:sub(bar + 1) ~= "?" then
+        out[#out + 1] = { s:sub(1, bar - 1), colorOf[s:sub(bar + 1)] or s:sub(bar + 1), color }
+      end
+    end
+  end
+  -- (a seat answering for another player, Mindslaver: the question is for p.forColor, whose turn it is)
+  for color, p in pairs(enginePrompts or {}) do
+    local who = p.forColor or color
+    if not turnSide(who) then -- (another player's question: nothing planned to show)
+    elseif p.plan ~= nil then add(who, p.plan)
+    elseif enginePromptKind ~= nil and enginePromptKind(p) == "attack" then
+      add(who, engineOpenPicks(color, p))
+    end
+  end
+  for color, h in pairs(engineCombatHeld or {}) do if h.kind == "attack" and turnSide(color) then add(color, h.ids) end end
+  return out
+end
 function engineDrawLines(m, stackSpot)
   if m ~= nil and m.gameOver then m = nil end -- (the game is over: no attack or target lines stay on the table)
   local ours = {}
   local drawn = {} -- (one line per pair of spots: twenty tokens in one stack attacking one player are one line)
-  local function add(a, b, style, lift)
+  -- (dashed: five short lines along the arc, the first gap at the attacker and the last dash on the target)
+  local function add(a, b, style, lift, dashed)
     if a == nil or b == nil then return end
     local key = string.format("%.2f,%.2f,%.2f,%.2f,%.4f", a.x, a.z, b.x, b.z, style.thickness)
     if drawn[key] then return end
     drawn[key] = true
-    ours[#ours + 1] = { points = arc(a, b, lift), color = style.color, thickness = style.thickness }
+    local pts = arc(a, b, lift)
+    if not dashed then ours[#ours + 1] = { points = pts, color = style.color, thickness = style.thickness } return end
+    for i = 2, #pts - 1, 2 do ours[#ours + 1] = { points = { pts[i], pts[i + 1] }, color = style.color, thickness = style.thickness } end
   end
   if m ~= nil then
     engineLinesSpot = stackSpot -- (for the block lines a question's clicks draw: engineQuestionBlocks)
@@ -2436,6 +2487,12 @@ function engineDrawLines(m, stackSpot)
         end
         for _, a in ipairs(c.blkOf or {}) do add(cardSpot(c.id), cardSpot(a), LINE_STYLE.block, 0.3) end
       end
+    end
+    -- the turn player's planned attacks (gone with their question and its held picks, so by the board that has them
+    -- attacking; a token stack split among players is one stack, and one line, per player: engineCombatSubs reads the
+    -- same plan)
+    for _, pa in ipairs(enginePlannedAttacks(m)) do
+      add(cardSpot(pa[1]), LIFE_TRACKERS[pa[2]] ~= nil and playerSpot(pa[2]) or cardSpot(pa[2]), plannedStyle(pa[3]), 0.5, true)
     end
   end
   -- only when they changed (setVectorLines redraws for everyone and goes into the save)
@@ -5713,6 +5770,13 @@ local function pick(color, i)
 end
 
 function engineSelectedFor(color, i) return engineSelected[color] ~= nil and engineSelected[color][i] == true end
+-- the option ids picked so far in a colour's open question p, in the question's order (the combat stacks, block lines
+-- and planned attack lines all read them)
+function engineOpenPicks(color, p)
+  local ids = {}
+  for i, o in ipairs((p and p.options) or {}) do if engineSelectedFor(color, i) then ids[#ids + 1] = o.id end end
+  return ids
+end
 -- (what is selected, every key and value as text: for checks and debugging)
 function engineSelectedKeys(color)
   local out = {}
@@ -6957,9 +7021,9 @@ function engineExitPrompt(color)
   if split then Wait.frames(snapBack, 2) end -- the stacks split for this question go back together
   -- (stacks cut by picks of a question withdrawn unanswered go back together; an answer's picks are held)
   if not split and engineRestackSoon ~= nil then Wait.frames(function() if engineCombatStale() then engineRestackSoon() end end, 1) end
-  -- (and the lines of its blocks: an answer's are held, a withdrawn question's go)
-  if (engineBlockLinesFor or {})[color] then
-    engineBlockLinesFor[color] = nil
+  -- (and the lines of its blocks and planned attacks: an answer's picks are held, a withdrawn question's go)
+  if (engineQuestionLinesFor or {})[color] then
+    engineQuestionLinesFor[color] = nil
     Wait.frames(function() if lastTable ~= nil and engineDrawLines ~= nil then pcall(engineDrawLines, lastTable, engineLinesSpot) end end, 1)
   end
   engineSelected[color] = nil
@@ -7004,6 +7068,12 @@ function enginePhase2Prompt(color)
   clearMenus(color)
   local p = enginePrompts[color]
   local kind = promptKind(p)
+  -- (a step after the attack question with the bridge's plan, "whom?" or the attack tax: its stacks split per player
+  -- and its planned lines drawn)
+  if p ~= nil and p.plan ~= nil then
+    if engineCombatStale() then engineRestackSoon() end
+    engineQuestionLines(color)
+  end
   -- the creature a defender is chosen for (Hero of Bladehold's token, put onto the battlefield attacking): red, as an
   -- attacker picked on the attack question, whether the question is answered on the table or in the panel
   -- (a token folded into a stack has no object of its own: the stack's card lights, batch 1 review 2026-11-12)
@@ -7066,18 +7136,23 @@ function enginePhase2Prompt(color)
   end
   if kind == "attack" or kind == "block" then
     -- token stacks: the menus of an attack question's stacks; the stacks drawn again when the picks cut them otherwise;
-    -- a blocker waiting for its attacker glows in its stack; the blocks picked so far are drawn as lines
+    -- a blocker waiting for its attacker glows in its stack; the blocks and attacks picked so far are drawn as lines
     if kind == "attack" then engineStackMenus(color, p) end
     if engineCombatStale() then engineRestackSoon() end
     local waiting = pendingBlocker[color]
     if kind == "block" and waiting ~= nil then glowCard(color, engineGroupOf[waiting] or waiting, GLOW.blockPick) end
-    if kind == "block" and lastTable ~= nil and engineDrawLines ~= nil then
-      engineBlockLinesFor = engineBlockLinesFor or {}
-      engineBlockLinesFor[color] = true
-      pcall(engineDrawLines, lastTable, engineLinesSpot)
-    end
+    engineQuestionLines(color)
   end
   if engineAbilityBoxes ~= nil then pcall(engineAbilityBoxes, color, p, kind) end
+end
+
+-- The open question's lines drawn again (its blocks, its planned attacks), and remembered as drawn so the question's end
+-- draws them again without it (engineExitPrompt). Only redrawn when they changed (engineDrawLines' signature).
+function engineQuestionLines(color)
+  if lastTable == nil or engineDrawLines == nil then return end
+  engineQuestionLinesFor = engineQuestionLinesFor or {}
+  engineQuestionLinesFor[color] = true
+  pcall(engineDrawLines, lastTable, engineLinesSpot)
 end
 
 -- Removes every block chosen for this blocker. Returns true if there was one.
@@ -7155,10 +7230,11 @@ function engineCombatSubs()
   for color, p in pairs(enginePrompts or {}) do
     local kind = promptKind(p)
     if kind == "attack" or kind == "block" then
-      local ids = {}
-      for i, o in ipairs(p.options or {}) do if engineSelectedFor(color, i) then ids[#ids + 1] = o.id end end
-      fromPicks(kind, ids)
+      fromPicks(kind, engineOpenPicks(color, p))
     end
+    -- (a step after the attack question carries the bridge's plan: a token stack split among players is drawn as one
+    -- stack per player, each with its own count and its own planned line)
+    if p.plan ~= nil then fromPicks("attack", p.plan) end
   end
   for _, h in pairs(engineCombatHeld) do fromPicks(h.kind, h.ids) end
   local out = {}
@@ -7181,9 +7257,7 @@ function engineQuestionBlocks()
   end
   for color, p in pairs(enginePrompts or {}) do
     if promptKind(p) == "block" then
-      local ids = {}
-      for i, o in ipairs(p.options or {}) do if engineSelectedFor(color, i) then ids[#ids + 1] = o.id end end
-      add(ids)
+      add(engineOpenPicks(color, p))
     end
   end
   for _, h in pairs(engineCombatHeld) do if h.kind == "block" then add(h.ids) end end
