@@ -197,13 +197,22 @@ mode buttons (§10). Best of one stays the default.
   swap keeping 60/15, and a headless run of a full 3-game match.
 - **Not in scope:** Commander has no best of three; 2v2 and Juggernaut stay single games.
 - **Built (2026-11-17, `cloud/treachery-bo3` then `cloud/bo3-extras`):** the match, the loser's play or draw, the score in
-  the log, chat and the mark boxes; game 1's roll (two d20, again on a tie; the roll's winner goes first, shown on the
-  banner; not "the winner chooses": a choice there would hold the start); "GAME 2 OF 3" in the phase bar (GAME 4 OF 5 once
+  the log, chat and the mark boxes; game 1's roll (two d20, again on a tie, shown on the banner; the roll's winner
+  chooses, 2026-11-17 `cloud/bo3-roll-choice`: see "Game 1's choice" below); "GAME 2 OF 3" in the phase bar (GAME 4 OF 5 once
   draws stretch it); sideboarding between games on the prompt panel (Keep deck, Swap cards out then in, Reset to
   registered; 60+ main and at most 15 side checked; the next game waits for every human player); "Concede match" (mtg
   match concede twice, or the between-games option with a Yes / No). The sideboard is the deck's own (a preset's or a
   pasted list's): a deck read from the table has none (the Card Importer puts it in the Notebook), so it isn't asked.
   Not built: the turn timer's clock for sideboarding; the Arena-style laid-out swap (it is a list on the panel).
+- **Game 1's choice (built 2026-11-17, `cloud/bo3-roll-choice`):** the roll happens when the room is ready to start.
+  - A person who wins it is asked "Game 1: you won the roll (14–7). Play or draw?" on the prompt panel (the match's
+    question, as the loser's after a game), and the start waits: the gameConfig's `firstPlayer` and StartGame go out
+    with the answer.
+  - With no answer in 30 seconds (`ROLL_CHOICE_SECONDS`) they play, said in chat. An AI winner plays at once.
+  - Chat and log: "Game 1: a roll for who goes first: Blue 14, White 7. Blue wins the roll and chooses to play or
+    draw." then "Blue chooses to draw: White goes first in game 1." Before the game starts the AI is named by its
+    colour, since the bridge names it "AI 1" only once the relay starts the game.
+  - The table's own first player, and Treachery's Leader, still come first, with no roll.
 
 ### 3.7 Hours (Standard without best of three)
 
