@@ -19,7 +19,7 @@ const fn = (src, name) => {
   if (a < 0 || b < 0) { console.log(`FAIL test_table_tie_offer: ${name} is gone`); process.exit(1); }
   return src.slice(a, b + 5);
 };
-const FUNCS = ["engineTieUpdate", "engineTieDraw", "engineTieWaits", "engineTieWords", "engineSteamOf", "engineSteamIds", "onMtgTie"].map((n) => fn(RENDERER, n)).join("");
+const FUNCS = ["engineTieXml", "engineTieUpdate", "engineTieDraw", "engineTieWaits", "engineTieWords", "engineSteamOf", "engineSteamIds", "onMtgTie"].map((n) => fn(RENDERER, n)).join("");
 // the chat's tie and accomplishments branches, from make-engine-copy.js's engineChat
 const chatFrom = COPY.indexOf('  elseif cmd == "tie" then');
 const chatTo = COPY.indexOf('  elseif cmd == "glow" then', chatFrom);
@@ -58,31 +58,33 @@ const text = (id) => q(`return texts["${id}"]`);
 const PENDING = `{ id = 1, status = "pending", rounds = 0, toForce = 3, locked = { { who = "White", color = "White", why = { "can't lose the game" } } }, waiting = { "White", "Blue" }, waitingNames = { "White" } }`;
 
 q(`engineTieUpdate(${PENDING}, false) return nil`);
-same("pending: the pop-up opens for the seated players", [attr("eng_tie_White"), attr("eng_tie_Red")], ["true", "true"]);
-same("pending: an empty seat's isn't drawn", attr("eng_tie_Blue"), null);
-same("pending: Tie and Keep playing for a player still to answer", [attr("eng_tieyes_White"), attr("eng_tieno_White")], ["true", "true"]);
-same("pending: no buttons for a player who answered", [attr("eng_tieyes_Red"), attr("eng_tieno_Red")], ["false", "false"]);
-same("pending: the words, to the one asked", text("eng_tietext_White"), "White can't lose the game: the game may never end. A tie is offered.");
-same("pending: the words, who it waits for", text("eng_tietext_Red"), "White can't lose the game: the game may never end. A tie is offered.\nWaiting for White...");
+const vis = (id) => q(`return attrs["${id}.visibility"]`);
+same("pending: the one pop-up opens, and the table's XML wants it", [attr("eng_tie"), q("return tostring(ENGINE_TIE_UI)")], ["true", "true"]);
+same("pending: Tie and Keep playing, shown to the seated player still to answer (an empty seat's isn't)", [attr("eng_tieyes"), attr("eng_tieno"), vis("eng_tieyes"), vis("eng_tieno")], ["true", "true", "White", "White"]);
+same("pending: the words (who it waits for too)", text("eng_tietext"), "White can't lose the game: the game may never end. A tie is offered.\nWaiting for White...");
 q(`texts = {} engineTieUpdate(${PENDING}, false) return nil`);
-same("the same offer again isn't drawn again", text("eng_tietext_White"), null);
+same("the same offer again isn't drawn again", text("eng_tietext"), null);
+q(`engineTieUpdate({ id = 2, status = "pending", rounds = 0, toForce = 3, locked = {}, waiting = { "White", "Red" }, waitingNames = { "White", "Red" } }, false) return nil`);
+same("pending: two to answer, both see the buttons", vis("eng_tieyes"), "Red|White");
 q(`engineTieUpdate({ id = 1, status = "declined", rounds = 2, toForce = 3, declinedBy = "Red", locked = { { who = "White", why = { "can't lose the game", "can't lose life" } } }, waiting = {} }, false) return nil`);
-same("declined: the pop-up stays, no buttons", [attr("eng_tie_White"), attr("eng_tieyes_White"), attr("eng_tieno_White")], ["true", "false", "false"]);
-same("declined: the count", text("eng_tietext_White"), "White can't lose the game and can't lose life: the game may never end.\nRed declined the tie. Rounds without progress: 2 of 3; at 3 the game is a forced tie.");
+same("declined: the pop-up stays, no buttons", [attr("eng_tie"), attr("eng_tieyes"), attr("eng_tieno")], ["true", "false", "false"]);
+same("declined: the count", text("eng_tietext"), "White can't lose the game and can't lose life: the game may never end.\nRed declined the tie. Rounds without progress: 2 of 3; at 3 the game is a forced tie.");
 q(`engineTieUpdate({ id = 1, status = "forced", rounds = 3, toForce = 3, locked = {}, waiting = {} }, true) return nil`);
-same("game over: the pop-up shuts", [attr("eng_tie_White"), attr("eng_tie_Red")], ["false", "false"]);
+same("game over: the pop-up shuts, and leaves the XML", [attr("eng_tie"), q("return tostring(ENGINE_TIE_UI)")], ["false", "false"]);
 q(`engineTieUpdate(${PENDING}, false) engineTieUpdate(${PENDING}, true) return nil`);
-same("game over: an open offer's pop-up shuts too", [attr("eng_tie_White"), attr("eng_tieyes_White")], ["false", "false"]);
+same("game over: an open offer's pop-up shuts too", [attr("eng_tie"), attr("eng_tieyes")], ["false", "false"]);
 q(`engineTieUpdate(${PENDING}, false) engineTieUpdate(nil, false) return nil`);
-same("no offer: the pop-up shuts", attr("eng_tie_White"), "false");
+same("no offer: the pop-up shuts", [attr("eng_tie"), q("return tostring(ENGINE_TIE_UI)")], ["false", "false"]);
+ok("xml: the pop-up is in the XML only while an offer is open", RENDERER.includes("if ENGINE_TIE_UI then parts[#parts + 1] = engineTieXml()") && RENDERER.includes('(ENGINE_TIE_UI and "|tie" or "")'), "engineRenderPanels");
 
-q('onMtgTie(Player.White, nil, "eng_tieyes_White") return nil');
+q(`engineTieUpdate(${PENDING}, false) engineTieUpdate({ id = 3, status = "pending", rounds = 0, toForce = 3, locked = {}, waiting = { "White", "Red" } }, false) return nil`);
+q('onMtgTie(Player.White, nil, "eng_tieyes") return nil');
 same("Tie: a tieVote yes with the Steam ID", q("return lastSent()"), "tieVote White true 76561190000000001");
-q('onMtgTie(Player.White, nil, "eng_tieno_White") return nil');
+q('onMtgTie(Player.White, nil, "eng_tieno") return nil');
 same("Keep playing: a tieVote no", q("return lastSent()"), "tieVote White false 76561190000000001");
-q('sent = {} onMtgTie(Player.Red, nil, "eng_tieyes_White") return nil');
-same("another seat's button sends nothing", q("return lastSent()"), "none");
-q('onMtgTie(Player.Red, nil, "eng_tieyes_Red") return nil');
+q('sent = {} onMtgTie(Player.Blue, nil, "eng_tieyes") return nil');
+same("a seat that isn't asked sends nothing", q("return lastSent()"), "none");
+q('onMtgTie(Player.Red, nil, "eng_tieyes") return nil');
 same("no Steam ID: sent empty", q("return lastSent()"), "tieVote Red true ");
 same("engineSteamIds: the seated players'", q('local t = engineSteamIds({ "White", "Red" }) return t.White .. "|" .. t.Red'), "76561190000000001|");
 
@@ -97,9 +99,9 @@ same("mtg accomplishments asks the bridge with the Steam ID", q('local s = sent[
 
 // the start message carries the seated players' Steam IDs
 ok("start: the Steam IDs go with the start", /start\.steam = engineSteamIds\(seats\)/.test(COPY), "make-engine-copy.js's engineStartGame");
-// the pop-up's XML: in rewindXml, its buttons on onMtgTie
-const xml = RENDERER.slice(RENDERER.indexOf("local function rewindXml(c)"), RENDERER.indexOf("\nend\n", RENDERER.indexOf("local function rewindXml(c)")));
-ok("xml: the tie pop-up and its two buttons", /id="eng_tie_' \.\. c/.test(xml) && /id="eng_tieyes_' \.\. c \.\. '" onClick="onMtgTie"/.test(xml) && /id="eng_tieno_' \.\. c \.\. '" onClick="onMtgTie"/.test(xml), "rewindXml");
+// the pop-up's XML: engineTieXml, its buttons on onMtgTie
+const xml = fn(RENDERER, "engineTieXml");
+ok("xml: the tie pop-up and its two buttons", /id="eng_tie"/.test(xml) && /id="eng_tieyes" onClick="onMtgTie"/.test(xml) && /id="eng_tieno" onClick="onMtgTie"/.test(xml), "engineTieXml");
 ok("board: each board update draws the tie pop-up", /pcall\(engineTieUpdate, m\.tie, m\.gameOver\)/.test(RENDERER), "the board's apply");
 
 console.log(`${failed ? "FAIL" : "PASS"} test_table_tie_offer: ${passed} passed, ${failed} failed`);
