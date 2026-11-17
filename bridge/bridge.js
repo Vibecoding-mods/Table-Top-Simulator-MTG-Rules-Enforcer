@@ -2508,8 +2508,9 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
     // audit B4)
     ...(row && zone === "graveyard" ? { og: "graveyard" } : {}),
     // (what it costs now, when that isn't its printed cost: the table's cost badge; never on a card face down to the
-    // others, whose badge buttons other players may see)
-    ...(c.isFaceDown ? {} : costNow(c, zone)),
+    // others, whose badge buttons other players may see: a foretold card in its owner's row says it in its hover text,
+    // cardNotes)
+    ...(c.isFaceDown ? {} : costNow(c, zone, row)),
   };
 }
 
@@ -2673,6 +2674,12 @@ function cardNotes(c, zone, row = false) {
     nt.push(cost ? `Flashback ${cost}` : "Has flashback");
   }
   if (zone === "graveyard") nt.push(...graveKeywordNotes(c));
+  // (a face-down card in its owner's playable row, a foretold one: what it costs now in words only, as the table's cost
+  // badge text says it, engineCostChange; its badge buttons might show to the other players)
+  if (row && c.isFaceDown) {
+    const now = costNow(c, zone, true);
+    if (now.ec) nt.push(`Costs ${now.ec} now${now.em ? ` by ${now.em}` : ""} (printed ${now.mc || "no mana cost"})`);
+  }
   // (what a delayed trigger will do to it, a card in a pile showing no status box: Flickerwisp's exiled card returns)
   if (zone === "exile" || zone === "graveyard") nt.push(...delayedWordsOf(c.id));
   if (zone === "exile") {
@@ -2893,8 +2900,20 @@ function faceDownAnyView(c, views) {
 // priced untaxed (Mairsil showed no badge once a Thalia hand cost had come, live check 2026-11-12). Should an engine
 // ever price the tax in, its cost then has at least the tax more generic than the printed one, and is taken as it is:
 // the one misreading left is an untaxed cost raised by the tax's amount or more by other effects.
-function costNow(c, zone) {
-  const printed = c.manaCost && c.manaCost !== "no cost" ? String(c.manaCost) : "";
+// Phase 2 (our Forge build, engine1117-costbadge2): a card its seat may cast from a graveyard, exile or the library's
+// top carries playCost, the mana it costs cast from there now (flashback, escape, foretell, plot, a "you may cast"
+// permission, with Forge's reductions and increases), playCostMode, the way it is cast, and for a foretold card
+// face down in exile playCostPrinted, its face's printed cost (Forge's manaCost there is the face-down one's). It is
+// taken for a card in the seat's playable row only (row), when the engine sent no effectiveManaCost; em, the way's words,
+// goes to the hover text ("by flashback"). A plain permission ("may play") and a free cast say no way.
+const playWay = (mode) => (mode === "foretold" ? "foretell" : mode === "plotted" ? "plot" : mode);
+function costNow(c, zone, row = false) {
+  const printed = c.playCostPrinted || (c.manaCost && c.manaCost !== "no cost" ? String(c.manaCost) : "");
+  if (row && !c.effectiveManaCost && c.playCost) {
+    const mode = String(c.playCostMode || "");
+    const em = mode && mode !== "may play" && mode !== "free" ? playWay(mode) : null;
+    return c.playCost !== printed ? { ec: String(c.playCost), mc: printed, ...(em ? { em: em } : {}) } : {};
+  }
   let now = c.effectiveManaCost || null;
   const tax = zone === "command" ? Number(c.commanderTax) || 0 : 0;
   const base = now || printed;

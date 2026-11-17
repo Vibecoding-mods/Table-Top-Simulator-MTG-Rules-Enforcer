@@ -1915,10 +1915,10 @@ index 0000000..9d713d1
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..c8a3618 100644
+index 713e1ef..165101f 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-@@ -26,27 +26,39 @@ import forge.card.MagicColor;
+@@ -26,27 +26,37 @@ import forge.card.MagicColor;
  import forge.card.mana.ManaAtom;
  import forge.game.Game;
  import forge.game.GameEntity;
@@ -1932,9 +1932,9 @@ index 713e1ef..c8a3618 100644
  import forge.game.card.CounterEnumType;
  import forge.game.card.CounterType;
  import forge.game.combat.Combat;
+-import forge.game.cost.Cost;
+-import forge.game.cost.CostAdjustment;
 +import forge.game.combat.CombatUtil;
- import forge.game.cost.Cost;
- import forge.game.cost.CostAdjustment;
 +import forge.game.keyword.Keyword;
  import forge.game.keyword.KeywordInterface;
  import forge.game.phase.PhaseType;
@@ -1958,7 +1958,7 @@ index 713e1ef..c8a3618 100644
  import java.util.LinkedHashMap;
  import java.util.List;
  import java.util.Map;
-@@ -96,7 +108,52 @@ public final class InteractiveSnapshotExtractor {
+@@ -96,7 +106,52 @@ public final class InteractiveSnapshotExtractor {
  
      }
  
@@ -2011,7 +2011,7 @@ index 713e1ef..c8a3618 100644
  
      public static String snapshotJson(
              final Game game,
-@@ -106,18 +163,80 @@ public final class InteractiveSnapshotExtractor {
+@@ -106,18 +161,80 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
@@ -2094,7 +2094,7 @@ index 713e1ef..c8a3618 100644
      private static Map<String, Object> buildGameView(
              final Game game,
              final SpellAbility castingAbility,
-@@ -126,7 +245,9 @@ public final class InteractiveSnapshotExtractor {
+@@ -126,7 +243,9 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
@@ -2105,7 +2105,7 @@ index 713e1ef..c8a3618 100644
      ) {
          final Map<String, Object> base = SnapshotExtractor.extractSnapshot(game);
  
-@@ -139,12 +260,12 @@ public final class InteractiveSnapshotExtractor {
+@@ -139,12 +258,12 @@ public final class InteractiveSnapshotExtractor {
              players.add(toPlayer(game, player, index, viewer));
              zones.add(zoneWithVisibility("hand", ownerId, game,
                      player.getCardsIn(ZoneType.Hand), index, true, viewerPlayer, false,
@@ -2120,7 +2120,7 @@ index 713e1ef..c8a3618 100644
              final List<Card> commandZone = new ArrayList<>();
              for (final Card card : player.getCardsIn(ZoneType.Command)) {
                  if (!card.isImmutable()) {
-@@ -171,7 +292,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -171,7 +290,7 @@ public final class InteractiveSnapshotExtractor {
          final Map<String, List<JsonObject>> battlefieldByController = new LinkedHashMap<>();
          for (final Player player : game.getRegisteredPlayers()) {
              final int ownerIndex = SnapshotExtractor.playerIndex(game, player);
@@ -2129,7 +2129,7 @@ index 713e1ef..c8a3618 100644
                  final String controllerId =
                          "player-" + SnapshotExtractor.playerIndex(game, card.getController());
                  final CardDto dto = toCard(
-@@ -224,17 +345,44 @@ public final class InteractiveSnapshotExtractor {
+@@ -224,17 +343,44 @@ public final class InteractiveSnapshotExtractor {
          view.put("dayTime", dayTime(game));
          view.put("checkpoints", checkpoints);
          view.put("snapshotRecording", snapshotRecording);
@@ -2174,7 +2174,7 @@ index 713e1ef..c8a3618 100644
          final Player monarch = game.getMonarch();
          if (monarch != null) {
              view.put("monarchId", "player-" + SnapshotExtractor.playerIndex(game, monarch));
-@@ -285,7 +433,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -285,7 +431,7 @@ public final class InteractiveSnapshotExtractor {
          out.put("cardsDrawnThisTurn", player.getNumDrawnThisTurn());
          out.put("damagePrevention", player.getPreventNextDamageTotalShields());
          out.put("isExtraTurn", player.isExtraTurn());
@@ -2183,7 +2183,7 @@ index 713e1ef..c8a3618 100644
          final Player controller = player.getControllingPlayer();
          if (controller != null && controller != player) {
              out.put("controlledBy", "player-" + SnapshotExtractor.playerIndex(game, controller));
-@@ -299,18 +447,34 @@ public final class InteractiveSnapshotExtractor {
+@@ -299,18 +445,34 @@ public final class InteractiveSnapshotExtractor {
          out.put("ringLevel", player.getNumRingTemptedYou());
          out.put("speed", player.getSpeed());
          out.put("hasEnduringStory", player.hasEnduringStory());
@@ -2219,7 +2219,7 @@ index 713e1ef..c8a3618 100644
          return out;
      }
  
-@@ -325,19 +489,6 @@ public final class InteractiveSnapshotExtractor {
+@@ -325,19 +487,6 @@ public final class InteractiveSnapshotExtractor {
          return names;
      }
  
@@ -2239,7 +2239,7 @@ index 713e1ef..c8a3618 100644
      private static List<String> activeSchemeNames(final Player player) {
          final List<String> names = new ArrayList<>();
          for (final Card card : player.getCardsIn(ZoneType.Command)) {
-@@ -348,6 +499,26 @@ public final class InteractiveSnapshotExtractor {
+@@ -348,6 +497,26 @@ public final class InteractiveSnapshotExtractor {
          return names;
      }
  
@@ -2266,7 +2266,7 @@ index 713e1ef..c8a3618 100644
      private static Integer teamNumber(final Game game, final Player player) {
          for (final Player other : game.getRegisteredPlayers()) {
              if (other != player && other.getTeam() == player.getTeam()) {
-@@ -367,7 +538,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -367,7 +536,7 @@ public final class InteractiveSnapshotExtractor {
          return counters;
      }
  
@@ -2275,7 +2275,7 @@ index 713e1ef..c8a3618 100644
          if (value > 0) {
              map.put(key, value);
          }
-@@ -444,13 +615,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -444,13 +613,14 @@ public final class InteractiveSnapshotExtractor {
              final boolean castable,
              final Player viewerPlayer,
              final boolean keepHiddenEntries,
@@ -2292,7 +2292,7 @@ index 713e1ef..c8a3618 100644
                  views.add(visibleCard(toCard(
                          game, card, ownerIndex, castable, viewerPlayer, secretChoiceVisibility)));
              } else if (keepHiddenEntries) {
-@@ -499,6 +671,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -499,6 +669,7 @@ public final class InteractiveSnapshotExtractor {
          dto.effectiveManaCost = null;
          dto.commanderTax = null;
          dto.madnessCost = null;
@@ -2300,7 +2300,7 @@ index 713e1ef..c8a3618 100644
      }
  
      private static Player playerForIndex(final Game game, final int viewer) {
-@@ -685,6 +858,22 @@ public final class InteractiveSnapshotExtractor {
+@@ -685,6 +856,22 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -2323,7 +2323,7 @@ index 713e1ef..c8a3618 100644
      private static CardDto toCard(
              final Game game,
              final Card card,
-@@ -714,6 +903,11 @@ public final class InteractiveSnapshotExtractor {
+@@ -714,6 +901,11 @@ public final class InteractiveSnapshotExtractor {
              dto.toughness = String.valueOf(card.getNetToughness());
              dto.basePower = card.getBasePower();
              dto.baseToughness = card.getBaseToughness();
@@ -2335,7 +2335,7 @@ index 713e1ef..c8a3618 100644
          }
          if (card.isInPlay()) {
              if (card.getType().hasSubtype("Saga") && card.hasChapter()) {
-@@ -746,17 +940,47 @@ public final class InteractiveSnapshotExtractor {
+@@ -746,17 +938,55 @@ public final class InteractiveSnapshotExtractor {
          dto.isFaceDown = card.isFaceDown();
          dto.isBestowed = card.isBestowed();
          dto.phasedOut = card.isPhasedOut();
@@ -2369,6 +2369,14 @@ index 713e1ef..c8a3618 100644
 +        }
 +        final CardCollectionView playableOutsideHand = PLAYABLE_OUTSIDE_HAND.get();
 +        dto.mayPlay = playableOutsideHand != null && playableOutsideHand.contains(card);
++        if (dto.mayPlay && viewerPlayer != null && !card.isInZone(ZoneType.Hand)) {
++            final String[] play = PlayCost.of(card, viewerPlayer);
++            if (play != null) {
++                dto.playCost = play[0];
++                dto.playCostMode = play[1];
++                dto.playCostPrinted = play[2];
++            }
++        }
          dto.foil = card.hasPaperFoil();
  
 +        if (card.isInPlay()) {
@@ -2384,7 +2392,7 @@ index 713e1ef..c8a3618 100644
          }
          final List<String> attachmentIds = new ArrayList<>();
          for (final Card attachment : card.getAttachedCards()) {
-@@ -802,6 +1026,73 @@ public final class InteractiveSnapshotExtractor {
+@@ -802,6 +1032,73 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -2458,7 +2466,28 @@ index 713e1ef..c8a3618 100644
      private static String normalizedOracle(final Card card) {
          return card.getOracleText().replace("\\n", "\n");
      }
-@@ -1078,12 +1369,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -953,13 +1250,16 @@ public final class InteractiveSnapshotExtractor {
+             if (sa.getActivatingPlayer() == null) {
+                 sa.setActivatingPlayer(card.getController());
+             }
+-            final Cost adjusted = CostAdjustment.adjust(sa.getPayCosts().copy(), sa, false);
+-            if (adjusted == null || adjusted.getCostMana() == null) {
++            final String mana = PlayCost.mana(sa, sa.getActivatingPlayer());
++            if (mana == null) {
+                 return null;
+             }
+-            final String effective = adjusted.getCostMana().getMana().toString();
++            final String effective = mana;
+             final String printed = card.getManaCost() == null ? "" : card.getManaCost().toString();
+-            return effective.isEmpty() || effective.equals(printed) ? null : effective;
++            if (effective.equals(printed)) {
++                return null;
++            }
++            return effective.isEmpty() || effective.equals("no cost") ? (printed.isEmpty() || printed.equals("no cost") ? null : "{0}") : effective;
+         } catch (final RuntimeException error) {
+             return null;
+         } finally {
+@@ -1078,12 +1378,14 @@ public final class InteractiveSnapshotExtractor {
              stackItem.put("identity", stackIdentity(name, source));
              stackItem.put("text", item.getStackDescription());
              putIfNotBlank(stackItem, "sourceAbilityText", sourceAbilityText(sa));
@@ -2473,7 +2502,7 @@ index 713e1ef..c8a3618 100644
              out.add(stackItem);
              index++;
          }
-@@ -1131,6 +1424,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -1131,6 +1433,7 @@ public final class InteractiveSnapshotExtractor {
          stackItem.put("isDoubleFaced", source.isDoubleFaced() || source.isModal());
          stackItem.put("faceIndex", stackFaceIndex(source, castingAbility));
          stackItem.put("targets", stackTargets(game, castingAbility));
@@ -2481,7 +2510,7 @@ index 713e1ef..c8a3618 100644
          return stackItem;
      }
  
-@@ -1163,6 +1457,25 @@ public final class InteractiveSnapshotExtractor {
+@@ -1163,6 +1466,25 @@ public final class InteractiveSnapshotExtractor {
          }
      }
  
@@ -5610,6 +5639,135 @@ index 0000000..89c4600
 +            }
 +        }
 +        return null;
++    }
++}
+diff --git a/forge-harness/src/main/java/forge/harness/host/PlayCost.java b/forge-harness/src/main/java/forge/harness/host/PlayCost.java
+new file mode 100644
+index 0000000..7bad860
+--- /dev/null
++++ b/forge-harness/src/main/java/forge/harness/host/PlayCost.java
+@@ -0,0 +1,123 @@
++package forge.harness.host;
++
++import forge.game.GameActionUtil;
++import forge.card.mana.ManaCost;
++import forge.game.card.Card;
++import forge.card.CardStateName;
++import forge.game.card.CardCollection;
++import forge.game.card.CardPlayOption;
++import forge.game.card.CardState;
++import forge.game.cost.Cost;
++import forge.game.cost.CostAdjustment;
++import forge.game.keyword.Keyword;
++import forge.game.mana.ManaCostBeingPaid;
++import forge.game.player.Player;
++import forge.game.spellability.AlternativeCost;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Locale;
++
++final class PlayCost {
++    private PlayCost() {}
++
++    static String[] of(final Card card, final Player viewer) {
++        try {
++            if (card.isLand() || card.getZone() == null) {
++                return null;
++            }
++            final List<CardPlayOption> mayPlay = card.mayPlay(viewer);
++            for (final CardPlayOption option : mayPlay) {
++                if (option.getPayManaCost() == CardPlayOption.PayManaCost.NO) {
++                    return new String[] {"{0}", "free", null};
++                }
++                if (option.getAltManaCost() != null && option.getAltManaCost().getCostMana() != null) {
++                    final String alt = option.getAltManaCost().getCostMana().getMana().toString();
++                    return new String[] {alt.isEmpty() || alt.equals("no cost") ? "{0}" : alt, "may play", null};
++                }
++            }
++            SpellAbility plain = null;
++            SpellAbility other = null;
++            String otherMode = null;
++            final List<SpellAbility> spells = new ArrayList<>();
++            final boolean hidden = card.isFaceDown() && card.isInZone(ZoneType.Exile);
++            final CardState face = hidden ? card.getState(CardStateName.Original) : card.getCurrentState();
++            final String printed = hidden && face.getManaCost() != null ? face.getManaCost().toString() : null;
++            for (final SpellAbility base : face.getSpellAbilities()) {
++                spells.add(base);
++                spells.addAll(GameActionUtil.getAlternativeCosts(base, viewer, false));
++            }
++            for (final SpellAbility sa : spells) {
++                if (!sa.isSpell() || sa.isCastFaceDown() || sa.getPayCosts() == null) {
++                    continue;
++                }
++                final AlternativeCost alt = sa.getAlternativeCost();
++                if (alt == null) {
++                    if (plain == null) {
++                        plain = sa;
++                    }
++                } else if (other == null && fromHere(card, sa)) {
++                    other = sa;
++                    otherMode = alt.name().toLowerCase(Locale.ROOT);
++                }
++            }
++            final boolean byPermission = !mayPlay.isEmpty() && plain != null;
++            final SpellAbility pick = byPermission ? plain : other;
++            final String mode = byPermission ? "may play" : otherMode;
++            if (pick == null) {
++                return null;
++            }
++            return new String[] {cost(pick, viewer), mode, printed};
++        } catch (final RuntimeException error) {
++            return null;
++        }
++    }
++
++    private static boolean fromHere(final Card card, final SpellAbility sa) {
++        final ZoneType zone = sa.getRestrictions() == null ? null : sa.getRestrictions().getZone();
++        return zone != null && card.isInZone(zone);
++    }
++
++    private static String cost(final SpellAbility sa, final Player viewer) {
++        final String mana = mana(sa, viewer);
++        return mana == null || mana.isEmpty() || mana.equals("no cost") ? "{0}" : mana;
++    }
++
++    static String mana(final SpellAbility sa, final Player viewer) {
++        final Player previous = sa.getActivatingPlayer();
++        try {
++            sa.setActivatingPlayer(viewer);
++            final Cost adjusted = CostAdjustment.adjust(sa.getPayCosts().copy(), sa, false);
++            if (adjusted == null) {
++                return null;
++            }
++            final ManaCost raised = adjusted.getCostMana() == null ? ManaCost.ZERO : adjusted.getCostMana().getMana();
++            if (choosesToReduce(sa)) {
++                return raised.toString();
++            }
++            final ManaCostBeingPaid paying = new ManaCostBeingPaid(raised);
++            if (!CostAdjustment.adjust(paying, sa, viewer, new CardCollection(), true, false)) {
++                return raised.toString();
++            }
++            return paying.toManaCost().toString();
++        } finally {
++            sa.setActivatingPlayer(previous);
++        }
++    }
++
++    private static boolean choosesToReduce(final SpellAbility sa) {
++        final Card host = sa.getHostCard();
++        if (host == null) {
++            return true;
++        }
++        for (final Keyword keyword : new Keyword[] {Keyword.ASSIST, Keyword.DELVE, Keyword.CONVOKE, Keyword.IMPROVISE}) {
++            if (host.hasKeyword(keyword)) {
++                return true;
++            }
++        }
++        final Integer waterbend = sa.getMaxWaterbend();
++        return sa.hasParam("TapCreaturesForMana") || (waterbend != null && waterbend > 0) || sa.isOffering() || sa.isEmerge();
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/PriorityFastForward.java b/forge-harness/src/main/java/forge/harness/host/PriorityFastForward.java
@@ -10229,6 +10387,286 @@ index 0000000..ff5e353
 +        p.getZone(zone).add(card);
 +        card.setSickness(false);
 +        return card;
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/CostBadgeTest.java b/forge-harness/src/test/java/forge/harness/host/CostBadgeTest.java
+new file mode 100644
+index 0000000..cb2e9e8
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/CostBadgeTest.java
+@@ -0,0 +1,274 @@
++package forge.harness.host;
++
++import com.google.gson.JsonElement;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.StaticData;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++
++public final class CostBadgeTest {
++    private CostBadgeTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        CHECKS.put("flashback: the flashback cost from the graveyard", CostBadgeTest::flashbackCost);
++        CHECKS.put("flashback: Thalia's tax on it", CostBadgeTest::flashbackTaxed);
++        CHECKS.put("escape: the escape cost", CostBadgeTest::escapeCost);
++        CHECKS.put("foretell: the foretell cost from exile", CostBadgeTest::foretellCost);
++        CHECKS.put("plot: a plotted card is free", CostBadgeTest::plottedFree);
++        CHECKS.put("may play: a permission to cast from the graveyard, the card's own cost", CostBadgeTest::mayPlayOwnCost);
++        CHECKS.put("none: a graveyard card with no way to cast it", CostBadgeTest::noWay);
++        CHECKS.put("none: another player's view of my graveyard", CostBadgeTest::notTheOwnersView);
++        CHECKS.put("zero: a hand cost reduced to nothing reads {0}", CostBadgeTest::zeroCost);
++        CHECKS.put("hand: a hand card carries no play cost", CostBadgeTest::handHasNone);
++        CHECKS.put("reduced: Goblin Electromancer on a flashback cost", CostBadgeTest::flashbackReduced);
++        CHECKS.put("reduced: Goblin Electromancer on a hand cost", CostBadgeTest::handReduced);
++        CHECKS.put("delve: a delve card in hand is left at its raised cost, with no question asked", CostBadgeTest::delveAsksNothing);
++        CHECKS.put("assist: an assist card in hand is priced with no question asked", CostBadgeTest::assistAsksNothing);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            check(e.getKey(), e.getValue());
++        }
++        System.out.println(failed == 0 ? "PASS CostBadgeTest" : "FAIL CostBadgeTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void expect(final boolean ok, final String why) {
++        if (!ok) {
++            throw new AssertionError(why);
++        }
++    }
++
++    private static String field(final JsonObject card, final String name) {
++        return card != null && card.has(name) && !card.get(name).isJsonNull() ? card.get(name).getAsString() : null;
++    }
++
++    private static void flashbackCost() {
++        final Fixture f = new Fixture();
++        final Card looting = f.add("Faithless Looting", f.white, ZoneType.Graveyard);
++        final JsonObject c = f.seen(looting, 0);
++        expect("{2}{R}".equals(field(c, "playCost")) && "flashback".equals(field(c, "playCostMode")), "Faithless Looting in the graveyard: " + c);
++    }
++
++    private static void flashbackTaxed() {
++        final Fixture f = new Fixture();
++        f.add("Thalia, Guardian of Thraben", f.blue, ZoneType.Battlefield);
++        f.settle();
++        final Card looting = f.add("Faithless Looting", f.white, ZoneType.Graveyard);
++        final JsonObject c = f.seen(looting, 0);
++        expect("{3}{R}".equals(field(c, "playCost")), "Faithless Looting under Thalia: " + c);
++    }
++
++    private static void escapeCost() {
++        final Fixture f = new Fixture();
++        final Card ox = f.add("Ox of Agonas", f.white, ZoneType.Graveyard);
++        final JsonObject c = f.seen(ox, 0);
++        expect("{R}{R}".equals(field(c, "playCost")) && "escape".equals(field(c, "playCostMode")), "Ox of Agonas in the graveyard: " + c);
++    }
++
++    private static void foretellCost() {
++        final Fixture f = new Fixture();
++        final Card saw = f.add("Saw It Coming", f.white, ZoneType.Exile);
++        saw.setForetold(true);
++        saw.turnFaceDown(true);
++        saw.addMayLookFaceDownExile(f.white);
++        saw.setTurnInZone(1);
++        final JsonObject c = f.seen(saw, 0);
++        expect("{1}{U}".equals(field(c, "playCost")) && "foretold".equals(field(c, "playCostMode")) && "{1}{U}{U}".equals(field(c, "playCostPrinted")), "Saw It Coming foretold: " + c);
++    }
++
++    private static void plottedFree() {
++        final Fixture f = new Fixture();
++        final Card show = f.add("Slickshot Show-Off", f.white, ZoneType.Exile);
++        show.setPlotted(true);
++        show.setTurnInZone(1);
++        final JsonObject c = f.seen(show, 0);
++        expect("{0}".equals(field(c, "playCost")) && "plotted".equals(field(c, "playCostMode")), "Slickshot Show-Off plotted: " + c);
++    }
++
++    private static void mayPlayOwnCost() {
++        final Fixture f = new Fixture();
++        f.add("Kess, Dissident Mage", f.white, ZoneType.Battlefield);
++        f.settle();
++        final Card bolt = f.add("Lightning Bolt", f.white, ZoneType.Graveyard);
++        final JsonObject c = f.seen(bolt, 0);
++        expect("{R}".equals(field(c, "playCost")) && "may play".equals(field(c, "playCostMode")), "Lightning Bolt in the graveyard beside Kess: " + c);
++    }
++
++    private static void noWay() {
++        final Fixture f = new Fixture();
++        final Card bolt = f.add("Lightning Bolt", f.white, ZoneType.Graveyard);
++        final JsonObject c = f.seen(bolt, 0);
++        expect(field(c, "playCost") == null && field(c, "playCostMode") == null, "a plain Lightning Bolt in the graveyard: " + c);
++    }
++
++    private static void notTheOwnersView() {
++        final Fixture f = new Fixture();
++        final Card looting = f.add("Faithless Looting", f.white, ZoneType.Graveyard);
++        final JsonObject c = f.seen(looting, 1);
++        expect(field(c, "playCost") == null, "Blue's view of White's Faithless Looting: " + c);
++    }
++
++    private static void zeroCost() {
++        final Fixture f = new Fixture();
++        f.add("Helm of Awakening", f.blue, ZoneType.Battlefield);
++        f.settle();
++        final Card ring = f.add("Sol Ring", f.white, ZoneType.Hand);
++        final JsonObject c = f.seen(ring, 0);
++        expect("{0}".equals(field(c, "effectiveManaCost")), "Sol Ring under Helm of Awakening: " + c);
++    }
++
++    private static void flashbackReduced() {
++        final Fixture f = new Fixture();
++        f.add("Goblin Electromancer", f.white, ZoneType.Battlefield);
++        f.settle();
++        final Card looting = f.add("Faithless Looting", f.white, ZoneType.Graveyard);
++        final JsonObject c = f.seen(looting, 0);
++        expect("{1}{R}".equals(field(c, "playCost")) && field(c, "playCostPrinted") == null, "Faithless Looting beside Goblin Electromancer: " + c);
++    }
++
++    private static void handReduced() {
++        final Fixture f = new Fixture();
++        f.add("Goblin Electromancer", f.white, ZoneType.Battlefield);
++        f.settle();
++        final Card div = f.add("Divination", f.white, ZoneType.Hand);
++        final JsonObject c = f.seen(div, 0);
++        expect("{1}{U}".equals(field(c, "effectiveManaCost")), "Divination beside Goblin Electromancer: " + c);
++    }
++
++    private static void delveAsksNothing() throws Exception {
++        final Fixture f = new Fixture();
++        for (int i = 0; i < 4; i++) {
++            f.add("Lightning Bolt", f.white, ZoneType.Graveyard);
++        }
++        final Card cruise = f.add("Treasure Cruise", f.white, ZoneType.Hand);
++        final JsonObject c = f.seenWithin(cruise, 0, 60);
++        expect(field(c, "effectiveManaCost") == null, "Treasure Cruise in hand: " + c);
++    }
++
++    private static void assistAsksNothing() throws Exception {
++        final Fixture f = new Fixture();
++        final Card huddle = f.add("Huddle Up", f.white, ZoneType.Hand);
++        final JsonObject c = f.seenWithin(huddle, 0, 60);
++        expect(field(c, "effectiveManaCost") == null, "Huddle Up in hand: " + c);
++    }
++
++    private static void handHasNone() {
++        final Fixture f = new Fixture();
++        final Card looting = f.add("Faithless Looting", f.white, ZoneType.Hand);
++        final JsonObject c = f.seen(looting, 0);
++        expect(field(c, "playCost") == null, "Faithless Looting in the hand: " + c);
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("cost-badge-test");
++        final Game game;
++        final Player white;
++        final Player blue;
++
++        Fixture() {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final Deck deck = new Deck();
++            players.add(new RegisteredPlayer(deck).setPlayer(new ManaBrewInteractiveLobbyPlayer("White", session)));
++            players.add(new RegisteredPlayer(deck).setPlayer(new ManaBrewInteractiveLobbyPlayer("Blue", session)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            game = new Game(players, rules, new Match(rules, players, "CostBadgeTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0), 3);
++            game.getPhaseHandler().onStackResolved();
++            white = game.getPlayers().get(0);
++            blue = game.getPlayers().get(1);
++            session.attach(game.getMatch(), game, Set.of(), false);
++        }
++
++        Card add(final String name, final Player p, final ZoneType zone) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            if (paper == null) {
++                throw new AssertionError("no card named " + name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            p.getZone(zone).add(card);
++            return card;
++        }
++
++        void settle() {
++            game.getAction().checkStaticAbilities();
++        }
++
++        JsonObject seenWithin(final Card card, final int viewer, final int seconds) throws Exception {
++            final java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
++                final Thread t = new Thread(r);
++                t.setDaemon(true);
++                return t;
++            });
++            try {
++                return pool.submit(() -> seen(card, viewer)).get(seconds, java.util.concurrent.TimeUnit.SECONDS);
++            } finally {
++                pool.shutdownNow();
++            }
++        }
++
++        JsonObject seen(final Card card, final int viewer) {
++            settle();
++            final JsonObject view = JsonParser.parseString(session.getSnapshotJson(viewer)).getAsJsonObject();
++            final String id = SnapshotExtractor.javaCardId(card);
++            for (final JsonElement z : view.getAsJsonArray("zones")) {
++                for (final JsonElement c : z.getAsJsonObject().getAsJsonArray("cards")) {
++                    final JsonObject o = c.getAsJsonObject();
++                    if (o.has("id") && id.equals(o.get("id").getAsString())) {
++                        return o;
++                    }
++                }
++            }
++            throw new AssertionError("not in the snapshot: " + card);
++        }
 +    }
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/DrawCountRewindTest.java b/forge-harness/src/test/java/forge/harness/host/DrawCountRewindTest.java
@@ -21232,7 +21670,7 @@ index 76fdc4f..0da1266 100644
      }
  
 diff --git a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
-index 0f579af..d8ebac8 100644
+index 0f579af..5e28c50 100644
 --- a/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
 +++ b/manabrew-rs/crates/manabrew-protocol/src/game/mod.rs
 @@ -149,12 +149,194 @@ pub struct GameViewDto {
@@ -21526,7 +21964,23 @@ index 0f579af..d8ebac8 100644
      pub counters: BTreeMap<PlayerCounterKind, u32>,
      pub mana_pool: BTreeMap<ManaColor, u32>,
      #[ts(type = "Record<string, number>")]
-@@ -397,6 +657,61 @@ pub struct CardDto {
+@@ -380,6 +640,15 @@ pub struct CardDto {
+     pub effective_mana_cost: Option<String>,
+     #[serde(default, skip_serializing_if = "Option::is_none")]
+     #[ts(optional)]
++    pub play_cost: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub play_cost_mode: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
++    pub play_cost_printed: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    #[ts(optional)]
+     pub commander_tax: Option<i32>,
+     #[serde(skip_serializing_if = "Option::is_none")]
+     #[ts(optional)]
+@@ -397,6 +666,61 @@ pub struct CardDto {
      #[serde(default, skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub zone: Option<ZoneKind>,
@@ -21588,7 +22042,7 @@ index 0f579af..d8ebac8 100644
  }
  
  #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-@@ -412,11 +727,47 @@ pub struct StackObjectDto {
+@@ -412,11 +736,47 @@ pub struct StackObjectDto {
      #[serde(skip_serializing_if = "Option::is_none")]
      #[ts(optional)]
      pub source_ability_text: Option<String>,
@@ -21636,7 +22090,7 @@ index 0f579af..d8ebac8 100644
  }
  
  #[cfg(test)]
-@@ -433,11 +784,13 @@ mod stack_object_tests {
+@@ -433,11 +793,13 @@ mod stack_object_tests {
              identity: CardIdentity::default(),
              text: String::new(),
              source_ability_text: Some("When this enters, draw a card.".into()),
