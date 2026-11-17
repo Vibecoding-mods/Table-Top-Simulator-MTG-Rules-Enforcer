@@ -4476,13 +4476,6 @@ local function rewindXml(c)
     .. '<Button id="eng_voteno_' .. c .. '" onClick="onMtgVote" color="#8e2a2a" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Keep playing</Button>'
     .. '<Button id="eng_votego_' .. c .. '" onClick="onMtgVote" color="#2e7d32" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Rewind</Button>'
     .. '</HorizontalLayout></Panel>\n'
-    -- (the tie offer's pop-up, in the vote's style, under it: engineTieUpdate)
-    .. '<Panel id="eng_tie_' .. c .. '" visibility="' .. c .. '" width="600" height="146" rectAlignment="UpperCenter" offsetXY="0 -272" color="#161616F0" active="false">'
-    .. '<Text id="eng_tietext_' .. c .. '" width="580" height="84" rectAlignment="UpperCenter" offsetXY="0 -6" fontSize="17" color="#FFFFFF" alignment="MiddleCenter"> </Text>'
-    .. '<HorizontalLayout width="440" height="40" rectAlignment="LowerCenter" offsetXY="0 10" spacing="16" childForceExpandWidth="true">'
-    .. '<Button id="eng_tieyes_' .. c .. '" onClick="onMtgTie" color="#2e7d32" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Tie</Button>'
-    .. '<Button id="eng_tieno_' .. c .. '" onClick="onMtgTie" color="#8e2a2a" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Keep playing</Button>'
-    .. '</HorizontalLayout></Panel>\n'
 end
 
 -- Scoop (concede): a screen button beside the player's name at the top, only for that player and only in a game;
@@ -5647,7 +5640,7 @@ function engineRenderPanels(promptColor)
   local seated = {}
   for _, c in ipairs(getSeatedPlayers()) do if data[c] then seated[#seated + 1] = c end end
   -- (engine mode in the key: its UI leaves out two of the table's panels, engineTablePanels)
-  local key = table.concat(seated, ",") .. (ENGINE_MODE and "|engine" or "")
+  local key = table.concat(seated, ",") .. (ENGINE_MODE and "|engine" or "") .. (ENGINE_TIE_UI and "|tie" or "")
   if key ~= builtFor then
     builtFor, panelReady, uiCache = key, false, {}
     if engineAbPanelFor ~= nil then engineAbPanelFor = {} end -- (rebuilt hidden: pointing at the card shows it again)
@@ -5658,6 +5651,7 @@ function engineRenderPanels(promptColor)
     for _, c in ipairs(seated) do parts[#parts + 1] = panelXml(c) parts[#parts + 1] = cornerXml(c) end
     parts[#parts + 1] = POPUP_XML
     parts[#parts + 1] = engineAutoListXml()
+    if ENGINE_TIE_UI then parts[#parts + 1] = engineTieXml() end -- (built while an offer is open: 400 bytes)
     -- (the line breaks between our elements out: a lone space inside an element is its text and stays)
     local raw = table.concat(parts, "\n"):gsub(">%s*\n%s*<", "><")
     engineBtnLook = {}
@@ -6319,21 +6313,37 @@ end
 -- ── a tie offer (the bridge's tieNews; the engine's gameView.tieOffer) ──
 -- A player who can't lose: the pop-up under the rewind vote's asks the players still to answer (Tie / Keep playing);
 -- after a no it stays up with the rounds without progress, until the lock is broken or the game is a forced tie.
+-- (ONE pop-up for the table, like the auto-resolve list, and only in the XML while an offer is open (engineTieDraw sets
+-- ENGINE_TIE_UI, engineRenderPanels rebuilds): a copy per seat took 290 bytes a seat of the 60 KB limit, 2026-11-17. Its buttons' "visibility" is the colours still to answer, the way the auto list's is who has it open.)
+function engineTieXml()
+  return '<Panel id="eng_tie" width="600" height="146" rectAlignment="UpperCenter" offsetXY="0 -272" color="#161616F0" active="false">'
+    .. '<Text id="eng_tietext" width="580" height="84" rectAlignment="UpperCenter" offsetXY="0 -6" fontSize="18" color="#FFFFFF" alignment="MiddleCenter"> </Text>'
+    .. '<HorizontalLayout width="440" height="40" rectAlignment="LowerCenter" offsetXY="0 10" spacing="16" childForceExpandWidth="true">'
+    .. '<Button id="eng_tieyes" onClick="onMtgTie" color="#2e7d32" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Tie</Button>'
+    .. '<Button id="eng_tieno" onClick="onMtgTie" color="#8e2a2a" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Keep playing</Button>'
+    .. '</HorizontalLayout></Panel>\n'
+end
 function engineTieUpdate(t, gameOver)
   local sig = gameOver and "over" or t == nil and "" or (tostring(t.id) .. "|" .. tostring(t.status) .. "|" .. tostring(t.rounds) .. "|" .. table.concat(t.waiting or {}, ","))
   if sig == ENGINE_TIE_SIG then return end
   ENGINE_TIE_SIG = sig
-  for c in pairs(engineColors) do
-    if Player[c] ~= nil and Player[c].seated then engineTieDraw(c, t, gameOver) end
-  end
+  engineTieDraw(t, gameOver)
 end
-function engineTieDraw(c, t, gameOver)
+function engineTieDraw(t, gameOver)
   local open = t ~= nil and not gameOver and (t.status == "pending" or t.status == "declined")
-  setAttr("eng_tie_" .. c, "active", open and "true" or "false")
-  local ask = open and t.status == "pending" and engineTieWaits(t, c)
-  setAttr("eng_tieyes_" .. c, "active", ask and "true" or "false")
-  setAttr("eng_tieno_" .. c, "active", ask and "true" or "false")
-  if open then setText("eng_tietext_" .. c, engineTieWords(t, ask)) end
+  ENGINE_TIE_UI = open
+  local v = {}
+  for c in pairs(engineColors) do
+    if open and t.status == "pending" and Player[c] ~= nil and Player[c].seated and engineTieWaits(t, c) then v[#v + 1] = c end
+  end
+  table.sort(v)
+  ENGINE_TIE_ASKED = "|" .. table.concat(v, "|") .. "|"
+  setAttr("eng_tie", "active", open and "true" or "false")
+  -- (an empty visibility would show the buttons to everyone)
+  if #v > 0 then setAttr("eng_tieyes", "visibility", table.concat(v, "|")) setAttr("eng_tieno", "visibility", table.concat(v, "|")) end
+  setAttr("eng_tieyes", "active", #v > 0 and "true" or "false")
+  setAttr("eng_tieno", "active", #v > 0 and "true" or "false")
+  if open then setText("eng_tietext", engineTieWords(t, false)) end
 end
 -- whether the colour is still to answer the offer
 function engineTieWaits(t, c)
@@ -6364,8 +6374,9 @@ function engineSteamIds(colors)
 end
 function onMtgTie(player, value, id)
   local c = player.color
-  if id == "eng_tieyes_" .. c then engineSend("tieVote", { color = c, accept = true, steam = engineSteamOf(c) })
-  elseif id == "eng_tieno_" .. c then engineSend("tieVote", { color = c, accept = false, steam = engineSteamOf(c) }) end
+  if (ENGINE_TIE_ASKED or ""):find("|" .. c .. "|", 1, true) == nil then return end
+  if id == "eng_tieyes" then engineSend("tieVote", { color = c, accept = true, steam = engineSteamOf(c) })
+  elseif id == "eng_tieno" then engineSend("tieVote", { color = c, accept = false, steam = engineSteamOf(c) }) end
 end
 function onMtgVote(player, value, id)
   local c = player.color
