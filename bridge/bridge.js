@@ -224,6 +224,8 @@ let tableStamp; // the version the table last said: undefined until it said one,
 // the table's hello said it reuses the last board's restore points when a board says keepRewind (see sendTable); an
 // older table, or one not heard from since the bridge started, gets them in every board
 let tableKeepsRewind = false;
+// Whether the table lays out token runs (tokenRuns, its hello's tokenRuns): only then does a board send them
+let tableTokenRuns = false;
 const TABLE_ROW_PICTURES = 7; // the pictures the table's card row holds (ROW_MAX in tools/engine-renderer.lua)
 const alignment = { checks: 0, problems: 0, slowestMs: 0, guesses: {} }; // (since this bridge started)
 
@@ -828,12 +830,74 @@ function onArt(m) {
     : "[MTG] Custom card art on: cards wear the pictures their players linked in the deck list (1 Sol Ring #https://...). (mtg art off, host)");
   if (game?.started) { saveResume(); scheduleTable(); }
 }
+// ── a player's own pictures beyond the deck list (docs/custom-art-spec.md, after the plain-cards slice) ──
+// "mtg art token <token name> <link>": the player's tokens of that name, made by the game, wear it (a token copy of a
+// deck card already wears the deck's picture). "mtg art back <card> <link>": a two-faced card's back, on every copy the
+// player owns, and its face once transformed: the Card Importer keeps no back for a card whose front has a link, so this
+// gives it in the meantime. Each link passes artProblem; "clear" takes a player's away; the host's "mtg art off" puts
+// them all away. Kept by seat colour while the bridge runs.
+const playerArt = {}; // colour -> { tokens: { normName: link }, backs: { normName(engine name): link }, names: { normName: as said } }
+// a picture as the image lookups give one (tokenImage, imagesFor)
+const pictureEntry = (link) => ({ face: link, back: null });
+function playerArtOf(color) {
+  if (!color || customArt.off) return null;
+  const a = playerArt[color];
+  return a && (Object.keys(a.tokens).length || Object.keys(a.backs).length) ? a : null;
+}
+// a transformed card under its back face's name, with a player's back for its front (Scryfall's faces say which)
+function flippedArt(name, mine, owner) {
+  for (const [front, link] of Object.entries(mine.backs)) {
+    const faces = imageCache[front]?.faces || [];
+    if (front === normName(name) || !faces.some((f) => normName(f) === normName(name))) continue;
+    const frontName = mine.names[front] || front;
+    return { face: link, back: null, face2: imagesFor(frontName, owner)?.face || cachedImage(frontName)?.face || null };
+  }
+  return null;
+}
+function onArtSet(m) {
+  const color = m.color;
+  const words = String(m.text || "").trim().split(/\s+/).filter(Boolean);
+  const kind = (words.shift() || "").toLowerCase();
+  const a = (playerArt[color] ??= { tokens: {}, backs: {}, names: {} });
+  const resend = () => { if (game?.started) scheduleTable(); };
+  if (kind !== "token" && kind !== "back") return chat("[MTG] Use:  mtg art token <token name> <link>  (your tokens of that name),  mtg art back <card> <link>  (your two-faced card's back),  mtg art token clear  or  mtg art back clear", color);
+  const list = kind === "token" ? a.tokens : a.backs;
+  if (!words.length) return chat(Object.keys(list).length ? `[MTG] Your ${kind === "token" ? "token pictures" : "back pictures"}: ${Object.keys(list).map((k) => a.names[k] || k).join(", ")}.` : `[MTG] You have no ${kind === "token" ? "token pictures" : "back pictures"} set.`, color);
+  if (words.length === 1 && words[0].toLowerCase() === "clear") {
+    for (const k of Object.keys(list)) delete list[k];
+    resend();
+    return chat(`[MTG] ${color}: your ${kind === "token" ? "token pictures" : "back pictures"} are cleared.`, color);
+  }
+  const link = words.pop();
+  // (a name is echoed to the table and kept: no chat colour tags, 60 characters, 40 of a kind per player)
+  const said = words.join(" ").replace(/[\[\]]/g, "").slice(0, 60).trim();
+  if (!said) return chat(`[MTG] Name the ${kind === "token" ? "token" : "card"} before the link.`, color);
+  if (!list[normName(said)] && Object.keys(list).length >= 40) return chat(`[MTG] That is 40 pictures already: clear some first (mtg art ${kind} clear).`, color);
+  const why = artProblem(link);
+  if (why) return chat(`[MTG] That picture link can't be used: ${why}.`, color);
+  if (kind === "token") {
+    list[normName(said)] = link;
+    a.names[normName(said)] = said;
+    resend();
+    return chat(`[MTG] ${color}: your picture for your ${said} tokens.`);
+  }
+  const engine = forgeIndex()[normName(said)];
+  if (!engine) return chat(`[MTG] The engine doesn't know a card named "${said.slice(0, 60)}".`, color);
+  list[normName(engine)] = link;
+  a.names[normName(engine)] = engine;
+  cachedImage(engine); // (its faces' names, for its transformed side: flippedArt)
+  resend();
+  return chat(`[MTG] ${color}: your back picture for ${engine} (on every copy you own).`);
+}
 // The "mtg ready" lines about a deck's own pictures: which cards wear the player's, which links were not used, and a
 // name given two links. `art`: engine name → { links (usable, in deck order), bad (the first reason one was not) }
 function artNotes(art, copies) {
   const lines = [];
   for (const [name, a] of Object.entries(art)) {
     if (a.bad) lines.push(`${name}: the picture link was not used (${a.bad})${a.links.length ? "" : "; it shows its normal picture"}`);
+    // (a two-faced card's back, the importer's second state: docs/custom-art-spec.md "DFC")
+    if (a.back) lines.push(`${name}: your back picture${a.backName ? ` (${a.backName})` : ""}`);
+    if (a.badBack) lines.push(`${name}: the back picture link was not used (${a.badBack}); its back shows its normal picture`);
     if (!a.links.length) continue;
     if (BASICS.has(normName(name))) lines.push(`${name}: your ${a.links.length === 1 ? "picture" : `${a.links.length} pictures`} among its ${copies(name)} copies`);
     else {
@@ -843,6 +907,33 @@ function artNotes(art, copies) {
   }
   const MAX = 12;
   return lines.length > MAX ? [...lines.slice(0, MAX), `and ${lines.length - MAX} more`] : lines;
+}
+
+// A deck card's other face, the importer's second state ("mtg ready" sends its name n2 and picture f2): null for a card
+// with none. on: the fields its front's picture entry carries (face2, and custom2 for a player's); name: the back face's
+// engine name, under which the transformed card finds it (addOtherFace). A player's link that fails the checks is left
+// out (the back shows its normal picture) and said in the deck's art lines.
+function otherFace(c, name, art) {
+  const f2 = c.f2 || null;
+  if (!f2 || f2 === DEFAULT_BACK) return null;
+  // (Forge's index may give the whole card's name for a face's: the back face keeps its own then)
+  const indexed = c.n2 ? forgeIndex()[normName(c.n2)] : null;
+  const backName = indexed && normName(indexed) !== normName(name) ? indexed : c.n2 ? String(c.n2) : null;
+  if (!isCustomArt(f2)) return { on: { face2: f2 }, face: f2, custom: false, name: backName };
+  const a = (art[name] ??= { links: [], bad: null });
+  const why = artProblem(f2);
+  if (why) { a.badBack ??= why; return null; }
+  a.back = f2;
+  a.backName = backName;
+  return { on: { face2: f2, custom2: true }, face: f2, custom: true, name: backName };
+}
+// the transformed card's picture entry under its back face's name: that face, with the front as its other face
+function addOtherFace(images, other, front) {
+  if (!other?.name || !front) return;
+  const list = (images[other.name] ??= []);
+  if (list.some((i) => i.face === other.face)) return;
+  const e = { face: other.face, back: null, face2: front.face, ...(other.custom ? { custom: true, every: true } : {}), ...(front.custom ? { custom2: true } : {}) };
+  if (other.custom) list.unshift(e); else list.push(e);
 }
 
 function checkDeck(color, entry, mode = gameMode.mode) {
@@ -867,17 +958,18 @@ function checkDeck(color, entry, mode = gameMode.mode) {
     if (!name) { unknown.push(c.n || "(unnamed card)"); return null; }
     const list = (images[name] ??= []);
     const face = c.f || null;
+    const other = otherFace(c, name, art);
     if (isCustomArt(face)) {
       const a = (art[name] ??= { links: [], bad: null });
       const why = artProblem(face);
-      if (why) { a.bad ??= why; return name; } // (left out: the card shows its normal picture)
+      if (why) { a.bad ??= why; addOtherFace(images, other, null); return name; } // (left out: the card shows its normal picture)
       if (!a.links.includes(face)) a.links.push(face);
       const basic = BASICS.has(normName(name));
-      if (basic && !list.some((i) => i.face === face)) list.push({ face, back: c.b || null, custom: true });
-      else if (!basic && a.links.length === 1) list.unshift({ face, back: c.b || null, custom: true, every: true });
+      if (basic && !list.some((i) => i.face === face)) list.push({ face, back: c.b || null, custom: true, ...other?.on });
+      else if (!basic && a.links.length === 1) { list.unshift({ face, back: c.b || null, custom: true, every: true, ...other?.on }); addOtherFace(images, other, { face, custom: true }); }
       return name;
     }
-    if (!list.some((i) => i.face === face)) list.push({ face, back: c.b || null });
+    if (!list.some((i) => i.face === face)) { list.push({ face, back: c.b || null, ...other?.on }); addOtherFace(images, other, { face, custom: false }); }
     return name;
   };
   for (const c of asList(entry.commander)) { const n = resolve(c); if (n) commanders.push(n); }
@@ -1016,8 +1108,10 @@ const HARMLESS_DECK = "ai_passive_lands"; // ("mtg ai Red harmless" with no deck
 // under a "Commander" line (Arena, Moxfield) or marked *CMDR*. Other heading lines ("Deck", "Mainboard") start the
 // deck again; a "Sideboard", "Maybeboard" or "Companion" part isn't played. "//" and "#" lines are comments.
 // withSide: the "Sideboard" part's cards come back too, as sideboard (a Standard deck's, aiSeatDeck)
-function parseDeckList(text, withSide = false) {
+function parseDeckList(text, withSide = false, art = {}) {
   const cards = [], commanders = [], sideboard = [];
+  // (art: filled with a line's picture links, "1 Lightning Bolt #https://..." and a second one for a two-faced card's
+  // back, the first line's for a name, as the Card Importer's rule for copies: deckListArt; aiDeckImages checks them)
   let part = "deck";
   for (const raw of String(text || "").split(/\r?\n/)) {
     let line = raw.trim();
@@ -1029,11 +1123,43 @@ function parseDeckList(text, withSide = false) {
     line = line.replace(/\*CMDR\*/i, () => { marked = true; return " "; }).trim();
     const m = /^(\d{1,3})\s*x?\s+(.+)$/i.exec(line);
     // (the printing and the tags after the name: "(CMM) 410", "*F*", "[Ramp]", "#Ramp")
+    const links = [...(m ? m[2] : line).matchAll(/(?:^|\s)#(https?:\/\/\S+)/g)].map((x) => x[1]);
     const name = (m ? m[2] : line).replace(/\s+\([A-Za-z0-9]{2,6}\)(\s+\S+)?/, "").replace(/\s+(\*[A-Za-z]+\*|\[[^\]]*\]|#\S+)/g, "").trim();
     if (!name) continue;
+    if (links.length && !art[name]) art[name] = { front: links[0], back: links[1] || null };
     for (let k = 0; k < Math.min(m ? Number(m[1]) : 1, 99); k++) (part === "commander" || marked ? commanders : part === "side" ? sideboard : cards).push(name);
   }
   return withSide ? { cards, commanders, sideboard } : { cards, commanders };
+}
+// a deck list's picture links, by the printed name: { name: { front, back } }
+function deckListArt(text) {
+  const art = {};
+  parseDeckList(text, false, art);
+  return art;
+}
+// A pasted deck list's pictures for an AI seat (docs/custom-art-spec.md "the AI's decks"), under the table deck's
+// rules: one picture per name (every copy), a second link the card's back, each link through artProblem; a bad one is
+// left out and said. { images (as checkDeck's), notes }
+function aiDeckImages(list) {
+  const index = forgeIndex();
+  const images = {}, art = {};
+  for (const [printed, l] of Object.entries(deckListArt(list))) {
+    const name = index[normName(printed)];
+    if (!name) continue;
+    const a = (art[name] ??= { links: [], bad: null });
+    const why = artProblem(l.front);
+    if (why) { a.bad = why; continue; }
+    a.links.push(l.front);
+    const backWhy = l.back ? artProblem(l.back) : null;
+    if (backWhy) a.badBack = backWhy;
+    else if (l.back) a.back = l.back;
+    images[name] = [{ face: l.front, back: null, custom: true, every: true, ...(a.back ? { face2: a.back, custom2: true } : {}) }];
+  }
+  const good = Object.values(art).filter((a) => a.links.length).length;
+  const notes = [...(good ? [`your pictures on ${good} card${good > 1 ? "s" : ""}`] : []),
+    ...Object.entries(art).filter(([, a]) => a.bad).map(([n, a]) => `${n}: the picture link was not used (${a.bad})`),
+    ...Object.entries(art).filter(([, a]) => a.badBack).map(([n, a]) => `${n}: the back picture link was not used (${a.badBack})`)];
+  return { images, notes };
 }
 
 // A deck for an AI seat, from a preset id or a deck list: { deck (the engine's form), source } or { error }. A list is
@@ -1086,8 +1212,10 @@ function setAiSeat(color, kind, spec = {}) {
   if (!Object.hasOwn(AI_KINDS, kind)) return { ok: false, message: `${c}: say harmless, forge or off.` };
   const r = aiSeatDeck(kind === "harmless" && !spec.preset && !spec.list ? { preset: HARMLESS_DECK } : spec);
   if (r.error) return { ok: false, message: `${c}: ${r.error}.` };
-  aiSeatChoice[c] = { kind, deck: r.deck, source: r.source };
-  return { ok: true, message: `${c}: ${AI_KINDS[kind]} playing ${r.deck.deckName}${game?.started ? " (from the next game)" : ""}.` };
+  // (a pasted list's own pictures, aiDeckImages: the AI's cards wear them, gamePictures)
+  const pics = spec.list ? aiDeckImages(spec.list) : { images: {}, notes: [] };
+  aiSeatChoice[c] = { kind, deck: r.deck, source: r.source, images: pics.images };
+  return { ok: true, message: `${c}: ${AI_KINDS[kind]} playing ${r.deck.deckName}${game?.started ? " (from the next game)" : ""}.${pics.notes.length ? ` Card art: ${pics.notes.join("; ")}.` : ""}` };
 }
 // the AI seats set among `colors`, in words ("mtg ai", and the start's line)
 const aiSeatsText = (colors = TABLE_COLORS) => colors.filter((c) => aiSeatChoice[c]).map((c) => `${c}: ${AI_KINDS[aiSeatChoice[c].kind]} (${aiSeatChoice[c].deck.deckName})`).join("; ");
@@ -1985,6 +2113,8 @@ function gamePictures(order) {
     const k = seat ? null : botIndex(u);
     const from = seat ? seat.color : k != null ? game.botDeckColors?.[k] ?? null : null;
     if (color && from && readyDecks[from]) pictures[color] = readyDecks[from].images;
+    // (an AI seat given a pasted deck list with its own pictures, setAiSeat: at its own colour)
+    else if (color && !seat && aiSeatChoice[color]?.images && Object.keys(aiSeatChoice[color].images).length) pictures[color] = aiSeatChoice[color].images;
   });
   return pictures;
 }
@@ -2264,15 +2394,27 @@ function imagesFor(name, ownerColor = null, id = null) {
   // (a player's own picture only while the host has custom art on, "mtg art off"; passed over, the card shows the deck's
   // normal printing of it if it has one, else the lookup by name)
   const usable = (i) => i.face && i.face !== DEFAULT_BACK && !deadImages.has(i.face) && !(i.custom && customArt.off);
+  // (its other face, a two-faced card's back: the deck's own, a player's only while art is on)
+  const face2 = (i) => (i.face2 && !deadImages.has(i.face2) && !(i.custom2 && customArt.off) ? { face2: i.face2 } : {});
   for (const color of order) {
     const all = decks[color]?.[name] || [];
     // (a card other than a basic land wears its player's picture on every copy, docs/custom-art-spec.md "Rule for
     // copies": not one printing by the id's number. As given, never rewritten: ttsImage changes Scryfall's links only)
     const every = all.find((i) => i.every && usable(i));
-    if (every) return { face: every.face, back: every.back };
+    if (every) return { face: every.face, back: every.back, ...face2(every) };
     const k = n % (all.length || 1);
     const img = [...all.slice(k), ...all.slice(0, k)].find(usable);
-    if (img) return { ...img, face: ttsImage(img.face), back: ttsImage(img.back) };
+    if (img) { const { face2: _f2, custom2: _c2, ...rest } = img; return { ...rest, face: ttsImage(img.face), back: ttsImage(img.back), ...face2(img) }; }
+  }
+  // (a transformed card under its back face's name, from a deck that gave the card's back but no name for it (a deck
+  // list pasted for an AI seat): the deck's front entry whose other face Scryfall names this one)
+  for (const color of order) {
+    for (const [front, all] of Object.entries(decks[color] || {})) {
+      const faces = imageCache[normName(front)]?.faces || [];
+      if (normName(front) === normName(name) || !faces.some((f) => normName(f) === normName(name))) continue;
+      const i = all.find((x) => x.face2 && usable(x) && !(x.custom2 && customArt.off));
+      if (i) return { face: i.face2, back: null, face2: i.face };
+    }
   }
   return null;
 }
@@ -2415,10 +2557,17 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
   }
   const name = c.identity.name;
   // the picture: a token's own (tokenImage), else its owner's deck's (a token copy of a deck card too), else by name
-  const tok = c.identity.isToken ? tokenImage(c) : null;
+  // (a player's own pictures beyond the deck list, "mtg art token|back": their tokens of a name, a two-faced card's back)
+  const mine = playerArtOf(game.slotColor?.[c.ownerId] || null);
+  const myToken = c.identity.isToken ? mine?.tokens[normName(name)] || null : null;
+  const tok = c.identity.isToken ? (myToken ? pictureEntry(myToken) : tokenImage(c)) : null;
   // (a face of a card printed whole on one picture, a flipped Kenzo the Hardhearted: its deck's picture of that card;
   // a token too, as a token copy of a deck card: a prepared creature's spell copy, Heroic Stanza, shows Abigale's card)
-  const img = tok?.face ? tok : imagesFor(name, game.slotColor?.[c.ownerId] || null, c.id) || imagesFor(wholeCardName(name), game.slotColor?.[c.ownerId] || null, c.id);
+  const myBack = !c.identity.isToken ? mine?.backs[normName(name)] || null : null;
+  const myFlip = !c.identity.isToken && !myBack && mine ? flippedArt(name, mine, game.slotColor?.[c.ownerId] || null) : null;
+  const img = tok?.face ? tok : myFlip || imagesFor(name, game.slotColor?.[c.ownerId] || null, c.id) || imagesFor(wholeCardName(name), game.slotColor?.[c.ownerId] || null, c.id);
+  // (the card's other face: a player's back, else the deck's own second state, else Scryfall's: imageCache, otherSide)
+  const back2 = myBack || img?.face2 || null;
   const face = img?.face || cachedImage(name)?.face || null;
   // (the table's badge shows when the numbers differ from bp/bt, so these are what the card's picture says, null when
   // it says none or isn't known: Saw in Half's 1/1 tokens of a 2/2 have a base of 1/1, and looked 2/2 with no badge,
@@ -2442,12 +2591,13 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
   return {
     // a double-faced card's back is its other face (the imported deck's back is the plain card back): flipping it
     // on the table shows the other side, as the table's own state button did
-    id: c.id, n: name, f: face, b: imageCache[normName(name)]?.back || img?.back || DEFAULT_BACK,
+    id: c.id, n: name, f: face, b: back2 || imageCache[normName(name)]?.back || img?.back || DEFAULT_BACK,
     // (and its other side again, kept where the back is the plain one, a hand: the table gives such a card a second
     // state to read and cast it by, docs/card-other-side-spec.md; n2 that side's name)
     // (t2 that side's rules text: the engine's is the side it shows. A card whose parts share one picture, Bonecrusher
     // Giant // Stomp, has the name and text but no o2, so no second state: its picture shows both)
     ...(other ? { ...(other.pic ? { o2: other.pic } : {}), ...(other.name ? { n2: other.name } : {}), ...(other.text ? { t2: other.text } : {}) } : {}),
+    ...(back2 && !c.identity.isToken ? { o2: back2 } : {}),
     tl: typeLine, cmc: c.cmc || 0, tx: c.text || "", ty: c.types || [],
     // (its colours, WUBRG letters or C, sent once with the static details: the table's wipe and bolt colours)
     ...(cl ? { cl } : {}),
@@ -5884,6 +6034,50 @@ function slimmer(game) {
   return { slim, statics };
 }
 
+// Token runs (docs/handoff/token-entries-report.md): tokens next to each other on a battlefield list that are the same in
+// everything the table reads (their slim entry but the id, and their fixed details) go out as the first one's entry with
+// gi, the ids of the others; "engine-card-N" ids in a row as [first N, how many], any other id as itself. The table
+// (engine-renderer.lua engineExpandRuns) lays each run out again, one entry per token, before it reads the board, so
+// every board draws as it did; what it decodes grows with the kinds of tokens, not with the tokens (TTS decodes ~15 ms
+// a KB: 1,000 tokens were ~78 KB a board). The others' details and rules text aren't sent: the table points their
+// details at the first one's as it lays the run out, and they count as never sent (sentStatic), so a token that later
+// stands alone gets its own in full. fresh: an other token's details changed in this board (its picture found): the
+// caller sends the list whole, so the table lays it out again. A table that doesn't say it reads runs (hello
+// tokenRuns) gets every token as before.
+const RUN_ID = /^engine-card-(\d+)$/;
+function tokenRuns(list, statics) {
+  const out = [];
+  let run = null, fresh = false;
+  const close = () => { if (run && run.ids.length) run.first.gi = packRunIds(run.ids); run = null; };
+  for (const c of list) {
+    const st = c.s === 1 && c.id ? game.sentStatic?.[c.id] : null;
+    const key = st && st.includes('"tok":true') ? `${JSON.stringify({ ...c, id: null })}|${st}` : null;
+    if (key && run && run.key === key) {
+      run.ids.push(c.id);
+      if (statics[c.id]) { fresh = true; delete statics[c.id]; game.textQueue?.delete(c.id); }
+      delete game.sentStatic[c.id];
+      continue;
+    }
+    close();
+    out.push(c);
+    if (key) run = { first: c, key, ids: [] };
+  }
+  close();
+  return { list: out, fresh };
+}
+// the ids of a run's other tokens: [N, k] for "engine-card-N" ... "engine-card-(N+k-1)", any other id as itself
+function packRunIds(ids) {
+  const out = [];
+  for (const id of ids) {
+    const m = RUN_ID.exec(id);
+    const n = m ? Number(m[1]) : null;
+    const last = out.at(-1);
+    if (n != null && Array.isArray(last) && last[0] + last[1] === n) last[1]++;
+    else out.push(n != null ? [n, 1] : id);
+  }
+  return out;
+}
+
 // A player row's dungeon, from Forge's dungeonState (docs/planechase-dungeon-engine-spec.md D5-D7): `dungeon` {id, name,
 // room, next, text}, the room's text and the rooms it leads to from the state's room list (the first room when it is in
 // none yet), and `dungeonsDone`, the dungeons completed (left out at 0). The card's id from the state, else the dungeon
@@ -6067,6 +6261,17 @@ function sendTable() {
   // counters, damage, ...) plus s:1 meaning "details as sent before". A reload (hello) or new game resends all.
   const { slim, statics } = slimmer(game);
   for (const pl of players) for (const z of ZONE_KEYS) if (pl[z]) pl[z] = pl[z].map(slim);
+  // (identical tokens in a row of a battlefield: one entry, tokenRuns)
+  // (a run whose other tokens' details changed goes out whole, never as kept: the table points their details at the
+  // first one's as it lays the run out)
+  if (tableTokenRuns) {
+    for (const pl of players) {
+      if (!pl.battlefield) continue;
+      const r = tokenRuns(pl.battlefield, statics);
+      pl.battlefield = r.list;
+      if (r.fresh) delete game.sentZones?.[pl.color + "|battlefield"];
+    }
+  }
   const planar = planarRow(pub);
   const planes = planeCards.map((c) => slim({ ...toCard(c), ctl: planar?.controller || game.slotColor[c.controllerId] || null }));
   // (the stack's instant and sorcery spells by card, ins / sor, for the board they resolve on: resolvedSpells)
@@ -11779,6 +11984,7 @@ function onTTS(m) {
     case "hello":
       tableStamp = m.stamp ?? null;
       tableKeepsRewind = m.keepRewind === true;
+      tableTokenRuns = m.tokenRuns === true;
       noteMode(m); // (the table's game mode: a restarted bridge takes it up again)
       noteTableSeats(m, true); // (its seats, clockwise: none said is the 4-player table)
       // (the table's repeat while it has drawn nothing, with no game running: nothing to send, suite review)
@@ -11999,6 +12205,9 @@ function onTTS(m) {
       break;
     case "schemes": // "mtg schemes random|<name>; <name>" (host, checked on the table)
       onSchemes(m);
+      break;
+    case "artset": // "mtg art token|back ..." (anyone's own, onArtSet)
+      onArtSet(m);
       break;
     case "art": // "mtg art on|off" (host, checked on the table)
       onArt(m);
@@ -13476,7 +13685,7 @@ if (require.main === module) {
     alignment, tableCard, costNow, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
     summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword, playWindow,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
-    _spellsMark: spellsMark, _actingFor: actingFor, _tieState: tieState, _stalemateEarners: stalemateEarners, _forcedTieEarned: forcedTieEarned, STALEMATE_EARNED_BY, _steamIds: steamIds, _harmlessVotes: harmlessVotes, _accomplishments: accomplishments, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice,
+    _spellsMark: spellsMark, _actingFor: actingFor, _tokenRuns: (on) => { tableTokenRuns = !!on; }, _packRunIds: packRunIds, _tieState: tieState, _stalemateEarners: stalemateEarners, _forcedTieEarned: forcedTieEarned, STALEMATE_EARNED_BY, _steamIds: steamIds, _harmlessVotes: harmlessVotes, _accomplishments: accomplishments, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice, deckListArt,
     _archenemy: archenemy, _onArchenemy: onArchenemy, _onSchemes: onSchemes, _withArchenemy: withArchenemy, _forgeSchemes: forgeSchemes, ARCH_NO_UNDO, ARCH_SWITCH_OFF,
     _engineSetting: () => ({ RELAY, KEY, REMOTE_ENGINE }), _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, setPickedHand, splitHandText, handOps, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
