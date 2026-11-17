@@ -525,6 +525,142 @@ function schemeNamed(typed) {
 // 20 different schemes at random, or null when the bridge's list has fewer
 const randomSchemes = () => (forgeSchemes().length >= teams2hg.ARCH_SCHEMES ? shuffled(forgeSchemes()).slice(0, teams2hg.ARCH_SCHEMES) : null);
 const schemeWords = () => (archenemy.names ? `${archenemy.names.length} chosen schemes` : `${teams2hg.ARCH_SCHEMES} random schemes`);
+// ───────── who goes first: Treachery's Leader, the table's choice (gameConfig.firstPlayer) ─────────
+// The engine takes a seat to go first as gameConfig.firstPlayer (docs/handoff/first-player-report.md). The table's start
+// may name one (firstPlayer, a colour: the table chose); else in Treachery the Leader goes first (PLAN.md M4.6): the
+// table's start says who holds the Leader identity card (treachery.leader, engine-renderer.lua engineTreacheryLeader),
+// or the host names one (mtg treachery leader <colour>); "mtg treachery off" leaves it to the engine's own pick. A team
+// mode that names its own first player (goesFirst: the Juggernaut, the archenemy) keeps it.
+const treachery = { on: true, leader: null };
+function onTreachery(m) {
+  const text = String(m.text || "").trim().toLowerCase();
+  const color = TABLE_COLORS.find((c) => text === `leader ${c.toLowerCase()}`);
+  if (text === "") return chat(`[MTG] Treachery: ${!treachery.on ? "off: the engine picks who goes first" : treachery.leader ? `${treachery.leader} is the Leader and goes first (set by the host)` : "the Leader goes first (from the table's identity cards)"}. The host changes it:  mtg treachery on,  mtg treachery off  or  mtg treachery leader <colour>`, m.color);
+  if (text === "off") { treachery.on = false; return chat("[MTG] Treachery: off for the next games: the engine picks who goes first."); }
+  if (text === "on") { treachery.on = true; treachery.leader = null; return chat("[MTG] Treachery: on: the Leader goes first, from the table's identity cards."); }
+  if (color) { Object.assign(treachery, { on: true, leader: color }); return chat(`[MTG] Treachery: ${color} is the Leader and goes first in the next games.`); }
+  return chat(`[MTG] Use:  mtg treachery on  (the Leader goes first),  mtg treachery off  or  mtg treachery leader <${TABLE_COLORS.join("|").toLowerCase()}>`, m.color);
+}
+// a start's first-player choices, kept on the game (the start message: firstPlayer, treachery)
+function noteFirstPlayer(m) {
+  if (!game) return;
+  game.tableFirst = TABLE_COLORS.includes(m.firstPlayer) ? m.firstPlayer : null;
+  const t = m.treachery && typeof m.treachery === "object" ? m.treachery : null;
+  game.leader = treachery.on ? (treachery.leader || (t && TABLE_COLORS.includes(t.leader) ? t.leader : null)) : null;
+  if (game.tableFirst) chat(`[MTG] ${game.tableFirst} goes first (the table's choice).`);
+  else if (game.leader) chat(`[MTG] Treachery: ${game.leader} is the Leader and goes first.`);
+  else if (t && treachery.on) chat("[MTG] Treachery: no Leader identity card was found, so the engine picks who goes first (mtg treachery leader <colour> names one).");
+}
+// ───────── best of three (Standard 1v1, docs/game-modes-spec.md §3.6) ─────────
+// "mtg match bo3" (host): the first to win 2 games wins the match; a draw counts for neither, and after 5 games the
+// score decides. Each game is an ordinary engine game; the bridge keeps the match (the two seats' colours, the wins,
+// the games played) between them. After a game the loser chooses to play or draw: a question on the table's own panel
+// (MATCH_PROMPT, answered in onTTS "answer"; an AI loser plays), after a draw the last chooser again; the choice goes
+// with the next game's start as gameConfig.firstPlayer (matchFirst). The score goes in the log and chat after each game
+// and under each life total (playerMarks: MATCH 1–0, GAME 2). Game 1's first player is the engine's own roll. Not built:
+// sideboarding between games and "Concede match" (the spec's §3.6, later).
+const MATCH_PROMPT = "__match";
+const MATCH_WINS = 2, MATCH_GAMES = 5;
+const match = { on: false, pair: null, wins: {}, games: 0, chooser: null, first: null, asked: null };
+const matchReset = () => Object.assign(match, { pair: null, wins: {}, games: 0, chooser: null, first: null, asked: null });
+// a game of the match: on, Standard, two seats
+const matchGame = () => match.on && !!game && game.mode === "standard" && game.total === 2 && (game.seatColors || []).length === 2;
+const matchPair = () => [...game.seatColors].sort().join("+");
+const matchName = (c) => nameOf(slotOfColor(c)) || c;
+const matchWins = (c) => (match.pair === matchPair() ? match.wins[c] || 0 : 0);
+function matchScore() {
+  const [a, b] = game.seatColors;
+  return `${matchName(a)} ${matchWins(a)}–${matchWins(b)} ${matchName(b)}`;
+}
+function onMatch(m) {
+  const text = String(m.text || "").trim().toLowerCase();
+  if (text === "") {
+    if (!match.on) return chat("[MTG] Best of three: off (best of one). The host turns it on:  mtg match bo3  (Standard 1v1).", m.color);
+    return chat(`[MTG] Best of three: on. ${match.games && game?.seatColors?.length === 2 ? `Match: ${matchScore()} after ${match.games} game${match.games > 1 ? "s" : ""}.` : "No games played yet."} The host turns it off:  mtg match bo1`, m.color);
+  }
+  if (text === "bo1") { match.on = false; matchReset(); return chat("[MTG] Best of three off: each game stands alone (best of one)."); }
+  if (text !== "bo3") return chat("[MTG] Use:  mtg match bo3  (best of three, Standard 1v1) or  mtg match bo1", m.color);
+  if (gameMode.mode !== "standard") return chat("[MTG] Best of three is for Standard 1v1: set  mtg mode standard  first.", m.color);
+  match.on = true;
+  matchReset();
+  chat("[MTG] Best of three on for the next games: the first to win 2 games wins the match (at most 5 games; a draw counts for neither). After each game the loser chooses to play or draw.");
+}
+// the colour the match says goes first in this game, or null
+function matchFirst() { return matchGame() && match.pair === matchPair() ? match.first : null; }
+// a game of the match ended (the engine's game-over question): the result and the score, the match won or the next
+// game's play-or-draw choice. Once a game.
+function matchGameOver(gv) {
+  if (!matchGame() || game.matchDone) return;
+  game.matchDone = true;
+  if (match.pair !== matchPair()) { matchReset(); match.pair = matchPair(); }
+  match.games++;
+  match.first = null;
+  match.asked = null;
+  const winner = gv?.winnerId ? game.slotColor[gv.winnerId] || null : null;
+  if (winner) match.wins[winner] = (match.wins[winner] || 0) + 1;
+  const why = gameEndWords(gv);
+  const n = match.games;
+  gameLogLine(`${winner ? `${matchName(winner)} wins game ${n}${why ? ` (${why})` : ""}` : `Game ${n} is a draw`}. Match: ${matchScore()}.`);
+  chat(`[MTG] ${winner ? `${matchName(winner)} wins game ${n}` : `Game ${n} is a draw`}. Match: ${matchScore()}.`);
+  const say = (line) => { chat(`[MTG] ${line}`); gameLogLine(line); };
+  const [a, b] = game.seatColors;
+  if (winner && match.wins[winner] >= MATCH_WINS) {
+    say(`MATCH WON: ${matchName(winner)} wins the match ${match.wins[winner]}–${match.wins[winner === a ? b : a] || 0}.`);
+    matchReset();
+    return;
+  }
+  if (n >= MATCH_GAMES) {
+    const wa = match.wins[a] || 0, wb = match.wins[b] || 0;
+    say(wa === wb ? `The match ends after ${n} games, drawn ${wa}–${wb}.` : `The match ends after ${n} games: ${matchName(wa > wb ? a : b)} wins the match ${Math.max(wa, wb)}–${Math.min(wa, wb)}.`);
+    matchReset();
+    return;
+  }
+  const chooser = winner ? (winner === a ? b : a) : match.chooser || (game.seats.has(a) ? a : b);
+  match.chooser = chooser;
+  if (!game.seats.has(chooser)) return matchChoice(chooser, true);
+  match.asked = chooser;
+  toTTS({ t: "prompt", color: chooser, promptId: MATCH_PROMPT, kind: "match", title: `Game ${n + 1}: play or draw?`, mode: "single", min: 1, max: 1,
+    text: `${winner ? `You lost game ${n}` : `Game ${n} was a draw`}. Match: ${matchScore()}. Play: you go first in game ${n + 1}. Draw: you go second (and draw on your first turn).`,
+    options: [{ id: "__play", label: "Play" }, { id: "__draw", label: "Draw" }] });
+}
+// the chooser's play or draw, for the next game
+function matchChoice(color, play) {
+  const [a, b] = game.seatColors;
+  match.first = play ? color : (color === a ? b : a);
+  if (match.asked === color) toTTS({ t: "prompt", color, promptId: null });
+  match.asked = null;
+  chat(`[MTG] ${matchName(color)} chooses to ${play ? "play" : "draw"}: ${matchName(match.first)} goes first in game ${match.games + 1}. Press New game when you're ready.`);
+}
+function onMatchAnswer(color, choice) {
+  if (!game || match.asked !== color) return;
+  const pick = asList(choice).map(String)[0];
+  if (pick === "__play" || pick === "__draw") matchChoice(color, pick === "__play");
+}
+// the score under each life total in a match game: MATCH <theirs>–<the other's>, GAME <n>
+function matchMarks(p) {
+  if (!matchGame()) return [];
+  const c = game.slotColor[p.id];
+  const other = game.seatColors.find((x) => x !== c);
+  const played = match.pair === matchPair() ? match.games : 0;
+  return [`MATCH ${matchWins(c)}–${matchWins(other)}`, `GAME ${game.matchDone ? played : played + 1}`];
+}
+// the colour to go first, or null: the engine's own pick
+function firstColorOf() {
+  return game?.tableFirst || game?.leader || matchFirst() || null;
+}
+// the gameConfig sent before StartGame, or null when there is nothing to say: a team mode's, with firstPlayer added
+// when it names no first player of its own; else firstPlayer alone
+function startConfig() {
+  const first = firstColorOf();
+  const idx = first ? (game.seatColors || []).indexOf(first) : -1;
+  if (game.teams) {
+    const cfg = teams2hg.gameConfig(game.teams, game.startOrder, game.seatColors, game.teamMode, game.jugg, game.mode === "standard", game.teamTurns || null, game.arch || null);
+    if (idx >= 0 && !cfg.players.some((p) => p.goesFirst)) cfg.firstPlayer = idx;
+    return cfg;
+  }
+  return idx >= 0 ? { type: "gameConfig", firstPlayer: idx, players: [] } : null;
+}
+
 function onArchenemy(m) {
   const text = String(m.text || "").trim();
   const color = teams2hg.TEAM_COLORS.find((c) => c.toLowerCase() === text.toLowerCase());
@@ -1894,10 +2030,13 @@ function onRoomUpdate(seat, room) {
   if (!game.startSent && formatOk && room.status === "Lobby" && ready >= game.total) {
     game.startSent = true;
     const order = clockwiseOrder(room);
-    // (a team mode: the teams first, which the node keeps for the game it starts next, host.rs gameConfig)
-    if (game.teams) controllerOf(room, seats).send({ type: "BroadcastState", state: {
+    game.startOrder = order;
+    // (a team mode's teams, or who goes first: sent first, which the node keeps for the game it starts next, host.rs
+    // gameConfig; startConfig)
+    const config = startConfig();
+    if (config) controllerOf(room, seats).send({ type: "BroadcastState", state: {
       kind: "roomRelay", protocol: "self-hosted-node", version: 1, messageId: `tts-${Date.now()}-teams`, roomId: seat.roomId,
-      payload: teams2hg.gameConfig(game.teams, order, game.seatColors, game.teamMode, game.jugg, game.mode === "standard", game.teamTurns || null, game.arch || null) } });
+      payload: config } });
     controllerOf(room, seats).send({ type: "StartGame", format: MODES[game.mode || "commander"].format, seat_order: order });
   }
 }
@@ -6392,6 +6531,12 @@ function playerMarks(p, pub) {
   for (const m of PLAYER_MARKS) if (m.row && markShown(values[m.key])) out[m.row] = values[m.key];
   // (Two-Headed Giant: the team's poison out of its limit, POISON 3/15)
   if (out.allMarks && pub?.teamRules) out.allMarks = out.allMarks.map((l) => teams2hg.poisonLabel(l, pub));
+  // (best of three: the match score and the game, matchMarks)
+  const inMatch = game ? matchMarks(p) : [];
+  if (inMatch.length) {
+    out.allMarks = [...(out.allMarks || []), ...inMatch];
+    if (out.markTips) out.markTips = [...out.markTips, ...inMatch.map(() => "")];
+  }
   return out;
 }
 // Every mark under a player's life total, one row each: `read` takes its value from Forge's player (p) and the game
@@ -10954,6 +11099,7 @@ function onPrompt(seat, prompt) {
       // (and nobody's question stays open: White's "Your priority" with Next and End turn was still up under GAME OVER
       // after the concession, Kykar re-test new bug 8)
       for (const s of game ? game.seats.values() : [seat]) if (s.prompt) closePrompt(s);
+      matchGameOver(gv); // (best of three: the result, the score, the next game's play or draw)
       clearResume(); // (a finished game is never rejoined)
       return;
     }
@@ -11700,6 +11846,7 @@ function onTTS(m) {
         noteTableSeats(m, false); // (the table's seats, if it says them: a bridge started after its hello)
         startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m), ...(({ teams, mode, jugg, turns, arch }) => [teams, mode || "2hg", jugg, turns, arch || null])(withArchenemy(teams2hg.setupOf(m))));
         if (game && m.autoplay) game.autoplay = true;
+        noteFirstPlayer(m); // (who goes first: the table's choice, Treachery's Leader)
         if (game) game.steam = steamIds(m.steam); // (the seated players' Steam IDs, for the accomplishments: noteSteam)
       };
       // the table's Start button (autoReset): a game left over from before is reset first, and a room that is still
@@ -11827,6 +11974,8 @@ function onTTS(m) {
       break;
     }
     case "answer":
+      // (best of three: the loser's play or draw, matchGameOver)
+      if (m.promptId === MATCH_PROMPT) { onMatchAnswer(m.color, m.choice); break; }
       // (the Stop of a "Repeat ×N"'s progress panel, loopShow: as "mtg stop")
       if (m.promptId === LOOP_PROMPT) {
         const seat = game?.seats.get(m.color);
@@ -11886,6 +12035,12 @@ function onTTS(m) {
       break;
     case "planes":
       onPlanes(m);
+      break;
+    case "match": // "mtg match bo3|bo1" (host, checked on the table)
+      onMatch(m);
+      break;
+    case "treachery": // "mtg treachery on|off|leader <colour>" (host, checked on the table)
+      onTreachery(m);
       break;
     case "archenemy": // "mtg archenemy <colour>|off" (host, checked on the table)
       onArchenemy(m);
@@ -13369,7 +13524,7 @@ if (require.main === module) {
     alignment, tableCard, costNow, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
     summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword, playWindow,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
-    _spellsMark: spellsMark, _actingFor: actingFor, _tieState: tieState, _stalemateEarners: stalemateEarners, _forcedTieEarned: forcedTieEarned, STALEMATE_EARNED_BY, _steamIds: steamIds, _harmlessVotes: harmlessVotes, _accomplishments: accomplishments, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice,
+    _spellsMark: spellsMark, _actingFor: actingFor, _startConfig: () => startConfig(), _match: match, _tieState: tieState, _stalemateEarners: stalemateEarners, _forcedTieEarned: forcedTieEarned, STALEMATE_EARNED_BY, _steamIds: steamIds, _harmlessVotes: harmlessVotes, _accomplishments: accomplishments, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice,
     _archenemy: archenemy, _onArchenemy: onArchenemy, _onSchemes: onSchemes, _withArchenemy: withArchenemy, _forgeSchemes: forgeSchemes, ARCH_NO_UNDO, ARCH_SWITCH_OFF,
     _engineSetting: () => ({ RELAY, KEY, REMOTE_ENGINE }), _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, setPickedHand, splitHandText, handOps, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
