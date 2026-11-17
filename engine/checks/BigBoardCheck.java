@@ -64,6 +64,7 @@ public final class BigBoardCheck {
         });
         final String mode = args.length > 0 ? args[0] : "decisions";
         forge.game.replacement.ReplacementHandler.lookaheadPerRun = Boolean.parseBoolean(System.getProperty("bb.perRun", "true"));
+        forge.game.GameAction.dependencyScanCache = Boolean.parseBoolean(System.getProperty("bb.depScans", "true"));
         final Pool pool = pool();
         System.out.println("pool creatures=" + pool.creatures.size() + " lands=" + pool.lands.size() + " others=" + pool.others.size());
         if (mode.equals("decisions")) {
@@ -341,6 +342,17 @@ public final class BigBoardCheck {
         sa.setActivatingPlayer(act);
         if (what.equals("actions")) {
             ActionSpace.getPossibleActions(act, true, true);
+        }
+        if (what.equals("pass")) {
+            final long s0 = System.nanoTime();
+            act.getGame().getAction().checkStaticAbilities();
+            final double same = ms(s0);
+            act.getCardsIn(ZoneType.Battlefield).stream().filter(Card::isLand).findFirst().orElseThrow().tap(true, null, null);
+            final long d0 = act.getGame().getAction().getDependencyScans();
+            final long s1 = System.nanoTime();
+            act.getGame().getAction().checkStaticAbilities();
+            System.out.println("pass perSeat=" + perSeat + " sameState=" + same + " ms afterTap=" + ms(s1) + " ms dependencyScans=" + (act.getGame().getAction().getDependencyScans() - d0));
+            return;
         }
         final Combat combat = new Combat(act);
         if (what.equals("attack")) {
