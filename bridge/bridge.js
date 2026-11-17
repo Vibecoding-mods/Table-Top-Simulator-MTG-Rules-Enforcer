@@ -1130,10 +1130,10 @@ class Seat {
   //   attempt's "isn't legal", batch 1 review 2026-11-12): attackData, attackRefused, lastAttack;
   // - a repeated yes/no's "×N" still answering (offerRepeat): repeatAnswer;
   // - a loop's "Repeat ×N": the one under way, this turn's answers it repeats, the pass offered (loopStep): loop,
-  //   loopLog, loopOffer.
+  //   loopLog, loopOffer; another seat's loop passed on (loopQuietOn): loopQuiet.
   static FOLLOW_UPS = ["endTurnAt", "resolveStack", "queuedPlay", "attachTo", "targetPicks", "cardsDone", "unless", "autoPayCard",
     "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack", "attackData", "attackRefused", "lastAttack", "repeatAnswer",
-    "loop", "loopLog", "loopOffer"];
+    "loop", "loopLog", "loopOffer", "loopQuiet"];
   // resume: { username, slot, roomId } of a seat saved before the bridge stopped (resumeGame): it logs in again under
   // the same name as a reconnect (AuthResult below), so the relay hands back its seat and RequestResync the game
   constructor(color, deckId, resume = null) {
@@ -8580,8 +8580,10 @@ function loopShow(seat, force = false) {
   lp.shownAt = now;
   toTTS({ t: "prompt", color: seat.color, promptId: LOOP_PROMPT, kind: "loop", title: `Repeating ${Math.min(lp.done + 1, lp.total)}/${lp.total}`, mode: "single", min: 1, max: 1,
     text: `${lp.name}. Anyone may respond when they get priority, and that stops it. Stop (or "mtg stop") ends it now.`, options: [{ id: "__loopstop", label: "Stop" }] });
+  if (game) for (const s of game.seats.values()) if (s !== seat) loopQuietShow(s);
 }
-// The repeat ends, said once to everyone: all N done, or where it stopped and why
+// The repeat ends, said once to everyone: all N done, or where it stopped and why; every other seat's "No responses"
+// for it ends too, and its panel is cleared
 function loopEnd(seat, why = "") {
   const lp = seat.loop;
   if (!lp) return;
@@ -8589,6 +8591,66 @@ function loopEnd(seat, why = "") {
   chat(lp.done >= lp.total ? `[MTG] ${nameOf(seat.slot)} repeated the loop ${lp.total}× (${lp.name}).`
     : `[MTG] ${nameOf(seat.slot)}'s loop stopped after ${lp.done} of ${lp.total} (${lp.name}): ${why}.`);
   if (!seat.prompt) toTTS({ t: "prompt", color: seat.color, promptId: null });
+  if (game) for (const s of game.seats.values()) if (s !== seat) loopQuietShow(s); // (loopQuietLive drops its "No responses" for this loop, here or at its next priority)
+}
+// ── "No responses for this loop" (the user 2026-11-17): while a seat repeats ×N, every other human seat (an AI seat is
+// asked as before) is offered a button that answers its priority passes for the rest of that loop: on its panel while
+// it has no question open, and in its priority question. Its own triggers still go on the stack, and every other
+// question is asked; a priority for a player it controls is asked too. It ends when the loop ends or stops (loopEnd),
+// when the step changes (loopQuietLive), or at the seat's Stop or "mtg stop", which also asks its next priority with
+// something on the stack (stopChain), so it can still respond and stop the loop (CR 732.2a).
+//   seat.loopQuiet: { by: the repeating seat, lp: its seat.loop } once pressed
+//   seat.quietShown: the title its panel shows (loopQuietShow), so it is sent again only when it changes; a question
+//     closed (closePrompt) took it off
+const LOOP_QUIET_PROMPT = "__loopquiet"; // (the panel's question id: its buttons are answered under it)
+// The repeating seat this seat may stop responding to, or null (none, it repeats itself, or it already stopped)
+function loopQuietFor(seat) {
+  if (!game || seat.loop || loopQuietLive(seat)) return null;
+  for (const s of game.seats.values()) if (s.loop) return s;
+  return null;
+}
+const loopQuietLabel = (by) => `No responses for this loop (${nameOf(by.slot)} repeating ×${by.loop.total})`;
+// The seat's "No responses" while it still holds (that same loop under way, in the step it started in), else null
+function loopQuietLive(seat) {
+  const q = seat.loopQuiet;
+  if (!q) return null;
+  const gv = seat.board?.state?.gameView || {};
+  if (q.by.loop === q.lp && gv.turn === q.lp.turn && gv.step === q.lp.step) return q;
+  seat.loopQuiet = null;
+  return null;
+}
+// The seat's panel while another seat repeats: the button, or "No responses during Blue's loop" with Stop once pressed
+// (answered under LOOP_QUIET_PROMPT); never over a question; cleared once neither applies
+function loopQuietShow(seat) {
+  if (seat.prompt || seat.loop) return;
+  const q = loopQuietLive(seat), by = q ? null : loopQuietFor(seat);
+  const ui = q ? { title: `No responses during ${nameOf(q.by.slot)}'s loop`, options: [{ id: "__quietstop", label: "Stop" }],
+    text: "Your priority passes are answered for you until it ends (your own triggers still go on the stack). Stop (or \"mtg stop\") asks your next priority, to respond." }
+    : by ? { title: `${nameOf(by.slot)} repeats a loop ×${by.loop.total} (${by.loop.name})`, options: [{ id: "__quiet", label: loopQuietLabel(by) }],
+      text: "You may respond when you get priority, and that stops it. Or pass on it: your priority passes are answered for you for the rest of this loop." } : null;
+  const key = ui ? ui.title : null;
+  if (key === (seat.quietShown ?? null)) return;
+  seat.quietShown = key;
+  toTTS(ui ? { t: "prompt", color: seat.color, promptId: LOOP_QUIET_PROMPT, kind: "loop", mode: "single", min: 1, max: 1, ...ui } : { t: "prompt", color: seat.color, promptId: null });
+}
+// "No responses" pressed (the panel's button or the priority question's): said to everyone; false when there is no
+// loop to pass on
+function loopQuietOn(seat) {
+  const by = loopQuietFor(seat);
+  if (!by) return false;
+  seat.loopQuiet = { by, lp: by.loop };
+  chat(`[MTG] ${nameOf(seat.slot)}: no responses during ${nameOf(by.slot)}'s loop.`);
+  // (after a priority question is taken off the panel: onAnswer closes it once its answer is sent)
+  setImmediate(() => guarded("loop quiet panel", () => loopQuietShow(seat)));
+  return true;
+}
+// Stop (or "mtg stop") on it: off at once, and the seat's next priority with something on the stack is asked
+function loopQuietOff(seat) {
+  if (!loopQuietLive(seat)) return false;
+  seat.loopQuiet = null;
+  seat.stopChain = true;
+  loopQuietShow(seat);
+  return true;
 }
 // A question for the seat while it repeats: answered from the pass (true), or the repeat ends and the question is asked
 // as usual (false). At the pass's end the board must be the one it started from; then the next pass starts.
@@ -8810,6 +8872,12 @@ function onPrompt(seat, prompt) {
       }
       // "mtg stop": this priority is asked, whatever passes below would have passed it (stopsChain)
       const stopNow = stopsChain(seat, gv);
+      // "No responses for this loop" (loopQuietOn): passed while another seat's repeat runs; a controlled player's is asked
+      if (!forP && loopQuietLive(seat)) {
+        seat.respond(prompt.promptId, type, { type: "pass" });
+        if (seat.prompt) closePrompt(seat);
+        return;
+      }
       // "End turn": keep passing until the turn number changes (blocks, targets etc. still stop you).
       if (!stopNow && endTurnHolds(seat, gv)) {
         seat.respond(prompt.promptId, type, heldPass(seat, gv, forP));
@@ -8989,6 +9057,13 @@ function onPrompt(seat, prompt) {
         ui.options.splice(ui.options.findIndex((o) => o.id === "__endturn") + 1, 0, { id: "__loop", label: "Repeat ×N" });
         const base = toOutput;
         toOutput = (a) => (a[0] === "__loop" ? loopPicker(seat, loopOffer) : base(a));
+      }
+      // "No responses for this loop (Blue repeating ×1000)" while another seat repeats (loopQuietFor), after End turn
+      const quietBy = forP ? null : loopQuietFor(seat);
+      if (quietBy) {
+        ui.options.splice(ui.options.findIndex((o) => o.id === "__endturn") + 1, 0, { id: "__quiet", label: loopQuietLabel(quietBy) });
+        const base = toOutput;
+        toOutput = (a) => (a[0] === "__quiet" ? (loopQuietOn(seat), { type: "pass" }) : base(a));
       }
       break;
     }
@@ -10830,6 +10905,9 @@ function closePrompt(seat, answered = false) {
   stopTimer(seat);
   seat.prompt = null;
   toTTS({ t: "prompt", color: seat.color, promptId: null });
+  // (another seat's loop under way: its "No responses" panel back at once, loopQuietShow)
+  seat.quietShown = null;
+  loopQuietShow(seat);
 }
 
 function refuse(seat, cardId, reason) {
@@ -11523,6 +11601,8 @@ function onTTS(m) {
       if (!seat) { chat("[MTG] Stop: no game running.", m.color); break; }
       // (a "Repeat ×N" under way ends now; the next priority with something on the stack is asked)
       if (seat.loop) { seat.stopChain = true; loopEnd(seat, "you typed mtg stop"); break; }
+      // (another seat's loop passed on, loopQuietOn: off now, and the next priority with something on the stack is asked)
+      if (loopQuietOff(seat)) { chat("[MTG] Stop: your next priority with something on the stack is asked; responding stops the loop.", m.color); break; }
       if (seat.prompt?.type === "chooseAction") { chat("[MTG] Stop: it is already your priority.", m.color); break; }
       seat.stopChain = true;
       seat.resolveStack = null;
@@ -11544,6 +11624,14 @@ function onTTS(m) {
       if (m.promptId === LOOP_PROMPT) {
         const seat = game?.seats.get(m.color);
         if (seat?.loop) { seat.stopChain = true; loopEnd(seat, "you pressed Stop"); }
+        break;
+      }
+      // (the buttons of another seat's "No responses for this loop" panel, loopQuietShow)
+      if (m.promptId === LOOP_QUIET_PROMPT) {
+        const seat = game?.seats.get(m.color);
+        const pick = asList(m.choice)[0];
+        // (a press on a panel left from a loop already over, a rewind's: it is cleared)
+        if (seat && !(pick === "__quiet" ? loopQuietOn(seat) : pick === "__quietstop" && loopQuietOff(seat))) loopQuietShow(seat);
         break;
       }
       startTrips(m.color);

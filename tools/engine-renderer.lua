@@ -4612,7 +4612,7 @@ function optionColor(p, index, picked)
   if picked then return "#E53935" end
   if o.id == "__endturn" then return "#2e3a59" end
   if o.id == "__resolve" then return "#b8860b" end -- yellow: pass until the stack is empty
-  if o.id == "__group" or o.id == "__loop" then return ENGINE_GROUP_COLOR end -- purple, as its corner button
+  if o.id == "__group" or o.id == "__loop" or o.id == "__quiet" then return ENGINE_GROUP_COLOR end -- purple, as its corner button
   if p.mode == "single" and index == 1 then return "#e8711a" end
   return "#262626"
 end
@@ -4943,6 +4943,9 @@ function engineUpdateCorner(color, p)
   local smallColor = ck == "attack" and ENGINE_COMBAT.attackOn or "#2e3a59"
   if p ~= nil and p.mode == "single" and p.options and p.options[1] then
     big, bigLabel = 1, p.options[1].label
+    -- (another seat's loop: "No responses for this loop (Blue repeating ×1000)" alone on the panel, the bridge's
+    -- loopQuietShow; the whole label is the Choices panel's, the question names the loop)
+    if p.options[1].id == "__quiet" then bigLabel = "No responses" end
     for i, o in ipairs(p.options) do
       if i > 1 and (o.id == "__endturn" or o.id == "__resolve" or o.id == "no" or o.id == "mull") then small, smallLabel = i, o.label break end
       -- (Cancel takes a spell back while paying for it: it was only in the Engine panel, playtest 2026-10-24)
@@ -4951,13 +4954,15 @@ function engineUpdateCorner(color, p)
     for i, o in ipairs(p.options) do
       -- (or a repeated yes/no's "No ×3": the bridge's offerRepeat, answering this one and the next ones alike; or a
       -- loop's "Repeat ×N" at priority, the bridge's loopOfferFor, when no "Resolve N×" is offered)
-      if i > 1 and (o.id == "__group" or o.id == "__repeat:no" or o.id == "__loop") then group, groupTip = i, tostring(o.label) break end
+      -- (or "No responses for this loop" in the priority question while another seat repeats, loopQuietFor)
+      if i > 1 and (o.id == "__group" or o.id == "__repeat:no" or o.id == "__loop" or o.id == "__quiet") then group, groupTip = i, tostring(o.label) break end
     end
     -- (the whole label when it fits, "Resolve 12× Spirit Token"; else without "Resolve ", then cut; the tooltip keeps it all)
     if group ~= nil then
       groupLabel = groupTip
       if #groupLabel > 28 and groupLabel:sub(1, 8) == "Resolve " then groupLabel = groupLabel:sub(9) end
       if #groupLabel > 28 then groupLabel = engineCut(groupLabel, 27) .. "…" end
+      if p.options[group].id == "__quiet" then groupLabel = "No responses" end
     end
   elseif p ~= nil and p.mode == "multi" then
     big, bigLabel = "confirm", "Done"
