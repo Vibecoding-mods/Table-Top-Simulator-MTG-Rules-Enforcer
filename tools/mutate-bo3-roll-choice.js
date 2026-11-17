@@ -1,7 +1,7 @@
 // Break-it for best of three's game 1 roll choice (tests/test_bridge_bo3_roll_choice.js): each mutation switches one
 // piece off (bridge/bridge.js matchRollFirst, matchRollWaits, holdStartForRoll, rollChoice, the start's hold, the
-// answer's routing), runs the test and requires the named check to fail, then puts the file back and checks it by
-// sha256.
+// answer's routing, sendStart's latest room and readiness), runs the test and requires the named check to fail, then
+// puts the file back and checks it by sha256.
 //   node tools/mutate-bo3-roll-choice.js [label pattern]
 const fs = require("fs");
 const path = require("path");
@@ -15,7 +15,7 @@ const B = "bridge/bridge.js";
 
 // [label, file, from, to, check that must fail]: `from` must occur exactly once
 const MUTATIONS = [
-  ["the start not held", B, "    if (matchRollWaits()) holdStartForRoll(send);\n    else send();", "    send();", "ask: no start while the roll's winner chooses"],
+  ["the start not held", B, "    if (matchRollWaits()) holdStartForRoll(sendStart);\n    else sendStart();", "    sendStart();", "ask: no start while the roll's winner chooses"],
   ["a person's win taken as the AI's", B, "first: person ? null : winner,", "first: winner,", "ask: Blue is asked Play / Draw on the match's panel"],
   ["the AI asked too", B, "first: person ? null : winner,", "first: null,", "AI: the AI plays and the game starts at once"],
   ["draw makes the winner go first", B, "roll.first = play ? roll.winner : matchOther(roll.winner);", "roll.first = roll.winner;", "draw: the gameConfig names White (the AI) first"],
@@ -28,6 +28,11 @@ const MUTATIONS = [
   ["the choice not in the log", B, "    chat(`[MTG] ${line}.`);\n    gameLogLine(line);", "    chat(`[MTG] ${line}.`);", "draw: in the log"],
   ["the table's first player ignored", B, "  if (!game || game.tableFirst || game.leader || matchFirst()) return false;", "  if (!game) return false;", "table: its first player, no roll, no question, the start at once"],
   ["the roll unsaid", B, "${person ? `${matchName(winner)} wins the roll and chooses to play or draw.` : `${matchName(winner)} goes first.`}", "${matchName(winner)} goes first.", "ask: said in chat"],
+  ["the held start uses the room at the roll", B, "  game.lastRoom = room;\n  game.lastRoomSeat = seat;\n", "  if (!game.lastRoom) { game.lastRoom = room; game.lastRoomSeat = seat; }\n", "latest room: the seat order is the room's at the answer, not at the roll"],
+  ["the held start goes out to a room that isn't ready", B, "  if (!room || !roomStartReady(room)) {", "  if (!room) {", "not ready: the answer starts nothing while Blue is out of the room"],
+  ["a start dropped for good when the room isn't ready", B, "    game.startSent = false;\n    chat(\"[MTG] The room isn't ready", "    chat(\"[MTG] The room isn't ready", "not ready: back and ready, the start goes out once with Blue's choice (White first)"],
+  ["not said when the room isn't ready", B, "    chat(\"[MTG] The room isn't ready to start: the game starts once everyone is back in and ready.\");\n", "", "not ready: said in chat"],
+  ["the roll again when the room is ready again", B, "  if (game.matchRoll) return game.matchRoll.first;", "  if (game.matchRoll && game.matchRoll.held) return game.matchRoll.first;", "not ready: back and ready, the start goes out once with Blue's choice (White first)"],
 ];
 
 const NAMES = [...new Set(MUTATIONS.map((m) => m[4]))];

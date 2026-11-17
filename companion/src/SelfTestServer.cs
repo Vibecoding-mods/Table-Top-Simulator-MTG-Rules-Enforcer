@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Sockets;
 using System.Text;
 
 namespace MtgCompanion
@@ -119,6 +120,22 @@ namespace MtgCompanion
             Check("page: a bad address is refused with the reason, nothing written", text == null && problem != null && problem.Contains("without ws://"), problem);
             text = OwnServer.FileFromBox("", Key, false, null, out problem);
             Check("page: no address: asks for one", text == null && problem != null && problem.Contains("address"), problem);
+            // ── what a failed connect says (Probes.ConnectFailureKind), from each platform's exceptions: .NET Framework on
+            // Windows reports an unknown name as a WebException (NameResolutionFailure) with no SocketException, mono as a
+            // SocketException (HostNotFound). Checked here with both shapes, so neither branch is only seen on one platform.
+            Func<Exception, LoginKind> kind = Probes.ConnectFailureKind;
+            Func<SocketError, Exception> sock = (code) => new System.Net.Sockets.SocketException((int)code);
+            Check("login kind: Windows' unknown name (WebException NameResolutionFailure): isn't known",
+                kind(new AggregateException(new System.Net.WebSockets.WebSocketException("x", new System.Net.WebException("The remote name could not be resolved", System.Net.WebExceptionStatus.NameResolutionFailure)))) == LoginKind.NotFound);
+            Check("login kind: mono's unknown name (SocketException HostNotFound): isn't known",
+                kind(new AggregateException(new System.Net.WebException("x", sock(SocketError.HostNotFound)))) == LoginKind.NotFound);
+            Check("login kind: no address for the name (NoData, TryAgain): isn't known",
+                kind(sock(SocketError.NoData)) == LoginKind.NotFound && kind(sock(SocketError.TryAgain)) == LoginKind.NotFound);
+            Check("login kind: a refused connection: refused",
+                kind(new AggregateException(new System.Net.WebException("x", sock(SocketError.ConnectionRefused)))) == LoginKind.Refused);
+            Check("login kind: another WebException: closed, not isn't known",
+                kind(new System.Net.WebException("x", System.Net.WebExceptionStatus.ConnectFailure)) == LoginKind.Closed);
+            Check("login kind: cancelled: timeout", kind(new AggregateException(new System.Threading.Tasks.TaskCanceledException())) == LoginKind.Timeout);
             OwnServerWiring(Key);
         }
 

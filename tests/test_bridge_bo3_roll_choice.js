@@ -3,7 +3,9 @@
 // winner is asked Play / Draw on the table's prompt panel (the match's MATCH_PROMPT, as the loser's question after a
 // game), and the start waits for the answer: the gameConfig's firstPlayer and StartGame go out then. No answer within
 // ROLL_CHOICE_SECONDS plays (said in chat). An AI winner plays at once, as an AI loser does. A late answer, another
-// room update while waiting, or a reset while waiting starts nothing twice. No TTS save needed.
+// room update while waiting, or a reset while waiting starts nothing twice. The held start uses the room as it is when
+// it goes out (a player who left or reconnected during the wait), and waits for the next ready update if the room
+// can't start then, without rolling again. No TTS save needed.
 //   node tests/test_bridge_bo3_roll_choice.js
 const harness = require("./bridge-harness");
 
@@ -34,8 +36,8 @@ function newGame(h, { tableFirst = null } = {}) {
   return seat;
 }
 // the room ready to start: Blue and the Forge AI both in and ready
-const ready = (h, seat) => h.B.onRoomUpdate(seat, { room_id: "room-1", status: "Lobby", max_players: 2,
-  players: [{ username: seat.username, ready: true, connected: true }, { username: "Forge AI", ready: true, connected: true, is_bot: true }] });
+const ready = (h, seat, { bot = "Forge AI", connected = true } = {}) => h.B.onRoomUpdate(seat, { room_id: "room-1", status: "Lobby", max_players: 2,
+  players: [{ username: seat.username, ready: true, connected }, { username: bot, ready: true, connected: true, is_bot: true }] });
 const starts = (seat) => seat.sent.filter((m) => m.type === "StartGame");
 const config = (seat) => seat.sent.filter((m) => m.state?.payload?.type === "gameConfig").map((m) => m.state.payload).at(-1) || null;
 const choose = async (h, choice) => { h.B.onTTS({ t: "answer", color: "Blue", promptId: "__match", choice: [choice] }); await h.settle(); };
@@ -148,6 +150,49 @@ const BLUE = 1, WHITE = 0;
     h.B._setGame(null);
     await h.flush();
     same("reset: the clock starts nothing once the game is gone", starts(seat).length, 0);
+  });
+
+  // ── the room changes during the wait: the start uses the latest room (the AI reconnected under a new name)
+  await run(async (h) => {
+    await on(h);
+    const seat = newGame(h);
+    const back = rolls([14, 7]);
+    ready(h, seat);
+    back();
+    await h.settle();
+    ready(h, seat, { bot: "Forge AI (2)" });
+    await h.settle();
+    await choose(h, "__play");
+    const start = starts(seat).at(-1);
+    same("latest room: the seat order is the room's at the answer, not at the roll", start?.seat_order, ["Forge AI (2)", seat.username]);
+    same("latest room: Blue first, one start", [config(seat)?.firstPlayer, starts(seat).length], [BLUE, 1]);
+  });
+  // ── Blue drops out during the wait: no start until the room is ready again, then one, with no second roll
+  await run(async (h) => {
+    await on(h);
+    const seat = newGame(h);
+    const back = rolls([14, 7]);
+    ready(h, seat);
+    back();
+    await h.settle();
+    ready(h, seat, { connected: false });
+    await h.settle();
+    const n = h.effects.length;
+    await choose(h, "__draw");
+    same("not ready: the answer starts nothing while Blue is out of the room", starts(seat).length, 0);
+    ok("not ready: said in chat", chats(h, n).some((c) => /isn't ready to start/.test(c)), chats(h, n).join(" | "));
+    for (let k = 0; k < 40; k++) await h.settle();
+    await h.flush();
+    same("not ready: the clock starts nothing either", starts(seat).length, 0);
+    const back2 = rolls([3, 18]);
+    ready(h, seat);
+    back2();
+    await h.settle();
+    same("not ready: back and ready, the start goes out once with Blue's choice (White first)", [starts(seat).length, config(seat)?.firstPlayer], [1, WHITE]);
+    same("not ready: no second roll and no second question", [chats(h).filter((c) => /a roll for who goes first/.test(c)).length, prompts(h, "Blue").filter((p) => p.promptId === "__match").length], [1, 1]);
+    ready(h, seat);
+    await h.settle();
+    same("not ready: a later update starts nothing more", starts(seat).length, 1);
   });
 
   process.stdout.write(failed ? `${failed} failed (${passed} passed)\n` : `all ${passed} roll choice checks pass\n`);
