@@ -195,10 +195,16 @@ function pageChecks() {
   const built = await fakeRelay({ rooms: [{ room_name: "tts-commander", status: "Lobby", engine_build: "engine1120" }] });
   try {
     const s = { host: "127.0.0.1", port: built.port, key: KEY };
-    let o = await observe(exe, s, [], {}, { "stack/deployed.json": JSON.stringify({ bridge: "b", table: "t", engineBuild: "engine1121" }) });
-    ok("another engine build than the table's: amber, both named, Try again", o.rows[3]?.light === "AMBER" && /Your server runs engine engine1120, but this table was deployed with engine engine1121/.test(o.rows[3]?.text), o.rows[3]?.text || o.out);
-    o = await observe(exe, s, [], {}, { "stack/deployed.json": JSON.stringify({ bridge: "b", table: "t", engineBuild: "engine1120" }) });
-    ok("the table's engine build: green", o.rows[3]?.light === "GREEN" && /room tts-commander is open/.test(o.rows[3]?.text), o.rows[3]?.text || o.out);
+    // (both lights that read stack/deployed.json: the start sequence's (DoServer, the plain --dump) and the watcher's
+    // (MonitorServer, --watch-once: one watcher pass on the worker before the dump), so neither can drop the table's
+    // build unnoticed; a watcher tick racing the dump made only one of them count on a fast machine)
+    for (const [how, args] of [["start sequence", []], ["watcher", ["--watch-once"]]]) {
+      let o = await observe(exe, s, args, {}, { "stack/deployed.json": JSON.stringify({ bridge: "b", table: "t", engineBuild: "engine1121" }) });
+      ok("another engine build than the table's: amber, both named, Try again", o.rows[3]?.light === "AMBER" && /Your server runs engine engine1120, but this table was deployed with engine engine1121/.test(o.rows[3]?.text) && /button: Try again/.test(o.rows[3]?.text),
+        `${how}: ${o.rows[3]?.text || o.out}`);
+      o = await observe(exe, s, args, {}, { "stack/deployed.json": JSON.stringify({ bridge: "b", table: "t", engineBuild: "engine1120" }) });
+      ok("the table's engine build: green", o.rows[3]?.light === "GREEN" && /room tts-commander is open/.test(o.rows[3]?.text), `${how}: ${o.rows[3]?.text || o.out}`);
+    }
   } finally { await built.close(); }
   for (const [name, rooms, re] of [["a busy room", [{ room_name: "tts-commander", status: "InGame" }], /busy with an earlier game/], ["no Forge room", [], /its Forge room \(tts-commander\) isn't open/]]) {
     const r2 = await fakeRelay({ rooms });

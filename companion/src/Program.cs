@@ -5,7 +5,8 @@
 //   MTG Companion.exe --start              start everything at launch, then watch (what every launch did before 2026-11-14;
 //       a self-update's restart, --after-update or --apply-update, starts it too, as the update stopped the bridge)
 //   MTG Companion.exe --observe            only read and show the lights; changes nothing
-//       [--home DIR] [--saves DIR] [--state DIR] [--dump FILE]   (--dump: write the lights after one pass and exit)
+//       [--home DIR] [--saves DIR] [--state DIR] [--dump FILE]   (--dump: write the lights after one pass and exit;
+//       [--watch-once]                                            with --watch-once, after one watcher pass too)
 //       [--no-web] [--web-port N] [--no-browser]   the status page on 127.0.0.1:48790 (WebUi.cs) or the old window
 //   MTG Companion.exe --server HOST[:PORT]     own-server mode for this run: the engine on another computer (OwnServer.cs);
 //       without it, server.json in the package folder says the same (the status page's Own server box writes it)
@@ -268,6 +269,7 @@ namespace MtgCompanion
                 c.Start();
                 var until = DateTime.UtcNow.AddSeconds(120);
                 while (!c.FirstPassDone && DateTime.UtcNow < until) Thread.Sleep(200);
+                if (args.Contains("--watch-once") && !c.WatchOnce(60000)) Out("--watch-once: the watcher didn't run within 60 s" + Environment.NewLine, null);
                 Out(c.Dump(), dump);
                 c.Quit();
                 return 0;
