@@ -68,7 +68,7 @@ namespace MtgCompanion
         public Mode Mode;
         public string Home;
         public string VersionFile, ComposeFile, Project, NodeExe, BridgeJs, LogsDir, CompanionLog, BridgeLog;
-        public string ImagesTar, TableJson, TablePng, DeployedFile, EnvFile;
+        public string ImagesTar, TableJson, TablePng, DeployedFile, EnvFile, ServerFile;
         public string[] ResumeFiles;
 
         public bool Friend { get { return Mode == Mode.Friend; } }
@@ -81,6 +81,7 @@ namespace MtgCompanion
             l.ComposeFile = Path.Combine(home, "stack", "compose.yml");
             l.BridgeJs = Path.Combine(home, "bridge", "bridge.js");
             l.EnvFile = Path.Combine(home, "stack", ".env");
+            l.ServerFile = Path.Combine(home, OwnServer.File); // (own server: where the engine runs, when not on this PC)
             if (mode == Mode.Friend)
             {
                 l.VersionFile = Path.Combine(home, "version.json");
@@ -991,7 +992,7 @@ namespace MtgCompanion
         public bool Exists; public string Id, Name, State, Health, Image; public int Restarts;
     }
 
-    public enum LoginKind { Ok, Refused, Closed, AuthFailed, Timeout, Error, Skipped }
+    public enum LoginKind { Ok, Refused, Closed, AuthFailed, Timeout, Error, Skipped, NotFound }
 
     public class LoginResult
     {

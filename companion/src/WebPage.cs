@@ -315,6 +315,25 @@ body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; fi
   <p class='toast' id='toast' role='status' aria-live='polite'></p>
   </div>
 
+  <details id='srvbox' class='card' hidden>
+    <summary id='srvbox-sum'><span class='sum-ico' data-icon='bolt' aria-hidden='true'></span><span>Own server: use the host’s engine</span></summary>
+    <p class='sum-help'>The engine (relay and Forge room) can run on the host’s computer instead of this one: this companion then connects to it over the network and needs no Docker here.</p>
+    <div class='tt'>
+      <p class='tt-note' id='srv-state' role='status'></p>
+      <div class='tt-line'>
+        <label id='srv-host-label'>Server <input type='text' id='srv-host' autocomplete='off' spellcheck='false' placeholder='mtg.example.org or 100.64.0.5:9443'></label>
+        <label id='srv-key-label'>Key <input type='password' id='srv-key' autocomplete='off' spellcheck='false' placeholder='The host’s server key'></label>
+        <label class='switch' id='srv-secure-label'><input type='checkbox' id='srv-secure'> Secure (wss://)</label>
+      </div>
+      <div class='tools'>
+        <button type='button' class='btn' id='srv-save' data-icon='check'>Use this server</button>
+        <button type='button' class='btn' id='srv-local' data-icon='stop'>Use this computer</button>
+      </div>
+      <p class='tt-note'>The host gives you the address and the key (its MANABREW_SERVER_KEY). The key stays in server.json in this package’s folder: never share that file or post the key in a chat. The host’s firewall must let this computer reach the relay’s port (9443 unless the host changed it). Use this computer goes back to the engine in Docker here.</p>
+      <p class='toast' id='srv-toast' role='status' aria-live='polite'></p>
+    </div>
+  </details>
+
   <details id='tablebox' class='card'>
     <summary id='tablebox-sum'><span class='sum-ico' data-icon='spark' aria-hidden='true'></span><span>Table tools: AI seats, debug tools and GIF frames</span></summary>
     <p class='sum-help'>Set who plays an empty seat, change the running game for testing, or give the table its GIPHY key. The bridge is asked only while this is open.</p>
@@ -599,8 +618,14 @@ var MtgPage = (function () {
 
   // the table tools' tips (the bridge: setAiSeat, DEBUG_TOOLS, setDebugTools; observe mode refuses every change)
   var STATIC_TIPS = {
+    'srvbox-sum': 'Own server: play on the engine that runs on the host’s computer (its address and key), with no Docker on this one. Shown by the Windows companion.',
     'tablebox-sum': 'Table tools: opens the AI seat setup, the debug tools and the GIF frames’ GIPHY key. The bridge is asked only while this is open, so the engine must be running. Observe mode changes nothing here.',
     'logbox-sum': 'Log: shows the last lines of companion.log here, updated by themselves. Read only; Open logs folder has the whole file.',
+    'srv-host': 'Your server: the host’s computer name or IP address, with :port when its relay isn’t on 9443. No ws:// or http://.',
+    'srv-key': 'The server’s key (the host’s MANABREW_SERVER_KEY). Left empty, the key already saved for the same server is kept. The page never shows a saved key.',
+    'srv-secure': 'Secure: the host’s relay is behind TLS (wss://). Leave it off for a plain relay or a private network such as Tailscale.',
+    'srv-save': 'Use this server: saves server.json in this package’s folder and checks the server; the bridge then plays on it. Refused during a game.',
+    'srv-local': 'Use this computer: removes server.json; the engine runs in Docker on this computer again. Refused during a game.',
     'tt-gif-key': 'Your GIPHY API key (free at developers.giphy.com). Saved in a file in your user folder on this PC only: never in the table save, the table script or a package, and sent only to this PC’s bridge and, with each search, to GIPHY. The bridge searches for the players, at most 100 times an hour with a new key.',
     'tt-gif-save': 'Save key: hands the key to the bridge, which keeps it on this PC and tells the table its GIF frames are on.',
     'tt-gif-remove': 'Remove key: deletes the saved key; the table’s GIF frames go away.',
@@ -672,6 +697,28 @@ var MtgPage = (function () {
     var used = Number(g.used) || 0, limit = Number(g.limit) || 0, rest = Number(g.restingMin) || 0;
     return { set: true, text: 'A GIPHY key ending in ' + str(g.giphy.ends) + ' is saved on this PC: the table’s GIF frames are on. Searches this hour: ' + used + (limit ? ' of ' + limit : '') + (rest ? ', resting ' + rest + ' min' : '') + '.' };
   }
+  // the status JSON's server part (WebUi.ServerSection) -> what the Own server box shows; a companion that sends none
+  // (the Linux/Mac one) hides the box
+  function serverView(s) {
+    if (!s || typeof s !== 'object' || !s.mode) return { show: false, open: false, text: '', host: '', secure: false, fixed: false, mode: '' };
+    var fixed = !!s.fixed, tail = fixed ? ' (set by --server for this run: start the companion without it to change it here)' : '';
+    if (s.mode === 'server') {
+      var at = str(s.host) + ':' + str(s.port);
+      return { show: true, open: true, mode: 'server', fixed: fixed, host: Number(s.port) === 9443 ? str(s.host) : at, secure: !!s.secure,
+        text: 'This companion uses your server ' + at + (s.secure ? ' (secure)' : '') + ', with a key' + (s.keyEnds ? ' ending in ' + str(s.keyEnds) : '') + '. The light named Your server says whether it answers.' + tail };
+    }
+    if (s.mode === 'problem') return { show: true, open: true, mode: 'problem', fixed: fixed, host: '', secure: false, text: 'Your server setting has a problem: ' + str(s.problem) + tail };
+    return { show: true, open: false, mode: 'local', fixed: fixed, host: '', secure: false, text: 'This companion runs the engine in Docker on this computer.' };
+  }
+  // Use this server -> the POST body, or { error }
+  function serverRequest(host, key, secure) {
+    var h = str(host).trim();
+    if (!h) return { error: 'Type your server’s address: its name or IP, with :port if it isn’t 9443.' };
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(h)) return { error: 'Type the address without ws:// or http:// (the port goes after a colon).' };
+    if (/\s/.test(h)) return { error: 'The address has a space in it.' };
+    return { host: h, key: str(key).trim(), secure: !!secure };
+  }
+
   // Save key / Remove key -> the POST body, or { error }
   function gifKeyRequest(key, remove) {
     if (remove) return { kind: 'gif-key', provider: 'giphy', key: '' };
@@ -894,7 +941,46 @@ var MtgPage = (function () {
       set($('logfile'), vm.log.file);
       set($('versions'), vm.footer.versions);
       set($('updated'), vm.footer.updated);
+      srvDraw(serverView(st.last && st.last.server));
     }
+
+    // ── own server: the box follows the status poll; what was typed is never overwritten
+    var srv = { mode: null, busy: false };
+    function srvSay(text, kind) { var t = $('srv-toast'); t.className = 'toast' + (kind ? ' ' + kind : ''); set(t, text); }
+    function srvDraw(v) {
+      $('srvbox').hidden = !v.show;
+      if (!v.show) return;
+      set($('srv-state'), v.text);
+      if (v.mode !== srv.mode) {
+        // (a new mode: the box opens for a server, and its address is filled in once)
+        srv.mode = v.mode;
+        if (v.open) $('srvbox').open = true;
+        if (v.host && !$('srv-host').value) $('srv-host').value = v.host;
+        $('srv-secure').checked = v.secure;
+      }
+      ['srv-host', 'srv-key', 'srv-secure', 'srv-save', 'srv-local'].forEach(function (id) { $(id).disabled = v.fixed; });
+    }
+    function srvPost(body, onOk) {
+      if (body.error) { srvSay(body.error, 'warn'); return; }
+      if (srv.busy) { srvSay('Already sent; waiting for the companion.', ''); return; }
+      srv.busy = true;
+      srvSay('Working…', '');
+      new Promise(function (ok) {
+        ok(env.fetch('/api/server', { method: 'POST', cache: 'no-store', credentials: 'same-origin', headers: headers(st.token, true), body: JSON.stringify(body) }));
+      }).then(function (r) { return r.json(); }).then(function (res) {
+        srv.busy = false;
+        var a = answerPlan(res);
+        srvSay(a.text, a.kind);
+        if (res && res.ok === true && onOk) onOk();
+        schedule(T.repoll);
+      }, function () { srv.busy = false; srvSay('The companion didn’t answer.', 'bad'); });
+    }
+    // (the key box is emptied once it is saved: the page never shows a key back)
+    $('srv-save').addEventListener('click', function () { srvPost(serverRequest($('srv-host').value, $('srv-key').value, $('srv-secure').checked), function () { $('srv-key').value = ''; }); });
+    $('srv-local').addEventListener('click', function () {
+      if (!env.confirm('Use the engine on this computer again? Its server.json (with the key) is removed.')) return;
+      srvPost({ local: true }, function () { $('srv-host').value = ''; $('srv-key').value = ''; });
+    });
 
     function showError(e) {
       try {
@@ -1145,7 +1231,7 @@ var MtgPage = (function () {
     T: T, NAMES: NAMES, stateOf: stateOf, connView: connView, lightButton: lightButton, menuButton: menuButton,
     lightView: lightView, gameView: gameView, updateView: updateView, viewModel: viewModel, clickPlan: clickPlan,
     answerPlan: answerPlan, afterPoll: afterPoll, reloadAllowed: reloadAllowed, headers: headers, start: start,
-    toolsView: toolsView, seatRequest: seatRequest, debugRequest: debugRequest, LIST_CHOICE: LIST_CHOICE, gifKeyRequest: gifKeyRequest, gifsView: gifsView, handRequest: handRequest, handNote: handNote, handView: handView,
+    toolsView: toolsView, seatRequest: seatRequest, debugRequest: debugRequest, LIST_CHOICE: LIST_CHOICE, gifKeyRequest: gifKeyRequest, serverView: serverView, serverRequest: serverRequest, gifsView: gifsView, handRequest: handRequest, handNote: handNote, handView: handView,
     debugTip: debugTip, seatTips: seatTips, STATIC_TIPS: STATIC_TIPS, NOW: NOW, manaDrift: manaDrift
   };
 
