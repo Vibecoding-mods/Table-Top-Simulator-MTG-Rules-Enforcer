@@ -184,6 +184,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-17 (no image; built in a cloud session) | `engine1117-snapspeed` (no image ids) | On top of `engine1117-3hg`: the snapshot's combat flags (`cantBlock`, `cantAttack`, `mustAttack`) no longer rescan every card's statics for each creature. New harness class `CombatStatics` collects the active `CantAttack`, `CanAttackDefender`, `CantBlock` and `MustAttack` statics once per snapshot round (`SnapshotRound`, shared by the viewers of one wait) and runs Forge's own `apply*` checks on that list. A goaded creature and a "can't block alone" creature still go through Forge's `CombatUtil`. The output is byte-identical (the whole snapshot JSON at 1,000, 3,000 and 10,000 tokens). One viewer's snapshot: 102 → 42 ms at 1,000 tokens, 987 → 114 ms at 3,000, 13.4 s → 0.30 s at 10,000. `SnapshotSpeedTest` 9 checks, break-it 12 of 12 | no | outer branch `cloud/snapshot-speed` (engine/manabrew.patch only; forge.patch unchanged); branch `cloud/snapshot-speed` (`2e2b442`), merged on `engine-1120`: `engine/manabrew.patch` regenerated from a source-level merge in a clean `fd16e2f` tree (base `b9d3c34`, no source conflicts), `git apply --check` clean | not deployed | `engine1117-3hg` |
 | 2026-11-16 (not built; tested as an overlay in `mtg-harness-test:l2-ai` with hand-mirrored generated classes) | big-turns-2 B (attack tax, split stacks) | The attack question now fills the step-0 fields: per attacker and legal defender `damage` (`ComputerUtilCombat.damageIfUnblocked`: pumps, double strike, prevention, 0 for infect and for a player who can't lose life), `poison` (`poisonIfUnblocked`) and, in Commander, `commander`; per defender `life` (a planeswalker's loyalty, a battle's defense; team life is mirrored), `poisonLeft`, `commanderLeft` per attacking commander (`getCommanderDamageToLose` minus the team's damage) and `canLose` (false under `cantLose` or `cantLoseForZeroOrLessLife`). Fix: cancelling one attack-tax payment no longer asks the whole declaration again (the mana-payment snapshot's restore replaced the combat with a copy whose attack constraints counted the already-tapped attackers as unable to attack, so `validateAttackers` failed and Forge re-asked and charged every attacker again); `payCombatCost` rebuilds the copy's constraints with the attackers untapped for the count. New `AttackTaxLethalTest` (12 checks: damage, pump, double strike, infect, prevention, commander, Platinum Angel, a planeswalker's loyalty, payment order follows the declaration order, a cancel leaves only that attacker home, 200 attackers in about 0.5 s). Bridge: the lethal-minimum tax question and its automatic payments; a token stack waiting for "whom?" splits among the players | node only (no new protocol field) | outer branch `big-turns-2b`; engine/manabrew.patch (ManaBrewInteractiveSession.java, ManaBrewInteractiveController.java, AttackTaxLethalTest.java, harness AGENTS.md) regenerated in a clean `fd16e2f` tree, `git apply --check` clean; `forge.patch` unchanged; `AttackTaxLethalTest` added to the harness-tests.sh defaults | not built | big-turns-2 step 0 |
 | 2026-11-16 (not built; tested as an overlay in `mtg-harness-test:l2-ai` with hand-mirrored generated classes) | big-turns-2 step 0 (protocol fields) | Every protocol field of `docs/big-turns-2-spec.md` added with its default, so nothing changes yet: `CardDto.unbounded`; `AttackerOptionDto.damage` (`AttackDamageDto`); `AttackTargetDto.life`/`poisonLeft`/`commanderLeft` (`CommanderLeftDto`)/`canLose`; directives `offerTie`, `tieVote`, `releaseHold` (the harness reads and drops them); `GameViewDto.tieVote` (`TieVoteDto`), `stalemate` (`StalemateDto`), `drawReason`. Harness sends none of them (null/false). Bridge: `inf` on a card when `unbounded`, and `engineAttackData` keeps `damage`/`defenders`; nothing reads them. New `ProtocolDefaultsTest` (6 checks) | **Protocol** (node and relay must both be rebuilt: the relay drops a directive it doesn't know, and the java-builder image must regenerate the Java DTOs) | outer branch `big-turns-2`; `engine/manabrew.patch` regenerated in a clean `fd16e2f` tree, `git apply --check` clean; `forge.patch` unchanged | not built | the patches before it |
 | 2026-11-16 (no image; built in a cloud session) | `engine1117-3hg` (no image ids) | main's engine + Three-Headed Giant: a revise round's title names the partner who changed the team's block (a team of three); `ThreeHeadedGiantTest` | Node only (no protocol change) | outer branch `cloud/three-headed-giant`; branch `cloud/three-headed-giant` (`b9d3c34`) merged on `engine-queue`: both patches regenerated from a source-level merge in a clean `fd16e2f` / `e7d2b93b` tree (base `1558cdb`, no source conflicts), `git apply --check` clean; `ThreeHeadedGiantTest` added to the harness-tests.sh defaults | not deployed | main's engine |
@@ -270,6 +271,39 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-17 engine1117-snapspeed: combat flags from one static scan per snapshot (built in the cloud, no image)
+- **Problem:** on big boards most of each snapshot's time went to `InteractiveSnapshotExtractor.combatFlags`. Forge's
+  `CombatUtil.canBlock`, `canAttackNextTurn` (for each possible defender) and `StaticAbilityMustAttack.entitiesMustAttack`
+  each walk every static ability of every card in the static zones, for every creature. That is quadratic in the board
+  size.
+- **Change:**
+  - `forge-harness/.../host/CombatStatics.java` (new) walks the static zones once. It keeps the statics whose
+    `checkMode` is `CantAttack`, `CanAttackDefender`, `CantBlock` or `MustAttack` and whose `checkConditions()` holds.
+  - It then answers each creature with Forge's own per-ability checks (`applyCantAttackAbility`,
+    `applyCanAttackDefenderAbility`, `applyCantBlockAbility`, and the `MustAttack` loop with its CR 506.2 turn rule).
+    The keyword and detained checks keep Forge's order.
+  - A defender's `CantAttack` keyword static is answered from the cached `CanAttackDefender` list, since Forge's own
+    `canAttackDefender` would rescan.
+  - A goaded attacker and a "can't block alone" blocker fall back to Forge's `CombatUtil`.
+  - `SnapshotRound` holds one `CombatStatics` and builds it on first use. The flags were already cached per card in the
+    round.
+- **Tests:**
+  - `SnapshotSpeedTest`, 9 checks. It compares every creature's three flags in the snapshot with Forge's own functions,
+    for each viewer and on each player's turn. The boards cover:
+    - a mixed board: two Walls, Rolling Stones, Blazing Archon, Moat, Ensnaring Bridge, Pacifism, Hulking Goblin,
+      Bloodrock Cyclops, Goblin Rabblemaster, Public Enemy, Propaganda, and a Peacekeeper in a graveyard;
+    - Peacekeeper;
+    - defenders without and then with Rolling Stones;
+    - Ensnaring Bridge as the hand goes from 0 to 7 cards;
+    - a goaded creature;
+    - can't block alone, alone and then with a partner.
+  - Further checks: one static scan for a round of 1,000 creatures; the cached flags at least 3x faster than Forge's
+    per-creature scans at 1,000 tokens (about 5 ms against 105 ms here); and 3,000 creatures taking under 7x the time of
+    1,000.
+  - `CardStateFlagsTest` and the whole harness suite (29 classes) pass.
+  - Break-it: `node tools/mutate-snapshot-speed.js <tree>`, 12 of 12 caught by name.
+- **Not done:** no image, no live game.
 
 ### 2026-11-16 big-turns-2 B: attack tax at the lethal minimum, one stack per defender (not built)
 - **Why:** `docs/big-turns-2-spec.md` items 3 and 4, with the user's decisions 5 ("Pay for all" next to the lethal
