@@ -579,6 +579,10 @@ function engineChat(message, pl)
   elseif cmd == "stop" then
     -- stop a long run of triggers at your next priority (the bridge passes them back to back, docs/big-turns.md)
     engineSend("stopchain", { color = pl.color })
+  elseif cmd == "repeat" then
+    -- repeat the loop you just played once by hand, N more times ("mtg repeat 100"; no number: the how-many question),
+    -- at your priority back on the same board (the bridge's "Repeat ×N", rule 732.2)
+    engineSend("repeatloop", { color = pl.color, n = tonumber(rest) })
   elseif cmd == "refresh" then
     -- your hand, your open question and your panels drawn again, and the game asked for again (after a lag-out, or a
     -- question that never showed: engineSeatBack in engine-renderer.lua)
@@ -626,7 +630,7 @@ function engineChat(message, pl)
     else engineSend("schemes", { color = pl.color, text = rest }) end
   elseif cmd == "mode" then
     -- the next games' mode (host): mtg mode standard / mtg mode commander (docs/game-modes-spec.md §3.4); "mtg mode" says it
-    if rest == "" then pl.broadcast("[MTG] Game mode: " .. (ENGINE_GAME_MODE == "standard" and "Standard" or "Commander") .. (ENGINE_TEAMS ~= nil and engineTeamsText ~= nil and (", " .. (ENGINE_TEAM_NAMES[ENGINE_TEAM_MODE or "2hg"] or "Two-Headed Giant") .. " (" .. engineTeamsText() .. ")") or "") .. ". The host changes it:  mtg mode standard  or  mtg mode commander  (or the Game mode button); teams:  mtg mode 2hg,  mtg mode 2v2,  mtg mode juggernaut  or  mtg mode ffa  (or the Teams button).")
+    if rest == "" then pl.broadcast("[MTG] Game mode: " .. (ENGINE_GAME_MODE == "standard" and "Standard" or "Commander") .. (ENGINE_TEAMS ~= nil and engineTeamsText ~= nil and (", " .. (ENGINE_TEAM_NAMES[ENGINE_TEAM_MODE or "2hg"] or "Two-Headed Giant") .. " (" .. engineTeamsText() .. ")") or "") .. ". The host changes it:  mtg mode standard  or  mtg mode commander  (or the Game mode button); teams:  mtg mode 2hg,  mtg mode 2v2,  mtg mode juggernaut,  mtg mode 3hg  (the six-seat table)  or  mtg mode ffa  (or the Teams button).")
     elseif not isHost then pl.broadcast("[MTG] Only the host can change the game mode (everyone plays it).")
     elseif rest == "standard" or rest == "commander" then engineSetGameMode(rest, pl)
     else pl.broadcast("[MTG] Use:  mtg mode standard  (60-card decks, 20 life, no commander) or  mtg mode commander") end
@@ -660,7 +664,7 @@ function engineChat(message, pl)
     pl.broadcast("[MTG] Commands:\\n${[
       " mtg ready / mtg ready all (host) - check decks",
       " mtg mode standard|commander (host) - the next games' format: Standard (60 cards, 20 life, no commander) or Commander",
-      " mtg mode 2hg / 2v2 / juggernaut / ffa (host) - Two-Headed Giant or Juggernaut (one against three) in Commander, 2v2 (White + Red vs Yellow + Blue) in Standard, or free-for-all; mtg team <colour> 1|2 (host) - move a seat; mtg juggernaut <colour> / life|hand|draw|land <n> / cmd 21|42 / order first|after (host) - the Juggernaut",
+      " mtg mode 2hg / 2v2 / juggernaut / 3hg / ffa (host) - Two-Headed Giant or Juggernaut (one against three) in Commander, 2v2 (White + Red vs Yellow + Blue) in Standard, Three-Headed Giant (the six-seat table's sides, three a team) in either, or free-for-all; mtg team <colour> 1|2 (host) - move a seat; mtg juggernaut <colour> / life|hand|draw|land <n> / cmd 21|42 / order first|after (host) - the Juggernaut",
       " mtg commander - hover your commander first",
       " mtg clear deck - remove your own deck and commander from your seat (not during a game)",
       " mtg start [ai N] - start the engine game, optionally with N Forge AI players",
@@ -676,7 +680,8 @@ function engineChat(message, pl)
       " mtg art off|on (host) - the players' own card pictures (1 Sol Ring #https://... in the deck list) or the normal ones, for everyone",
       " mtg skip <upkeep|draw|main|combat|blockers|damage|main2|end|mine|off> - pass priority until that phase (an opponent's spell stops it)",
       " mtg hold - keep priority once after something goes on the stack, to respond to your own spell (also the Hold button)",
-      " mtg stop - stop a long run of triggers resolving by itself: your next priority with something on the stack is asked",
+      " mtg stop - stop a long run of triggers resolving by itself: your next priority with something on the stack is asked; it also stops a Repeat ×N",
+      " mtg repeat <n> - after one pass of a loop by hand, back to the same board, repeat it n more times (up to 1000; also the Repeat ×N button); anyone may respond, and that stops it",
       " mtg refresh - your hand, your question and your panels drawn again (after a lag-out, or a question that never showed)",
       " mtg timer [seconds] / mtg timer off (host) - turn timers for everyone",
       " mtg concede - leave the game; mtg winner <colour> (host, Treachery)",

@@ -88,6 +88,13 @@ function seenFromTable(sid, q) {
 const ZONE_KEYS = ["hand", "battlefield", "graveyard", "exile", "command", "playable", "revealed", "ctlHand"];
 // A reveal's pictures (the table pages through them, 7 at a time): 7 left out Animist's Awakening's 8th, 2026-10-30
 const REVEAL_PICTURES = 40;
+// The most a number picker offers (docs/stress-catalog.md #1): Forge's "no limit" (2147483647) and any max above it
+// stop here; a real X (Torment of Hailfire with 40 mana, Toxic Deluge with 30 life) is offered in full up to it
+const NUMBER_PICK_MAX = 999;
+// How many names a list in a log line, the effects hover or a chat line names before "... and N more" (#11)
+const FEW_NAMES = 8;
+// "A, B, C" up to n names, else the first n then " ... and N more"
+const fewNames = (list, n = FEW_NAMES) => (list.length > n ? `${list.slice(0, n).join(", ")} ... and ${list.length - n} more` : list.join(", "));
 // How long a clash's log line waits for the other human seats to be shown the same clash (each acknowledges in turn,
 // so one player's slow OK delays the next one's question): see the clash in onPrompt
 const CLASH_SAME_MS = 120000;
@@ -553,10 +560,12 @@ function onSchemes(m) {
 function withArchenemy(setup) {
   if (setup.mode === "archenemy") return { ...setup, arch: { ...setup.arch, schemes: setup.arch.schemes || archenemy.names } };
   if (!archenemy.on) return setup;
-  return { teams: teams2hg.juggTeams(archenemy.color), mode: "archenemy", jugg: null, turns: null, arch: { color: archenemy.color, schemes: archenemy.names } };
+  return { teams: teams2hg.juggTeams(archenemy.color), mode: "archenemy", jugg: null, turns: null, arch: { color: archenemy.color, schemes: archenemy.names, sticky: true } };
 }
 // Undo in an Archenemy game: the engine takes no restore points there (the schemes in play aren't rewind-safe yet)
 const ARCH_NO_UNDO = "Undo isn't available in Archenemy games: the schemes in play can't be rewound yet.";
+// (a start the switch made an Archenemy game: the switch stays on for the next games, so a refusal says how to turn it off)
+const ARCH_SWITCH_OFF = " The Archenemy switch is on for the next games: type  mtg archenemy off  to play without it.";
 
 // a plane for the deck sent to the engine (as a preset's cards are, loadPreset)
 const planeDeckCard = (name) => ({ identity: { name, setCode: "", cardNumber: "" }, manaCost: "", cmc: 0, types: [planeNamed(name)?.phenomenon ? "Phenomenon" : "Plane"],
@@ -1119,9 +1128,12 @@ class Seat {
   //   creatures that must attack (core-moves cleanup plan): textWord, mustAttack;
   // - the undone attack's engine data, refusal and picks (a rewind back into declare attackers showed the undone
   //   attempt's "isn't legal", batch 1 review 2026-11-12): attackData, attackRefused, lastAttack;
-  // - a repeated yes/no's "×N" still answering (offerRepeat): repeatAnswer.
+  // - a repeated yes/no's "×N" still answering (offerRepeat): repeatAnswer;
+  // - a loop's "Repeat ×N": the one under way, this turn's answers it repeats, the pass offered (loopStep): loop,
+  //   loopLog, loopOffer.
   static FOLLOW_UPS = ["endTurnAt", "resolveStack", "queuedPlay", "attachTo", "targetPicks", "cardsDone", "unless", "autoPayCard",
-    "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack", "attackData", "attackRefused", "lastAttack", "repeatAnswer"];
+    "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack", "attackData", "attackRefused", "lastAttack", "repeatAnswer",
+    "loop", "loopLog", "loopOffer"];
   // resume: { username, slot, roomId } of a seat saved before the bridge stopped (resumeGame): it logs in again under
   // the same name as a reconnect (AuthResult below), so the relay hands back its seat and RequestResync the game
   constructor(color, deckId, resume = null) {
@@ -1270,7 +1282,7 @@ class Seat {
         const picked = (raw.input.cards || []).filter((c) => (output?.chosenCardIds || []).includes(c.id) && c.identity?.name);
         const how = String(raw.sourceAbilityText || src.text || "");
         if (picked.length) {
-          gameLogLine(`${nameOf(this.slot)} chooses ${picked.map((c) => c.identity.name).join(", ")} (${src.identity.name})`);
+          gameLogLine(`${nameOf(this.slot)} chooses ${fewNames(picked.map((c) => c.identity.name))} (${src.identity.name})`);
           // (kept for the turn it was chosen in: "this turn", every such shield's words)
           const turn = this.board?.state?.gameView?.turn;
           const kind = /\bthat damage is dealt to that source's controller instead\b/i.test(how) ? "redirect"
@@ -1338,6 +1350,8 @@ class Seat {
       this.forget("start");
       this.forget("activate");
     }
+    // (the answers a "Repeat ×N" replays; a fault in noting them never keeps this answer from the engine)
+    try { loopCut(this, type, output); loopNote(this, promptId, type, output); } catch (e) { this.loopLog = null; log(`loop note failed (${this.color}): ${e.message}`); }
     this.send({ type: "BroadcastState", state: { kind: "response", fromPlayer: this.slot, promptId: promptId ?? 0, action: { type, output } } });
   }
   // engine directives (rewind: requestRestore / restoreVote; engine-interface-reference §6)
@@ -1740,9 +1754,13 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   if (teams && teamMode === "archenemy") {
     const a = arch || teams2hg.archOf(null);
     // (the team modes are the 4-player table's for now: teams.js TEAM_COLORS)
-    if (TABLE_COLORS.length !== teams2hg.TEAM_COLORS.length) { chat(`[MTG] Not started: Archenemy is played on the 4-player table for now (this table has ${TABLE_COLORS.length} seats).`); return; }
-    if (!(total === TABLE_COLORS.length || seatList.includes(a.color) || preset.includes(a.color))) {
-      chat(`[MTG] Not started: Archenemy: ${a.color} isn't in this game (seated: ${seatList.join(", ")}; AI players take the free seats in turn order). Seat ${a.color}, make it an AI seat (mtg ai ${a.color} forge), or fill all four seats.`);
+    const off = a.sticky ? ARCH_SWITCH_OFF : "";
+    if (TABLE_COLORS.length !== teams2hg.TEAM_COLORS.length) { chat(`[MTG] Not started: Archenemy is played on the 4-player table for now (this table has ${TABLE_COLORS.length} seats).${off}`); return; }
+    // (the colours in this game: the seated ones, the AI seats', then the AI players' free seats in turn order, as
+    // clockwiseOrder seats them)
+    const aiFree = TABLE_COLORS.filter((c) => !seatList.includes(c) && !preset.includes(c)).slice(0, Math.max(0, bots - preset.length));
+    if (![...seatList, ...preset, ...aiFree].includes(a.color)) {
+      chat(`[MTG] Not started: Archenemy: ${a.color} isn't in this game (seated: ${seatList.join(", ")}; AI players take the free seats in turn order). Seat ${a.color}, make it an AI seat (mtg ai ${a.color} forge), or fill all four seats.${off}`);
       return;
     }
     const names = a.schemes || randomSchemes();
@@ -3775,8 +3793,9 @@ function sacrificeWords(m, was) {
     || (m?.cause === "Sacrifice" && m.causeName && m.causeName !== was.name ? ` (${m.causeName})` : "");
 }
 // (many cards by count: Cut Your Losses's 46 read as one name after another, hp-16)
-const byCount = (names) => [...names.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(", ");
-const listOf = (names) => (names.length > 6 ? byCount(names) : names.join(", "));
+// (cut to FEW_NAMES after the counting: a Living Death's 40 names read "... and 32 more", stress catalog #11)
+const byCount = (names) => fewNames([...names.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)));
+const listOf = (names) => (names.length > 6 ? byCount(names) : fewNames(names));
 // (the same, keeping the order: only a run of one card next to itself counted, for cards whose order is told)
 // The trigger lines of one board, each line alike said once and counted (the owner, 2026-11-15: "if 20 pop up at once,
 // cut it down to 2"): 18 Soul Wardens' "Soul Warden's ability triggers (Blue): you gain 1 life" read
@@ -3786,8 +3805,8 @@ function countedTriggers(lines) {
   const counts = lines.reduce((m, l) => m.set(l, (m.get(l) || 0) + 1), new Map());
   return [...counts].map(([l, k]) => (k < 2 ? l : / triggers \(/.test(l) ? l.replace(" triggers (", ` triggers ×${k} (`) : `${l} ×${k}`));
 }
-const byRuns = (names) => names.reduce((runs, n) => (runs.at(-1)?.[0] === n ? runs.at(-1)[1]++ : runs.push([n, 1]), runs), []).map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(", ");
-const listInOrder = (names) => (names.length > 6 ? byRuns(names) : names.join(", "));
+const byRuns = (names) => fewNames(names.reduce((runs, n) => (runs.at(-1)?.[0] === n ? runs.at(-1)[1]++ : runs.push([n, 1]), runs), []).map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)));
+const listInOrder = (names) => (names.length > 6 ? byRuns(names) : fewNames(names));
 // each kind's line, for the cards one player had moved that way at once (w: who, k: the kind and what it names)
 const LIBRARY_WORDS = {
   mill: (w, names) => `${w} mills ${names.length > 6 ? `${names.length} cards: ${listOf(names)}` : listOf(names)}`,
@@ -3800,7 +3819,7 @@ const LIBRARY_WORDS = {
 // take every card exiled that way at once, in one line where the first was: Uro's escape cost read five "is exiled"
 // (hp-09), Avatar's Wrath nine (hp-18), Benthic Infiltrator's ingest one per card (hp-21).
 const EXILE_WORDS = {
-  graveyard: (w, names, k) => `${names.join(", ")} ${names.length === 1 ? "is" : "are"} exiled from ${w}'s graveyard${k.label}`,
+  graveyard: (w, names, k) => `${fewNames(names)} ${names.length === 1 ? "is" : "are"} exiled from ${w}'s graveyard${k.label}`,
   battlefield: (w, names, k) => `${names.length === 1 ? `${names[0]} is` : `${byCount(names)} are`} exiled${k.label || ""}`,
   library: (w, names, k) => `${byCount(names)} ${names.length === 1 ? "is" : "are"} exiled from ${w}'s library${k.label || ""}`,
   haunt: (w, names, k) => `${names[0]} is exiled haunting ${k.card}`,
@@ -3823,8 +3842,8 @@ const DETAIN_TARGET = /\bdetains? (?:up to (?:one|two|three|four|\d+) )?target\b
 const HAND_WORDS = {
   draw: (w, n) => `${w} draws ${countWords(n, n, "card")}`,
   put: (w, n, k) => `${w} puts ${countWords(n, n, "card")} from their library into their hand${k.explore != null ? ` (${k.explore} explores)` : ""}`,
-  putNamed: (w, names) => `${w} puts ${names.join(", ")} into their hand`,
-  discard: (w, names) => `${w} discards ${names.join(", ")}`,
+  putNamed: (w, names) => `${w} puts ${fewNames(names)} into their hand`,
+  discard: (w, names) => `${w} discards ${fewNames(names)}`,
 };
 // What a text-changing spell changed, ": old → new": Forge's own "Elf (was Goblin)" note when it writes one, else the
 // words gone and the words new (a few each; more, and only that it changed is said). Word by word read "Goblins →
@@ -4387,7 +4406,8 @@ function logEvents(prev, cur, pub, facts = null) {
     // (the turns skipped on the way, above the new turn's header: skippedTurns)
     out.push(...skippedTurns(prev, cur, pub));
     // (an extra turn, Forge's flag: Stitch in Time's read as a plain turn, rebuilt hand test #15)
-    out.push(`--- ${who(cur.active)}'s turn ${game.turnsTaken?.[cur.active] || 1}${extraTurn(cur) ? " (extra turn)" : ""} ---`);
+    // (Two-Headed Giant Level 2: the turn is the team's, "--- White + Yellow's turn 2 ---", counted as the first seat's)
+    out.push(`--- ${turnOwnerWords(cur.active, pub)} turn ${game.turnsTaken?.[cur.active] || 1}${extraTurn(cur) ? " (extra turn)" : ""} ---`);
     // (a look at a library last turn says nothing about this turn's draw: Top looked, then the draw step's card read
     // "puts 1 card from their library", stage 3 review 2026-10-27)
     for (const st of game.seats.values()) st.forget("search");
@@ -5479,7 +5499,7 @@ function logEvents(prev, cur, pub, facts = null) {
     const at = cur.cards[a];
     const tokens = at.token || bs.some((b) => cur.cards[b].token);
     // (no token in it: the line as it always read, "Wall of Air, Coral Barrier block Herald of Hoofbeats")
-    const subject = tokens ? tokensCounted(bs.map((b) => tokenWords(cur.cards[b].name, cur.cards[b].token)), true) : bs.map((b) => cur.cards[b].name).join(", ");
+    const subject = tokens ? tokensCounted(bs.map((b) => tokenWords(cur.cards[b].name, cur.cards[b].token)), true) : fewNames(bs.map((b) => cur.cards[b].name));
     const line = `${subject} ${bs.length > 1 ? "block" : "blocks"} ${at.token ? tokensCounted([tokenWords(at.name, true)], true) : at.name}`;
     const key = at.token ? `${subject}|${at.name}` : `${line}|${a}`;
     const was = blockLines.get(key);
@@ -5557,7 +5577,7 @@ function logEvents(prev, cur, pub, facts = null) {
     if (s.sids.some((x) => curSids.has(x)) || !/\btaps? an untapped\b/i.test(s.text || "")) continue;
     const by = {};
     for (const [id, c] of Object.entries(cur.cards)) if (c.zone === "battlefield" && c.tapped && prev.cards[id]?.zone === "battlefield" && !prev.cards[id].tapped) (by[c.ctl] ||= []).push(c.name);
-    for (const [ctl, names] of Object.entries(by)) out.push(`${who(ctl)} taps ${names.join(", ")} (${s.name})`);
+    for (const [ctl, names] of Object.entries(by)) out.push(`${who(ctl)} taps ${fewNames(names)} (${s.name})`);
   }
   const tapLines = tapNews(prev, cur, resolved);
   out.push(...phased, ...tapLines);
@@ -5682,7 +5702,7 @@ function flashNews(prev, cur, pub) {
   for (const q of quick) {
     const where = { graveyard: "went to the graveyard", exile: "was exiled", command: "went back to the command zone", hand: "went back to the hand", library: "went into the library" }[q.to] || "left";
     const step = /cleanup/i.test(pub.step || "") ? " at cleanup" : "";
-    const with_ = along.length ? `, together with ${along.join(", ")}` : "";
+    const with_ = along.length ? `, together with ${fewNames(along)}` : "";
     chat(`[MTG] ${q.name} (${nameOf(q.ctl) || q.ctl}) was on the battlefield only a moment: it ${where}${step}${with_}. See the log.`);
   }
 }
@@ -6496,7 +6516,9 @@ function effectMarks(p, pub) {
   const all = (Array.isArray(p.effects) ? p.effects : []).filter((e) => e && (e.name || e.text)).map((e) => effectMark(e, shown));
   if (all.length <= EFFECT_MARKS + 1) return all;
   const rest = all.slice(EFFECT_MARKS);
-  return [...all.slice(0, EFFECT_MARKS), `+${rest.length} MORE EFFECTS\t${rest.map((m) => m.split("\t")[1]).filter(Boolean).join("\n")}`];
+  // (the hover lists FEW_NAMES of them, then "... and N more": 47 effects' texts ran off the screen, stress catalog #15)
+  const tips = rest.map((m) => m.split("\t")[1]).filter(Boolean);
+  return [...all.slice(0, EFFECT_MARKS), `+${rest.length} MORE EFFECTS\t${tips.slice(0, FEW_NAMES).join("\n")}${tips.length > FEW_NAMES ? `\n... and ${tips.length - FEW_NAMES} more` : ""}`];
 }
 // The spells cast this turn, for the active player (engine1112 PlayerDto.spellsCastThisTurn and GameViewDto.stormCount,
 // each sent only above 0, E6): "SPELLS THIS TURN: 2 (STORM 3)", the storm count being every player's spells. In a
@@ -7851,17 +7873,21 @@ function askUnder(seat, ui, pick, { back, returns = null }) {
   const under = { ui: p.ui, toOutput: p.toOutput, step: p.step, returns };
   ui.options = [...(ui.options || []), { id: "__back", label: back }];
   prepareUi(ui);
-  const toOutput = (picks) => {
-    if (picks[0] !== "__back") return pick(picks);
-    // (the card dragged out goes back where it came from: nothing else redraws it, playtest 2026-10-26)
-    if (under.returns) toTTS({ t: "refused", color: seat.color, id: under.returns });
-    // (its own step kept: the table's corner keys a question by id and step, and a new step made it a new question,
-    // finding 5. Its ui as it was sent, not worded again: onPrompt worded it once)
-    seat.prompt = { ...seat.prompt, ui: under.ui, toOutput: under.toOutput, step: under.step, under: null };
-    showPrompt(seat);
-    return ASKED;
-  };
+  const toOutput = (picks) => (picks[0] !== "__back" ? pick(picks) : backUnder(seat));
   seat.prompt = { ...p, ui, toOutput, step: Date.now() % 100000, under };
+  showPrompt(seat);
+  return ASKED;
+}
+// The way back from askUnder's sub-question (or a step after it, which keeps seat.prompt.under): the question under it
+// re-sent as it was; ASKED
+function backUnder(seat) {
+  const under = seat.prompt?.under;
+  if (!under) return ASKED;
+  // (the card dragged out goes back where it came from: nothing else redraws it, playtest 2026-10-26)
+  if (under.returns) toTTS({ t: "refused", color: seat.color, id: under.returns });
+  // (its own step kept: the table's corner keys a question by id and step, and a new step made it a new question,
+  // finding 5. Its ui as it was sent, not worded again: onPrompt worded it once)
+  seat.prompt = { ...seat.prompt, ui: under.ui, toOutput: under.toOutput, step: under.step, under: null };
   showPrompt(seat);
   return ASKED;
 }
@@ -8598,6 +8624,224 @@ function offerRepeat(seat, prompt, gv, ui, toOutput, forP) {
     });
   };
 }
+// ── "Repeat ×N", the shortcut for an optional loop (CR 732.2; docs/stress-catalog.md #2, the user 2026-11-16). The
+// player plays one pass of a loop by hand (Kiki-Jiki + Zealous Conscripts, a sacrifice-outlet loop) and comes back to a
+// priority with the same board as at its start (loopSig). That priority then offers "Repeat ×N" (and "mtg repeat <n>"
+// works there), at most LOOP_MAX: the bridge answers the same questions the same way N more times, each through the
+// engine as usual, so every trigger resolves and every other player still gets priority and may respond (CR 732.2a).
+// It stops at once and says why when a question differs from the pass's (loopAsk), a recorded answer can't be given
+// (its action or target is gone, loopMap), someone else plays something, the step changes, the engine's runaway
+// question comes, the game ends, or the player presses Stop or types "mtg stop".
+//   seat.loopLog: { turn, list } this turn's answers by the seat, the last LOOP_LOG_MAX, each { type, ask, cands, out, sig }
+//     (ask: loopAsk of the question; cands: its ids, loopCands; out: the answer sent; sig: the board, at a priority)
+//   seat.loopOffer: the pass the open priority question can repeat { promptId, steps, sig, name, first: step 1 mapped }
+//   seat.loop: the repeat under way { steps, i: the next step, done: passes repeated, total, sig, name, stackAt: the
+//     stack's ids at the start, turn, step, shownAt }
+const LOOP_MAX = 1000;
+const LOOP_LOG_MAX = 200;
+const LOOP_PASS_MAX = 60; // (answers in one pass at most)
+const LOOP_SHOW_MS = 400; // (the panel's "Repeating k/N" at most this often, and every 10th pass)
+const LOOP_PROMPT = "__loop"; // (the progress panel's question id: its Stop is answered under it)
+const LOOP_ID = /^(?:engine-(?:card|stack)-\d+|player-\d+|prompt-action-\d+)$/;
+// The board a pass must come back to: the turn, the step, the stack, and the seat's own nontoken permanents, tapped or
+// not (tokens a pass makes, life and mana don't count)
+function loopSig(gv, slot) {
+  const mine = (gv.zones || []).filter((z) => z.zone === "battlefield").flatMap((z) => (z.cards || [])
+    .filter((c) => (c.controllerId || z.ownerId) === slot && !c.identity?.isToken).map((c) => `${c.identity?.name || "?"}|${c.tapped ? 1 : 0}`)).sort();
+  return JSON.stringify([gv.turn, gv.step, (gv.stack || []).map(stackRunKey), mine]);
+}
+// A question as a pass compares it: its type, Forge's words, the asking card's name (a token's id is new each pass) and
+// ability, its counts and its cost
+function loopAsk(raw) {
+  const i = raw?.input || {};
+  return JSON.stringify([i.type ?? null, i.presentation?.title ?? null, raw?.sourceCard?.identity?.name ?? null, raw?.sourceAbilityText ?? null,
+    i.minTargets ?? null, i.maxTargets ?? null, i.min ?? null, i.max ?? null, i.manaCost ?? null, i.canConfirmFromPool ?? null]);
+}
+// The ids a question offers (actions, targets, cards, options), each with what it is apart from its id: an action's
+// ids are its place in the list ("prompt-action-3"), a token's card id is new each pass. id -> { d, card, name }
+function loopCands(input, gv) {
+  const byId = cardIndex(gv), cands = new Map();
+  const nameOfId = (id) => byId[id]?.identity?.name || (gv.stack || []).find((s) => s.id === id)?.identity?.name || (String(id).startsWith("player-") ? id : "");
+  // (fixed: a player, a nontoken card, or an action of one: only that one will do; a token, a stack item or an option
+  // may be another alike)
+  const kept = (id) => String(id).startsWith("player-") || (byId[id] != null && !byId[id].identity?.isToken);
+  const add = (id, o) => {
+    if (cands.has(id)) return;
+    const name = o?.identity?.name || nameOfId(id) || (o?.cardId ? nameOfId(o.cardId) : "");
+    cands.set(id, { d: JSON.stringify([o?.type ?? null, o?.kind ?? null, o?.label ?? null, o?.description ?? null, o?.mode ?? null, o?.cost ?? null, name]),
+      card: o?.cardId ?? null, name: name || o?.label || id, fixed: kept(o?.cardId ?? id) });
+  };
+  // (an object with an id in the question's own lists, "a-1" too; deeper, only the engine's id shapes)
+  const walk = (v, depth) => {
+    if (depth > 4 || v == null) return;
+    if (typeof v === "string") { if (LOOP_ID.test(v)) add(v, null); return; }
+    if (Array.isArray(v)) { for (const x of v) walk(x, depth + 1); return; }
+    if (typeof v !== "object") return;
+    if (typeof v.id === "string" && (depth <= 2 || LOOP_ID.test(v.id))) add(v.id, v);
+    for (const [k, x] of Object.entries(v)) if (k !== "id" && k !== "presentation") walk(x, depth + 1);
+  };
+  walk(input, 0);
+  return cands;
+}
+// One recorded id as this question offers it: the same card's action, else the same id when it is still the same
+// thing; a fixed one (loopCands) nothing else, any other the one in the same place among those alike (the token made
+// this pass, the stack item); null when it isn't offered
+function loopMapId(v, rec, cur) {
+  const r = rec.get(v);
+  if (!r) return v;
+  const same = [...cur].filter(([, x]) => x.d === r.d);
+  const byCard = r.card ? same.find(([, x]) => x.card === r.card) : null;
+  if (byCard) return byCard[0];
+  if (!r.card && cur.get(v)?.d === r.d) return v;
+  if (r.fixed) return null;
+  const k = [...rec].filter(([, x]) => x.d === r.d).findIndex(([id]) => id === v);
+  return same[k]?.[0] ?? null;
+}
+// A recorded answer for this question: { out } with every id it names mapped (loopMapId), or { gone: the name of the
+// first one this question doesn't offer }
+function loopMap(out, rec, cur) {
+  let gone = null;
+  const walk = (v) => {
+    if (typeof v === "string") {
+      const m = loopMapId(v, rec, cur);
+      if (m === null) gone ??= rec.get(v).name;
+      return m;
+    }
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
+    return v;
+  };
+  const mapped = walk(out);
+  return gone === null ? { out: mapped } : { gone };
+}
+// A spell or ability (not a mana ability) this seat plays ends every other seat's repeat at once (CR 732.2a).
+function loopCut(seat, type, out) {
+  if (type !== "chooseAction" || out?.type !== "act" || !game) return;
+  const act = (seat.lastRawPrompt?.input?.actions || []).find((a) => a.id === out.actionId);
+  if (act?.isManaAbility || act?.type === "undoMana") return;
+  for (const s of game.seats.values()) if (s !== seat && s.loop) loopEnd(s, `${nameOf(seat.slot)} responded`);
+}
+// Seat.respond's note of every answer the seat sends (this turn's, loopLog). An answer to a question that isn't the
+// last one asked can't be told apart from it: the log starts again.
+function loopNote(seat, promptId, type, out) {
+  const raw = seat.lastRawPrompt, gv = seat.board?.state?.gameView || {};
+  if (raw?.kind === "priority") return; // (answered before any question is read: onPrompt)
+  if (!raw?.input || Number(raw.promptId ?? 0) !== Number(promptId ?? 0)) { seat.loopLog = null; return; }
+  const book = seat.loopLog && seat.loopLog.turn === gv.turn ? seat.loopLog : (seat.loopLog = { turn: gv.turn, list: [] });
+  book.list.push({ type, ask: loopAsk(raw), cands: loopCands(raw.input, gv), out: JSON.parse(JSON.stringify(out ?? null)), sig: type === "chooseAction" ? loopSig(gv, seat.slot) : null });
+  if (book.list.length > LOOP_LOG_MAX) book.list.splice(0, book.list.length - LOOP_LOG_MAX);
+}
+// The pass the seat's open priority can repeat: the answers since its last priority this turn with this same board
+// where it played something, LOOP_PASS_MAX at most; null when there is none. A pass resolved something (a priority
+// passed in it) and cancelled nothing: a cast taken back comes back to the same board too, and so would two
+// activations with no board between them.
+function loopFind(seat, gv) {
+  const list = seat.loopLog && seat.loopLog.turn === gv.turn ? seat.loopLog.list : [];
+  const sig = loopSig(gv, seat.slot);
+  for (let j = list.length - 1; j >= 0 && list.length - j <= LOOP_PASS_MAX; j--) {
+    const e = list[j];
+    if (e.type !== "chooseAction" || e.sig !== sig || e.out?.type !== "act") continue;
+    const steps = list.slice(j);
+    const resolved = steps.some((x) => x.type === "chooseAction" && x.out?.type === "pass");
+    return resolved && !steps.some((x) => x.out?.type === "cancel") ? { steps, sig } : null;
+  }
+  return null;
+}
+// the loop by the cards the pass played: "Kiki-Jiki, Mirror Breaker"
+function loopName(steps) {
+  const names = [];
+  for (const e of steps) {
+    const n = e.type === "chooseAction" && e.out?.type === "act" ? e.cands.get(e.out.actionId)?.name : null;
+    if (n && !names.includes(n)) names.push(n);
+  }
+  return names.join(" + ") || "the loop";
+}
+// The offer at this priority question (seat.loopOffer), or null: none for a player this seat controls, none while a
+// repeat runs, none when the pass's first answer can't be given here
+function loopOfferFor(seat, raw, gv, forP) {
+  seat.loopOffer = null;
+  if (forP || seat.loop || !raw?.input) return null;
+  const found = loopFind(seat, gv);
+  if (!found) return null;
+  const m = loopMap(found.steps[0].out, found.steps[0].cands, loopCands(raw.input, gv));
+  if (!m.out) return null;
+  return (seat.loopOffer = { promptId: raw.promptId, steps: found.steps, sig: found.sig, name: loopName(found.steps), first: m.out });
+}
+// The repeat starts: the answer to the open priority question (the pass's first), said to everyone
+function loopBegin(seat, offer, n) {
+  const gv = seat.board?.state?.gameView || {};
+  const total = Math.max(1, Math.min(LOOP_MAX, Math.floor(Number(n)) || 1));
+  seat.loopOffer = null;
+  seat.loop = { steps: offer.steps, i: 1, done: 0, total, sig: offer.sig, name: offer.name, stackAt: new Set((gv.stack || []).map((s) => s.id)), turn: gv.turn, step: gv.step, shownAt: null };
+  chat(`[MTG] ${nameOf(seat.slot)} repeats a loop ×${total} (${offer.name}). Anyone may respond when they get priority, and that stops it.`);
+  // (after the priority question is taken off the panel: onAnswer closes it once this answer is sent)
+  setImmediate(() => guarded("loop progress", () => loopShow(seat, true)));
+  return offer.first;
+}
+// The seat's panel while it repeats: "Repeating k/N" with Stop (answered under LOOP_PROMPT); never over a question
+function loopShow(seat, force = false) {
+  const lp = seat.loop;
+  if (!lp || seat.prompt) return;
+  const now = Date.now();
+  if (!force && lp.shownAt != null && now - lp.shownAt < LOOP_SHOW_MS && lp.done % 10) return;
+  lp.shownAt = now;
+  toTTS({ t: "prompt", color: seat.color, promptId: LOOP_PROMPT, kind: "loop", title: `Repeating ${Math.min(lp.done + 1, lp.total)}/${lp.total}`, mode: "single", min: 1, max: 1,
+    text: `${lp.name}. Anyone may respond when they get priority, and that stops it. Stop (or "mtg stop") ends it now.`, options: [{ id: "__loopstop", label: "Stop" }] });
+}
+// The repeat ends, said once to everyone: all N done, or where it stopped and why
+function loopEnd(seat, why = "") {
+  const lp = seat.loop;
+  if (!lp) return;
+  seat.loop = null;
+  chat(lp.done >= lp.total ? `[MTG] ${nameOf(seat.slot)} repeated the loop ${lp.total}× (${lp.name}).`
+    : `[MTG] ${nameOf(seat.slot)}'s loop stopped after ${lp.done} of ${lp.total} (${lp.name}): ${why}.`);
+  if (!seat.prompt) toTTS({ t: "prompt", color: seat.color, promptId: null });
+}
+// A question for the seat while it repeats: answered from the pass (true), or the repeat ends and the question is asked
+// as usual (false). At the pass's end the board must be the one it started from; then the next pass starts.
+function loopStep(seat, raw, gv, forP) {
+  const lp = seat.loop, type = raw.input?.type;
+  const title = String(raw.input?.presentation?.title || type || "a question");
+  const stop = (why) => { loopEnd(seat, why); return false; };
+  if (type === "gameOver") return stop("the game ended");
+  if (title === RUNAWAY_TITLE) return stop("the engine's runaway limit asks first");
+  if (forP) return stop(`a question came for ${nameOf(forP)}, whom you control`);
+  if (game?.fix) return stop("a manual fix is under way");
+  if (gv.turn !== lp.turn || gv.step !== lp.step) return stop("the step changed");
+  // (someone else's spell or ability; their trigger is no response, and a question it brings stops it below)
+  const theirs = (gv.stack || []).find((s) => !lp.stackAt.has(s.id) && s.controllerId !== seat.slot && !(s.isTrigger || /^(When|Whenever|At)\b/.test(s.sourceAbilityText || "")));
+  if (theirs) return stop(`${nameOf(theirs.controllerId)} put ${theirs.identity?.name || "something"} on the stack`);
+  if (lp.i >= lp.steps.length) {
+    if (type !== "chooseAction") return stop(`a question the pass didn't have came ("${plainWords(title)}")`);
+    if (loopSig(gv, seat.slot) !== lp.sig) return stop("the board isn't the one the pass started from");
+    lp.done++;
+    if (lp.done >= lp.total) return stop("");
+    lp.i = 0;
+    loopShow(seat);
+  }
+  const e = lp.steps[lp.i];
+  if (e.ask !== loopAsk(raw)) return stop(`the question changed ("${plainWords(title)}")`);
+  const m = loopMap(e.out, e.cands, loopCands(raw.input, gv));
+  if (!m.out) return stop(e.type === "chooseAction" ? `${m.gone} can't be played now` : `${m.gone} isn't there to choose`);
+  lp.i++;
+  seat.respond(raw.promptId, type, m.out);
+  return true;
+}
+// "Repeat ×N" pressed: how many (Back returns to the priority question). "How many…" is a number from 1 to LOOP_MAX;
+// its 0, also what a turn timer answers, goes back too.
+function loopPicker(seat, offer) {
+  return askUnder(seat, { title: `Repeat ${offer.name} how many more times?`, mode: "single", kind: "choice",
+    text: `Your last pass: ${offer.steps.length} answers, back to this same board. Each repeat gives them again; anyone may respond when they get priority, and that stops it.`,
+    options: [...[1, 10, 100, LOOP_MAX].map((n) => ({ id: `__loop:${n}`, label: `×${n}` })), { id: "__loop:some", label: "How many…" }] },
+  (b) => {
+    if (b[0] !== "__loop:some") return loopBegin(seat, offer, Number(String(b[0]).slice(7)));
+    return next({ title: `Repeat ${offer.name} how many more times? (1 to ${LOOP_MAX})`, mode: "number", kind: "number", min: 0, max: LOOP_MAX, default: 10, onTimeout: "0",
+      text: "0 goes back to your priority." }, (v) => {
+      const n = Math.floor(Number(v[0])) || 0;
+      return n >= 1 ? loopBegin(seat, offer, n) : backUnder(seat);
+    });
+  }, { back: "Back" });
+}
 // The players a seat controls now (Forge's controlledBy: Mindslaver's turn, Opposition Agent's search).
 function ruledBy(gv, slot) {
   return (gv.players || []).filter((p) => p.id !== slot && p.controlledBy === slot).map((p) => p.id);
@@ -8716,6 +8960,12 @@ function onPrompt(seat, prompt) {
   if (type === "payManaCost") seat.payingCost = input.manaCost || null;
   else if (type !== "chooseColor") seat.payingCost = null;
   const opts = (list) => list.map((o, i) => ({ id: String(o.id ?? i), label: o.label }));
+  // a loop's "Repeat ×N" under way: answered from the pass, or it ends here and this question is asked (loopStep)
+  if (seat.loop) {
+    let answered = false;
+    try { answered = loopStep(seat, seat.lastRawPrompt, gv, forP); } catch (e) { log(`loop step failed (${seat.color}): ${e.message}`); loopEnd(seat, "the bridge couldn't read the question"); }
+    if (answered) return;
+  }
   if (debugPrompt(seat, type, prompt, gv)) return;
   if (handPrompt(seat, type, prompt, gv)) return;
 
@@ -8943,6 +9193,14 @@ function onPrompt(seat, prompt) {
       if (forP) {
         const base = toOutput;
         toOutput = (a) => { const out = base(a); if (out?.type === "act") seat.actingFor = { p: forP, card: (input.actions || []).find((x) => x.id === out.actionId)?.cardId, turn: gv.turn }; return out; };
+      }
+      // "Repeat ×N" after End turn, once a pass of a loop came back to this board (loopOfferFor; the corner's third button
+      // unless "Resolve N×" is offered, which comes first)
+      const loopOffer = loopOfferFor(seat, seat.lastRawPrompt, gv, forP);
+      if (loopOffer) {
+        ui.options.splice(ui.options.findIndex((o) => o.id === "__endturn") + 1, 0, { id: "__loop", label: "Repeat ×N" });
+        const base = toOutput;
+        toOutput = (a) => (a[0] === "__loop" ? loopPicker(seat, loopOffer) : base(a));
       }
       break;
     }
@@ -9502,7 +9760,7 @@ function onPrompt(seat, prompt) {
         const kinReveal = /^Reveal cards to other players\?$/i.test(title) && /^Kinship —/i.test(String(prompt.sourceAbilityText || ""))
           && shown?.src === src && shown.names?.length && Date.now() - shown.at < 60000 ? shown.names : null;
         toOutput = (a) => {
-          if (a[0] === "yes" && kinReveal && game) gameLogLine(`${seat.color} reveals ${kinReveal.join(", ")} (${src})`);
+          if (a[0] === "yes" && kinReveal && game) gameLogLine(`${seat.color} reveals ${fewNames(kinReveal)} (${src})`);
           if (a[0] === "yes" && castsOwn) seat.note("start", prompt.sourceCard.id, src);
           // (a miracle cast says so, as a flashback does: "White casts Reforge the Soul" said nothing of it, hp-15 gap)
           // (and a reveal's free cast by its keyword: Surging Dementia's ripple cast of its namesake read "White copies
@@ -9688,7 +9946,7 @@ function onPrompt(seat, prompt) {
         if (a[0] === "__cancel") return { type: "cancel" };
         if (game && src && bottomOf) gameLogLine(a.length ? `${seat.color} puts ${countWords(a.length, a.length, "card")} on the bottom of ${whose} library (${src})`
           : `${seat.color} leaves ${input.cards.length === 1 ? "the card" : "the cards"} on top of ${whose} library (${src})`);
-        if (game && src && encoding && a.length) holdLogLine(`${seat.color} encodes ${src} onto ${a.map((id) => input.cards.find((c) => c.id === id)?.identity?.name).filter(Boolean).join(", ")}`);
+        if (game && src && encoding && a.length) holdLogLine(`${seat.color} encodes ${src} onto ${fewNames(a.map((id) => input.cards.find((c) => c.id === id)?.identity?.name).filter(Boolean))}`);
         seat.unless = src && fromHand ? { src, ids: [...a], n: a.length, k: 0 } : null;
         // (cards picked from your library: the one into your hand next was put there, not drawn, marked as the pick is
         // made; the look's mark had run out when the pick took longer, Growing Rites' Mangara "White draws a card", hp-03 #2)
@@ -9700,17 +9958,17 @@ function onPrompt(seat, prompt) {
         const onTop = fromLibrary && game && effectText.match(/\b(?:(reveal (?:it|that card|them|those cards)),? )?(?:then )?(shuffles?,? and |shuffles? (?:your|their) library,? (?:and |then ))?puts? (?:it|th(?:at|e) card|them|those cards) on top\b/i);
         if (onTop) {
           const names = a.map((id) => input.cards.find((c) => c.id === id)?.identity?.name || id);
-          gameLogLine(`${seat.color} ${onTop[1] ? `reveals ${names.join(", ")}, ` : ""}${onTop[2] ? "shuffles and " : ""}puts ${onTop[1] ? (a.length > 1 ? "them" : "it") : countWords(a.length, a.length, "card")} on top of their library`);
+          gameLogLine(`${seat.color} ${onTop[1] ? `reveals ${fewNames(names)}, ` : ""}${onTop[2] ? "shuffles and " : ""}puts ${onTop[1] ? (a.length > 1 ? "them" : "it") : countWords(a.length, a.length, "card")} on top of their library`);
         } else if (fromLibrary) seat.note("search", seat.slot);
         // (and cards from your hand on top: the hand's drop beside the library's rise was not said, Brainstorm, hp-26)
         if (a.length && input.cards.every((c) => c.zone === "hand") && /\bput [^.]*?\bfrom your hand on top of your library\b/i.test(effectText)) sayPutOnTop(seat, a.length);
         // (a card revealed to pay a cost is shown to the table: Foreboding Ruins's Mountain was in no log, rebuilt hand test #2;
         // Forge says "Reveal for cost" in the question's description, the title only in our cases, re-test)
         const shown = a.map((id) => input.cards.find((c) => c.id === id)?.identity?.name).filter(Boolean);
-        if (shown.length && game && [title, desc].some((t) => /^Reveal for cost$/i.test(String(t || "")))) holdLogLine(`${seat.color} reveals ${shown.join(", ")}${src ? ` (${src})` : ""}`);
+        if (shown.length && game && [title, desc].some((t) => /^Reveal for cost$/i.test(String(t || "")))) holdLogLine(`${seat.color} reveals ${fewNames(shown)}${src ? ` (${src})` : ""}`);
         // (a search that reveals what it finds shows it to the table: Ash Barrens' basic landcycling read only "puts a card
         // from their library into their hand", mechanic run hp-03 2026-11-05)
-        else if (fromLibrary && !onTop && shown.length && game && /\breveal (?:it|that card|them|those cards|the chosen cards?)\b/i.test(effectText)) holdLogLine(`${seat.color} reveals ${shown.join(", ")}${src ? ` (${src})` : ""}`);
+        else if (fromLibrary && !onTop && shown.length && game && /\breveal (?:it|that card|them|those cards|the chosen cards?)\b/i.test(effectText)) holdLogLine(`${seat.color} reveals ${fewNames(shown)}${src ? ` (${src})` : ""}`);
         seat.cardsDone = a.length < input.max ? { src, at: prompt.promptId } : null; // (see "Cancel Search?" in chooseBoolean)
         // (then which of them goes on top; Forge puts them on top one by one, so its last ends on top)
         if (handToTop && a.length > 1) {
@@ -9803,7 +10061,8 @@ function onPrompt(seat, prompt) {
       break;
     case "chooseNumber": {
       // "pay for Offspring? {2}" as a number from 0 to 1 is a yes/no; "choose Amount for Multikicker: {2}" says how many
-      // times; a limit of 2147483647 (Forge's "no limit") made Max useless, so the picker stops at 20
+      // times; a limit of 2147483647 (Forge's "no limit") made Max useless, so the picker stops at NUMBER_PICK_MAX (it
+      // stopped at 20, which also cut a real X of 21 or more: stress catalog #1)
       const pay = String(title).match(/^pay for (.+?)\? (.+)$/i);
       const times = String(title).match(/^choose Amount for (.+?): (\{.+\})$/i);
       if (input.min === 0 && input.max === 1 && pay) {
@@ -9821,7 +10080,7 @@ function onPrompt(seat, prompt) {
           : { title: `Use ${pay[1]}?`, text: `It costs: ${pay[2][0].toLowerCase()}${pay[2].slice(1).replace(/\.?$/, ".")}`, mode: "single", kind: "yesno", options: [{ id: "1", label: "Yes" }, { id: "0", label: "No" }] };
       } else {
         ui = { title: times ? `${src ? `${src}: ` : ""}pay ${times[2]} how many times? (${times[1]})` : /^Choose a (?:value|number) for /i.test(title) && src ? `${src}: choose ${/\bX\b/.test(String(prompt.sourceAbilityText || prompt.sourceCard?.text || "")) ? "X" : "a number"}` : title,
-          mode: "number", min: input.min, max: Math.min(input.max, Math.max(input.min, 20)) };
+          mode: "number", min: input.min, max: Math.min(input.max, Math.max(input.min, NUMBER_PICK_MAX)) };
         // (a 0-to-1 number whose title is a question is a yes/no: Harmonize's "Tap creature?" was a number picker, hp-19)
         if (input.min === 0 && input.max === 1 && /\?$/.test(String(title)))
           ui = { title: src ? `${src}: ${title[0].toLowerCase()}${title.slice(1)}` : title, mode: "single", kind: "yesno", options: [{ id: "1", label: "Yes" }, { id: "0", label: "No" }] };
@@ -9840,6 +10099,12 @@ function onPrompt(seat, prompt) {
         if (src && /^Choose power of creature to tap$/i.test(title)) {
           ui.title = `${src}: harmonize: tap a creature of how much power, to pay that much less?`;
           ui.text = ui.note = "0: tap none.";
+        }
+        // (clipped: say so, as a bigger number can't be picked here)
+        if (ui.mode === "number" && ui.max < input.max) {
+          const said = `${ui.max} is the most the table offers.`;
+          ui.text = ui.text ? `${ui.text} ${said}` : said;
+          ui.note = ui.note ? `${ui.note} ${said}` : said;
         }
       }
       toOutput = (a) => ({ type: "numberDecision", chosenNumber: Number(a[0]) });
@@ -10636,6 +10901,8 @@ function onPrompt(seat, prompt) {
       // (and in the game log, once: White's loss to an empty library under Reforge the Soul ended it unsaid, hp-15 gap)
       if (game && !game.over) gameLogLine(why ? `Game over: ${why}` : "Game over");
       if (game) game.over = true;
+      // (a "Repeat ×N" of anyone's ends with it, said)
+      if (game) for (const s of game.seats.values()) loopEnd(s, "the game ended");
       // (and nobody's question stays open: White's "Your priority" with Next and End turn was still up under GAME OVER
       // after the concession, Kykar re-test new bug 8)
       for (const s of game ? game.seats.values() : [seat]) if (s.prompt) closePrompt(s);
@@ -11483,6 +11750,8 @@ function onTTS(m) {
       // held pass (heldPass) reaches it within HELD_RESOLUTIONS triggers. A "×N" yes/no run ends now.
       const seat = game?.seats.get(m.color);
       if (!seat) { chat("[MTG] Stop: no game running.", m.color); break; }
+      // (a "Repeat ×N" under way ends now; the next priority with something on the stack is asked)
+      if (seat.loop) { seat.stopChain = true; loopEnd(seat, "you typed mtg stop"); break; }
       if (seat.prompt?.type === "chooseAction") { chat("[MTG] Stop: it is already your priority.", m.color); break; }
       seat.stopChain = true;
       seat.resolveStack = null;
@@ -11500,9 +11769,33 @@ function onTTS(m) {
       break;
     }
     case "answer":
+      // (the Stop of a "Repeat ×N"'s progress panel, loopShow: as "mtg stop")
+      if (m.promptId === LOOP_PROMPT) {
+        const seat = game?.seats.get(m.color);
+        if (seat?.loop) { seat.stopChain = true; loopEnd(seat, "you pressed Stop"); }
+        break;
+      }
       startTrips(m.color);
       onAnswer(m.color, m.promptId, m.choice);
       break;
+    case "repeatloop": {
+      // "mtg repeat <n>" (no n: the how-many question) at the seat's priority, when it offers "Repeat ×N" (loopOfferFor)
+      const seat = game?.seats.get(m.color);
+      if (!seat) { chat("[MTG] Repeat: no game running.", m.color); break; }
+      if (seat.loop) { chat(`[MTG] Repeat: a loop is already repeating (${seat.loop.done} of ${seat.loop.total} done). "mtg stop" ends it.`, m.color); break; }
+      const open = seat.prompt?.type === "chooseAction" && !seat.prompt.under ? seat.prompt : null;
+      if (!open || seat.loopOffer?.promptId !== open.promptId) {
+        chat(open ? "[MTG] Repeat: no loop to repeat yet. Play one pass of the loop by hand, back to the same board (your same permanents, tapped or untapped, and the same stack), then repeat it at that priority."
+          : "[MTG] Repeat: wait for your priority; a loop repeats from it.", m.color);
+        break;
+      }
+      const n = Math.floor(Number(m.n));
+      if (!(n >= 1)) { onAnswer(m.color, open.promptId, ["__loop"]); break; }
+      if (n > LOOP_MAX) chat(`[MTG] Repeat: at most ${LOOP_MAX} times; repeating ${LOOP_MAX}.`, m.color);
+      seat.respond(open.promptId, "chooseAction", loopBegin(seat, seat.loopOffer, n));
+      closePrompt(seat, true);
+      break;
+    }
     case "rewind":
       onRewind(m.color, m.checkpointId);
       break;
@@ -12886,11 +13179,11 @@ if (require.main === module) {
     summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword, playWindow,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
     _spellsMark: spellsMark, _actingFor: actingFor, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice,
-    _archenemy: archenemy, _onArchenemy: onArchenemy, _onSchemes: onSchemes, _withArchenemy: withArchenemy, _forgeSchemes: forgeSchemes, ARCH_NO_UNDO,
+    _archenemy: archenemy, _onArchenemy: onArchenemy, _onSchemes: onSchemes, _withArchenemy: withArchenemy, _forgeSchemes: forgeSchemes, ARCH_NO_UNDO, ARCH_SWITCH_OFF,
     _engineSetting: () => ({ RELAY, KEY, REMOTE_ENGINE }), _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, setPickedHand, splitHandText, handOps, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
-    _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _customArt: customArt, artProblem, isCustomArt,
-    fixOps, phaseNumber, fxFacts, gameEndWords, mutateWords,
+    _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _loopMap: loopMap, _loopCands: loopCands, _loopSig: loopSig, _customArt: customArt, artProblem, isCustomArt,
+    fixOps, phaseNumber, fxFacts, gameEndWords, mutateWords, fewNames, NUMBER_PICK_MAX, FEW_NAMES, _effectMarks: effectMarks,
     standardProblems, modeWords, loadPreset, STANDARD_DECKS, _gameMode: gameMode,
     onGifMessage, onGifKey, _gifs: gifs, _gifFavs: gifFavs, // GIF frames
   };
