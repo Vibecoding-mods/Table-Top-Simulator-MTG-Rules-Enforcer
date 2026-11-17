@@ -497,7 +497,7 @@ index 32394268..e7c90cb7 100644
          }
          print("---- choose ability  (phase = " + phaseStr + ")");
 diff --git a/forge-game/src/main/java/forge/game/Game.java b/forge-game/src/main/java/forge/game/Game.java
-index 8d204538..fc28f9f4 100644
+index 8d204538..9919b9b3 100644
 --- a/forge-game/src/main/java/forge/game/Game.java
 +++ b/forge-game/src/main/java/forge/game/Game.java
 @@ -1016,7 +1016,7 @@ public class Game {
@@ -509,60 +509,151 @@ index 8d204538..fc28f9f4 100644
                  if (c.getOwner().equals(p)) {
                      planesLeavingGame.add(c);
                      planarController.removeCurrentPlane(c);
-@@ -1156,7 +1156,76 @@ public class Game {
+@@ -1115,7 +1115,7 @@ public class Game {
+     // on its next allocation and re-throws: strong termination pressure.
+     //
+     // Calibration (false-positive draw on a legitimate big turn is the key
+-    // hazard): the default cap is 25,000 per turn — a huge real storm/token
++    // hazard): the default cap was 25,000 per turn (now the per-kind defaults below) — a huge real storm/token
+     // turn is low THOUSANDS of objects/trigger-fires, so the cap sits an
+     // order of magnitude above any legitimate game, yet 25k Cards is far
+     // below 3g-heap exhaustion. Tunable at boot without a rebuild
+@@ -1134,33 +1134,153 @@ public class Game {
+         }
+     }
  
-     public void recordTokenRequest(final int count) {
+-    /** Default per-turn cap for both guarded quantities. See the
+-     *  calibration note above. */
+-    public static final int DEFAULT_RUNAWAY_CAP_PER_TURN = 25_000;
++    /** Default per-turn caps (measured in docs/big-turns-benchmark.md in the TTS project: past about 2,500 cards every
++     *  step takes seconds, and a loop ran minutes before anyone was asked at 25,000). */
++    public static final int DEFAULT_RUNAWAY_TRIGGERS_PER_TURN = 5_000;
++    public static final int DEFAULT_RUNAWAY_CARDS_PER_TURN = 2_500;
++
++    // Big turns 2 (docs/big-turns-2-spec.md in the TTS project): a pile of alike tokens (TokenPile.key) holds at most
++    // UNBOUNDED_TOKENS real cards, and one effect makes at most that many; tokens past it are never made, and the pile
++    // is marked unbounded ("infinitely many" on the table). Every rule keeps reading the real cards. This is the number
++    // of iterations the shortcut rules let a player name for a loop, chosen for them.
++    public static final int UNBOUNDED_TOKENS = 500;
+ 
+-    // The per-turn caps bound memory, not time. Every token that enters
+-    // rescans the statics of a board that just grew by one, so a doubling
+-    // loop (Exalted Sunborn copied by Ghired) makes the turn quadratic:
+-    // 767 tokens in twenty minutes, the 25k cap never reached, the game
+-    // never back at priority. Clamping the count does not help either: a
+-    // board of a hundred doublers makes every later decision take minutes.
+-    // So one effect asking for more copies of a token than this trips the
+-    // same Draw. No printed effect asks for a hundred copies of one token.
+-    public static final int DEFAULT_RUNAWAY_TOKENS_PER_EFFECT = 100;
++    private final Set<String> unboundedTokenKeys = new HashSet<>();
+ 
+-    private static volatile int runawayTokensPerEffectCap = DEFAULT_RUNAWAY_TOKENS_PER_EFFECT;
++    public void markUnboundedTokens(final String pileKey) {
++        unboundedTokenKeys.add(pileKey);
++    }
++
++    /** The unbounded piles that still have a token on the battlefield (a pile that emptied stops being unbounded). */
++    public Set<String> getUnboundedTokenKeys() {
++        pruneUnboundedTokenKeys();
++        return unboundedTokenKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(new HashSet<>(unboundedTokenKeys));
++    }
+ 
+-    public static void setRunawayTokensPerEffectCap(final int cap) {
+-        runawayTokensPerEffectCap = cap > 0 ? cap : Integer.MAX_VALUE;
++    public void pruneUnboundedTokenKeys() {
++        if (unboundedTokenKeys.isEmpty()) {
++            return;
++        }
++        final Set<String> present = new HashSet<>();
++        for (final Card c : getCardsIn(ZoneType.Battlefield)) {
++            if (c.isToken()) {
++                present.add(TokenPile.key(c));
++            }
++        }
++        unboundedTokenKeys.retainAll(present);
+     }
+ 
+-    public void recordTokenRequest(final int count) {
++    /** A token in an unbounded pile (exact for the battlefield: a pile with no token left has no card to match). */
++    public boolean isUnboundedToken(final Card c) {
++        return !unboundedTokenKeys.isEmpty() && c.isToken() && unboundedTokenKeys.contains(TokenPile.key(c));
++    }
++
++    void copyUnboundedTokenKeysTo(final Game to) {
++        to.unboundedTokenKeys.clear();
++        to.unboundedTokenKeys.addAll(unboundedTokenKeys);
++    }
++
++    /** A token effect is about to make its tokens: a card cap passed since the last ask is asked now. */
++    public void recordTokenEffect() {
          resetRunawayWindowOnTurnChange();
 -        checkRunawayCap(count, runawayTokensPerEffectCap, "copies of one token from one effect");
 +        askPendingRunaway();
-+        final int limit = addCap(runawayTokensPerEffectCap, tokensAllowedThisTurn);
-+        if (count > limit) {
-+            askOrDraw(count, limit, "copies of one token from one effect");
-+            tokensAllowedThisTurn = count - runawayTokensPerEffectCap;
-+        }
 +    }
 +
-+    // Big turns (docs/big-turns.md in the TTS project): past a cap, a host that set a RunawayChoice asks a player
-+    // whether the turn goes on, at most RUNAWAY_CONTINUES_PER_TURN times a turn; each yes allows one more cap's worth.
-+    // A no, no hook, or no yes left ends the game as the Draw below (CR 104.4b: a loop nobody can stop is a draw).
++    // Big turns (docs/big-turns.md, docs/big-turns-2-spec.md in the TTS project): past a limit, a host that set a
++    // RunawayChoice asks a player whether the turn goes on; each yes allows one more limit's worth, and every limit
++    // asks again. A no, or no hook, ends the game as the Draw below (CR 104.4b: a loop nobody can stop is a draw).
 +    // The card cap is passed while a card is being made, so it is only marked there and asked at the next trigger
-+    // fire or token request; a turn that makes another cap's worth of cards before then still ends at once.
++    // fire or token effect. Before any ask, a heap over RUNAWAY_HEAP_LIMIT ends the game at once: the turn could take
++    // every game on the JVM with it.
 +    public interface RunawayChoice {
 +        boolean keepGoing(Game game, String what, int count, int cap);
 +    }
 +
-+    public static final int RUNAWAY_CONTINUES_PER_TURN = 3;
++    public static final double RUNAWAY_HEAP_LIMIT = 0.85;
++    public static final int RUNAWAY_STACK_ITEMS = 1_000;
++    public static final long LOOP_WATCHDOG_SECONDS = 60;
 +
++    private static final java.util.function.DoubleSupplier RUNTIME_HEAP = () -> {
++        final Runtime rt = Runtime.getRuntime();
++        return (double) (rt.totalMemory() - rt.freeMemory()) / rt.maxMemory();
++    };
++    private static volatile java.util.function.DoubleSupplier heapUsed = RUNTIME_HEAP;
++
++    /** Tests only: what share of the heap is in use (null: the runtime's). */
++    public static void setHeapReader(final java.util.function.DoubleSupplier reader) {
++        heapUsed = reader == null ? RUNTIME_HEAP : reader;
+     }
+ 
+-    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
+-    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
 +    private RunawayChoice runawayChoice;
-+    private int runawayContinues = 0;
 +    private int cardsAllowedThisTurn = 0;
 +    private int triggersAllowedThisTurn = 0;
-+    private int tokensAllowedThisTurn = 0;
++    private int stackItemsAllowed = runawayStackItemsCap;
 +    private boolean cardsCapPending = false;
 +    private boolean runawayAsking = false;
++    private String drawReason;
 +
 +    public void setRunawayChoice(final RunawayChoice choice) {
 +        runawayChoice = choice;
 +    }
 +
-+    public int getRunawayContinues() {
-+        return runawayContinues;
++    /** Why the engine ended this game as a draw (a runaway limit, the heap, a stuck loop, a tie), or null. */
++    public String getDrawReason() {
++        return drawReason;
++    }
++
++    public void setDrawReason(final String reason) {
++        drawReason = reason;
 +    }
 +
 +    private static int addCap(final int cap, final int extra) {
 +        return cap > Integer.MAX_VALUE - extra ? Integer.MAX_VALUE : cap + extra;
 +    }
 +
-+    private boolean mayAskRunaway() {
-+        return !runawayTripped && runawayChoice != null && runawayContinues < RUNAWAY_CONTINUES_PER_TURN;
++    private boolean heapNearlyFull() {
++        return heapUsed.getAsDouble() > RUNAWAY_HEAP_LIMIT;
 +    }
 +
 +    private void askOrDraw(final int count, final int limit, final String what) {
 +        if (runawayFinalizing || runawayAsking) {
 +            return;
 +        }
-+        if (mayAskRunaway()) {
-+            runawayContinues++;
++        if (!runawayTripped && heapNearlyFull()) {
++            drawReason = "heap";
++        } else if (!runawayTripped && runawayChoice != null) {
 +            final boolean keep;
 +            runawayAsking = true;
 +            try {
@@ -570,9 +661,17 @@ index 8d204538..fc28f9f4 100644
 +            } finally {
 +                runawayAsking = false;
 +            }
-+            if (keep && !isGameOver()) {
++            if (isGameOver()) {
++                runawayTripped = true;
++                throw new RunawayGameException("The game ended while the runaway question was open.");
++            }
++            if (keep) {
++                noteLoopProgress();
 +                return;
 +            }
++        }
++        if (drawReason == null) {
++            drawReason = runawayChoice == null ? "noPerson" : "chosen";
 +        }
 +        endRunawayGame(count, limit, what);
 +    }
@@ -584,17 +683,31 @@ index 8d204538..fc28f9f4 100644
 +        cardsCapPending = false;
 +        askOrDraw(cardsCreatedThisTurn, addCap(runawayCardsPerTurnCap, cardsAllowedThisTurn), "cards created");
 +        cardsAllowedThisTurn = addCap(cardsAllowedThisTurn, runawayCardsPerTurnCap);
-     }
++    }
++
++    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CARDS_PER_TURN;
++    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_TRIGGERS_PER_TURN;
++    private static volatile int runawayStackItemsCap = RUNAWAY_STACK_ITEMS;
  
-     private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
-@@ -1186,11 +1255,16 @@ public class Game {
+     public static void setRunawayCardsPerTurnCap(final int cap) {
+         runawayCardsPerTurnCap = cap > 0 ? cap : Integer.MAX_VALUE;
+@@ -1168,6 +1288,9 @@ public class Game {
+     public static void setRunawayTriggersPerTurnCap(final int cap) {
+         runawayTriggersPerTurnCap = cap > 0 ? cap : Integer.MAX_VALUE;
+     }
++    public static void setRunawayStackItemsCap(final int cap) {
++        runawayStackItemsCap = cap > 0 ? cap : Integer.MAX_VALUE;
++    }
+ 
+     private int runawayTurnStamp = -1;
+     private int cardsCreatedThisTurn = 0;
+@@ -1186,17 +1309,21 @@ public class Game {
              runawayTurnStamp = turnNow;
              cardsCreatedThisTurn = 0;
              triggersFiredThisTurn = 0;
-+            runawayContinues = 0;
 +            cardsAllowedThisTurn = 0;
 +            triggersAllowedThisTurn = 0;
-+            tokensAllowedThisTurn = 0;
++            stackItemsAllowed = runawayStackItemsCap;
 +            cardsCapPending = false;
          }
      }
@@ -606,10 +719,19 @@ index 8d204538..fc28f9f4 100644
              return;
          }
          if (!runawayTripped) {
-@@ -1220,8 +1294,13 @@ public class Game {
+             runawayTripped = true;
+-            Logger.tag("ENGINE").warn("Runaway-game soft cap hit: {} {} on turn {} (cap {});"
+-                    + " forcing a Draw to protect co-tenant games.", count, what, runawayTurnStamp, cap);
++            Logger.tag("ENGINE").warn("Runaway-game soft cap hit: {} {} on turn {} (cap {}, {});"
++                    + " forcing a Draw to protect co-tenant games.", count, what, runawayTurnStamp, cap, drawReason);
+             runawayFinalizing = true;
+             try {
+                 // Mirror the engine's OWN draw path, GameDrawEffect.resolve():
+@@ -1220,16 +1347,75 @@ public class Game {
       *  TriggerHandler.runWaitingTriggers(). */
      public void recordTriggerFired() {
          resetRunawayWindowOnTurnChange();
++        noteLoopProgress();
 +        askPendingRunaway();
          triggersFiredThisTurn++;
 -        checkRunawayCap(triggersFiredThisTurn, runawayTriggersPerTurnCap, "triggers fired");
@@ -618,26 +740,72 @@ index 8d204538..fc28f9f4 100644
 +            askOrDraw(triggersFiredThisTurn, limit, "triggers fired");
 +            triggersAllowedThisTurn = addCap(triggersAllowedThisTurn, runawayTriggersPerTurnCap);
 +        }
++    }
++
++    /** MagicStack.add: a stack this big asks the same question (stock Forge drew at 1,000 items); a yes allows
++     *  RUNAWAY_STACK_ITEMS (setRunawayStackItemsCap) more this turn. */
++    public void recordStackSize(final int size) {
++        resetRunawayWindowOnTurnChange();
++        if (size < stackItemsAllowed) {
++            return;
++        }
++        askOrDraw(size, stackItemsAllowed, "stack items");
++        stackItemsAllowed = addCap(size, runawayStackItemsCap);
++    }
++
++    // The no-progress watchdog: a mandatory loop that fires no trigger and makes no card (a RepeatEffect whose
++    // condition never fails, a replacement that feeds itself) never reaches the limits above, and the game thread
++    // never comes back. Each ability resolution and replacement run checks how long the game has gone without
++    // progress (a trigger, a card, a question answered, a priority); past LOOP_WATCHDOG_SECONDS it asks the same question.
++    private java.util.function.LongSupplier loopClock = System::nanoTime;
++    private long loopProgressAt = System.nanoTime();
++
++    /** Tests only: the clock the watchdog reads, in nanoseconds. */
++    public void setLoopClock(final java.util.function.LongSupplier clock) {
++        loopClock = clock == null ? System::nanoTime : clock;
++        noteLoopProgress();
++    }
++
++    public void noteLoopProgress() {
++        loopProgressAt = loopClock.getAsLong();
++    }
++
++    public void checkLoopWatchdog() {
++        if (runawayFinalizing || runawayAsking || runawayTripped) {
++            return;
++        }
++        final long stuck = loopClock.getAsLong() - loopProgressAt;
++        if (stuck < LOOP_WATCHDOG_SECONDS * 1_000_000_000L) {
++            return;
++        }
++        askOrDraw((int) (stuck / 1_000_000_000L), (int) LOOP_WATCHDOG_SECONDS, "stuck loop");
      }
      // ---- end Endstep patch 24 ----
  
-@@ -1229,7 +1308,14 @@ public class Game {
+     public int nextCardId() {
          // Endstep patch 24: per-turn card-creation guard (see above).
          resetRunawayWindowOnTurnChange();
++        noteLoopProgress();
          cardsCreatedThisTurn++;
 -        checkRunawayCap(cardsCreatedThisTurn, runawayCardsPerTurnCap, "cards created");
 +        final int limit = addCap(runawayCardsPerTurnCap, cardsAllowedThisTurn);
 +        if (cardsCreatedThisTurn > limit && !runawayFinalizing && !runawayAsking) {
-+            if (mayAskRunaway() && cardsCreatedThisTurn <= addCap(limit, runawayCardsPerTurnCap)) {
-+                cardsCapPending = true;
-+            } else {
++            if (runawayTripped || runawayChoice == null) {
++                if (drawReason == null) {
++                    drawReason = "noPerson";
++                }
 +                endRunawayGame(cardsCreatedThisTurn, limit, "cards created");
++            } else if (cardsCreatedThisTurn > addCap(limit, runawayCardsPerTurnCap) && heapNearlyFull()) {
++                drawReason = "heap";
++                endRunawayGame(cardsCreatedThisTurn, limit, "cards created");
++            } else {
++                cardsCapPending = true;
 +            }
 +        }
          return ++cardIdCounter;
      }
      public int nextHiddenCardId() {
-@@ -1410,7 +1496,8 @@ public class Game {
+@@ -1410,7 +1596,8 @@ public class Game {
              player.onCleanupPhase();
          }
          for (final Card c : getCardsIncludePhasingIn(ZoneType.Battlefield)) {
@@ -647,7 +815,7 @@ index 8d204538..fc28f9f4 100644
          }
          for (final Card card : getCardsInGame()) {
              card.resetActivationsPerTurn();
-@@ -1479,6 +1566,23 @@ public class Game {
+@@ -1479,6 +1666,23 @@ public class Game {
          countersRemovedThisTurn.clear();
      }
  
@@ -671,7 +839,7 @@ index 8d204538..fc28f9f4 100644
      public void addCounterRemovedThisTurn(CounterType cType, Card card, Integer value) {
          countersRemovedThisTurn.put(cType, Pair.of(CardCopyService.getLKICopy(card), value));
      }
-@@ -1590,6 +1694,9 @@ public class Game {
+@@ -1590,6 +1794,9 @@ public class Game {
      public Boolean getDayTime() {
          return this.daytime;
      }
@@ -850,7 +1018,7 @@ index 2a2d5583..b8e60e7d 100644
          return gamesPerMatch;
      }
 diff --git a/forge-game/src/main/java/forge/game/GameSnapshot.java b/forge-game/src/main/java/forge/game/GameSnapshot.java
-index c7208809..91fedfda 100644
+index c7208809..032b00a7 100644
 --- a/forge-game/src/main/java/forge/game/GameSnapshot.java
 +++ b/forge-game/src/main/java/forge/game/GameSnapshot.java
 @@ -9,20 +9,28 @@ import forge.game.card.CardCopyService;
@@ -1082,7 +1250,7 @@ index c7208809..91fedfda 100644
                  }
              }
  
-@@ -412,6 +462,112 @@ public class GameSnapshot {
+@@ -412,6 +462,113 @@ public class GameSnapshot {
              }
              // TODO: Verify that the above relationships are preserved bi-directionally or not.
          }
@@ -1102,6 +1270,7 @@ index c7208809..91fedfda 100644
 +            }
 +        }
 +        fromGame.copyTurnHistoryTo(toGame, p -> findBy(toGame, p));
++        fromGame.copyUnboundedTokenKeysTo(toGame);
 +    }
 +
 +    private void copyCardState(Card from, Card to, Game toGame) {
@@ -1196,7 +1365,7 @@ index c7208809..91fedfda 100644
  
      private static CardCollectionView getCardsToCopy(Game game) {
 diff --git a/forge-game/src/main/java/forge/game/ability/AbilityUtils.java b/forge-game/src/main/java/forge/game/ability/AbilityUtils.java
-index 9d90c5c3..e236aee3 100644
+index 9d90c5c3..2ca4e3f8 100644
 --- a/forge-game/src/main/java/forge/game/ability/AbilityUtils.java
 +++ b/forge-game/src/main/java/forge/game/ability/AbilityUtils.java
 @@ -893,6 +893,20 @@ public class AbilityUtils {
@@ -1238,7 +1407,15 @@ index 9d90c5c3..e236aee3 100644
          } else if (defined.equals("You")) {
              players.add(player);
          } else if (defined.equals("Opponent")) {
-@@ -2311,6 +2325,10 @@ public class AbilityUtils {
+@@ -1303,6 +1317,7 @@ public class AbilityUtils {
+ 
+         Player pl = sa.getActivatingPlayer();
+         final Game game = pl.getGame();
++        game.checkLoopWatchdog();
+ 
+         if (sa.isTrigger() && !sa.getTrigger().isStatic() && sa.getParent() == null) {
+             // when trigger cost are paid before the effect does resolve, need to clean the trigger
+@@ -2311,6 +2326,10 @@ public class AbilityUtils {
              return doXMath(Collections.frequency(player.getDiceRollsThisTurn(), n), expr, c, ctb);
          }
  
@@ -1249,7 +1426,7 @@ index 9d90c5c3..e236aee3 100644
          if (sq[0].equals("YouScryThisTurn")) {
              return doXMath(player.getScryThisTurn(), expr, c, ctb);
          }
-@@ -2355,16 +2373,16 @@ public class AbilityUtils {
+@@ -2355,16 +2374,16 @@ public class AbilityUtils {
          }
  
          if (sq[0].contains("LifeYouLostThisTurn")) {
@@ -1269,7 +1446,7 @@ index 9d90c5c3..e236aee3 100644
          }
          if (sq[0].contains("LifeOppsLostThisTurn")) {
              return doXMath(player.getOpponentLostLifeThisTurn(), expr, c, ctb);
-@@ -2439,6 +2457,10 @@ public class AbilityUtils {
+@@ -2439,6 +2458,10 @@ public class AbilityUtils {
              return doXMath(player.getTurn(), expr, c, ctb);
          }
  
@@ -1280,7 +1457,7 @@ index 9d90c5c3..e236aee3 100644
          if (sq[0].equals("NotedNumber")) {
              return doXMath(player.getNotedNumberForName(c.getName()), expr, c, ctb);
          }
-@@ -2555,7 +2577,7 @@ public class AbilityUtils {
+@@ -2555,7 +2578,7 @@ public class AbilityUtils {
          // Count$Domain
          if (sq[0].startsWith("Domain")) {
              int n = 0;
@@ -1289,7 +1466,7 @@ index 9d90c5c3..e236aee3 100644
              CardCollection lands = neededPlayer.getLandsInPlay();
              for (String basic : MagicColor.Constant.BASIC_LANDS) {
                  if (!CardLists.getType(lands, basic).isEmpty()) {
-@@ -3523,14 +3545,14 @@ public class AbilityUtils {
+@@ -3523,14 +3546,14 @@ public class AbilityUtils {
          }
  
          if (value.contains("LifeLostThisTurn")) {
@@ -1307,7 +1484,7 @@ index 9d90c5c3..e236aee3 100644
          }
  
          if (value.contains("LifeGainedByTeamThisTurn")) {
-@@ -3724,6 +3746,22 @@ public class AbilityUtils {
+@@ -3724,6 +3747,22 @@ public class AbilityUtils {
              return doXMath(countCardTypesFromList(paidList, def.startsWith("CardTypesPermanent")), CardFactoryUtil.extractOperators(def), source, ctb);
          }
  
@@ -1689,6 +1866,51 @@ index 48ef9963..8fd74d94 100644
              final Card eff = createEffect(sa, player, name, image);
              eff.setSVar("NumTurns", "Number$" + numTurns);
              SpellAbility calcTurn = AbilityFactory.getAbility(effect, eff);
+diff --git a/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java b/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java
+index 7bc3aae4..29a7f10a 100644
+--- a/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java
++++ b/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java
+@@ -1,6 +1,7 @@
+ package forge.game.ability.effects;
+ 
+ import java.util.Arrays;
++import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Set;
+@@ -108,12 +109,30 @@ public abstract class TokenEffectBase extends SpellAbilityEffect {
+         moveParams.put(AbilityKey.LastStateBattlefield, game.copyLastStateBattlefield());
+         moveParams.put(AbilityKey.LastStateGraveyard, game.copyLastStateGraveyard());
+ 
++        // Big turns 2: each pile (TokenPile.key) and this effect make at most Game.UNBOUNDED_TOKENS; past that the
++        // pile is marked unbounded and the rest are never made (after the CreateToken replacements: doublers count)
++        game.recordTokenEffect();
++        game.pruneUnboundedTokenKeys();
++        final Map<String, Integer> pileSizes = new HashMap<>();
++        for (final Card onField : game.getCardsIn(ZoneType.Battlefield)) {
++            if (onField.isToken()) {
++                pileSizes.merge(TokenPile.key(onField), 1, Integer::sum);
++            }
++        }
++        int madeByEffect = 0;
+         for (final Table.Cell<Player, Card, Integer> c : tokenTable.cellSet()) {
+             Card prototype = c.getColumnKey();
+             Player creator = c.getRowKey();
+             Player controller = prototype.getController();
+-            int cellAmount = c.getValue();
+-            game.recordTokenRequest(cellAmount);
++            final String pile = TokenPile.key(prototype);
++            final int room = Math.max(0, Math.min(Game.UNBOUNDED_TOKENS - pileSizes.getOrDefault(pile, 0),
++                    Game.UNBOUNDED_TOKENS - madeByEffect));
++            int cellAmount = Math.min(c.getValue(), room);
++            if (cellAmount < c.getValue()) {
++                game.markUnboundedTokens(pile);
++            }
++            pileSizes.merge(pile, cellAmount, Integer::sum);
++            madeByEffect += cellAmount;
+ 
+             for (int i = 0; i < cellAmount; i++) {
+                 Card tok = new CardCopyService(prototype).copyCard(true);
 diff --git a/forge-game/src/main/java/forge/game/card/Card.java b/forge-game/src/main/java/forge/game/card/Card.java
 index bcc6c1ac..5e358b93 100644
 --- a/forge-game/src/main/java/forge/game/card/Card.java
@@ -1810,6 +2032,26 @@ index 5d0373f5..ebc9b1a7 100644
      PETAL("PETAL", 255, 162, 216, CounterAiCategory.Positive),
  
      PETRIFICATION("PETRI", 185, 201, 208, CounterAiCategory.Neutral),
+diff --git a/forge-game/src/main/java/forge/game/card/TokenPile.java b/forge-game/src/main/java/forge/game/card/TokenPile.java
+new file mode 100644
+index 00000000..eb3eaca7
+--- /dev/null
++++ b/forge-game/src/main/java/forge/game/card/TokenPile.java
+@@ -0,0 +1,14 @@
++package forge.game.card;
++
++/**
++ * The pile a token belongs to for the unbounded-token cap (Game.UNBOUNDED_TOKENS): its controller, name and base
++ * power/toughness. Tapped state, counters and damage are left out, so one pile stays one pile however it is split.
++ */
++public final class TokenPile {
++    private TokenPile() {
++    }
++
++    public static String key(final Card card) {
++        return card.getController().getId() + "|" + card.getName() + "|" + card.getBasePower() + "/" + card.getBaseToughness();
++    }
++}
 diff --git a/forge-game/src/main/java/forge/game/combat/AttackConstraints.java b/forge-game/src/main/java/forge/game/combat/AttackConstraints.java
 index 0f15acf6..dbf57908 100644
 --- a/forge-game/src/main/java/forge/game/combat/AttackConstraints.java
@@ -2189,7 +2431,7 @@ index 0b747a2f..f1b06281 100644
       * <p>
       * Add a hardcoded trigger that will execute "at <phase>".
 diff --git a/forge-game/src/main/java/forge/game/phase/PhaseHandler.java b/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
-index 4a3a94df..88d2210e 100644
+index 4a3a94df..71f1021a 100644
 --- a/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
 +++ b/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
 @@ -20,6 +20,8 @@ package forge.game.phase;
@@ -3253,7 +3495,25 @@ index 4a3a94df..88d2210e 100644
      public final boolean beforeFirstPostCombatMainEnd() {
          return nMainsThisTurn <= (is(PhaseType.MAIN2) ? 2 : 1);
      }
-@@ -1080,6 +1586,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -1037,6 +1543,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+     }
+ 
+     public void mainLoopStep() {
++        game.noteLoopProgress();
+         if (givePriorityToPlayer) {
+             if (DEBUG_PHASES) {
+                 sw.start();
+@@ -1053,7 +1560,9 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+                 }
+                 game.stashGameState();
+ 
++                game.noteLoopProgress();
+                 chosenSa = pPlayerPriority.getController().chooseSpellAbilityToPlay();
++                game.noteLoopProgress();
+ 
+                 // this needs to come after chosenSa so it sees you conceding on own turn
+                 if (playerTurn.hasLost() && pPlayerPriority.equals(playerTurn) && pFirstPriority.equals(playerTurn)) {
+@@ -1080,6 +1589,7 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                          // 117.3c If a player has priority when they cast a spell, activate an ability, [play a land]
                          // that player receives priority afterward.
                          pFirstPriority = pPlayerPriority; // all opponents have to pass before stack is allowed to resolve
@@ -3261,7 +3521,7 @@ index 4a3a94df..88d2210e 100644
                      } else if (game.EXPERIMENTAL_RESTORE_SNAPSHOT) {
                          rollback = true;
                      }
-@@ -1129,7 +1636,22 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
+@@ -1129,7 +1639,22 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
          if (DEBUG_PHASES) {
              System.out.println(TextUtil.concatWithSpace(playerTurn.toString(),TextUtil.addSuffix(phase.toString(),":"), pPlayerPriority.toString(),"is active, previous was", nextPlayer.toString()));
          }
@@ -3952,6 +4212,18 @@ index 66837611..360e66ad 100644
                      return false;
                  }
              }
+diff --git a/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java b/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java
+index 4d9877fb..5c40c44d 100644
+--- a/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java
++++ b/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java
+@@ -185,6 +185,7 @@ public class ReplacementHandler {
+      * @return ReplacementResult, an enum that represents what happened to the replacement effect.
+      */
+     public ReplacementResult run(ReplacementType event, final Map<AbilityKey, Object> runParams) {
++        game.checkLoopWatchdog();
+         final Object affected = runParams.get(AbilityKey.Affected);
+         Player decider = null;
+ 
 diff --git a/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java b/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java
 index 42c36fb2..5f35f204 100644
 --- a/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java
@@ -4373,7 +4645,7 @@ index 8ab7dbe3..43ca371f 100644
  
      @Override
 diff --git a/forge-game/src/main/java/forge/game/zone/MagicStack.java b/forge-game/src/main/java/forge/game/zone/MagicStack.java
-index 35ea040c..2f219365 100644
+index 35ea040c..8350e504 100644
 --- a/forge-game/src/main/java/forge/game/zone/MagicStack.java
 +++ b/forge-game/src/main/java/forge/game/zone/MagicStack.java
 @@ -76,6 +76,8 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
@@ -4385,7 +4657,31 @@ index 35ea040c..2f219365 100644
  
      private final Game game;
  
-@@ -637,6 +639,10 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -259,13 +261,8 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+         Player activator = sp.getActivatingPlayer();
+ 
+         // Stop infinite loop. E.g. Scalelord Reckoner mirrormatch with only triggering targets is a draw.
+-        if (game.getStack().size() > 999) {
+-            for (Player p : game.getPlayers()) {
+-                p.intentionalDraw();
+-            }
+-            game.setGameOver(GameEndReason.Draw);
+-            return;
+-        }
++        // (Big turns 2: asked first, through Game's runaway question; a no or nobody to ask is the draw.)
++        game.recordStackSize(game.getStack().size());
+ 
+         recordUndoableActions(sp, activator);
+ 
+@@ -565,6 +562,7 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+     }
+ 
+     public final void resolveStack() {
++        game.noteLoopProgress();
+         // freeze the stack while we're in the middle of resolving
+         freezeStack(null);
+         setResolving(true);
+@@ -637,6 +635,10 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
  
          finishResolving(sa, thisHasFizzled);
  
@@ -4396,7 +4692,7 @@ index 35ea040c..2f219365 100644
          game.copyLastState();
          if (isEmpty() && !hasSimultaneousStackEntries()) {
              // assuming that if the stack is empty, no reason to hold on to old LKI data (everything is a new object)
-@@ -644,6 +650,44 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -644,6 +646,44 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          }
      }
  
@@ -4441,7 +4737,7 @@ index 35ea040c..2f219365 100644
      private void finishResolving(final SpellAbility sa, final boolean fizzle) {
          // SpellAbility is removed from the stack here
          // temporarily removed removing SA after resolution
-@@ -838,6 +882,16 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -838,6 +878,16 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          List<Player> players = game.getPlayersInTurnOrder(playerTurn);
  
          boolean result = false;
@@ -4458,7 +4754,7 @@ index 35ea040c..2f219365 100644
          // CR 603.3b
          for (Player p : players) {
              result |= chooseOrderOfSimultaneousStackEntry(p, false);
-@@ -849,6 +903,63 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -849,6 +899,63 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          return result;
      }
  
@@ -4522,7 +4818,7 @@ index 35ea040c..2f219365 100644
      private boolean chooseOrderOfSimultaneousStackEntry(final Player activePlayer, boolean isAbilityTriggered) {
          if (!activePlayer.isInGame()) {
              return false;
-@@ -931,6 +1042,12 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -931,6 +1038,12 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
      public final List<Card> getSpellsCastLastTurn() {
          return lastTurnCast;
      }

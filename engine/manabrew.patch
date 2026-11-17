@@ -1675,7 +1675,7 @@ index 0000000..9d713d1
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..ad3e81e 100644
+index 713e1ef..28da0e9 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 @@ -26,27 +26,40 @@ import forge.card.MagicColor;
@@ -1876,7 +1876,7 @@ index 713e1ef..ad3e81e 100644
                  final String controllerId =
                          "player-" + SnapshotExtractor.playerIndex(game, card.getController());
                  final CardDto dto = toCard(
-@@ -224,13 +332,37 @@ public final class InteractiveSnapshotExtractor {
+@@ -224,17 +332,44 @@ public final class InteractiveSnapshotExtractor {
          view.put("dayTime", dayTime(game));
          view.put("checkpoints", checkpoints);
          view.put("snapshotRecording", snapshotRecording);
@@ -1914,7 +1914,14 @@ index 713e1ef..ad3e81e 100644
          final Object winner = base.get("winner");
          if (winner != null) {
              view.put("winnerId", "player-" + winner);
-@@ -285,7 +417,7 @@ public final class InteractiveSnapshotExtractor {
+         }
++        if (game.isGameOver() && game.getDrawReason() != null) {
++            view.put("drawReason", game.getDrawReason());
++        }
+         final Player monarch = game.getMonarch();
+         if (monarch != null) {
+             view.put("monarchId", "player-" + SnapshotExtractor.playerIndex(game, monarch));
+@@ -285,7 +420,7 @@ public final class InteractiveSnapshotExtractor {
          out.put("cardsDrawnThisTurn", player.getNumDrawnThisTurn());
          out.put("damagePrevention", player.getPreventNextDamageTotalShields());
          out.put("isExtraTurn", player.isExtraTurn());
@@ -1923,7 +1930,7 @@ index 713e1ef..ad3e81e 100644
          final Player controller = player.getControllingPlayer();
          if (controller != null && controller != player) {
              out.put("controlledBy", "player-" + SnapshotExtractor.playerIndex(game, controller));
-@@ -299,18 +431,34 @@ public final class InteractiveSnapshotExtractor {
+@@ -299,18 +434,34 @@ public final class InteractiveSnapshotExtractor {
          out.put("ringLevel", player.getNumRingTemptedYou());
          out.put("speed", player.getSpeed());
          out.put("hasEnduringStory", player.hasEnduringStory());
@@ -1959,7 +1966,7 @@ index 713e1ef..ad3e81e 100644
          return out;
      }
  
-@@ -325,19 +473,6 @@ public final class InteractiveSnapshotExtractor {
+@@ -325,19 +476,6 @@ public final class InteractiveSnapshotExtractor {
          return names;
      }
  
@@ -1979,7 +1986,7 @@ index 713e1ef..ad3e81e 100644
      private static List<String> activeSchemeNames(final Player player) {
          final List<String> names = new ArrayList<>();
          for (final Card card : player.getCardsIn(ZoneType.Command)) {
-@@ -348,6 +483,26 @@ public final class InteractiveSnapshotExtractor {
+@@ -348,6 +486,26 @@ public final class InteractiveSnapshotExtractor {
          return names;
      }
  
@@ -2006,7 +2013,7 @@ index 713e1ef..ad3e81e 100644
      private static Integer teamNumber(final Game game, final Player player) {
          for (final Player other : game.getRegisteredPlayers()) {
              if (other != player && other.getTeam() == player.getTeam()) {
-@@ -367,7 +522,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -367,7 +525,7 @@ public final class InteractiveSnapshotExtractor {
          return counters;
      }
  
@@ -2015,7 +2022,7 @@ index 713e1ef..ad3e81e 100644
          if (value > 0) {
              map.put(key, value);
          }
-@@ -444,13 +599,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -444,13 +602,14 @@ public final class InteractiveSnapshotExtractor {
              final boolean castable,
              final Player viewerPlayer,
              final boolean keepHiddenEntries,
@@ -2032,7 +2039,7 @@ index 713e1ef..ad3e81e 100644
                  views.add(visibleCard(toCard(
                          game, card, ownerIndex, castable, viewerPlayer, secretChoiceVisibility)));
              } else if (keepHiddenEntries) {
-@@ -499,6 +655,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -499,6 +658,7 @@ public final class InteractiveSnapshotExtractor {
          dto.effectiveManaCost = null;
          dto.commanderTax = null;
          dto.madnessCost = null;
@@ -2040,7 +2047,7 @@ index 713e1ef..ad3e81e 100644
      }
  
      private static Player playerForIndex(final Game game, final int viewer) {
-@@ -685,6 +842,22 @@ public final class InteractiveSnapshotExtractor {
+@@ -685,6 +845,22 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -2063,7 +2070,7 @@ index 713e1ef..ad3e81e 100644
      private static CardDto toCard(
              final Game game,
              final Card card,
-@@ -714,6 +887,11 @@ public final class InteractiveSnapshotExtractor {
+@@ -714,6 +890,11 @@ public final class InteractiveSnapshotExtractor {
              dto.toughness = String.valueOf(card.getNetToughness());
              dto.basePower = card.getBasePower();
              dto.baseToughness = card.getBaseToughness();
@@ -2075,7 +2082,7 @@ index 713e1ef..ad3e81e 100644
          }
          if (card.isInPlay()) {
              if (card.getType().hasSubtype("Saga") && card.hasChapter()) {
-@@ -746,17 +924,47 @@ public final class InteractiveSnapshotExtractor {
+@@ -746,17 +927,47 @@ public final class InteractiveSnapshotExtractor {
          dto.isFaceDown = card.isFaceDown();
          dto.isBestowed = card.isBestowed();
          dto.phasedOut = card.isPhasedOut();
@@ -2124,7 +2131,7 @@ index 713e1ef..ad3e81e 100644
          }
          final List<String> attachmentIds = new ArrayList<>();
          for (final Card attachment : card.getAttachedCards()) {
-@@ -802,6 +1010,70 @@ public final class InteractiveSnapshotExtractor {
+@@ -802,6 +1013,71 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -2160,6 +2167,7 @@ index 713e1ef..ad3e81e 100644
 +        if (card.getProtectingPlayer() != null) {
 +            dto.protectorId = "player-" + SnapshotExtractor.playerIndex(game, card.getProtectingPlayer());
 +        }
++        dto.unbounded = card.isInPlay() && game.isUnboundedToken(card);
 +        if (card.isCreature() && !card.isPhasedOut()) {
 +            final SnapshotRound shared = ROUND.get();
 +            final CombatFlags flags = shared != null ? shared.flags(card) : combatFlags(card, new SnapshotRound());
@@ -2195,7 +2203,7 @@ index 713e1ef..ad3e81e 100644
      private static String normalizedOracle(final Card card) {
          return card.getOracleText().replace("\\n", "\n");
      }
-@@ -1078,12 +1350,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -1078,12 +1354,14 @@ public final class InteractiveSnapshotExtractor {
              stackItem.put("identity", stackIdentity(name, source));
              stackItem.put("text", item.getStackDescription());
              putIfNotBlank(stackItem, "sourceAbilityText", sourceAbilityText(sa));
@@ -2210,7 +2218,7 @@ index 713e1ef..ad3e81e 100644
              out.add(stackItem);
              index++;
          }
-@@ -1131,6 +1405,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -1131,6 +1409,7 @@ public final class InteractiveSnapshotExtractor {
          stackItem.put("isDoubleFaced", source.isDoubleFaced() || source.isModal());
          stackItem.put("faceIndex", stackFaceIndex(source, castingAbility));
          stackItem.put("targets", stackTargets(game, castingAbility));
@@ -2218,7 +2226,7 @@ index 713e1ef..ad3e81e 100644
          return stackItem;
      }
  
-@@ -1163,6 +1438,25 @@ public final class InteractiveSnapshotExtractor {
+@@ -1163,6 +1442,25 @@ public final class InteractiveSnapshotExtractor {
          }
      }
  
@@ -2702,7 +2710,7 @@ index c69b549..92d71e9 100644
  
      public static final class CardIdentity {
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
-index fb82e6d..8084ad2 100644
+index fb82e6d..57036e4 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 @@ -11,6 +11,8 @@ import forge.harness.common.HarnessPlayPlumbing;
@@ -2714,7 +2722,15 @@ index fb82e6d..8084ad2 100644
  
  import com.google.common.collect.ListMultimap;
  import com.google.common.collect.Lists;
-@@ -74,6 +76,7 @@ import java.util.TreeSet;
+@@ -65,6 +67,7 @@ import org.apache.commons.lang3.tuple.Pair;
+ import java.util.ArrayList;
+ import java.util.Collection;
+ import java.util.Collections;
++import java.util.HashSet;
+ import java.util.Iterator;
+ import java.util.LinkedHashMap;
+ import java.util.List;
+@@ -74,6 +77,7 @@ import java.util.TreeSet;
  import java.util.function.Predicate;
  
  public final class ManaBrewInteractiveController extends PlayerController implements HarnessPlayHooks {
@@ -2722,7 +2738,15 @@ index fb82e6d..8084ad2 100644
      private final Game game;
      private final ManaBrewInteractiveSession session;
      private final HarnessCostPlumbing costPlumbing;
-@@ -124,9 +127,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -86,6 +90,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+     private int passUntilObservedTurn;
+     private PhaseType passUntilMaxPhase;
+     private Set<Integer> exhaustStackIds;
++    private Set<Integer> heldActionIds;
+     private boolean probingPayability;
+     private boolean autoConfirmPayment;
+ 
+@@ -124,9 +129,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      @Override
      public boolean mulliganKeepHand(final Player mulliganingPlayer, final int cardsToReturn) {
          final boolean keep = session.awaitMulliganDecision(me(), cardsToReturn);
@@ -2735,12 +2759,12 @@ index fb82e6d..8084ad2 100644
              for (final Card card : selected) {
                  game.getAction().moveToLibrary(card, -1, null);
              }
-@@ -149,6 +153,13 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -149,14 +155,22 @@ public final class ManaBrewInteractiveController extends PlayerController implem
                  "confirm_action", me(), "Scry 1 after mulligan?", null, "confirm_mulligan_scry", null, null);
      }
  
 +    int heldResolutionsLeft() {
-+        if (exhaustStackIds == null || PriorityFastForward.exhaustEnded(game, exhaustStackIds)) {
++        if (exhaustStackIds == null || PriorityFastForward.exhaustEnded(game, exhaustStackIds) || heldActionsChanged()) {
 +            return 0;
 +        }
 +        return PriorityFastForward.heldResolutionsLeft(game, exhaustStackIds);
@@ -2749,7 +2773,17 @@ index fb82e6d..8084ad2 100644
      @Override
      public List<SpellAbility> chooseSpellAbilityToPlay() {
          if (session.restoreIfApproved()) {
-@@ -200,6 +211,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+             return new ArrayList<>();
+         }
+         if (exhaustStackIds != null) {
+-            if (PriorityFastForward.exhaustEnded(game, exhaustStackIds)) {
++            if (PriorityFastForward.exhaustEnded(game, exhaustStackIds) || heldActionsChanged()) {
+                 exhaustStackIds = null;
++                heldActionIds = null;
+             } else {
+                 return null;
+             }
+@@ -200,6 +214,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
                  undoManaSource(choice.untapCard());
                  continue;
              }
@@ -2762,7 +2796,47 @@ index fb82e6d..8084ad2 100644
              if (choice.kind() == ManaBrewInteractiveSession.PriorityActionKind.RESTORE) {
                  if (session.restoreIfApproved()) {
                      return new ArrayList<>();
-@@ -248,9 +265,11 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -213,6 +233,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+             passUntilObservedTurn = passUntilDeclaredTurn;
+             passUntilMaxPhase = game.getPhaseHandler().getPhase();
+             exhaustStackIds = choice.exhaustStack() ? PriorityFastForward.stackIds(game) : null;
++            heldActionIds = choice.exhaustStack() ? responseIds(all) : null;
+             final SpellAbility selected = choice.action();
+             if (selected != null && selected.isManaAbility() && selected.getManaPart() != null) {
+                 if (choice.color() == null) {
+@@ -230,6 +251,31 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+         passUntilPhase = null;
+         passUntilThroughCombat = false;
+         exhaustStackIds = null;
++        heldActionIds = null;
++    }
++
++    private boolean heldActionsChanged() {
++        if (heldActionIds == null) {
++            return false;
++        }
++        final List<SpellAbility> now;
++        probingPayability = true;
++        try {
++            now = ActionSpace.getPossibleActions(player, false, true);
++        } finally {
++            probingPayability = false;
++        }
++        return !heldActionIds.containsAll(responseIds(now));
++    }
++
++    private static Set<Integer> responseIds(final List<SpellAbility> actions) {
++        final Set<Integer> ids = new HashSet<>();
++        for (final SpellAbility sa : actions) {
++            if (!sa.isManaAbility()) {
++                ids.add(sa.getId());
++            }
++        }
++        return ids;
+     }
+ 
+     private List<Card> undoableManaSources() {
+@@ -248,9 +294,11 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      private void undoManaSource(final Card source) {
          final MagicStack stack = game.getStack();
          if (source == null) {
@@ -2774,7 +2848,7 @@ index fb82e6d..8084ad2 100644
          for (final SpellAbility sa : Lists.newArrayList(stack.filterUndoStackByHost(source))) {
              if (sa.undo()) {
                  stack.clearUndoStack(sa);
-@@ -269,10 +288,44 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -269,10 +317,44 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          final Integer staleX = sa.getXManaCostPaid();
          sa.setXManaCostPaid(null);
          session.beginCast(sa);
@@ -2819,7 +2893,7 @@ index fb82e6d..8084ad2 100644
              }
              return played;
          } finally {
-@@ -290,6 +343,9 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -290,6 +372,9 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public List<SpellAbility> orderSimultaneousSa(final List<SpellAbility> activePlayerSAs) {
@@ -2829,7 +2903,7 @@ index fb82e6d..8084ad2 100644
          return playPlumbing.orderSimultaneousSa(activePlayerSAs);
      }
  
-@@ -382,6 +438,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -382,6 +467,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          combat.clearAttackers();
          if (passUntilPhase != null
                  && !PriorityFastForward.reachedTarget(game, passUntilPlayer, passUntilPhase)
@@ -2837,7 +2911,7 @@ index fb82e6d..8084ad2 100644
                  && CombatUtil.validateAttackers(combat)) {
              return;
          }
-@@ -403,9 +460,28 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -403,9 +489,28 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public void declareBlockers(final Player defender, final Combat combat) {
@@ -2867,7 +2941,7 @@ index fb82e6d..8084ad2 100644
                  attackers.add(attacker);
              }
          }
-@@ -415,10 +491,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -415,10 +520,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          final Map<Card, List<Card>> validByAttacker =
                  EngineHandler.validBlockersByAttacker(combat, attackers, blockers);
          final int defenderIndex = SnapshotExtractor.playerIndex(game, defender);
@@ -2881,7 +2955,7 @@ index fb82e6d..8084ad2 100644
              error = EngineHandler.applyBlockerAssignments(combat, defender, assignments);
              if (error == null || session.isClosed() || game.isGameOver()) {
                  return;
-@@ -426,6 +504,36 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -426,6 +533,36 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          }
      }
  
@@ -2918,7 +2992,7 @@ index fb82e6d..8084ad2 100644
      @Override
      public CardCollection orderBlockers(final Card attacker, final CardCollection blockers) {
          return session.awaitDamageAssignmentOrder(me(), attacker, blockers);
-@@ -730,7 +838,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -730,7 +867,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      public CardCollection chooseCardsToDiscardFrom(
              final Player playerDiscard, final SpellAbility sa, final CardCollection validCards, final int min, final int max,
              final CardCollectionView visibleToChooser) {
@@ -2930,7 +3004,7 @@ index fb82e6d..8084ad2 100644
      }
  
      @Override
-@@ -760,8 +871,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -760,8 +900,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      @Override
      public CardCollectionView chooseCardsForCost(final CardCollectionView optionList, final SpellAbility sa,
              final CostPartWithList cpl, final int amount, final boolean isOptional, final String prompt) {
@@ -2941,7 +3015,7 @@ index fb82e6d..8084ad2 100644
          if (isOptional && selected.size() != amount) {
              return null;
          }
-@@ -790,8 +901,16 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -790,8 +930,16 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          if (sourceList.isEmpty()) {
              return CardCollection.EMPTY;
          }
@@ -2960,7 +3034,7 @@ index fb82e6d..8084ad2 100644
      }
  
      @Override
-@@ -832,7 +951,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -832,7 +980,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          final CardCollection cards = cardOptions(optionList);
          if (cards == null) {
              return rememberSecretPlayerViewer(
@@ -2969,7 +3043,7 @@ index fb82e6d..8084ad2 100644
          }
          final CardCollection selected = session.awaitCardChoice(
                  "choose_cards_for_effect", me(), cards, 1, 1, sourceName(sa), sourceCardId(sa), title, isOptional);
-@@ -895,7 +1014,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -895,7 +1043,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
              CardLists.sortByCmcDesc(sorted);
              return new CardCollection(sorted.subList(0, Math.max(min, Math.min(cappedMax, 1))));
          }
@@ -2979,7 +3053,7 @@ index fb82e6d..8084ad2 100644
      }
  
      @Override
-@@ -2514,6 +2634,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2514,6 +2663,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public void notifyOfValue(final SpellAbility saSource, final GameObject realtedTarget, final String value) {
@@ -2990,7 +3064,7 @@ index fb82e6d..8084ad2 100644
          final String message = MessageUtil.formatNotificationMessage(saSource, player, realtedTarget, value);
          if (saSource != null && saSource.isManaAbility()) {
              game.getGameLog().add(GameLogEntryType.LAND, message);
-@@ -2620,7 +2744,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2620,7 +2773,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      }
  
      private <T extends GameEntity> T chooseSingleEntityGeneric(
@@ -3000,7 +3074,7 @@ index fb82e6d..8084ad2 100644
          final List<T> opts = new ArrayList<>();
          for (final T option : optionList) {
              opts.add(option);
-@@ -2632,7 +2757,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2632,7 +2786,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          for (final T option : opts) {
              labels.add(option == null ? "?" : option.toString());
          }
@@ -3015,7 +3089,7 @@ index fb82e6d..8084ad2 100644
              return null;
          }
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..ef954ab 100644
+index 643e5de..01a810f 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,12 +6,15 @@ import forge.harness.common.ParityCardMap;
@@ -3095,7 +3169,7 @@ index 643e5de..ef954ab 100644
      private volatile boolean closed;
      private volatile Thread gameThread;
      private static volatile InteractiveBridge bridge;
-@@ -70,20 +89,32 @@ public final class ManaBrewInteractiveSession {
+@@ -70,20 +89,39 @@ public final class ManaBrewInteractiveSession {
      private final InteractiveSnapshotExtractor.SecretChoiceVisibility secretChoiceVisibility =
              new InteractiveSnapshotExtractor.SecretChoiceVisibility();
      private static final int CHECKPOINT_TURNS = 3;
@@ -3125,10 +3199,17 @@ index 643e5de..ef954ab 100644
      private boolean priorityPromptOpen;
      private Set<Integer> botSeats = Set.of();
 +    private TieOffer tieOffer;
++    static final long RUNAWAY_ANSWER_SECONDS = 90;
++    static final int RUNAWAY_MISSES_TO_DRAW = 2;
++    static final String RUNAWAY_TITLE = "This turn passed the engine's limit";
++    long runawayAnswerMillis = RUNAWAY_ANSWER_SECONDS * 1000L;
++    private long actionDeadlineNanos;
++    private int missedRunawayTurn = -1;
++    private int missedRunawayInARow;
  
      private static final class Checkpoint {
          private final int id;
-@@ -91,7 +122,7 @@ public final class ManaBrewInteractiveSession {
+@@ -91,7 +129,7 @@ public final class ManaBrewInteractiveSession {
          private final PhaseType phase;
          private final Player activePlayer;
          private final Player priorityPlayer;
@@ -3137,7 +3218,7 @@ index 643e5de..ef954ab 100644
  
          private Checkpoint(
                  final int id,
-@@ -99,16 +130,49 @@ public final class ManaBrewInteractiveSession {
+@@ -99,16 +137,49 @@ public final class ManaBrewInteractiveSession {
                  final PhaseType phase,
                  final Player activePlayer,
                  final Player priorityPlayer,
@@ -3188,7 +3269,7 @@ index 643e5de..ef954ab 100644
      private enum RestoreVoteStatus { PENDING, APPROVED, DECLINED, UNAVAILABLE }
  
      private static final class RestoreVote {
-@@ -136,6 +200,64 @@ public final class ManaBrewInteractiveSession {
+@@ -136,6 +207,114 @@ public final class ManaBrewInteractiveSession {
          this.game = Objects.requireNonNull(game, "game");
          this.botSeats = Set.copyOf(botSeats);
          this.snapshotRecording = snapshotRecording;
@@ -3216,22 +3297,72 @@ index 643e5de..ef954ab 100644
 +    private boolean keepGoingPastCap(final Game g, final String what, final int count, final int cap) {
 +        final Player asked = runawayAsked();
 +        if (asked == null) {
++            g.setDrawReason("noPerson");
 +            return false;
++        }
++        final Boolean answer = awaitRunawayAnswer(SnapshotExtractor.playerIndex(game, asked), runawayWords(what, count, cap));
++        if (answer != null) {
++            missedRunawayInARow = 0;
++            return answer;
++        }
++        if (LOOP_QUESTION.equals(what)) {
++            g.setDrawReason("stuckLoop");
++            return false;
++        }
++        final int turn = g.getPhaseHandler().getTurn();
++        missedRunawayInARow = turn == missedRunawayTurn ? missedRunawayInARow + 1 : 1;
++        missedRunawayTurn = turn;
++        if (missedRunawayInARow >= RUNAWAY_MISSES_TO_DRAW) {
++            g.setDrawReason("unanswered");
++            return false;
++        }
++        return true;
++    }
++
++    private static final String LOOP_QUESTION = "stuck loop";
++
++    static String runawayWords(final String what, final int count, final int cap) {
++        if (LOOP_QUESTION.equals(what)) {
++            return String.format(Locale.ROOT,
++                    "The engine has spent %d seconds on one action without asking anyone anything, firing a trigger "
++                            + "or making a card: it looks like a loop it can't stop. Keep going gives it another %d "
++                            + "seconds. End in a draw ends the game now: the rules' result when a loop can't be "
++                            + "stopped. If nobody answers in %d seconds, the game ends in a draw.",
++                    count, cap, RUNAWAY_ANSWER_SECONDS);
 +        }
 +        final String done = "triggers fired".equals(what)
 +                ? String.format(Locale.ROOT, "%,d triggers have fired this turn", count)
 +                : "cards created".equals(what)
 +                ? String.format(Locale.ROOT, "%,d cards and tokens have been made this turn", count)
-+                : String.format(Locale.ROOT, "One effect asks for %,d copies of a token", count);
-+        final int left = Game.RUNAWAY_CONTINUES_PER_TURN - g.getRunawayContinues();
-+        final String body = done + String.format(Locale.ROOT,
++                : String.format(Locale.ROOT, "%,d items are on the stack", count);
++        return done + String.format(Locale.ROOT,
 +                ", past the engine's limit of %,d. Every one of them is real and the game is slower with each. "
-+                        + "Keep going allows as many again (%s). End in a draw ends the game now: the rules' result "
-+                        + "when a loop can't be stopped.",
-+                cap, left == 0 ? "the last time this turn" : left == 1 ? "once more this turn after this" : left + " more times this turn after this");
-+        return awaitBooleanChoice("confirm_action", SnapshotExtractor.playerIndex(game, asked),
-+                "This turn passed the engine's limit", null, "runaway_cap", null, null,
-+                List.of("Keep going", "End in a draw"), false, null, null, null, body);
++                        + "Keep going allows as many again. The engine asks again at the next limit. End in a draw "
++                        + "ends the game now: the rules' result when a loop can't be stopped. No answer in %d seconds "
++                        + "counts as Keep going; two unanswered in a row this turn end the game in a draw.",
++                cap, RUNAWAY_ANSWER_SECONDS);
++    }
++
++    private Boolean awaitRunawayAnswer(final int playerId, final String body) {
++        publishBooleanPrompt("confirm_action", playerId, RUNAWAY_TITLE, null, "runaway_cap", null, null,
++                List.of("Keep going", "End in a draw"), null, null, null, body);
++        actionDeadlineNanos = System.nanoTime() + runawayAnswerMillis * 1_000_000L;
++        try {
++            while (!closed && !game.isGameOver()) {
++                final JsonObject action = takeActionOrNull();
++                final String kind = action != null && action.has("kind") ? action.get("kind").getAsString() : "";
++                if ("boolean_decision".equals(kind)) {
++                    return action.has("accept") && action.get("accept").getAsBoolean();
++                }
++                if (action == null || "timeout".equals(kind) || "pass".equals(kind) || "pass_priority".equals(kind)) {
++                    return null;
++                }
++                throw new UnsupportedOperationException("unsupported action kind: " + kind);
++            }
++            return null;
++        } finally {
++            actionDeadlineNanos = 0;
++        }
 +    }
 +
 +    private Player runawayAsked() {
@@ -3253,7 +3384,7 @@ index 643e5de..ef954ab 100644
      }
  
      public String getSessionId() {
-@@ -155,26 +277,26 @@ public final class ManaBrewInteractiveSession {
+@@ -155,26 +334,26 @@ public final class ManaBrewInteractiveSession {
          requireAttached();
          Objects.requireNonNull(rng, "rng");
          if (bridge != null) {
@@ -3294,7 +3425,7 @@ index 643e5de..ef954ab 100644
      public void close() {
          closed = true;
          JsonObject action = new JsonObject();
-@@ -216,9 +338,15 @@ public final class ManaBrewInteractiveSession {
+@@ -216,9 +395,15 @@ public final class ManaBrewInteractiveSession {
  
      public String getSnapshotJson(final int viewer) {
          requireAttached();
@@ -3313,7 +3444,7 @@ index 643e5de..ef954ab 100644
      }
  
      void rememberSecretNumberViewer(final String sourceCardId, final Player viewer) {
-@@ -266,7 +394,7 @@ public final class ManaBrewInteractiveSession {
+@@ -266,7 +451,7 @@ public final class ManaBrewInteractiveSession {
  
      static final String TRIGGER_ORDER_TITLE = "Order triggered abilities";
  
@@ -3322,7 +3453,7 @@ index 643e5de..ef954ab 100644
  
      static final class PriorityChoice {
          private final PriorityActionKind kind;
-@@ -344,6 +472,10 @@ public final class ManaBrewInteractiveSession {
+@@ -344,6 +529,10 @@ public final class ManaBrewInteractiveSession {
              final List<Card> untappableCards
      ) {
          requireAttached();
@@ -3333,7 +3464,7 @@ index 643e5de..ef954ab 100644
          if (!botSeats.contains(playerId)) {
              recordCheckpoint();
          }
-@@ -362,6 +494,11 @@ public final class ManaBrewInteractiveSession {
+@@ -362,6 +551,11 @@ public final class ManaBrewInteractiveSession {
              if (isRestoreDirective(action)) {
                  return new PriorityChoice(PriorityActionKind.RESTORE, null, null, null);
              }
@@ -3345,7 +3476,7 @@ index 643e5de..ef954ab 100644
              try {
                  return interpretPriorityAction(action, actionsForPrompt, untappableCards);
              } catch (IllegalArgumentException | UnsupportedOperationException | NullPointerException invalid) {
-@@ -823,6 +960,9 @@ public final class ManaBrewInteractiveSession {
+@@ -823,6 +1017,9 @@ public final class ManaBrewInteractiveSession {
                  }
                  return chosen;
              }
@@ -3355,7 +3486,7 @@ index 643e5de..ef954ab 100644
              throw new UnsupportedOperationException("unsupported action kind: " + actionKind);
          }
          return new ArrayList<>();
-@@ -833,7 +973,13 @@ public final class ManaBrewInteractiveSession {
+@@ -833,7 +1030,13 @@ public final class ManaBrewInteractiveSession {
          final Random rng = forge.util.MyRandom.getRandom();
          final int sides = 20;
          final Map<Player, Integer> openingRolls = new LinkedHashMap<Player, Integer>();
@@ -3370,7 +3501,7 @@ index 643e5de..ef954ab 100644
          Player winner;
          boolean firstRound = true;
          while (true) {
-@@ -881,6 +1027,12 @@ public final class ManaBrewInteractiveSession {
+@@ -881,6 +1084,12 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3383,7 +3514,7 @@ index 643e5de..ef954ab 100644
      boolean awaitMulliganDecision(final int playerId, final int cardsToReturn) {
          requireAttached();
          final List<Card> cards = new ArrayList<Card>(
-@@ -896,6 +1048,7 @@ public final class ManaBrewInteractiveSession {
+@@ -896,6 +1105,7 @@ public final class ManaBrewInteractiveSession {
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
              if ("mulligan_decision".equals(actionKind)) {
@@ -3391,7 +3522,7 @@ index 643e5de..ef954ab 100644
                  return action.has("keep") && action.get("keep").getAsBoolean();
              }
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
-@@ -1004,15 +1157,40 @@ public final class ManaBrewInteractiveSession {
+@@ -1004,15 +1214,40 @@ public final class ManaBrewInteractiveSession {
          return new ArrayList<>();
      }
  
@@ -3433,7 +3564,7 @@ index 643e5de..ef954ab 100644
          while (!closed && !game.isGameOver()) {
              final JsonObject action = takeActionOrNull();
              if (action == null) {
-@@ -1104,14 +1282,31 @@ public final class ManaBrewInteractiveSession {
+@@ -1104,14 +1339,31 @@ public final class ManaBrewInteractiveSession {
              final String description,
              final boolean optionalDecline,
              final String error
@@ -3468,7 +3599,7 @@ index 643e5de..ef954ab 100644
      }
  
      void awaitRevealCards(
-@@ -1188,6 +1383,18 @@ public final class ManaBrewInteractiveSession {
+@@ -1188,6 +1440,18 @@ public final class ManaBrewInteractiveSession {
          return awaitModeChoice(playerId, unweightedOptions(options, allowRepeat), min, max, sourceName, null, null);
      }
  
@@ -3487,7 +3618,7 @@ index 643e5de..ef954ab 100644
      List<Integer> awaitModeChoice(
              final int playerId,
              final List<SelectionOption> options,
-@@ -1196,6 +1403,19 @@ public final class ManaBrewInteractiveSession {
+@@ -1196,6 +1460,19 @@ public final class ManaBrewInteractiveSession {
              final String sourceName,
              final String description,
              final String sourceCardId
@@ -3507,7 +3638,7 @@ index 643e5de..ef954ab 100644
      ) {
          requireAttached();
          if (options.isEmpty() && min > 0) {
-@@ -1207,7 +1427,7 @@ public final class ManaBrewInteractiveSession {
+@@ -1207,7 +1484,7 @@ public final class ManaBrewInteractiveSession {
          final int clampedMax = anyRepeatable ? max : Math.min(max, totalWeight);
          final String title = sourceName != null ? sourceName : "Choose";
          final PromptPresentation presentation =
@@ -3516,7 +3647,7 @@ index 643e5de..ef954ab 100644
          publishAgentPrompt("player-" + playerId, sourceCardId,
                  new ChooseFromSelectionInput(presentation, options, clampedMin, clampedMax));
          while (!closed && !game.isGameOver()) {
-@@ -1762,24 +1982,29 @@ public final class ManaBrewInteractiveSession {
+@@ -1762,24 +2039,29 @@ public final class ManaBrewInteractiveSession {
              final CardCollectionView valid,
              final int min,
              final int max,
@@ -3548,7 +3679,7 @@ index 643e5de..ef954ab 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (chosen.size() >= cappedMin) {
                      break;
-@@ -1821,7 +2046,8 @@ public final class ManaBrewInteractiveSession {
+@@ -1821,7 +2103,8 @@ public final class ManaBrewInteractiveSession {
              final List<Pair<GameEntity, forge.game.GameObject>> candidates,
              final int min,
              final int max,
@@ -3558,7 +3689,7 @@ index 643e5de..ef954ab 100644
      ) {
          final Card source = sa == null ? null : sa.getHostCard();
          final List<TargetRef> candidateRefs = new java.util.ArrayList<>();
-@@ -1834,7 +2060,11 @@ public final class ManaBrewInteractiveSession {
+@@ -1834,7 +2117,11 @@ public final class ManaBrewInteractiveSession {
                  new ChooseBoardTargetsInput(
                          presentation("Sacrifice", null),
                          candidateRefs, true, enumFromWire("sacrifice", TargetingIntent.class),
@@ -3571,7 +3702,7 @@ index 643e5de..ef954ab 100644
      }
  
      Map<GameEntity, Integer> awaitDividedAllocation(
-@@ -1882,6 +2112,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1882,6 +2169,16 @@ public final class ManaBrewInteractiveSession {
              final int min,
              final int max,
              final boolean allowEmpty
@@ -3588,7 +3719,7 @@ index 643e5de..ef954ab 100644
      ) {
          while (!closed && !game.isGameOver()) {
              final JsonObject action;
-@@ -1892,6 +2132,12 @@ public final class ManaBrewInteractiveSession {
+@@ -1892,6 +2189,12 @@ public final class ManaBrewInteractiveSession {
                  return new CardCollection();
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
@@ -3601,7 +3732,7 @@ index 643e5de..ef954ab 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (allowEmpty) {
                      return new CardCollection();
-@@ -1911,10 +2157,10 @@ public final class ManaBrewInteractiveSession {
+@@ -1911,10 +2214,10 @@ public final class ManaBrewInteractiveSession {
                      }
                  }
              }
@@ -3615,7 +3746,7 @@ index 643e5de..ef954ab 100644
                  throw new IllegalArgumentException("selected card count out of range: " + selected.size());
              }
              return selected;
-@@ -1940,10 +2186,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1940,16 +2243,28 @@ public final class ManaBrewInteractiveSession {
  
      private JsonObject takeAction() throws InterruptedException {
          while (true) {
@@ -3633,7 +3764,19 @@ index 643e5de..ef954ab 100644
              if (action == null) {
                  if (closed || game.isGameOver()) {
                      return syntheticPass();
-@@ -1966,6 +2218,28 @@ public final class ManaBrewInteractiveSession {
+                 }
++                if (actionDeadlineNanos != 0 && System.nanoTime() - actionDeadlineNanos >= 0) {
++                    final JsonObject timeout = new JsonObject();
++                    timeout.addProperty("kind", "timeout");
++                    return timeout;
++                }
+                 continue;
+             }
++            game.noteLoopProgress();
+             final String kind = action.has("kind") ? action.get("kind").getAsString() : "";
+             if (isRestoreDirective(action)) {
+                 if ("request_restore".equals(kind)) {
+@@ -1966,6 +2281,28 @@ public final class ManaBrewInteractiveSession {
                  announceState();
                  continue;
              }
@@ -3662,7 +3805,7 @@ index 643e5de..ef954ab 100644
              if ("set_snapshot_recording".equals(kind)) {
                  if (action.get("player").getAsInt() == InteractiveBridge.HOST_SEAT) {
                      setSnapshotRecording(action.get("enabled").getAsBoolean());
-@@ -1987,6 +2261,17 @@ public final class ManaBrewInteractiveSession {
+@@ -1987,6 +2324,17 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3680,7 +3823,7 @@ index 643e5de..ef954ab 100644
      private static JsonObject syntheticPass() {
          final JsonObject pass = new JsonObject();
          pass.addProperty("kind", "pass");
-@@ -2010,6 +2295,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2010,6 +2358,8 @@ public final class ManaBrewInteractiveSession {
          if (!restoreApproved()) {
              return false;
          }
@@ -3689,7 +3832,7 @@ index 643e5de..ef954ab 100644
          final RestoreVote vote = restoreVote;
          if (!checkpoints.contains(vote.checkpoint)) {
              vote.status = RestoreVoteStatus.UNAVAILABLE;
-@@ -2037,6 +2324,12 @@ public final class ManaBrewInteractiveSession {
+@@ -2037,6 +2387,12 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3702,7 +3845,7 @@ index 643e5de..ef954ab 100644
      private static boolean isRestoreDirective(final JsonObject action) {
          final String kind = action.has("kind") ? action.get("kind").getAsString() : "";
          return "request_restore".equals(kind) || "restore_vote".equals(kind);
-@@ -2067,22 +2360,16 @@ public final class ManaBrewInteractiveSession {
+@@ -2067,22 +2423,16 @@ public final class ManaBrewInteractiveSession {
          if (handler.getTurn() == checkpointTurn && handler.getPhase() == checkpointPhase) {
              return;
          }
@@ -3729,7 +3872,7 @@ index 643e5de..ef954ab 100644
          if (checkpointMetricsEnabled) {
              final long finished = System.nanoTime();
              synchronized (checkpointTimings) {
-@@ -2091,6 +2378,168 @@ public final class ManaBrewInteractiveSession {
+@@ -2091,6 +2441,168 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -3898,7 +4041,7 @@ index 643e5de..ef954ab 100644
      private void publishCheckpointViews() {
          final List<Map<String, Object>> views = new ArrayList<>();
          for (final Checkpoint checkpoint : checkpoints) {
-@@ -2124,6 +2573,10 @@ public final class ManaBrewInteractiveSession {
+@@ -2124,6 +2636,10 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
@@ -3909,7 +4052,7 @@ index 643e5de..ef954ab 100644
          if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
                  || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
              return;
-@@ -2157,11 +2610,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2157,11 +2673,7 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void restore(final Checkpoint target) {
@@ -3922,7 +4065,7 @@ index 643e5de..ef954ab 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2624,431 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2687,431 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4354,7 +4497,7 @@ index 643e5de..ef954ab 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +3081,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +3144,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -4371,7 +4514,7 @@ index 643e5de..ef954ab 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +3125,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +3188,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -4380,7 +4523,7 @@ index 643e5de..ef954ab 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +3168,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +3231,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -4403,7 +4546,7 @@ index 643e5de..ef954ab 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +3212,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +3275,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -4434,7 +4577,7 @@ index 643e5de..ef954ab 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,24 +3476,136 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,24 +3539,136 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -4462,7 +4605,8 @@ index 643e5de..ef954ab 100644
                      defenderId(defender), defender.getName(),
 -                    enumFromWire(defenderKind(defender), AttackTargetKind.class)));
 +                    enumFromWire(defenderKind(defender), AttackTargetKind.class), null, null, null, null));
-+        }
+         }
+-        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets));
 +        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets,
 +                attackRefusals(combat, availableAttackers), attackLimits(combat)));
 +    }
@@ -4540,8 +4684,7 @@ index 643e5de..ef954ab 100644
 +                            SnapshotExtractor.javaCardId(source), source.getName());
 +                }
 +            }
-         }
--        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets));
++        }
 +        return new AttackRefusalDto(cardId, defenderId, "other", null, null);
 +    }
 +
@@ -4575,7 +4718,7 @@ index 643e5de..ef954ab 100644
      }
  
      private void publishBlockersPrompt(
-@@ -2604,7 +3613,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2604,7 +3676,8 @@ public final class ManaBrewInteractiveSession {
              final List<Card> attackers,
              final List<Card> availableBlockers,
              final Map<Card, List<Card>> validBlockersByAttacker,
@@ -4585,7 +4728,7 @@ index 643e5de..ef954ab 100644
      ) {
          final Player defendingPlayer = game.getRegisteredPlayers().get(playerId);
          final List<BlockableAttackerDto> attackerOptions = new java.util.ArrayList<>();
-@@ -2627,7 +3637,17 @@ public final class ManaBrewInteractiveSession {
+@@ -2627,7 +3700,17 @@ public final class ManaBrewInteractiveSession {
              availableBlockerIds.add(SnapshotExtractor.javaCardId(blocker));
          }
          publishAgentPrompt("player-" + playerId, null,
@@ -4604,7 +4747,7 @@ index 643e5de..ef954ab 100644
      }
  
      private void publishDamageAssignmentOrderPrompt(
-@@ -2918,7 +3938,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2918,7 +4001,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4614,7 +4757,7 @@ index 643e5de..ef954ab 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +3949,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +4012,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -4640,7 +4783,7 @@ index 643e5de..ef954ab 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +3981,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +4044,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -4651,7 +4794,7 @@ index 643e5de..ef954ab 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +4009,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +4072,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -5179,10 +5322,10 @@ index feba680..9d1778f 100644
      /** Auto-pass (skip the prompt) only with an empty stack outside active combat. */
 diff --git a/forge-harness/src/main/java/forge/harness/host/TieOffer.java b/forge-harness/src/main/java/forge/harness/host/TieOffer.java
 new file mode 100644
-index 0000000..dccdea5
+index 0000000..ea1a53b
 --- /dev/null
 +++ b/forge-harness/src/main/java/forge/harness/host/TieOffer.java
-@@ -0,0 +1,355 @@
+@@ -0,0 +1,356 @@
 +package forge.harness.host;
 +
 +import forge.game.Game;
@@ -5360,6 +5503,7 @@ index 0000000..dccdea5
 +    private void end(final Status how) {
 +        status = how;
 +        awaiting.clear();
++        game.setDrawReason(how == Status.FORCED ? "tieForced" : "tieAgreed");
 +        for (final Player player : game.getPlayers()) {
 +            player.intentionalDraw();
 +        }
@@ -7532,10 +7676,10 @@ index 0000000..4e0fa6e
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java b/forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java
 new file mode 100644
-index 0000000..97978ae
+index 0000000..666afad
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java
-@@ -0,0 +1,428 @@
+@@ -0,0 +1,667 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonObject;
@@ -7548,11 +7692,14 @@ index 0000000..97978ae
 +import forge.game.GameStage;
 +import forge.game.GameType;
 +import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.ability.AbilityUtils;
 +import forge.game.card.Card;
 +import forge.game.card.CounterEnumType;
 +import forge.game.phase.PhaseType;
 +import forge.game.player.Player;
 +import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
 +import forge.game.zone.ZoneType;
 +import forge.gui.GuiBase;
 +import forge.harness.common.HeadlessGuiBase;
@@ -7581,11 +7728,28 @@ index 0000000..97978ae
 +        check("pastTheTriggerCapAYesKeepsTheTurnGoing", BigTurnsTest::pastTheTriggerCapAYesKeepsTheTurnGoing);
 +        check("aNoAtTheCapEndsTheGameAsADraw", BigTurnsTest::aNoAtTheCapEndsTheGameAsADraw);
 +        check("withoutAChoiceTheCapStillDraws", BigTurnsTest::withoutAChoiceTheCapStillDraws);
-+        check("theFourthCapOfATurnIsADrawWhateverTheAnswer", BigTurnsTest::theFourthCapOfATurnIsADrawWhateverTheAnswer);
++        check("everyCapOfATurnAsks", BigTurnsTest::everyCapOfATurnAsks);
 +        check("aNewTurnAsksAgain", BigTurnsTest::aNewTurnAsksAgain);
 +        check("theCardCapIsAskedAtTheNextTriggerNotMidCard", BigTurnsTest::theCardCapIsAskedAtTheNextTriggerNotMidCard);
-+        check("twoCardCapsBeforeAnAskStillDraw", BigTurnsTest::twoCardCapsBeforeAnAskStillDraw);
-+        check("aYesForOneHugeTokenEffectAllowsThatSize", BigTurnsTest::aYesForOneHugeTokenEffectAllowsThatSize);
++        check("twoCardCapsBeforeAnAskWaitForTheAsk", BigTurnsTest::twoCardCapsBeforeAnAskWaitForTheAsk);
++        check("twoCardCapsBeforeAnAskDrawWhenTheHeapIsFull", BigTurnsTest::twoCardCapsBeforeAnAskDrawWhenTheHeapIsFull);
++        check("theDefaultLimitsAreTheMeasuredOnes", BigTurnsTest::theDefaultLimitsAreTheMeasuredOnes);
++        check("aFullHeapDrawsAtALimitWithoutAsking", BigTurnsTest::aFullHeapDrawsAtALimitWithoutAsking);
++        check("theStackAtItsLimitAsks", BigTurnsTest::theStackAtItsLimitAsks);
++        check("aStackOfAThousandAsksThroughMagicStack", BigTurnsTest::aStackOfAThousandAsksThroughMagicStack);
++        check("aTimeoutKeepsGoing", BigTurnsTest::aTimeoutKeepsGoing);
++        check("twoTimeoutsInARowInATurnDraw", BigTurnsTest::twoTimeoutsInARowInATurnDraw);
++        check("anAnswerBetweenTimeoutsStartsTheCountOver", BigTurnsTest::anAnswerBetweenTimeoutsStartsTheCountOver);
++        check("aTimeoutOnANewTurnStartsTheCountOver", BigTurnsTest::aTimeoutOnANewTurnStartsTheCountOver);
++        check("theSnapshotSaysWhyTheGameIsADraw", BigTurnsTest::theSnapshotSaysWhyTheGameIsADraw);
++        check("aStuckLoopAsksAfterSixtySeconds", BigTurnsTest::aStuckLoopAsksAfterSixtySeconds);
++        check("aTriggerOrACardIsProgress", BigTurnsTest::aTriggerOrACardIsProgress);
++        check("anAbilityResolvingChecksTheWatchdog", BigTurnsTest::anAbilityResolvingChecksTheWatchdog);
++        check("aResolutionStartingIsProgress", BigTurnsTest::aResolutionStartingIsProgress);
++        check("aReplacementRunChecksTheWatchdog", BigTurnsTest::aReplacementRunChecksTheWatchdog);
++        check("aStuckLoopNobodyAnswersIsADraw", BigTurnsTest::aStuckLoopNobodyAnswersIsADraw);
++        check("aStuckLoopWithNoPersonIsADraw", BigTurnsTest::aStuckLoopWithNoPersonIsADraw);
++        check("anAnsweredActionIsProgress", BigTurnsTest::anAnsweredActionIsProgress);
 +        check("theSessionAsksTheActivePlayerInPlainWords", BigTurnsTest::theSessionAsksTheActivePlayerInPlainWords);
 +        check("theSessionsNoIsADraw", BigTurnsTest::theSessionsNoIsADraw);
 +        check("aGameWithNoPersonDrawsAtTheCap", BigTurnsTest::aGameWithNoPersonDrawsAtTheCap);
@@ -7615,9 +7779,10 @@ index 0000000..97978ae
 +            failed++;
 +            System.out.println("FAIL " + name + ": " + failure);
 +        } finally {
-+            Game.setRunawayTriggersPerTurnCap(Game.DEFAULT_RUNAWAY_CAP_PER_TURN);
-+            Game.setRunawayCardsPerTurnCap(Game.DEFAULT_RUNAWAY_CAP_PER_TURN);
-+            Game.setRunawayTokensPerEffectCap(Game.DEFAULT_RUNAWAY_TOKENS_PER_EFFECT);
++            Game.setRunawayTriggersPerTurnCap(Game.DEFAULT_RUNAWAY_TRIGGERS_PER_TURN);
++            Game.setRunawayCardsPerTurnCap(Game.DEFAULT_RUNAWAY_CARDS_PER_TURN);
++            Game.setRunawayStackItemsCap(Game.RUNAWAY_STACK_ITEMS);
++            Game.setHeapReader(() -> 0.1);
 +        }
 +    }
 +
@@ -7673,15 +7838,13 @@ index 0000000..97978ae
 +        expectDraw(game, () -> fire(game, 1), "no choice");
 +    }
 +
-+    private static void theFourthCapOfATurnIsADrawWhateverTheAnswer() {
++    private static void everyCapOfATurnAsks() {
 +        Game.setRunawayTriggersPerTurnCap(50);
 +        final Game game = aiGame();
 +        final int[] asked = new int[1];
 +        game.setRunawayChoice((g, what, count, cap) -> ++asked[0] > 0);
-+        fire(game, 200);
-+        expect(asked[0] == 3 && !game.isGameOver(), "three yeses for 200 triggers: asked " + asked[0]);
-+        expectDraw(game, () -> fire(game, 1), "a fourth cap");
-+        expect(asked[0] == 3, "a fourth question was asked: " + asked[0]);
++        fire(game, 251);
++        expect(asked[0] == 5 && !game.isGameOver(), "five yeses for 251 triggers: asked " + asked[0] + ", over " + game.isGameOver());
 +    }
 +
 +    private static void aNewTurnAsksAgain() {
@@ -7713,28 +7876,246 @@ index 0000000..97978ae
 +        expect(asked.size() == 1 && !game.isGameOver(), "the yes did not allow another cap's worth: " + asked);
 +    }
 +
-+    private static void twoCardCapsBeforeAnAskStillDraw() {
++    private static void twoCardCapsBeforeAnAskWaitForTheAsk() {
++        Game.setRunawayCardsPerTurnCap(50);
++        final Game game = aiGame();
++        final List<String> asked = new ArrayList<>();
++        game.setRunawayChoice((g, what, count, cap) -> asked.add(what + " " + count + "/" + cap));
++        for (int i = 0; i < 101; i++) {
++            game.nextCardId();
++        }
++        expect(!game.isGameOver() && asked.isEmpty(), "101 cards with no ask in between: over " + game.isGameOver() + ", asked " + asked);
++        game.recordTokenEffect();
++        expect(asked.equals(List.of("cards created 101/50")), "the next token effect asked " + asked);
++    }
++
++    private static void twoCardCapsBeforeAnAskDrawWhenTheHeapIsFull() {
 +        Game.setRunawayCardsPerTurnCap(50);
 +        final Game game = aiGame();
 +        game.setRunawayChoice((g, what, count, cap) -> true);
++        Game.setHeapReader(() -> 0.9);
 +        expectDraw(game, () -> {
 +            for (int i = 0; i < 101; i++) {
 +                game.nextCardId();
 +            }
-+        }, "101 cards with no ask in between");
++        }, "101 cards with the heap at 90%");
++        expect("heap".equals(game.getDrawReason()), "draw reason " + game.getDrawReason());
 +    }
 +
-+    private static void aYesForOneHugeTokenEffectAllowsThatSize() {
++    private static void theDefaultLimitsAreTheMeasuredOnes() {
++        expect(Game.DEFAULT_RUNAWAY_TRIGGERS_PER_TURN == 5_000 && Game.DEFAULT_RUNAWAY_CARDS_PER_TURN == 2_500
++                && Game.UNBOUNDED_TOKENS == 500 && Game.RUNAWAY_STACK_ITEMS == 1_000 && Game.LOOP_WATCHDOG_SECONDS == 60
++                && Game.RUNAWAY_HEAP_LIMIT == 0.85 && PriorityFastForward.EXHAUST_RESOLUTIONS == 20,
++                "the limits moved");
++        Game.setRunawayTriggersPerTurnCap(Game.DEFAULT_RUNAWAY_TRIGGERS_PER_TURN);
 +        final Game game = aiGame();
 +        final List<String> asked = new ArrayList<>();
 +        game.setRunawayChoice((g, what, count, cap) -> asked.add(what + " " + count + "/" + cap));
-+        game.recordTokenRequest(100);
-+        expect(asked.isEmpty(), "100 copies were asked about");
-+        game.recordTokenRequest(128);
-+        game.recordTokenRequest(128);
-+        expect(asked.equals(List.of("copies of one token from one effect 128/100")), "asked " + asked);
-+        game.recordTokenRequest(129);
-+        expect(asked.size() == 2, "a bigger effect was not asked about: " + asked);
++        fire(game, 5_000);
++        expect(asked.isEmpty(), "asked before 5,000 triggers: " + asked);
++        fire(game, 1);
++        expect(asked.equals(List.of("triggers fired 5001/5000")), "asked " + asked);
++    }
++
++    private static void aFullHeapDrawsAtALimitWithoutAsking() {
++        Game.setRunawayTriggersPerTurnCap(50);
++        final Game game = aiGame();
++        final List<String> asked = new ArrayList<>();
++        game.setRunawayChoice((g, what, count, cap) -> asked.add(what));
++        fire(game, 50);
++        Game.setHeapReader(() -> 0.86);
++        expectDraw(game, () -> fire(game, 1), "the heap at 86%");
++        expect(asked.isEmpty() && "heap".equals(game.getDrawReason()), "asked " + asked + ", reason " + game.getDrawReason());
++    }
++
++    private static void theStackAtItsLimitAsks() {
++        Game.setRunawayStackItemsCap(10);
++        final Game game = aiGame();
++        final List<String> asked = new ArrayList<>();
++        game.setRunawayChoice((g, what, count, cap) -> asked.add(what + " " + count + "/" + cap));
++        game.recordStackSize(9);
++        expect(asked.isEmpty(), "asked at 9 of 10: " + asked);
++        game.recordStackSize(10);
++        game.recordStackSize(19);
++        expect(asked.equals(List.of("stack items 10/10")), "asked " + asked);
++        game.recordStackSize(20);
++        expect(asked.size() == 2 && !game.isGameOver(), "the yes did not allow 10 more: " + asked);
++        game.setRunawayChoice((g, what, count, cap) -> false);
++        expectDraw(game, () -> game.recordStackSize(30), "End in a draw at the stack limit");
++        expect("chosen".equals(game.getDrawReason()), "draw reason " + game.getDrawReason());
++    }
++
++    private static void aStackOfAThousandAsksThroughMagicStack() {
++        Game.setRunawayStackItemsCap(5);
++        final Game game = aiGame();
++        final List<String> asked = new ArrayList<>();
++        game.setRunawayChoice((g, what, count, cap) -> asked.add(what + " " + count + "/" + cap));
++        wardens(game, game.getPlayers().get(0), 8);
++        expect(game.getStack().size() == 8 && asked.equals(List.of("stack items 5/5")) && !game.isGameOver(),
++                "8 triggers with the stack limit at 5: stack " + game.getStack().size() + ", asked " + asked);
++    }
++
++    private static void aTimeoutKeepsGoing() throws Exception {
++        Game.setRunawayTriggersPerTurnCap(5);
++        final Seated f = new Seated();
++        f.session.runawayAnswerMillis = 300;
++        fire(f.game, 6);
++        expect(!f.game.isGameOver(), "a timeout ended the game");
++        final String text = f.session.getLatestPromptJson();
++        expect(text.contains("This turn passed the engine's limit") && text.contains("No answer in 90 seconds counts as Keep going"), "prompt " + text);
++    }
++
++    private static void twoTimeoutsInARowInATurnDraw() throws Exception {
++        Game.setRunawayTriggersPerTurnCap(5);
++        final Seated f = new Seated();
++        f.session.runawayAnswerMillis = 300;
++        fire(f.game, 6);
++        expect(!f.game.isGameOver(), "the first timeout ended the game");
++        expectDraw(f.game, () -> fire(f.game, 5), "a second timeout in the turn");
++        expect("unanswered".equals(f.game.getDrawReason()), "draw reason " + f.game.getDrawReason());
++    }
++
++    private static void anAnswerBetweenTimeoutsStartsTheCountOver() throws Exception {
++        Game.setRunawayTriggersPerTurnCap(5);
++        final Seated f = new Seated();
++        f.session.runawayAnswerMillis = 300;
++        fire(f.game, 6);
++        f.session.submitAction("{\"type\":\"chooseBoolean\",\"output\":{\"type\":\"chooseBooleanDecision\",\"value\":true}}");
++        fire(f.game, 5);
++        fire(f.game, 5);
++        expect(!f.game.isGameOver(), "a timeout, a yes and a timeout ended the game");
++    }
++
++    private static void aTimeoutOnANewTurnStartsTheCountOver() throws Exception {
++        Game.setRunawayTriggersPerTurnCap(5);
++        final Seated f = new Seated();
++        f.session.runawayAnswerMillis = 300;
++        fire(f.game, 6);
++        f.game.getPhaseHandler().devModeSet(PhaseType.MAIN1, f.game.getPlayers().get(0), 3);
++        fire(f.game, 6);
++        expect(!f.game.isGameOver(), "a timeout on each of two turns ended the game");
++    }
++
++    private static void theSnapshotSaysWhyTheGameIsADraw() throws Exception {
++        Game.setRunawayTriggersPerTurnCap(5);
++        final Seated f = new Seated();
++        f.session.submitAction("{\"type\":\"chooseBoolean\",\"output\":{\"type\":\"chooseBooleanDecision\",\"value\":false}}");
++        expectDraw(f.game, () -> fire(f.game, 6), "End in a draw");
++        final JsonObject view = JsonParser.parseString(f.session.getSnapshotJson(0)).getAsJsonObject();
++        expect(view.has("drawReason") && "chosen".equals(view.get("drawReason").getAsString()), "the snapshot's drawReason: " + view.get("drawReason"));
++    }
++
++    private static final long SECOND = 1_000_000_000L;
++
++    private static void aStuckLoopAsksAfterSixtySeconds() {
++        final Game game = aiGame();
++        final long[] now = {0};
++        game.setLoopClock(() -> now[0]);
++        final List<String> asked = new ArrayList<>();
++        game.setRunawayChoice((g, what, count, cap) -> asked.add(what + " " + count + "/" + cap));
++        now[0] = 59 * SECOND;
++        game.checkLoopWatchdog();
++        expect(asked.isEmpty(), "asked at 59 s: " + asked);
++        now[0] = 61 * SECOND;
++        game.checkLoopWatchdog();
++        expect(asked.equals(List.of("stuck loop 61/60")) && !game.isGameOver(), "asked " + asked);
++        now[0] = 100 * SECOND;
++        game.checkLoopWatchdog();
++        expect(asked.size() == 1, "Keep going did not give it another 60 s: " + asked);
++        game.setRunawayChoice((g, what, count, cap) -> false);
++        now[0] = 122 * SECOND;
++        expectDraw(game, game::checkLoopWatchdog, "End in a draw at a stuck loop");
++    }
++
++    private static void aTriggerOrACardIsProgress() {
++        final Game game = aiGame();
++        final long[] now = {0};
++        game.setLoopClock(() -> now[0]);
++        final List<String> asked = new ArrayList<>();
++        game.setRunawayChoice((g, what, count, cap) -> asked.add(what));
++        now[0] = 50 * SECOND;
++        fire(game, 1);
++        now[0] = 100 * SECOND;
++        game.checkLoopWatchdog();
++        game.nextCardId();
++        now[0] = 150 * SECOND;
++        game.checkLoopWatchdog();
++        expect(asked.isEmpty(), "a trigger and a card were no progress: " + asked);
++    }
++
++    private static void anAbilityResolvingChecksTheWatchdog() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        final Card bear = add("Grizzly Bears", p, ZoneType.Battlefield);
++        final SpellAbility pump = AbilityFactory.getAbility("DB$ Pump | Defined$ Self | NumAtt$ +1", bear);
++        pump.setActivatingPlayer(p);
++        final long[] now = {0};
++        game.setLoopClock(() -> now[0]);
++        final List<String> asked = new ArrayList<>();
++        game.setRunawayChoice((g, what, count, cap) -> asked.add(what));
++        now[0] = 61 * SECOND;
++        AbilityUtils.resolve(pump);
++        expect(asked.equals(List.of("stuck loop")), "resolving an ability after 61 s asked " + asked);
++    }
++
++    private static void aResolutionStartingIsProgress() {
++        final Game game = aiGame();
++        wardens(game, game.getPlayers().get(0), 1);
++        final long[] now = {0};
++        game.setLoopClock(() -> now[0]);
++        final List<String> asked = new ArrayList<>();
++        game.setRunawayChoice((g, what, count, cap) -> asked.add(what));
++        now[0] = 61 * SECOND;
++        game.getStack().resolveStack();
++        expect(asked.isEmpty(), "a stack resolution after 61 s asked " + asked);
++    }
++
++    private static void aReplacementRunChecksTheWatchdog() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        final long[] now = {0};
++        game.setLoopClock(() -> now[0]);
++        final List<String> asked = new ArrayList<>();
++        game.setRunawayChoice((g, what, count, cap) -> asked.add(what));
++        now[0] = 61 * SECOND;
++        p.gainLife(1, null, null);
++        expect(asked.contains("stuck loop"), "a replacement run after 61 s asked " + asked);
++    }
++
++    private static void aStuckLoopNobodyAnswersIsADraw() throws Exception {
++        final Seated f = new Seated();
++        f.session.runawayAnswerMillis = 300;
++        final long[] now = {0};
++        f.game.setLoopClock(() -> now[0]);
++        now[0] = 61 * SECOND;
++        expectDraw(f.game, f.game::checkLoopWatchdog, "nobody answering a stuck loop");
++        expect("stuckLoop".equals(f.game.getDrawReason()), "draw reason " + f.game.getDrawReason());
++    }
++
++    private static void aStuckLoopWithNoPersonIsADraw() throws Exception {
++        final Game game = aiGame();
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("big-turns-ai");
++        session.attach(game.getMatch(), game, Set.of(), false);
++        final long[] now = {0};
++        game.setLoopClock(() -> now[0]);
++        now[0] = 61 * SECOND;
++        expectDraw(game, game::checkLoopWatchdog, "a stuck loop with nobody to ask");
++        expect("noPerson".equals(game.getDrawReason()), "draw reason " + game.getDrawReason());
++    }
++
++    private static void anAnsweredActionIsProgress() throws Exception {
++        final Seated f = new Seated();
++        final long[] now = {0};
++        f.game.setLoopClock(() -> now[0]);
++        final List<String> asked = new ArrayList<>();
++        f.game.setRunawayChoice((g, what, count, cap) -> asked.add(what));
++        now[0] = 61 * SECOND;
++        f.session.submitAction("{\"type\":\"chooseAction\",\"output\":{\"type\":\"pass\"}}");
++        final java.lang.reflect.Method take = ManaBrewInteractiveSession.class.getDeclaredMethod("takeAction");
++        take.setAccessible(true);
++        take.invoke(f.session);
++        f.game.checkLoopWatchdog();
++        expect(asked.isEmpty(), "an answered action was no progress: " + asked);
 +    }
 +
 +    private static void theSessionAsksTheActivePlayerInPlainWords() throws Exception {
@@ -7749,7 +8130,7 @@ index 0000000..97978ae
 +        expect(text.contains("This turn passed the engine's limit"), "title " + text);
 +        expect(text.contains("6 triggers have fired this turn, past the engine's limit of 5"), "body " + text);
 +        expect(text.contains("Keep going") && text.contains("End in a draw"), "labels " + text);
-+        expect(text.contains("2 more times this turn after this"), "the yeses left " + text);
++        expect(text.contains("Keep going allows as many again. The engine asks again at the next limit."), "no yes is the last " + text);
 +    }
 +
 +    private static void theSessionsNoIsADraw() throws Exception {
@@ -7757,6 +8138,7 @@ index 0000000..97978ae
 +        final Seated f = new Seated();
 +        f.session.submitAction("{\"type\":\"chooseBoolean\",\"output\":{\"type\":\"chooseBooleanDecision\",\"value\":false}}");
 +        expectDraw(f.game, () -> fire(f.game, 6), "End in a draw");
++        expect("chosen".equals(f.game.getDrawReason()), "draw reason " + f.game.getDrawReason());
 +    }
 +
 +    private static void aGameWithNoPersonDrawsAtTheCap() throws Exception {
@@ -7765,6 +8147,7 @@ index 0000000..97978ae
 +        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("big-turns-ai");
 +        session.attach(game.getMatch(), game, Set.of(), false);
 +        expectDraw(game, () -> fire(game, 6), "nobody to ask");
++        expect("noPerson".equals(game.getDrawReason()), "draw reason " + game.getDrawReason());
 +    }
 +
 +    private static void aMergeResolvesTwentyAndCountsEveryGain() {
@@ -10751,6 +11134,195 @@ index 0000000..40be4ce
 +            decide.setAccessible(true);
 +            return (Player) decide.invoke(game.getAction(), (GameOutcome) null);
 +        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/HeldPassResponseTest.java b/forge-harness/src/test/java/forge/harness/host/HeldPassResponseTest.java
+new file mode 100644
+index 0000000..c7c1ad6
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/HeldPassResponseTest.java
+@@ -0,0 +1,183 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.ActionSpace;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Set;
++import java.util.concurrent.locks.ReentrantLock;
++
++public final class HeldPassResponseTest {
++    private HeldPassResponseTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        check("nothingNewKeepsTheHold", HeldPassResponseTest::nothingNewKeepsTheHold);
++        check("aNewInstantEndsTheHold", HeldPassResponseTest::aNewInstantEndsTheHold);
++        check("aNewManaAbilityKeepsTheHold", HeldPassResponseTest::aNewManaAbilityKeepsTheHold);
++        check("aLostActionKeepsTheHold", HeldPassResponseTest::aLostActionKeepsTheHold);
++        check("clearingTheHoldForgetsTheActions", HeldPassResponseTest::clearingTheHoldForgetsTheActions);
++        System.out.println(failed == 0 ? "PASS HeldPassResponseTest" : "FAIL HeldPassResponseTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static void nothingNewKeepsTheHold() throws Exception {
++        final Seated f = new Seated();
++        f.hold();
++        expect(f.controller().heldResolutionsLeft() > 0, "a hold with nothing new ended");
++    }
++
++    private static void aNewInstantEndsTheHold() throws Exception {
++        final Seated f = new Seated();
++        add("Mountain", f.blue, ZoneType.Battlefield);
++        f.hold();
++        expect(f.controller().heldResolutionsLeft() > 0, "the hold ended before the instant");
++        add("Lightning Bolt", f.blue, ZoneType.Hand);
++        expect(f.controller().heldResolutionsLeft() == 0, "a new instant did not end the hold");
++        expect(held(f.controller()) != null, "asking ended the hold instead of the next priority");
++    }
++
++    private static void aNewManaAbilityKeepsTheHold() throws Exception {
++        final Seated f = new Seated();
++        f.hold();
++        add("Mountain", f.blue, ZoneType.Battlefield);
++        expect(f.controller().heldResolutionsLeft() > 0, "a new land's mana ability ended the hold");
++    }
++
++    private static void aLostActionKeepsTheHold() throws Exception {
++        final Seated f = new Seated();
++        add("Mountain", f.blue, ZoneType.Battlefield);
++        final Card bolt = add("Lightning Bolt", f.blue, ZoneType.Hand);
++        f.hold();
++        f.blue.getZone(ZoneType.Hand).remove(bolt);
++        expect(f.controller().heldResolutionsLeft() > 0, "losing an action ended the hold");
++    }
++
++    private static void clearingTheHoldForgetsTheActions() throws Exception {
++        final Seated f = new Seated();
++        f.hold();
++        f.controller().clearHeldPass();
++        expect(held(f.controller()) == null && f.controller().heldResolutionsLeft() == 0, "the cleared hold kept its actions");
++    }
++
++    private static Object held(final ManaBrewInteractiveController c) throws Exception {
++        final Field field = ManaBrewInteractiveController.class.getDeclaredField("heldActionIds");
++        field.setAccessible(true);
++        return field.get(c);
++    }
++
++    private static final class Seated {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("held-pass-test");
++        final Game game;
++        final Player blue;
++
++        Seated() throws Exception {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final Deck deck = new Deck();
++            players.add(new RegisteredPlayer(deck).setPlayer(new ManaBrewInteractiveLobbyPlayer("Blue", session)));
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Yellow", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            game = new Game(players, rules, new Match(rules, players, "HeldPassResponseTest"));
++            game.setAge(GameStage.Play);
++            blue = game.getPlayers().get(0);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, blue);
++            game.getPhaseHandler().onStackResolved();
++            session.attach(game.getMatch(), game, Set.of(), false);
++            final Field lock = ManaBrewInteractiveSession.class.getDeclaredField("gameLock");
++            lock.setAccessible(true);
++            ((ReentrantLock) lock.get(session)).lock();
++            for (int i = 0; i < 5; i++) {
++                add("Soul Warden", blue, ZoneType.Battlefield);
++            }
++            game.getAction().checkStateEffects(true);
++            game.getAction().moveToPlay(add("Grizzly Bears", blue, ZoneType.Hand), null, null);
++            game.getAction().checkStateEffects(true);
++            game.getStack().addAllTriggeredAbilitiesToStack();
++            expect(game.getStack().size() == 5, "5 Soul Warden triggers expected, got " + game.getStack().size());
++        }
++
++        ManaBrewInteractiveController controller() {
++            return (ManaBrewInteractiveController) blue.getController();
++        }
++
++        void hold() throws Exception {
++            final Field stack = ManaBrewInteractiveController.class.getDeclaredField("exhaustStackIds");
++            stack.setAccessible(true);
++            stack.set(controller(), PriorityFastForward.stackIds(game));
++            final Field probing = ManaBrewInteractiveController.class.getDeclaredField("probingPayability");
++            probing.setAccessible(true);
++            final List<SpellAbility> now;
++            probing.set(controller(), true);
++            try {
++                now = ActionSpace.getPossibleActions(blue, true, true);
++            } finally {
++                probing.set(controller(), false);
++            }
++            final Method ids = ManaBrewInteractiveController.class.getDeclaredMethod("responseIds", List.class);
++            ids.setAccessible(true);
++            final Field held = ManaBrewInteractiveController.class.getDeclaredField("heldActionIds");
++            held.setAccessible(true);
++            held.set(controller(), ids.invoke(null, now));
++        }
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
 +    }
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java b/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java
@@ -18030,6 +18602,312 @@ index 0000000..0141732
 +            created.getPhaseHandler().devModeSet(PhaseType.MAIN1, created.getPlayers().get(0));
 +            created.getPhaseHandler().onStackResolved();
 +            return created;
++        }
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/UnboundedTokensTest.java b/forge-harness/src/test/java/forge/harness/host/UnboundedTokensTest.java
+new file mode 100644
+index 0000000..0296174
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/UnboundedTokensTest.java
+@@ -0,0 +1,300 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameSnapshot;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.ability.AbilityUtils;
++import forge.game.card.Card;
++import forge.game.card.CardLists;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Set;
++import java.util.concurrent.locks.ReentrantLock;
++
++public final class UnboundedTokensTest {
++    private UnboundedTokensTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        check("theCapIsFiveHundred", UnboundedTokensTest::theCapIsFiveHundred);
++        check("oneOverTheCapMakesTheCapAndFlagsThePile", UnboundedTokensTest::oneOverTheCapMakesTheCapAndFlagsThePile);
++        check("theCapItselfIsNotUnbounded", UnboundedTokensTest::theCapItselfIsNotUnbounded);
++        check("doublersCountBeforeTheClamp", UnboundedTokensTest::doublersCountBeforeTheClamp);
++        check("aFullPileTakesNoMore", UnboundedTokensTest::aFullPileTakesNoMore);
++        check("manyEffectsStopAtTheCap", UnboundedTokensTest::manyEffectsStopAtTheCap);
++        check("oneEffectMakesAtMostTheCapAcrossPiles", UnboundedTokensTest::oneEffectMakesAtMostTheCapAcrossPiles);
++        check("anotherPileIsNotFlagged", UnboundedTokensTest::anotherPileIsNotFlagged);
++        check("losingOneKeepsTheFlagAndAWipeClearsIt", UnboundedTokensTest::losingOneKeepsTheFlagAndAWipeClearsIt);
++        check("countsSeeTheRealTokens", UnboundedTokensTest::countsSeeTheRealTokens);
++        check("theCapAsksNobody", UnboundedTokensTest::theCapAsksNobody);
++        check("aSnapshotCopyKeepsTheFlag", UnboundedTokensTest::aSnapshotCopyKeepsTheFlag);
++        check("aTappedTokenStaysInItsPile", UnboundedTokensTest::aTappedTokenStaysInItsPile);
++        check("aStolenTokenLeavesThePile", UnboundedTokensTest::aStolenTokenLeavesThePile);
++        check("theSnapshotMarksUnboundedTokens", UnboundedTokensTest::theSnapshotMarksUnboundedTokens);
++        System.out.println(failed == 0 ? "PASS UnboundedTokensTest" : "FAIL UnboundedTokensTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static void theCapIsFiveHundred() {
++        expect(Game.UNBOUNDED_TOKENS == 500, "the cap is " + Game.UNBOUNDED_TOKENS);
++    }
++
++    private static void oneOverTheCapMakesTheCapAndFlagsThePile() {
++        final Game game = aiGame();
++        final Player blue = game.getPlayers().get(0);
++        make(blue, "w_1_1_soldier", 501);
++        expect(tokens(game, "Soldier") == 500, "made " + tokens(game, "Soldier"));
++        expect(game.getUnboundedTokenKeys().size() == 1, "flagged " + game.getUnboundedTokenKeys());
++        expect(game.isUnboundedToken(first(game, "Soldier")), "a soldier is not unbounded");
++    }
++
++    private static void theCapItselfIsNotUnbounded() {
++        final Game game = aiGame();
++        make(game.getPlayers().get(0), "w_1_1_soldier", 500);
++        expect(tokens(game, "Soldier") == 500 && game.getUnboundedTokenKeys().isEmpty(),
++                "500 asked for: made " + tokens(game, "Soldier") + ", flagged " + game.getUnboundedTokenKeys());
++    }
++
++    private static void doublersCountBeforeTheClamp() {
++        final Game game = aiGame();
++        final Player blue = game.getPlayers().get(0);
++        for (int i = 0; i < 3; i++) {
++            add("Parallel Lives", blue, ZoneType.Battlefield);
++        }
++        game.getAction().checkStateEffects(true);
++        make(blue, "w_1_1_soldier", 62);
++        expect(tokens(game, "Soldier") == 496 && game.getUnboundedTokenKeys().isEmpty(),
++                "62 doubled three times: made " + tokens(game, "Soldier") + ", flagged " + game.getUnboundedTokenKeys());
++        make(blue, "w_1_1_soldier", 1);
++        expect(tokens(game, "Soldier") == 500 && game.getUnboundedTokenKeys().size() == 1,
++                "1 doubled three times onto 496: made " + tokens(game, "Soldier") + ", flagged " + game.getUnboundedTokenKeys());
++    }
++
++    private static void aFullPileTakesNoMore() {
++        final Game game = aiGame();
++        final Player blue = game.getPlayers().get(0);
++        make(blue, "w_1_1_soldier", 500);
++        make(blue, "w_1_1_soldier", 3);
++        expect(tokens(game, "Soldier") == 500 && game.getUnboundedTokenKeys().size() == 1,
++                "3 more onto 500: made " + tokens(game, "Soldier") + ", flagged " + game.getUnboundedTokenKeys());
++    }
++
++    private static void manyEffectsStopAtTheCap() {
++        final Game game = aiGame();
++        final Player blue = game.getPlayers().get(0);
++        for (int i = 0; i < 12; i++) {
++            make(blue, "w_1_1_soldier", 50);
++        }
++        expect(tokens(game, "Soldier") == 500 && game.getUnboundedTokenKeys().size() == 1,
++                "12 effects of 50: made " + tokens(game, "Soldier") + ", flagged " + game.getUnboundedTokenKeys());
++    }
++
++    private static void oneEffectMakesAtMostTheCapAcrossPiles() {
++        final Game game = aiGame();
++        final Player blue = game.getPlayers().get(0);
++        make(blue, "w_1_1_soldier,g_1_1_saproling", 300);
++        expect(tokens(game, "Soldier") + tokens(game, "Saproling") == 500,
++                "one effect of 300 soldiers and 300 saprolings made " + tokens(game, "Soldier") + " and " + tokens(game, "Saproling"));
++        expect(!game.getUnboundedTokenKeys().isEmpty(), "nothing was flagged");
++    }
++
++    private static void anotherPileIsNotFlagged() {
++        final Game game = aiGame();
++        final Player blue = game.getPlayers().get(0);
++        make(blue, "w_1_1_soldier", 600);
++        make(blue, "g_1_1_saproling", 3);
++        make(game.getPlayers().get(1), "w_1_1_soldier", 3);
++        expect(!game.isUnboundedToken(first(game, "Saproling")), "a saproling is unbounded");
++        expect(!game.isUnboundedToken(firstOf(game, "Soldier", game.getPlayers().get(1))), "the other player's soldier is unbounded");
++        expect(game.getUnboundedTokenKeys().size() == 1, "flagged " + game.getUnboundedTokenKeys());
++    }
++
++    private static void losingOneKeepsTheFlagAndAWipeClearsIt() {
++        final Game game = aiGame();
++        final Player blue = game.getPlayers().get(0);
++        make(blue, "w_1_1_soldier", 501);
++        game.getAction().moveToGraveyard(first(game, "Soldier"), null);
++        expect(tokens(game, "Soldier") == 499 && game.isUnboundedToken(first(game, "Soldier")),
++                "one gone: " + tokens(game, "Soldier") + ", flagged " + game.getUnboundedTokenKeys());
++        resolve(blue, "DB$ DestroyAll | ValidCards$ Creature");
++        game.getAction().checkStateEffects(true);
++        expect(tokens(game, "Soldier") == 0 && game.getUnboundedTokenKeys().isEmpty(),
++                "after a wipe: " + tokens(game, "Soldier") + ", flagged " + game.getUnboundedTokenKeys());
++        make(blue, "w_1_1_soldier", 2);
++        expect(!game.isUnboundedToken(first(game, "Soldier")), "a new pile after the wipe is unbounded");
++    }
++
++    private static void countsSeeTheRealTokens() {
++        final Game game = aiGame();
++        final Player blue = game.getPlayers().get(0);
++        make(blue, "w_1_1_soldier", 700);
++        final Card host = add("Grizzly Bears", blue, ZoneType.Battlefield);
++        final int counted = CardLists.getValidCardCount(game.getCardsIn(ZoneType.Battlefield), "Creature.token+YouCtrl", blue, host, null);
++        expect(counted == 500, "a Valid count saw " + counted);
++    }
++
++    private static void theCapAsksNobody() {
++        final Game game = aiGame();
++        final List<String> asked = new ArrayList<>();
++        game.setRunawayChoice((g, what, count, cap) -> asked.add(what));
++        make(game.getPlayers().get(0), "w_1_1_soldier", 2_000);
++        expect(asked.isEmpty() && !game.isGameOver(), "asked " + asked + ", over " + game.isGameOver());
++    }
++
++    private static void aSnapshotCopyKeepsTheFlag() {
++        final Game game = aiGame();
++        make(game.getPlayers().get(0), "w_1_1_soldier", 501);
++        final Game copy = new GameSnapshot(game).makeCopy();
++        expect(copy.getUnboundedTokenKeys().equals(game.getUnboundedTokenKeys()) && !copy.getUnboundedTokenKeys().isEmpty(),
++                "the copy has " + copy.getUnboundedTokenKeys() + ", the game " + game.getUnboundedTokenKeys());
++        expect(copy.isUnboundedToken(first(copy, "Soldier")), "a copied soldier is not unbounded");
++    }
++
++    private static void aTappedTokenStaysInItsPile() {
++        final Game game = aiGame();
++        make(game.getPlayers().get(0), "w_1_1_soldier", 501);
++        final Card soldier = first(game, "Soldier");
++        soldier.setTapped(true);
++        expect(game.isUnboundedToken(soldier), "a tapped soldier left the pile");
++    }
++
++    private static void aStolenTokenLeavesThePile() {
++        final Game game = aiGame();
++        make(game.getPlayers().get(0), "w_1_1_soldier", 501);
++        final Card soldier = first(game, "Soldier");
++        soldier.addTempController(game.getPlayers().get(1), game.getNextTimestamp());
++        game.getAction().controllerChangeZoneCorrection(soldier);
++        expect(soldier.getController() == game.getPlayers().get(1), "the soldier did not change control");
++        expect(!game.isUnboundedToken(soldier), "a stolen soldier is unbounded");
++        expect(game.isUnboundedToken(firstOf(game, "Soldier", game.getPlayers().get(0))), "the pile it left is not unbounded");
++    }
++
++    private static void theSnapshotMarksUnboundedTokens() throws Exception {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("unbounded-tokens-test");
++        final List<RegisteredPlayer> players = new ArrayList<>();
++        final Deck deck = new Deck();
++        players.add(new RegisteredPlayer(deck).setPlayer(new ManaBrewInteractiveLobbyPlayer("Blue", session)));
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Yellow", null)));
++        final Game game = start(players);
++        session.attach(game.getMatch(), game, Set.of(), false);
++        final Field lock = ManaBrewInteractiveSession.class.getDeclaredField("gameLock");
++        lock.setAccessible(true);
++        ((ReentrantLock) lock.get(session)).lock();
++        final Player blue = game.getPlayers().get(0);
++        make(blue, "w_1_1_soldier", 501);
++        make(blue, "g_1_1_saproling", 2);
++        final String json = session.getSnapshotJson(0);
++        final int marked = json.split("\"unbounded\":true", -1).length - 1;
++        expect(marked == 500, "the snapshot marked " + marked + " cards unbounded");
++    }
++
++    private static void make(final Player p, final String script, final int amount) {
++        resolve(p, "DB$ Token | TokenAmount$ " + amount + " | TokenScript$ " + script);
++    }
++
++    private static void resolve(final Player p, final String ability) {
++        final Card host = add("Grizzly Bears", p, ZoneType.Hand);
++        final SpellAbility sa = AbilityFactory.getAbility(ability, host);
++        sa.setActivatingPlayer(p);
++        AbilityUtils.resolve(sa);
++        p.getZone(ZoneType.Hand).remove(host);
++    }
++
++    private static int tokens(final Game game, final String name) {
++        int n = 0;
++        for (final Card c : game.getCardsIn(ZoneType.Battlefield)) {
++            if (c.isToken() && c.getName().startsWith(name)) {
++                n++;
++            }
++        }
++        return n;
++    }
++
++    private static Card first(final Game game, final String name) {
++        return firstOf(game, name, null);
++    }
++
++    private static Card firstOf(final Game game, final String name, final Player controller) {
++        for (final Card c : game.getCardsIn(ZoneType.Battlefield)) {
++            if (c.isToken() && c.getName().startsWith(name) && (controller == null || c.getController() == controller)) {
++                return c;
++            }
++        }
++        throw new AssertionError("no " + name + " on the battlefield");
++    }
++
++    private static Game aiGame() {
++        final List<RegisteredPlayer> players = new ArrayList<>();
++        final Deck deck = new Deck();
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Blue", null)));
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Yellow", null)));
++        return start(players);
++    }
++
++    private static Game start(final List<RegisteredPlayer> players) {
++        final GameRules rules = new GameRules(GameType.Constructed);
++        final Game game = new Game(players, rules, new Match(rules, players, "UnboundedTokensTest"));
++        game.setAge(GameStage.Play);
++        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++        game.getPhaseHandler().onStackResolved();
++        return game;
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
 +        }
 +    }
 +

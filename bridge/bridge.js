@@ -2438,7 +2438,7 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
     ctr: Object.fromEntries(Object.entries(c.counters || {}).filter(([, k]) => k)), dmg: c.damage || 0,
     att: c.attachedTo || null, tok: !!c.identity.isToken, sick: !!c.summoningSick, ctl: game.slotColor[c.controllerId] || null,
     // (a token of a pile the engine stopped counting at its cap: "infinitely many", docs/big-turns-2-spec.md 1.6; the
-    // table does not read it yet)
+    // table's stack badge reads it, engine-renderer.lua badgeParts)
     ...(c.unbounded ? { inf: true } : {}),
     // (a battle's protector, by colour: the table's attack line names it, engineAttackTargetName)
     ...(c.protectorId && game.slotColor[c.protectorId] ? { prot: game.slotColor[c.protectorId] } : {}),
@@ -3277,6 +3277,8 @@ function logSnapshot(pub, prev = null) {
         // (a creature's keywords, for the ones a spell gives: see tapNews)
         ...(z.zone === "battlefield" && c.keywords?.length && (c.types || []).includes("Creature") ? { kw: c.keywords.map(String) } : {}),
         land: (c.types || []).includes("Land"), creature: (c.types || []).includes("Creature"), token: !!c.identity.isToken, attacking: !!c.isAttacking, tapped: !!c.tapped,
+        // (a token of a pile the engine stopped counting: its creation line says "infinitely many", docs/big-turns-2-spec.md 1.6)
+        ...(c.unbounded ? { inf: true } : {}),
         ...(c.isPlotted ? { plotted: true } : {}), ...(c.attachedTo ? { att: c.attachedTo } : {}),
         // (the Ring-bearer, for the Ring's tempt line: readability audit C7)
         ...(c.isRingBearer ? { rb: true } : {}),
@@ -5181,10 +5183,13 @@ function logEvents(prev, cur, pub, facts = null) {
       else if (c.token) {
         const made = (tokensMade[`${c.ctl}|${c.name}${arrive}`] ??= { at: out.length, n: 0 });
         made.n++;
+        if (c.inf) made.inf = true;
         // (a copy token has only the copied card's name: Saw in Half's read "White creates Mairsil, the Pretender", rebuilt re-test;
         // Forge's own "Treasure Token" read so too, Arena says "a Treasure token", re-test 2 bug d)
         const base = tokenBase(c.name);
-        out[made.at] = made.n === 1 ? `${who(c.ctl)} creates ${/^[aeiou]/i.test(base) ? "an" : "a"} ${base} token${arrive}`
+        // (a pile past the engine's cap is infinitely many as the rules see it: its real count is only the cap's, Game.UNBOUNDED_TOKENS)
+        out[made.at] = made.inf ? `${who(c.ctl)} creates infinitely many ${base} tokens (the engine stops counting at ${ENGINE_TOKEN_CAP})${arrive}`
+          : made.n === 1 ? `${who(c.ctl)} creates ${/^[aeiou]/i.test(base) ? "an" : "a"} ${base} token${arrive}`
           : `${who(c.ctl)} creates ${made.n} ${base} tokens${arrive}`;
       }
       // (brought back: Necromancy said nothing about what it returned, playtest 2026-10-26)
@@ -6200,6 +6205,9 @@ function gameEndWords(gv) {
   const tie = gv?.gameOver ? gv.tieOffer?.status?.type : null;
   if (tie === "agreed") return "a draw: everyone accepted the tie";
   if (tie === "forced") return `a forced tie: ${gv.tieOffer.roundsToForce || TIE_ROUNDS} rounds without progress`;
+  // (a draw the engine made at one of its limits says which: Game.getDrawReason, docs/big-turns-2-spec.md)
+  const limit = gv?.gameOver && !gv.winnerId ? DRAW_REASON_WORDS[gv.drawReason] : null;
+  if (limit) return limit;
   const decked = deckedPlayers(gv).map((p) => nameOf(p.id));
   const conceded = concededPlayers(gv).map((p) => nameOf(p.id));
   // (and a last loser none of those explain, by name: "AI 1 wins" alone left who lost unsaid, readability audit C11.
@@ -8291,6 +8299,16 @@ const HELD_RESOLUTIONS = 20;
 const HELD_MIN = 5;
 // the engine's question at its runaway limit (ManaBrewInteractiveSession.keepGoingPastCap), told by its exact title
 const RUNAWAY_TITLE = "This turn passed the engine's limit";
+// (the engine's own cap on one pile of tokens alike, Game.UNBOUNDED_TOKENS: past it the pile is "infinitely many")
+const ENGINE_TOKEN_CAP = 500;
+// Why the engine drew a game at a limit (the view's drawReason; the tie's own two are told by its tieOffer)
+const DRAW_REASON_WORDS = {
+  chosen: "a draw: a player ended the game at the engine's limit",
+  unanswered: "a draw: the engine's limit question went unanswered twice this turn",
+  noPerson: "a draw: the engine's limit, with no player to ask",
+  heap: "a draw: the engine was running out of memory",
+  stuckLoop: "a draw: a loop the engine couldn't stop, and nobody answered",
+};
 function heldPass(seat, gv, forP) {
   const stack = gv.stack || [];
   const top = stack[stack.length - 1];
@@ -9138,7 +9156,7 @@ function onPrompt(seat, prompt) {
         ui = { title: RUNAWAY_TITLE, mode: "single", text: String(input.presentation?.description || ""),
           options: [{ id: "yes", label: input.confirmLabel || "Keep going" }, { id: "no", label: input.denyLabel || "End in a draw" }] };
         toOutput = (a) => {
-          chat(a[0] === "yes" ? `[MTG] ${nameOf(seat.slot)} kept the turn going past the engine's limit.` : `[MTG] ${nameOf(seat.slot)} ended the game in a draw at the engine's limit (too many triggers or tokens this turn).`);
+          chat(a[0] === "yes" ? `[MTG] ${nameOf(seat.slot)} kept the turn going past the engine's limit.` : `[MTG] ${nameOf(seat.slot)} ended the game in a draw at the engine's limit (a loop it couldn't see the end of).`);
           return { type: "decision", value: a[0] === "yes" };
         };
         break;
@@ -10564,6 +10582,9 @@ function timerExpired(seat, promptId) {
   // after the first rewind vote of a game)
   if ((game?.fix && game.fix.state !== "applying") || seat.board?.state?.gameView?.restoreVote?.status?.type === "pending") { armTimer(seat); return; }
   seat.timeBank = 0; seat.timerFrom = null;
+  // (the engine's runaway question keeps its own clock: no answer counts as Keep going, two in a row this turn a draw,
+  // so the table's timer leaves it unanswered rather than pick End in a draw)
+  if (seat.prompt.ui?.title === RUNAWAY_TITLE) return chat(`[MTG] ${seat.color} ran out of time: the engine decides, and no answer counts as Keep going.`);
   chat(`[MTG] ${seat.color} ran out of time: ${seat.prompt.ui?.title || "the question"} took its default answer.`);
   // (a question of several steps keeps its id: each step answered in turn)
   for (let i = 0; i < 12 && seat.prompt?.promptId === promptId; i++) {

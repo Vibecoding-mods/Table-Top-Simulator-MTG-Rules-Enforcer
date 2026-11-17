@@ -83,6 +83,7 @@ const CARD_FACTS = {
   cantAttack: { to: ["kw"], show: "the status box: Can't attack (not on a card with Defender, whose own line says it)", check: "badges" },
   cantBlock: { to: ["kw"], show: "the status box: Can't block (not on a suspected card, whose own line says it)", check: "badges" },
   mustAttack: { to: ["kw"], show: "the status box: Must attack", check: "badges" },
+  unbounded: { to: ["inf"], show: "a stack of tokens the engine stopped counting at its cap (500): the badge says x∞ and its tooltip that the engine keeps 500 real tokens; the log says infinitely many (docs/big-turns-2-spec.md 1.6)", check: "badges" },
 };
 
 // Keys tableCard sends that stand for no single CardDto field: combat worked out from the game's blocker list, and the
