@@ -340,6 +340,13 @@ namespace MtgCompanion
             return null;
         }
 
+        // (.NET Framework on Windows reports an unknown name as a WebException, NameResolutionFailure, with no SocketException)
+        static bool NameFailure(Exception e)
+        {
+            for (var x = e; x != null; x = x.InnerException) { var w = x as WebException; if (w != null && w.Status == WebExceptionStatus.NameResolutionFailure) return true; }
+            return false;
+        }
+
         static Exception Inner(Exception e)
         {
             while ((e is AggregateException || e is System.Reflection.TargetInvocationException) && e.InnerException != null) e = e.InnerException;
@@ -365,7 +372,10 @@ namespace MtgCompanion
                 catch (Exception e)
                 {
                     var se = FindSocketError(e);
+                    // (a name that doesn't resolve: own-server mode says so, OwnServer.Decide)
                     r.Kind = se != null && se.SocketErrorCode == SocketError.ConnectionRefused ? LoginKind.Refused
+                           : NameFailure(e) ? LoginKind.NotFound
+                           : se != null && (se.SocketErrorCode == SocketError.HostNotFound || se.SocketErrorCode == SocketError.NoData || se.SocketErrorCode == SocketError.TryAgain) ? LoginKind.NotFound
                            : (Inner(e) is OperationCanceledException || Inner(e) is TaskCanceledException) ? LoginKind.Timeout : LoginKind.Closed;
                     r.Detail = Inner(e).Message;
                     return r;

@@ -155,6 +155,13 @@ namespace MtgCompanion
         public const int StepDocker = 0, StepImages = 1, StepStack = 2, StepSave = 3, StepBridge = 4, StepTts = 5;
         public static readonly string[] Names = { "Docker", "Engine images", "Engine stack", "Table save", "Bridge", "TTS" };
         public static string BridgeUrl = "http://127.0.0.1:48787"; // (--bridge-url: tests point it at a fake)
+        // Own-server mode (OwnServer.cs, docs/companion-app-spec.md §5.8): --server HOST[:PORT] for this run, else
+        // server.json in the package folder. server: null for the engine in Docker on this PC, else the setting (Ok or
+        // with a problem). Read at start, at each start sequence and when the page's Own server box changes it.
+        public static string ServerArg;
+        volatile ServerSetting server;
+        public ServerSetting Server { get { return server; } }
+        bool OnServer { get { return server != null; } }
 
         public readonly Layout L;
         public readonly bool Observe;
@@ -245,12 +252,51 @@ namespace MtgCompanion
             version = L.Friend ? J.Parse(Probes.ReadText(L.VersionFile)) : null;
             deployed = J.Parse(Probes.ReadText(L.DeployedFile));
             relayKey = Logic.RelayKey(Probes.ReadText(L.EnvFile));
+            ReadServer();
             saveName = L.Friend ? (Logic.ReadSaveName(ReadHead(L.TableJson)) ?? Logic.DefaultSaveName) : "Mock MTGA 4 player";
             if (L.Friend) L.ImagesTar = Logic.FindImagesTar(L.Home, File.Exists, d => Directory.Exists(d) ? Directory.GetFiles(d) : new string[0]);
             if (version != null)
                 VersionText = "Package " + (J.Str(version, "release") ?? "built " + (J.Str(version, "built") ?? "?")) + ", commit " + (J.Str(version, "gitCommit") ?? "?") + ", table " + (J.Str(version, "table") ?? "?") + ", bridge " + (J.Str(version, "bridge") ?? "?");
             else if (deployed != null)
                 VersionText = "Home mode, deployed table " + (J.Str(deployed, "table") ?? "?") + ", bridge " + (J.Str(deployed, "bridge") ?? "?");
+        }
+
+        // server.json (or --server) again; the Engine stack row is named for the mode. Never logs the key.
+        void ReadServer()
+        {
+            var was = server;
+            server = OwnServer.SettingOf(Probes.ReadText(L.ServerFile), ServerArg, Environment.GetEnvironmentVariable(OwnServer.KeyVariable));
+            Rows[StepStack].Name = server != null ? OwnServer.RowName : Names[StepStack];
+            string now = server == null ? "this PC's engine" : server.Ok ? "your server " + OwnServer.Words(server.Server) : "a server setting with a problem: " + server.Problem;
+            string before = was == null ? "this PC's engine" : was.Ok ? "your server " + OwnServer.Words(was.Server) : "a server setting with a problem: " + was.Problem;
+            if (was == null && server == null) return;
+            if (now != before || was == null) Log.Write("engine: " + now);
+        }
+
+        // The page's Own server box: writes server.json (or removes it for this computer's engine) and checks again.
+        // Refused during a game: switching engines would end it. text null: back to this computer. Returns a refusal or null.
+        public string SetServer(string text)
+        {
+            if (Observe) return "Observe mode: nothing is changed.";
+            RefreshGame();
+            if (IsLocked) return Logic.LockText(Game);
+            if (ServerArg != null) return "This run was started with --server " + ServerArg + ": start the companion without it to change the server here.";
+            try
+            {
+                if (text == null) { if (File.Exists(L.ServerFile)) File.Delete(L.ServerFile); }
+                else File.WriteAllText(L.ServerFile, text);
+            }
+            catch (Exception e) { return "Couldn't write " + OwnServer.File + ": " + e.Message; }
+            Log.Write("status page: own server " + (text == null ? "off (this computer's engine)" : "set"));
+            Enqueue(() =>
+            {
+                ReadServer();
+                loginCache = null; versionsAt = DateTime.MinValue;
+                // (a bridge running for the other engine: restarted for this one when the engine runs, else checked)
+                if (engineStarted && !Observe) { StopBridge(); pendingFrom = 1; }
+                else checkPending = true;
+            });
+            return null;
         }
 
         // ── the update's state: one snapshot, changed only here
@@ -622,6 +668,7 @@ namespace MtgCompanion
 
         internal void RunSequence(int from)
         {
+            ReadServer(); // (a server.json written since, or fixed after a red light: Try again reads it)
             everythingStopped = false; stoppedAt = 0;
             if (!DryRun) engineStarted = true;
             bool fresh = forceFresh; forceFresh = false;
@@ -632,9 +679,9 @@ namespace MtgCompanion
                 bool ok;
                 switch (step - 1)
                 {
-                    case StepDocker: ok = DoDocker(); break;
-                    case StepImages: ok = DoImages(); break;
-                    case StepStack: ok = DoStack(fresh); break;
+                    case StepDocker: ok = OnServer ? NotHere(StepDocker) : DoDocker(); break;
+                    case StepImages: ok = OnServer ? NotHere(StepImages) : DoImages(); break;
+                    case StepStack: ok = OnServer ? DoServer() : DoStack(fresh); break;
                     case StepSave: ok = DoSave(); break;
                     case StepBridge: ok = DoBridge(); break;
                     default: ok = DoTts(); break;
@@ -838,10 +885,33 @@ namespace MtgCompanion
 
         LoginResult Login()
         {
-            var r = Probes.RelayLogin("ws://127.0.0.1:9443", relayKey, Logic.Room, 3000);
+            var s = server;
+            var r = s != null && s.Ok ? Probes.RelayLogin(OwnServer.Url(s.Server), s.Server.Key, Logic.Room, 5000)
+                : Probes.RelayLogin("ws://127.0.0.1:9443", relayKey, Logic.Room, 3000);
             loginCache = r; loginAt = DateTime.UtcNow;
             if (r.Kind != LoginKind.Ok) Log.Write("relay login: " + r.Kind + " " + (r.Detail ?? ""));
             return r;
+        }
+
+        // ── own server: steps 1 and 2 have nothing to run here, step 3 asks the server whether it answers
+
+        bool NotHere(int step)
+        {
+            var s = server;
+            Set(step, s != null && s.Ok ? OwnServer.NotNeeded(s.Server) : OwnServer.WaitingForSetting());
+            return true;
+        }
+
+        bool DoServer()
+        {
+            var s = server;
+            RefreshGame();
+            if (s == null || !s.Ok) { Set(StepStack, OwnServer.Decide(s, null, Game)); return false; }
+            Set(StepStack, new Verdict(Light.Busy, "Asking your server (" + OwnServer.Words(s.Server) + ")."));
+            var login = IsLocked ? new LoginResult { Kind = LoginKind.Skipped } : Login();
+            var v = OwnServer.Decide(s, login, Game);
+            Set(StepStack, v);
+            return v.Light == Light.Green;
         }
 
         bool DoStack(bool fresh)
@@ -1133,7 +1203,12 @@ namespace MtgCompanion
                 var l = held[0];
                 portProblem = new Verdict(Light.Red, (l.Name ?? "A program") + " (process " + l.Pid + ") holds port " + l.Port + ", which the bridge needs. Close it, then press Try again.").WithFix(Fixes.ShowProgram, "Show the program");
             }
-            return Logic.DecideBridge(vers, portProblem, proc, Want("bridge"), L.Friend);
+            var v = Logic.DecideBridge(vers, portProblem, proc, Want("bridge"), L.Friend);
+            // (a bridge running for the other engine: this PC's while a server is set, or a server while none is)
+            var s = server;
+            if (vers.Kind == HttpKind.Ok && v.Light != Light.Red && (s == null || s.Ok) && OwnServer.RelayDiffers(vers.Body, s == null ? null : s.Server))
+                return OwnServer.BridgeForOtherEngine(s == null ? null : s.Server);
+            return v;
         }
 
         bool DoBridge()
@@ -1199,20 +1274,38 @@ namespace MtgCompanion
             if (L.Friend)
             {
                 Log.Write("starting the bridge loop: " + ExePath + " --bridge-loop");
-                var psi = new ProcessStartInfo(ExePath, "--bridge-loop --home \"" + L.Home + "\"") { UseShellExecute = false, CreateNoWindow = true };
-                var appData = BridgeAppData();
-                if (appData != null) psi.EnvironmentVariables["APPDATA"] = appData;
-                Process.Start(psi).Dispose();
+                Process.Start(BridgeLoopInfo()).Dispose();
             }
             else
             {
                 var ps1 = Path.Combine(L.Home, "tools", "start-bridge.ps1");
                 Log.Write("starting the bridge: " + ps1);
                 var appData = BridgeAppData();
-                var env = appData == null ? null : new Dictionary<string, string> { { "APPDATA", appData } };
+                var env = EngineEnv();
+                if (appData != null) env["APPDATA"] = appData;
                 var r = Probes.Run("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -File \"" + ps1 + "\"", 60000, line => Log.Write("start-bridge: " + line), null, env, L.Home);
                 Log.Write("start-bridge: exit " + r.Exit);
             }
+        }
+
+        // the hidden bridge loop's process (friend mode): its environment carries APPDATA when this app has none, and the
+        // engine the bridge connects to (EngineEnv). The self-test reads it.
+        internal ProcessStartInfo BridgeLoopInfo()
+        {
+            var psi = new ProcessStartInfo(ExePath, "--bridge-loop --home \"" + L.Home + "\"") { UseShellExecute = false, CreateNoWindow = true };
+            var appData = BridgeAppData();
+            if (appData != null) psi.EnvironmentVariables["APPDATA"] = appData;
+            foreach (var kv in EngineEnv()) psi.EnvironmentVariables[kv.Key] = kv.Value;
+            return psi;
+        }
+
+        // the engine the bridge connects to (OwnServer.BridgeEnv): the server's relay and key, or this PC's (the server
+        // variables emptied). The key goes only into the bridge's environment, never into a log.
+        internal Dictionary<string, string> EngineEnv()
+        {
+            var s = server;
+            if (s != null && s.Ok) Log.Write("the bridge connects to your server " + OwnServer.Words(s.Server));
+            return OwnServer.BridgeEnv(s != null && s.Ok ? s.Server : null);
         }
 
         // the APPDATA the bridge must get when this app runs without one (Logic.AppDataFor); null: it inherits ours
@@ -1300,6 +1393,25 @@ namespace MtgCompanion
         {
             RefreshGame();
             if (pendingM != null && !Observe && Updates.InstallNow(IsLocked, idleSince, DateTime.UtcNow, true)) { ApplyUpdate(pendingM, pendingPlan); return; } // (2 minutes after the game: install the update)
+            if (OnServer) MonitorServer(); else MonitorDocker();
+            MonitorBridgeAndTts();
+        }
+
+        // the watcher with a server: no Docker here; the server is asked again every minute (not during a game)
+        void MonitorServer()
+        {
+            var s = server;
+            NotHere(StepDocker); NotHere(StepImages);
+            if (s == null || !s.Ok) { Set(StepStack, OwnServer.Decide(s, null, Game)); return; }
+            LoginResult login;
+            if (IsLocked) login = new LoginResult { Kind = LoginKind.Skipped };
+            else if (loginCache == null || (DateTime.UtcNow - loginAt).TotalSeconds > 60) login = Login();
+            else login = loginCache;
+            Set(StepStack, OwnServer.Decide(s, login, Game));
+        }
+
+        void MonitorDocker()
+        {
             var f = DockerNow();
             if (f.Answers) Set(StepDocker, Logic.DecideDocker(f));
             else if (!engineStarted && !Observe) Set(StepDocker, Logic.BeforeStart(StepDocker, Logic.DecideDocker(f))); // (before Start engine: no red light for a Docker nobody asked to start)
@@ -1347,6 +1459,10 @@ namespace MtgCompanion
                 loginCache = null; watchBrokenLogins = 0;
                 Set(StepStack, new Verdict(Light.Grey, "Waiting for Docker."));
             }
+        }
+
+        void MonitorBridgeAndTts()
+        {
             // bridge: /versions every 30 s, not more (each call runs docker inspect inside the bridge: 3-4 s)
             if ((DateTime.UtcNow - versionsAt).TotalSeconds > 30)
             {
@@ -1454,7 +1570,8 @@ namespace MtgCompanion
                 everythingStopped = true; pendingFrom = 0; stoppedAt = 0; engineStarted = false; // (the menu's stop replaces a red-light stop)
                 SetPhase("Stopping");
                 StopBridge();
-                if (dockerCli != null && Rows[StepDocker].V.Light == Light.Green) Compose(L.Friend ? "down" : "stop", 120000);
+                // (with a server: only the bridge here; the engine on the server is the host's, never stopped from here)
+                if (!OnServer && dockerCli != null && Rows[StepDocker].V.Light == Light.Green) Compose(L.Friend ? "down" : "stop", 120000);
                 MarkStopped(TtsRunning());
                 RefreshGame(); // (the watcher pauses now, so this is the last look: it unlocks Restart engine)
                 SetPhase(Logic.StoppedPhase);
@@ -1486,6 +1603,8 @@ namespace MtgCompanion
             sb.AppendLine("MTG Companion " + (Observe ? "observe" : "status") + " at " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             sb.AppendLine("Mode: " + L.Mode + ", home " + L.Home);
             if (VersionText.Length > 0) sb.AppendLine(VersionText);
+            var srv = server;
+            sb.AppendLine("Engine: " + (srv == null ? "this PC (Docker)" : srv.Ok ? "your server " + OwnServer.Words(srv.Server) + (srv.Server.Secure ? " (secure)" : "") : "own server, with a problem: " + srv.Problem));
             sb.AppendLine("Docker CLI: " + (dockerCli ?? "not found") + "; Docker Desktop: " + (dockerDesktop ?? "not found") + "; reads via " + (dockerViaCli ? "CLI" : "engine pipe"));
             sb.AppendLine("Phase: " + Phase);
             sb.AppendLine("Game: " + Game.Kind + ": " + Game.Text + (IsLocked ? "  [restart buttons locked]" : ""));

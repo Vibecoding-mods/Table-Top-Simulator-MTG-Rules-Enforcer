@@ -90,6 +90,14 @@ function isTtsSave(text) {
   try { const o = JSON.parse(t); return !!o && typeof o === "object" && Array.isArray(o.ObjectStates); }
   catch { return /^\s*\{/.test(t) && /"ObjectStates"\s*:\s*\[/.test(t); } // (a cut or broken save is still one)
 }
+// Files a package must never hold because they carry a key: an own server's server.json (its key), a stack .env
+// (MANABREW_SERVER_KEY), a private key file. entries: as tableCopies'. Returns their paths.
+function secretFiles(entries) {
+  return entries.filter(({ rel }) => {
+    const base = rel.split("/").pop().toLowerCase();
+    return base === "server.json" || base === ".env" || /\.(pem|key|pfx|p12)$/.test(base) || base === "github-token.bin";
+  }).map((e) => e.rel);
+}
 function tableCopies(entries) {
   return entries.filter(({ rel, text }) => {
     const base = rel.split("/").pop();
@@ -435,9 +443,36 @@ Fix buttons that restart things are locked while a game is on, so a fix never en
 Still stuck: close the companion, start it again. Then send the files in the "logs" folder to whoever gave you this.
 
 
+OPTIONAL: PLAY ON A FRIEND'S ENGINE (OWN SERVER)
+The engine (relay and Forge room) can run on another computer, a friend's who already hosts it. Then this PC needs no
+Docker: the companion connects to that engine over the network, and you still host TTS and the bridge here.
+1. The friend who runs the engine gives you its address (a name or IP address; with :port if its relay isn't on
+   9443) and its key (their MANABREW_SERVER_KEY). On their side: tools/setup-server.sh, or their own companion.
+2. Start "MTG Companion.exe". On its status page, open "Own server", type the address and the key, then press
+   "Use this server". Or write server.json in this folder yourself:
+       { "host": "mtg.example.org", "port": 9443, "key": "the key", "secure": false }
+   ("secure": true when their relay is behind TLS, wss://.) "MTG Companion.exe --server HOST:PORT" sets it for one
+   run (the key then comes from server.json for the same host, or the MTG_SERVER_KEY variable).
+3. The lights: Docker and Engine images say "Not needed here", and the third light, "Your server", says whether the
+   server answers. Red when it doesn't, with what to check:
+   - "refused the connection": nothing listens on that port there (the engine isn't running, or another port);
+   - "didn't answer": the server is off, or its firewall doesn't let this PC reach the port;
+   - "isn't known": the name is misspelt (or use the IP address);
+   - "refused the key": the key isn't the server's;
+   - "its Forge room isn't open" or "busy with an earlier game": the friend restarts the relay and the Forge room.
+   Fix it, then press "Try again".
+4. "Use this computer" (or deleting server.json) goes back to the engine in Docker on this PC.
+The key is a password for the engine: it stays in server.json on this PC. Never share that file, post the key in a
+chat or put it in a screenshot. Stop everything stops only the bridge here: the engine on the server is your
+friend's, and the companion never stops it. Switching servers is refused while a game is on.
+Over the open internet the key is sent unencrypted unless the server uses a secure (wss) address: use Tailscale or
+a secure address, not a plain address to a friend's home connection.
+
+
 PRIVACY
 Everything here listens on your own PC only (127.0.0.1). Nothing is opened to the internet; TTS's own multiplayer is
-how your friends reach the table. Card pictures come from Scryfall.
+how your friends reach the table. Card pictures come from Scryfall. With an own server, the bridge and the companion
+connect out to that server's relay port, and to nothing else.
 
 
 LICENCES
@@ -706,7 +741,10 @@ async function main() {
   fs.writeFileSync(path.join(pkg, "README-FRIEND.txt"), readmeText(info).replace(/\n/g, "\r\n"));
   const release = flag("release") ? releaseStart(pkg, out, info) : null;
   fs.writeFileSync(path.join(pkg, "version.json"), `${JSON.stringify(info, null, 1)}\n`);
-  const copies = tableCopies(packageEntries(pkg));
+  const entries = packageEntries(pkg);
+  const secrets = secretFiles(entries);
+  if (secrets.length) stop(`the package would hand out a file that holds a key: ${secrets.join(", ")}`);
+  const copies = tableCopies(entries);
   if (copies.length) stop(`the package would hand out a copy of a Workshop table (Steam lets subscribers use it, not distribute it): ${copies.join(", ")}`);
 
   console.log(`  zipping (${mb(sizeOf(pkg))})`);
@@ -811,4 +849,4 @@ function releaseFinish({ tag, dir, partVersions, previous, plan }, pkg, zip, inf
 }
 
 if (require.main === module) main().catch((e) => stop(e.stack || e.message));
-module.exports = { companionSource, stampOf, renameSave, tableCopies, isTtsSave, jsonText, packageEntries, tableReadme, hostRequirements, readTable, WORKSHOP, refusals, composeYaml, tarRead, tarImages, tarMismatch, deployedRecord, readmeText, treeHash, imagesVersion, planRelease, releaseManifest, releaseRefusals, pointedAt, appVersion, validTag, signManifest, publicKeyText, releaseKey, RELEASE_PARTS, UPDATE_FORMAT, APP_UNVERSIONED, APP_EXCLUDED, IMAGES, DATA_DIRS, PROJECT, SAVE_NAME, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };
+module.exports = { companionSource, stampOf, renameSave, tableCopies, secretFiles, isTtsSave, jsonText, packageEntries, tableReadme, hostRequirements, readTable, WORKSHOP, refusals, composeYaml, tarRead, tarImages, tarMismatch, deployedRecord, readmeText, treeHash, imagesVersion, planRelease, releaseManifest, releaseRefusals, pointedAt, appVersion, validTag, signManifest, publicKeyText, releaseKey, RELEASE_PARTS, UPDATE_FORMAT, APP_UNVERSIONED, APP_EXCLUDED, IMAGES, DATA_DIRS, PROJECT, SAVE_NAME, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };
