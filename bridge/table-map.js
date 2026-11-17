@@ -83,14 +83,14 @@ const CARD_FACTS = {
   cantAttack: { to: ["kw"], show: "the status box: Can't attack (not on a card with Defender, whose own line says it)", check: "badges" },
   cantBlock: { to: ["kw"], show: "the status box: Can't block (not on a suspected card, whose own line says it)", check: "badges" },
   mustAttack: { to: ["kw"], show: "the status box: Must attack", check: "badges" },
+  unbounded: { to: ["inf"], show: "a stack of tokens the engine stopped counting at its cap (500): the badge says x∞ and its tooltip that the engine keeps 500 real tokens; the log says infinitely many (docs/big-turns-2-spec.md 1.6)", check: "badges" },
 };
 
 // Keys tableCard sends that stand for no single CardDto field: combat worked out from the game's blocker list, and the
 // bridge's own records of what Forge doesn't send
 const TABLE_ONLY_KEYS = { blk: "blocking", blkOf: "the attackers it blocks", sick: "nothing reads it; the status box's mark is decided in the bridge, which knows whose turn it is", enc: "ew is a cipher link; the table treats it as any link",
   og: "a playable-row card from the graveyard: the FROM GRAVEYARD chip (the zone the bridge found it in, no CardDto field)",
-  pk: "your own face-down card's face { n, f, v }: from each human seat's own view (facePeek), drawn as UI only those seats' colours see",
-  inf: "CardDto.unbounded (big-turns-2 step 0, docs/big-turns-2-spec.md 1.6): a token pile the engine stopped counting at its cap; sent, and the table does not read it yet. It moves to CARD_FACTS when an engine with the field ships" };
+  pk: "your own face-down card's face { n, f, v }: from each human seat's own view (facePeek), drawn as UI only those seats' colours see" };
 
 // Forge's zones -> where the table puts them. check: the words engineSelfCheck reports
 const ZONES = {

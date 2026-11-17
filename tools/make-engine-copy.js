@@ -417,6 +417,8 @@ function engineStartGame(pl, rest, cleared)
     teamTurns = engineTeamTurnsSent ~= nil and engineTeamTurnsSent() or nil }
   -- (the table's seats, clockwise, when it isn't the 4-player table: engineHello, tools/engine-renderer.lua)
   if ENGINE_TABLE_SEATS ~= nil then start.tableSeats = ENGINE_TABLE_SEATS end
+  -- (the seated players' Steam IDs: the bridge keeps a forced tie's accomplishment by them)
+  if engineSteamIds ~= nil then start.steam = engineSteamIds(seats) end
   engineSend("start", start)
 end
 
@@ -643,6 +645,12 @@ function engineChat(message, pl)
   elseif cmd == "vote" then
     if rest == "yes" or rest == "no" then engineSend("rewindVote", { color = pl.color, accept = rest == "yes" })
     else pl.broadcast("[MTG] Use:  mtg vote yes  or  mtg vote no") end
+  elseif cmd == "tie" then
+    -- the tie offer when a player can't lose (the Tie / Keep playing pop-up): mtg tie yes / mtg tie no
+    if rest == "yes" or rest == "no" then engineSend("tieVote", { color = pl.color, accept = rest == "yes", steam = engineSteamOf ~= nil and engineSteamOf(pl.color) or "" })
+    else pl.broadcast("[MTG] Use:  mtg tie yes  (accept the tie)  or  mtg tie no  (keep playing)") end
+  elseif cmd == "accomplishments" then
+    engineSend("accomplishments", { color = pl.color, steam = engineSteamOf ~= nil and engineSteamOf(pl.color) or "" })
   elseif cmd == "glow" then
     if engineToggleGlow ~= nil then pl.broadcast("[MTG] Green glow on playable cards and usable permanents: " .. engineToggleGlow(pl.color)) end
   elseif cmd == "aideck" then
@@ -672,6 +680,7 @@ function engineChat(message, pl)
       " mtg friendly 0|1|2 - free mulligans each, for everyone (the rules' free one included)",
       " mtg reset - put the imported decks back once the game is over (host: also mid-game)",
       " mtg undo [N] - rewind (the others vote); mtg vote yes/no",
+      " mtg tie yes/no - answer a tie offer (a player who can't lose); mtg accomplishments - yours (a forced tie earns Stalemate)",
       " mtg fix - pause the game to put the board right (the others vote); mtg fix yes/no/done/cancel; mtg fix token <what> [for <colour>]; mtg fix note <text> - what should have happened, for the log; mtg mana <n> - n mana of each colour until the end of the turn (a fix in one line)",
       " mtg debug <scenario> - a test board (20 lands out, the scenario's cards in hand); mtg debug list / off",
       " mtg hand <card>, <card> ... (debug tools on, against the AI) - your next game's starting hand, the rest dealt from your deck; mtg hand off",

@@ -1590,6 +1590,15 @@ const allSeats = () => (game ? [...game.seats.values(), ...(game.harmless || [])
 // bots too, and a vote waits for all of them: each says yes, once per vote, as a Forge AI is never asked. Read from the
 // people's boards (noteBoard): a harmless bot reads none.
 function harmlessVotes(gv) {
+  // (and a tie offer, which the engine makes only for a real lock: a harmless bot accepts, as a Forge AI does)
+  const t = gv?.tieOffer;
+  if (t && t.status?.type === "pending") {
+    for (const h of game?.harmless || []) {
+      if (!h.slot || h.tieVotedOn === t.voteId || !(t.awaitingPlayerIds || []).includes(h.slot)) continue;
+      h.tieVotedOn = t.voteId;
+      h.directive({ type: "tieVote", voteId: t.voteId, accept: true });
+    }
+  }
   const v = gv?.restoreVote;
   if (!v || v.status?.type !== "pending") return;
   for (const h of game?.harmless || []) {
@@ -2447,7 +2456,7 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
     ctr: Object.fromEntries(Object.entries(c.counters || {}).filter(([, k]) => k)), dmg: c.damage || 0,
     att: c.attachedTo || null, tok: !!c.identity.isToken, sick: !!c.summoningSick, ctl: game.slotColor[c.controllerId] || null,
     // (a token of a pile the engine stopped counting at its cap: "infinitely many", docs/big-turns-2-spec.md 1.6; the
-    // table does not read it yet)
+    // table's stack badge reads it, engine-renderer.lua badgeParts)
     ...(c.unbounded ? { inf: true } : {}),
     // (a battle's protector, by colour: the table's attack line names it, engineAttackTargetName)
     ...(c.protectorId && game.slotColor[c.protectorId] ? { prot: game.slotColor[c.protectorId] } : {}),
@@ -3286,6 +3295,8 @@ function logSnapshot(pub, prev = null) {
         // (a creature's keywords, for the ones a spell gives: see tapNews)
         ...(z.zone === "battlefield" && c.keywords?.length && (c.types || []).includes("Creature") ? { kw: c.keywords.map(String) } : {}),
         land: (c.types || []).includes("Land"), creature: (c.types || []).includes("Creature"), token: !!c.identity.isToken, attacking: !!c.isAttacking, tapped: !!c.tapped,
+        // (a token of a pile the engine stopped counting: its creation line says "infinitely many", docs/big-turns-2-spec.md 1.6)
+        ...(c.unbounded ? { inf: true } : {}),
         ...(c.isPlotted ? { plotted: true } : {}), ...(c.attachedTo ? { att: c.attachedTo } : {}),
         // (the Ring-bearer, for the Ring's tempt line: readability audit C7)
         ...(c.isRingBearer ? { rb: true } : {}),
@@ -5192,10 +5203,13 @@ function logEvents(prev, cur, pub, facts = null) {
       else if (c.token) {
         const made = (tokensMade[`${c.ctl}|${c.name}${arrive}`] ??= { at: out.length, n: 0 });
         made.n++;
+        if (c.inf) made.inf = true;
         // (a copy token has only the copied card's name: Saw in Half's read "White creates Mairsil, the Pretender", rebuilt re-test;
         // Forge's own "Treasure Token" read so too, Arena says "a Treasure token", re-test 2 bug d)
         const base = tokenBase(c.name);
-        out[made.at] = made.n === 1 ? `${who(c.ctl)} creates ${/^[aeiou]/i.test(base) ? "an" : "a"} ${base} token${arrive}`
+        // (a pile past the engine's cap is infinitely many as the rules see it: its real count is only the cap's, Game.UNBOUNDED_TOKENS)
+        out[made.at] = made.inf ? `${who(c.ctl)} creates infinitely many ${base} tokens (the engine stops counting at ${ENGINE_TOKEN_CAP})${arrive}`
+          : made.n === 1 ? `${who(c.ctl)} creates ${/^[aeiou]/i.test(base) ? "an" : "a"} ${base} token${arrive}`
           : `${who(c.ctl)} creates ${made.n} ${base} tokens${arrive}`;
       }
       // (brought back: Necromancy said nothing about what it returned, playtest 2026-10-26)
@@ -5958,6 +5972,7 @@ function sendTable() {
   trackTurns(pub, seats);
   updateLog(pub);
   const rewind = rewindNews(pub);
+  const tie = tieNews(pub);
   fixNews(pub);
   const byId = cardIndex(pub);
   game.delayedNow = delayedOf(pub); // (the delayed triggers' words on their cards: tableCard, cardNotes)
@@ -6078,6 +6093,7 @@ function sendTable() {
     ...(pub.dayTime === "day" || pub.dayTime === "night" ? { day: pub.dayTime } : {}), // (shown beside the turn on the table)
     winner: pub.winnerId ? game.slotColor[pub.winnerId] || nameOf(pub.winnerId) : null, players, stack, cards: statics,
     rewind, // restore points and the open vote (in the board update: a message of its own doubled the traffic)
+    ...(tie ? { tie } : {}), // (a tie offer: a player who can't lose, tieNews)
     ...(planes.length || planar ? { planes, planar } : {}), // (Planechase: planarRow)
     ...teams2hg.teamsField(pub, game.slotColor, game.teamMode, game.arch?.color || null), // (a team game: the sides, 2HG's poison limit, the Juggernaut, who won)
     ...(game.fix ? { fix: fixState() } : {}), // (a manual fix under way, PLAN M7)
@@ -6215,6 +6231,13 @@ const andList = (names) => (names.length > 1 ? `${names.slice(0, -1).join(", ")}
 // empty libraries read as the runaway cap). "White and Yellow conceded. Blue wins." (live 2026-11-08: "White had to
 // draw from an empty library", a conceded player's library reading 0.)
 function gameEndWords(gv) {
+  // (a tie the players took, or the forced one: the engine's tieOffer says why the game is a draw)
+  const tie = gv?.gameOver ? gv.tieOffer?.status?.type : null;
+  if (tie === "agreed") return "a draw: everyone accepted the tie";
+  if (tie === "forced") return `a forced tie: ${gv.tieOffer.roundsToForce || TIE_ROUNDS} rounds without progress`;
+  // (a draw the engine made at one of its limits says which: Game.getDrawReason, docs/big-turns-2-spec.md)
+  const limit = gv?.gameOver && !gv.winnerId ? DRAW_REASON_WORDS[gv.drawReason] : null;
+  if (limit) return limit;
   const decked = deckedPlayers(gv).map((p) => nameOf(p.id));
   const conceded = concededPlayers(gv).map((p) => nameOf(p.id));
   // (and a last loser none of those explain, by name: "AI 1 wins" alone left who lost unsaid, readability audit C11.
@@ -8506,6 +8529,19 @@ const HELD_RESOLUTIONS = 20;
 const HELD_MIN = 5;
 // the engine's question at its runaway limit (ManaBrewInteractiveSession.keepGoingPastCap), told by its exact title
 const RUNAWAY_TITLE = "This turn passed the engine's limit";
+// (the engine's own clock on it, ManaBrewInteractiveSession.RUNAWAY_ANSWER_SECONDS: once it runs out the engine has
+// moved on, so the table takes the question down; the engine drops a later answer to it too)
+const RUNAWAY_ANSWER_SECONDS = 90;
+// (the engine's own cap on one pile of tokens alike, Game.UNBOUNDED_TOKENS: past it the pile is "infinitely many")
+const ENGINE_TOKEN_CAP = 500;
+// Why the engine drew a game at a limit (the view's drawReason; the tie's own two are told by its tieOffer)
+const DRAW_REASON_WORDS = {
+  chosen: "a draw: a player ended the game at the engine's limit",
+  unanswered: "a draw: the engine's limit question went unanswered twice this turn",
+  noPerson: "a draw: the engine's limit, with no player to ask",
+  heap: "a draw: the engine was running out of memory",
+  stuckLoop: "a draw: a loop the engine couldn't stop, and nobody answered",
+};
 function heldPass(seat, gv, forP) {
   const stack = gv.stack || [];
   const top = stack[stack.length - 1];
@@ -9595,7 +9631,7 @@ function onPrompt(seat, prompt) {
         ui = { title: RUNAWAY_TITLE, mode: "single", text: String(input.presentation?.description || ""),
           options: [{ id: "yes", label: input.confirmLabel || "Keep going" }, { id: "no", label: input.denyLabel || "End in a draw" }] };
         toOutput = (a) => {
-          chat(a[0] === "yes" ? `[MTG] ${nameOf(seat.slot)} kept the turn going past the engine's limit.` : `[MTG] ${nameOf(seat.slot)} ended the game in a draw at the engine's limit (too many triggers or tokens this turn).`);
+          chat(a[0] === "yes" ? `[MTG] ${nameOf(seat.slot)} kept the turn going past the engine's limit.` : `[MTG] ${nameOf(seat.slot)} ended the game in a draw at the engine's limit (a loop it couldn't see the end of).`);
           return { type: "decision", value: a[0] === "yes" };
         };
         break;
@@ -10992,6 +11028,7 @@ function onPrompt(seat, prompt) {
   // counts that player's floating mana, Mindslaver's turn, PLAN 2026-11-13)
   toTTS({ t: "prompt", color: seat.color, promptId: prompt.promptId, ...ui, ...(forP && game?.slotColor?.[forP] ? { forColor: game.slotColor[forP] } : {}) });
   armTimer(seat);
+  if (ui.title === RUNAWAY_TITLE) setTimeout(() => guarded("runaway question", () => runawayExpired(seat, prompt.promptId)), RUNAWAY_ANSWER_SECONDS * 1000).unref?.();
 }
 
 // ───────────────────────── Turn timers (host's toggle, "mtg timer") ─────────────────────────
@@ -11042,6 +11079,9 @@ function timerExpired(seat, promptId) {
   // after the first rewind vote of a game)
   if ((game?.fix && game.fix.state !== "applying") || seat.board?.state?.gameView?.restoreVote?.status?.type === "pending") { armTimer(seat); return; }
   seat.timeBank = 0; seat.timerFrom = null;
+  // (the engine's runaway question keeps its own clock: no answer counts as Keep going, two in a row this turn a draw,
+  // so the table's timer leaves it unanswered rather than pick End in a draw)
+  if (seat.prompt.ui?.title === RUNAWAY_TITLE) return chat(`[MTG] ${seat.color} ran out of time: the engine decides, and no answer counts as Keep going.`);
   chat(`[MTG] ${seat.color} ran out of time: ${seat.prompt.ui?.title || "the question"} took its default answer.`);
   // (a question of several steps keeps its id: each step answered in turn)
   for (let i = 0; i < 12 && seat.prompt?.promptId === promptId; i++) {
@@ -11049,6 +11089,11 @@ function timerExpired(seat, promptId) {
     onAnswer(seat.color, promptId, timeoutChoice(before));
     if (seat.prompt?.promptId === promptId && seat.prompt.ui === before) break;
   }
+}
+function runawayExpired(seat, promptId) {
+  if (seat.prompt?.promptId !== promptId) return;
+  closePrompt(seat);
+  chat(`[MTG] The engine's ${RUNAWAY_ANSWER_SECONDS} seconds for that question ran out: no answer counts as Keep going.`, seat.color);
 }
 function setTimer(on, seconds) {
   if (!game) { chat("[MTG] Timer: no game running."); return; }
@@ -11655,6 +11700,7 @@ function onTTS(m) {
         noteTableSeats(m, false); // (the table's seats, if it says them: a bridge started after its hello)
         startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m), ...(({ teams, mode, jugg, turns, arch }) => [teams, mode || "2hg", jugg, turns, arch || null])(withArchenemy(teams2hg.setupOf(m))));
         if (game && m.autoplay) game.autoplay = true;
+        if (game) game.steam = steamIds(m.steam); // (the seated players' Steam IDs, for the accomplishments: noteSteam)
       };
       // the table's Start button (autoReset): a game left over from before is reset first, and a room that is still
       // restarting is waited for, instead of "type mtg reset" / "room not found" (the user had to type commands)
@@ -11817,6 +11863,12 @@ function onTTS(m) {
     case "rewindGo":
       onRewindGo(m.color);
       break;
+    case "tieVote":
+      onTieVote(m.color, m.accept, m.steam);
+      break;
+    case "accomplishments":
+      onAccomplishments(m.color, m.steam);
+      break;
     case "concede":
       onConcede(m.color);
       break;
@@ -11958,6 +12010,133 @@ function onRewindVote(color, accept) {
   }
   if (!(v.awaitingPlayerIds || []).includes(seat.slot)) return chat("[MTG] Your vote isn't needed for this one.", color);
   seat.directive({ type: "restoreVote", voteId: v.voteId, accept: !!accept });
+}
+// ───────── a tie offer (docs/handoff/tie-offer-report.md) ─────────
+// The engine (TieOffer in the harness) rechecks at each priority question whether a player can't lose: Forge's own
+// checks, Player.cantLose (Platinum Angel, Angel's Grace, Gideon's emblem), canLoseLife false (Platinum Emperion,
+// Teferi's Protection), cantLoseForZeroOrLessLife with no poison or commander damage that could kill (Phyrexian Unlife
+// with Solemnity), or every damage to them prevented by a plain replacement (Glacial Chasm). Then gameView.tieOffer asks
+// the people (an AI accepts by itself); all yes is a draw. A no starts the count: three full rounds with no progress
+// (a life total down, poison or commander damage, a permanent leaving, a card milled, a player losing) and the engine
+// ends it as a forced tie, which earns the people at the table an accomplishment (bridge/accomplishments.js).
+const TIE_ROUNDS = 3;
+// Who earns "Stalemate" at a forced tie (the user's open tie question 1): "everyone" at the table, "locked" (only the
+// players who couldn't lose) or "decliners" (only whoever said no)
+const STALEMATE_EARNED_BY = "everyone";
+const TIE_REASONS = {
+  cantLose: "can't lose the game",
+  cantLoseLife: "can't lose life",
+  cantLoseForZeroLife: "doesn't lose at 0 life and can't get poison counters",
+  damagePrevented: "has all damage to them prevented",
+};
+const ACCOMPLISH_FILE = process.env.MTG_ACCOMPLISHMENTS
+  || (LIVE ? path.join(process.env.APPDATA || path.join(require("os").homedir(), ".config"), "MTG-TTS", "accomplishments.json") : null);
+const accomplishLib = require("./accomplishments");
+const accomplishments = accomplishLib.createAccomplishments({
+  log: (s) => log(s),
+  store: ACCOMPLISH_FILE && {
+    read: () => { try { return JSON.parse(fs.readFileSync(ACCOMPLISH_FILE, "utf8")); } catch (e) { if (e.code === "ENOENT") return null; throw e; } },
+    write: (data) => {
+      fs.mkdirSync(path.dirname(ACCOMPLISH_FILE), { recursive: true });
+      fs.writeFileSync(`${ACCOMPLISH_FILE}.tmp`, JSON.stringify(data));
+      fs.renameSync(`${ACCOMPLISH_FILE}.tmp`, ACCOMPLISH_FILE);
+    },
+  },
+});
+// the table's { colour: Steam ID } (only Steam IDs kept)
+function steamIds(raw) {
+  const out = {};
+  for (const [c, id] of Object.entries(raw && typeof raw === "object" ? raw : {})) if (accomplishLib.steamKey(id)) out[c] = String(id);
+  return out;
+}
+// a Steam ID the table sent with a message from that player (a vote, a look at the list)
+function noteSteam(color, steam) {
+  if (game && color && accomplishLib.steamKey(steam)) (game.steam ??= {})[color] = String(steam);
+}
+// the tie offer as the table shows it: who is locked and why, who is still to answer (colours, and the people by name),
+// the state, and the rounds without progress since a no
+function tieState(gv) {
+  const t = gv?.tieOffer;
+  if (!t || !game) return null;
+  const bots = new Set((game.harmless || []).map((h) => h.slot));
+  const awaiting = (t.awaitingPlayerIds || []).filter((id) => game.slotColor[id]);
+  return {
+    id: t.voteId, status: t.status?.type || "pending",
+    locked: (t.locks || []).map((l) => ({ who: seatWords(l.playerId) || nameOf(l.playerId), color: game.slotColor[l.playerId] || null, why: (l.reasons || []).map((r) => TIE_REASONS[r] || r) })),
+    waiting: awaiting.map((id) => game.slotColor[id]), waitingNames: awaiting.filter((id) => !bots.has(id)).map(nameOf),
+    declinedBy: t.status?.playerId ? seatWords(t.status.playerId) : null, declinedColor: game.slotColor[t.status?.playerId] || null,
+    rounds: t.roundsWithoutProgress || 0, toForce: t.roundsToForce || TIE_ROUNDS,
+  };
+}
+const tieLockWords = (s) => andList(s.locked.map((l) => `${l.who} ${andList(l.why)}`));
+// the tie part of a board update, saying its changes in chat (and in the log): the offer, a no, each round's warning,
+// progress starting the count over, the lock broken, the draw
+function tieNews(pub) {
+  const s = tieState(pub);
+  const key = s ? `${s.id}|${s.status}|${s.rounds}` : null;
+  if (key === (game.lastTieKey ?? null)) return s;
+  const was = game.lastTie || null;
+  game.lastTieKey = key;
+  game.lastTie = s;
+  const say = (line) => { chat(`[MTG] ${line}`); gameLogLine(line); };
+  if (!s) {
+    if (was && (was.status === "pending" || was.status === "declined")) say("The lock is broken: the tie offer is off.");
+    return s;
+  }
+  const same = was && was.id === s.id;
+  if (s.status === "pending" && !same) {
+    say(`${tieLockWords(s)}, so the game may never end. A tie is offered.${s.waitingNames.length ? ` Waiting for ${andList(s.waitingNames)}: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).` : ""}`);
+  } else if (s.status === "declined" && !(same && was.status === "declined")) {
+    say(`${s.declinedBy || "A player"} declined the tie. If nothing changes for ${s.toForce} full rounds (no life lost, no poison or commander damage, no permanent leaving the battlefield, no card milled, nobody losing), the game ends in a forced tie.`);
+  } else if (s.status === "declined" && s.rounds > was.rounds) {
+    const left = s.toForce - s.rounds;
+    say(`Tie warning: ${s.rounds} of ${s.toForce} rounds without progress. ${left === 1 ? "One more round" : `${left} more rounds`} like this and the game is a forced tie.`);
+  } else if (s.status === "declined" && s.rounds < was.rounds) {
+    say(`Progress: the tie count starts over (0 of ${s.toForce} rounds).`);
+  } else if (s.status === "agreed") {
+    say("Everyone accepted the tie: the game is a draw.");
+  } else if (s.status === "forced") {
+    say(`${s.toForce} rounds without progress: the game is a forced tie.`);
+    forcedTieEarned(s);
+  }
+  return s;
+}
+// the colours that earn Stalemate at this forced tie (STALEMATE_EARNED_BY)
+function stalemateEarners(s, by = STALEMATE_EARNED_BY) {
+  const all = [...game.seats.keys()];
+  if (by === "locked") return all.filter((c) => s.locked.some((l) => l.color === c));
+  if (by === "decliners") return all.filter((c) => c === s.declinedColor);
+  return all;
+}
+// A forced tie: the people STALEMATE_EARNED_BY names earn "Stalemate", kept by Steam ID (once a game)
+function forcedTieEarned(s, by = STALEMATE_EARNED_BY) {
+  if (!game || game.tieEarned) return;
+  game.tieEarned = true;
+  const earners = new Set(stalemateEarners(s, by));
+  for (const seat of game.seats.values()) {
+    if (!earners.has(seat.color)) continue;
+    const steam = game.steam?.[seat.color];
+    const e = steam ? accomplishments.earn(steam, "forced-tie") : null;
+    if (!e) { log(`accomplishment: ${seat.color} has no Steam ID, so Stalemate isn't kept`); continue; }
+    log(`accomplishment: ${seat.color} earned ${e.name} (${e.count})`);
+    chat(`[MTG] Accomplishment: ${e.name}. ${e.text}${e.count > 1 ? ` (${e.count} times now)` : ""}`, seat.color);
+  }
+}
+function onTieVote(color, accept, steam) {
+  const seat = game?.seats.get(color);
+  const t = seat?.board?.state?.gameView?.tieOffer;
+  noteSteam(color, steam);
+  if (!t || t.status?.type !== "pending") return chat("[MTG] No tie offer is open.", color);
+  if (!(t.awaitingPlayerIds || []).includes(seat.slot)) return chat("[MTG] Your answer isn't needed for this tie.", color);
+  log(`${color} ${accept ? "accepts" : "declines"} the tie (offer ${t.voteId})`);
+  seat.directive({ type: "tieVote", voteId: t.voteId, accept: !!accept });
+}
+function onAccomplishments(color, steam) {
+  noteSteam(color, steam);
+  if (!accomplishLib.steamKey(steam)) return chat("[MTG] Accomplishments are kept by Steam ID, and this seat has none.", color);
+  const got = accomplishments.list(steam);
+  chat(got.length ? `[MTG] Your accomplishments: ${got.map((e) => `${e.name} (${e.count}${e.count > 1 ? " times" : " time"}, last ${e.last})`).join("; ")}.`
+    : "[MTG] No accomplishments yet. (A forced tie earns Stalemate.)", color);
 }
 // ───────── manual fix by vote (PLAN M7, docs/m7-manual-fix-spec.md) ─────────
 // For what a rewind can't fix (the engine got a rule wrong, or the mistake is older than the restore points): the
@@ -13190,7 +13369,7 @@ if (require.main === module) {
     alignment, tableCard, costNow, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
     summarizeLands, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword, playWindow,
     _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
-    _spellsMark: spellsMark, _actingFor: actingFor, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice,
+    _spellsMark: spellsMark, _actingFor: actingFor, _tieState: tieState, _stalemateEarners: stalemateEarners, _forcedTieEarned: forcedTieEarned, STALEMATE_EARNED_BY, _steamIds: steamIds, _harmlessVotes: harmlessVotes, _accomplishments: accomplishments, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice,
     _archenemy: archenemy, _onArchenemy: onArchenemy, _onSchemes: onSchemes, _withArchenemy: withArchenemy, _forgeSchemes: forgeSchemes, ARCH_NO_UNDO, ARCH_SWITCH_OFF,
     _engineSetting: () => ({ RELAY, KEY, REMOTE_ENGINE }), _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, setPickedHand, splitHandText, handOps, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
