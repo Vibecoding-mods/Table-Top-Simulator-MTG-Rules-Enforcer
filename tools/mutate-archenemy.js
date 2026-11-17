@@ -17,7 +17,7 @@ const TESTS = [["tests/test_bridge_archenemy.js", []], ["tests/test_table_archen
 // [label, file, from, to]: `from` must occur exactly once
 const MUTATIONS = [
   ["TEAM_MODES: Archenemy in Commander only", "bridge/teams.js", "archenemy: { rule: \"teams\", name: \"Archenemy\", gameMode: null }", "archenemy: { rule: \"teams\", name: \"Archenemy\", gameMode: \"commander\" }"],
-  ["teamModeProblem: a mode for either game mode refused", "bridge/teams.js", "  if (t.gameMode === null) return null;\n", ""],
+  ["teamModeProblem: a mode for either game mode refused", "bridge/teams.js", "  if (t.gameMode == null) return null;\n", ""],
   ["setupOf: Archenemy's teams as sent", "bridge/teams.js", "return { teams: juggTeams(arch.color), mode: \"archenemy\", jugg: null, turns: null, arch };", "return { teams: teamsOf(m.teams), mode: \"archenemy\", jugg: null, turns: null, arch };"],
   ["archOf: any colour", "bridge/teams.js", "if (TEAM_COLORS.indexOf(r.color) >= 0) out.color = r.color;", "if (r.color) out.color = r.color;"],
   ["archLife: Standard 80 too", "bridge/teams.js", "const archLife = (std) => (std ? 40 : 80);", "const archLife = (std) => 80;"],
