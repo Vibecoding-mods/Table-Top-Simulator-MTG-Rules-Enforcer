@@ -2446,6 +2446,9 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
     bp, bt,
     ctr: Object.fromEntries(Object.entries(c.counters || {}).filter(([, k]) => k)), dmg: c.damage || 0,
     att: c.attachedTo || null, tok: !!c.identity.isToken, sick: !!c.summoningSick, ctl: game.slotColor[c.controllerId] || null,
+    // (a token of a pile the engine stopped counting at its cap: "infinitely many", docs/big-turns-2-spec.md 1.6; the
+    // table does not read it yet)
+    ...(c.unbounded ? { inf: true } : {}),
     // (a battle's protector, by colour: the table's attack line names it, engineAttackTargetName)
     ...(c.protectorId && game.slotColor[c.protectorId] ? { prot: game.slotColor[c.protectorId] } : {}),
     // in combat: attacking (and at whom), blocking (from the game's blocker list)
@@ -5471,10 +5474,20 @@ function logEvents(prev, cur, pub, facts = null) {
     if (d?.bat) return `${d.name} (${who(d.ctl)}'s battle${d.prot ? `, protected by ${who(d.prot)}` : ""})`;
     return d ? `${d.name} (${who(d.ctl)})` : null;
   };
-  const attackLines = Object.values(attackers).map(({ ctl, target, names }) => {
-    const whom = attacked(target);
-    return `${who(ctl)} attacks ${whom ? `${whom} ` : ""}with ${tokensCounted(names)}`;
-  });
+  // (one stack split among players, attackSplit: one line, "Red attacks Blue with 7 Zombie tokens, Red with 7, Yellow
+  // with 6", when everything one player sends at two or more is tokens of one kind)
+  const attackLines = [];
+  const byCtl = new Map();
+  for (const x of Object.values(attackers)) { if (!byCtl.has(x.ctl)) byCtl.set(x.ctl, []); byCtl.get(x.ctl).push(x); }
+  for (const [ctl, list] of byCtl) {
+    const kinds = new Set(list.flatMap((x) => x.names));
+    const one = list.length > 1 && kinds.size === 1 && / token$/.test([...kinds][0]) && list.every((x) => attacked(x.target));
+    if (one) { attackLines.push(`${who(ctl)} attacks ${list.map((x, i) => `${attacked(x.target)} with ${i ? x.names.length : tokensCounted(x.names)}`).join(", ")}`); continue; }
+    for (const { target, names } of list) {
+      const whom = attacked(target);
+      attackLines.push(`${who(ctl)} attacks ${whom ? `${whom} ` : ""}with ${tokensCounted(names)}`);
+    }
+  }
   // blocks, which the table draws as lines and the log never said (Fog Bank blocking Cavalry Master, hp-10 gap): each
   // attacker's new blockers, one line per attacker. Tokens are counted ("2 Soldier tokens block a Zombie token", token
   // stacks spec: the real table read "Soldier Token, Soldier Token block Zombie Token"), and the same block on several
@@ -6629,13 +6642,25 @@ function attackWordFits(card, word) {
 // all or one defender and why (`unavailable`: [{ cardId, defenderId?, reason, sourceId?, sourceName? }]) and the attack
 // limits (`limits`: [{ max, defenderId?, sourceId, sourceName }]). Such an engine always sends `unavailable` and
 // `limits`, empty or not; an older one sends neither and the text reading (attackRules) stays. Effects with no text on
-// the board (War Tax, Sivitri's +1, an emblem) are known only this way. Returns null, or { costs: { attackerId: [...] },
-// unavailable, limits }.
+// the board (War Tax, Sivitri's +1, an emblem) are known only this way. A newer engine also sends what each attacker
+// deals each defender unblocked (`damage`: [{ defenderId, damage, poison, commander? }]) and, per defender, how much it
+// can take (`attackTargets[]`: life, poisonLeft, commanderLeft [{ commanderId, left }], canLose), for the attack tax's
+// lethal minimum (docs/big-turns-2-spec.md 3.2); kept here, not read yet. Returns null, or
+// { costs: { attackerId: [...] }, unavailable, limits, damage: { attackerId: [...] }, defenders: { defenderId: {...} } }.
 function engineAttackData(input) {
   if (!Array.isArray(input?.unavailable) && !Array.isArray(input?.limits)) return null;
   const costs = {};
-  for (const a of input.attackers || []) costs[a.attackerId] = (a.costs || []).map((c) => ({ ...c, cost: engineCostWords(c.cost), sourceNames: c.sourceNames || [] }));
-  return { costs, unavailable: input.unavailable || [], limits: input.limits || [] };
+  const damage = {};
+  for (const a of input.attackers || []) {
+    costs[a.attackerId] = (a.costs || []).map((c) => ({ ...c, cost: engineCostWords(c.cost), sourceNames: c.sourceNames || [] }));
+    if (Array.isArray(a.damage)) damage[a.attackerId] = a.damage;
+  }
+  const defenders = {};
+  for (const t of input.attackTargets || []) {
+    if (t.life == null && t.poisonLeft == null && t.canLose == null && !t.commanderLeft?.length) continue;
+    defenders[t.id] = { life: t.life ?? null, poisonLeft: t.poisonLeft ?? null, commanderLeft: t.commanderLeft || [], canLose: t.canLose ?? null };
+  }
+  return { costs, unavailable: input.unavailable || [], limits: input.limits || [], damage, defenders };
 }
 // Forge's cost text (Cost.toSimpleString: its parts joined by ", ") in the words attackCostSum uses: a worked-out X's
 // shard is left out ("{X}{3}" for Sphere of Safety with 3 enchantments, ManaCost.getSimpleString; Forge pays the X as 0,
@@ -6919,6 +6944,188 @@ function attackWhom(o, each = false) {
     return attackWhom({ ...o, byAttacker }, each);
   };
   return next(ui, toOutput);
+}
+
+// One stack per defending player (docs/big-turns-2-spec.md item 4; the user's decision 7, 2026-11-16: a token stack
+// that attacks splits by itself, no menu step). A stack is two or more tokens of one controller, name and size still
+// waiting for "whom?" (All attack, or "whom?" picked); a token clicked at a player or planeswalker keeps that pick.
+// Players only, in seat order from the attacker's left; with shared life (2HG, 3HG) a team is one share, given to the
+// partner with the fewest taxes on the stack (then the first in seat order). Each share is floor(N/k), the first N mod
+// k one more; a token that can't attack a share's player goes to the next. A stack with fewer than two players to
+// split among is left to "whom?". slot: the attacking player; E: engineAttackData or null. Returns a copy of
+// byAttacker with each split token at its player.
+function attackSplit(gv, input, byAttacker, slot, E) {
+  const byId = cardIndex(gv);
+  const out = { ...byAttacker };
+  const stacks = new Map();
+  for (const at of input.attackers || []) {
+    const c = byId[at.attackerId];
+    if (out[at.attackerId] !== "?" || !c?.identity?.isToken) continue;
+    const key = `${c.controllerId}|${c.identity.name}|${c.power}/${c.toughness}`;
+    if (!stacks.has(key)) stacks.set(key, []);
+    stacks.get(key).push(at);
+  }
+  const ids = (gv.players || []).map((p) => p.id);
+  const from = ids.indexOf(slot);
+  const seatOrder = from < 0 ? ids : [...ids.slice(from + 1), ...ids.slice(0, from + 1)];
+  const taxes = (at, d) => (E?.costs[at.attackerId] || []).filter((x) => x.defenderId === d).length;
+  for (const group of stacks.values()) {
+    if (group.length < 2) continue;
+    const valid = new Set(group.flatMap((at) => at.validTargetIds.filter((t) => String(t).startsWith("player-"))));
+    const units = [];
+    const teamsSeen = new Set();
+    for (const id of seatOrder) {
+      const p = (gv.players || []).find((q) => q.id === id);
+      if (!valid.has(id) || !p) continue;
+      const team = teams2hg.teamOf(p, gv).map((q) => q.id).filter((q) => valid.has(q));
+      const key = [...team].sort().join("|");
+      if (teamsSeen.has(key)) continue;
+      teamsSeen.add(key);
+      units.push(team.sort((a, b) => taxes(group[0], a) - taxes(group[0], b) || seatOrder.indexOf(a) - seatOrder.indexOf(b))[0]);
+    }
+    if (units.length < 2) continue;
+    const left = units.map((_, i) => Math.floor(group.length / units.length) + (i < group.length % units.length ? 1 : 0));
+    for (const at of group) {
+      let pick = units.findIndex((u, i) => left[i] > 0 && at.validTargetIds.includes(u));
+      if (pick < 0) pick = units.findIndex((u) => at.validTargetIds.includes(u));
+      if (pick < 0) continue;
+      out[at.attackerId] = units[pick];
+      left[pick]--;
+    }
+  }
+  return out;
+}
+
+// a tax in one number for ordering: its generic mana, one for every other symbol, and its life ("{2}{W/P}" 3, "2 life" 2)
+function taxSize(cost) {
+  const life = /(\d+) life/i.exec(String(cost || ""));
+  return (String(cost || "").match(/\{[^}]+\}/g) || []).reduce((n, s) => n + (/^\{\d+\}$/.test(s) ? Number(s.slice(1, -1)) : 1), 0) + (life ? Number(life[1]) : 0);
+}
+
+// The fewest attackers that are lethal to a taxed defender, by any route (docs/big-turns-2-spec.md 3.3): life (the
+// attackers' unblocked damage, highest first), poison (their poison, highest first) or one commander's damage against
+// what that commander still needs. Ties: the cheaper tax first, then the label. ids: the attackers at the defender;
+// E: engineAttackData; D: the defender's id; fallback: { life, power(id) } for an engine with no damage numbers (power
+// stands in for damage, and only the life route is tried); cost(id): its tax at D; label(id). Returns { order, k,
+// route: "life" | "poison" | "commander" | null, need }; with no lethal route (or a defender that can't lose) k is all.
+function taxLethal(ids, E, D, fallback, cost, label) {
+  const info = E?.defenders?.[D] || {};
+  const at = (id) => (E?.damage?.[id] || []).find((x) => x.defenderId === D) || null;
+  const known = ids.some((id) => at(id));
+  const val = (id, f) => (known ? Number(at(id)?.[f]) || 0 : f === "damage" ? Number(fallback.power(id)) || 0 : 0);
+  const sorted = (f) => [...ids].sort((a, b) => val(b, f) - val(a, f) || taxSize(cost(a)) - taxSize(cost(b))
+    || String(label(a)).localeCompare(String(label(b)), undefined, { numeric: true }));
+  const prefix = (order, f, need) => {
+    let sum = 0;
+    for (let i = 0; i < order.length; i++) { sum += val(order[i], f); if (sum >= need) return i + 1; }
+    return null;
+  };
+  const byLife = sorted("damage");
+  const none = { order: byLife, k: ids.length, route: null, need: null };
+  if (info.canLose === false) return none;
+  const routes = [];
+  const life = info.life ?? fallback.life;
+  if (life != null) { const k = prefix(byLife, "damage", Math.max(1, life)); if (k) routes.push({ order: byLife, k, route: "life", need: life }); }
+  if (known && info.poisonLeft != null) {
+    const order = sorted("poison");
+    const k = prefix(order, "poison", Math.max(1, info.poisonLeft));
+    if (k) routes.push({ order, k, route: "poison", need: info.poisonLeft });
+  }
+  for (const c of info.commanderLeft || []) {
+    const hit = known && ids.includes(c.commanderId) ? at(c.commanderId)?.commander : null;
+    if (hit != null && hit >= Math.max(1, c.left)) routes.push({ order: [c.commanderId, ...byLife.filter((x) => x !== c.commanderId)], k: 1, route: "commander", need: c.left });
+  }
+  return routes.reduce((best, r) => (r.k < best.k || (r.k === best.k && best.route == null) ? r : best), none);
+}
+
+// The attack-tax question, one per taxed defender with two or more attackers at it (docs/big-turns-2-spec.md 3.3;
+// decision 5: "Pay for all" next to the lethal minimum). "Pay for k" sends only the fewest lethal attackers at it,
+// first and highest first, and the rest stay home; "Pay for all" sends all of them, highest first; "Don't attack"
+// keeps all of them home (they are not sent at anyone else). Each payment Forge then asks for an attacker of the plan
+// is answered by itself (taxPlanPay). One attacker at a taxed defender keeps the payment question it always had.
+// o: { gv, input, assignments: [{ attackerId, targetId }], E: engineAttackData or null (then the taxes come from the
+// rules text, attackRules), label(id), defender(id): its words, done(assignments, taxPlan), back() }. taxPlan:
+// { defenderId: { ids, name, paid, tried, failed } } for the defenders still attacked, or null.
+function attackTaxPlan(o, at = 0, plan = {}) {
+  const { gv, input, E } = o;
+  const byId = cardIndex(gv);
+  const R = E ? null : attackRules(gv);
+  const taxAt = (id, d) => {
+    if (E) return (E.costs[id] || []).find((x) => x.defenderId === d)?.cost || null;
+    const ctl = String(d).startsWith("player-") ? d : byId[d]?.controllerId;
+    const t = [...attackTaxesAt(R, ctl, d), ...R.costs.filter((x) => x.on === id)].map((x) => x.cost);
+    return t.length ? attackCostSum(t) : null;
+  };
+  const defenders = [...new Set(o.assignments.map((a) => a.targetId))]
+    .filter((d) => o.assignments.filter((a) => a.targetId === d && taxAt(a.attackerId, d)).length >= 2);
+  if (at >= defenders.length) {
+    const asked = Object.keys(plan);
+    if (!asked.length) return o.done(o.assignments, null);
+    const sent = asked.flatMap((d) => plan[d].ids.map((attackerId) => ({ attackerId, targetId: d })));
+    const rest = o.assignments.filter((a) => !asked.includes(a.targetId));
+    const taxPlan = {};
+    for (const d of asked) if (plan[d].ids.length) taxPlan[d] = { ids: plan[d].ids, name: plan[d].name, paid: 0, tried: null, failed: false };
+    return o.done([...sent, ...rest], Object.keys(taxPlan).length ? taxPlan : null);
+  }
+  const D = defenders[at];
+  const ids = o.assignments.filter((a) => a.targetId === D).map((a) => a.attackerId);
+  const kind = (input.attackTargets || []).find((t) => t.id === D)?.kind || (String(D).startsWith("player-") ? "player" : "planeswalker");
+  const unit = kind === "player" ? "life" : kind === "battle" ? "defense" : "loyalty";
+  const pl = (gv.players || []).find((p) => p.id === D);
+  const card = byId[D];
+  const fallback = { life: pl ? pl.life ?? null : card ? (kind === "battle" ? battleFacts(card)?.defense : card.loyalty) ?? null : null, power: (id) => byId[id]?.power };
+  const L = taxLethal(ids, E, D, fallback, (id) => taxAt(id, D), o.label);
+  const who = String(D).startsWith("player-") ? nameOf(D) : card?.identity?.name || o.defender(D);
+  const n = ids.length;
+  const total = (list) => attackCostSum(list.map((id) => taxAt(id, D)));
+  const each = [...new Set(ids.map((id) => taxAt(id, D)))];
+  const whose = attackTaxWords(gv, ids[0], D, E) || "Attack tax";
+  const lifeNow = E?.defenders?.[D]?.life ?? fallback.life;
+  const left = L.route === "poison" ? ` (${L.need} poison counter${L.need === 1 ? "" : "s"} to go)`
+    : L.route === "commander" ? ` (${L.need} commander damage to go)` : lifeNow != null ? ` (${lifeNow} ${unit})` : "";
+  const lethal = (one) => (L.route === "commander" ? `deals lethal commander damage to ${who}${left} unblocked`
+    : L.route === "poison" ? `${one ? "gives" : "give"} ${who} lethal poison${left} unblocked` : `${one ? "deals" : "deal"} lethal damage to ${who}${left} unblocked`);
+  const some = L.k < n;
+  const paysK = `Pay ${total(L.order.slice(0, L.k))} for ${L.k === 1 ? "that one" : `those ${L.k}`}? The other ${n - L.k} stay${n - L.k === 1 ? "s" : ""} home.`;
+  const text = some ? (L.route === "commander" ? `${o.label(L.order[0])} ${lethal(true)}. ${paysK}` : `${L.k} of your ${n} attackers ${lethal(L.k === 1)}. ${paysK}`)
+    : L.route ? `All ${n} of your attackers are needed: together they ${lethal(false)}. Pay ${total(ids)} for all ${n}?`
+      : E?.defenders?.[D]?.canLose === false ? `${who} can't lose the game now. Pay ${total(ids)} for all ${n} attackers?`
+        : `Your ${n} attackers are not lethal to ${who}${left} unblocked. Pay ${total(ids)} for all ${n}?`;
+  const ui = {
+    title: `${whose}: ${each.length === 1 ? each[0] : "a tax"} for each attacker`, mode: "single", kind: "choice", text,
+    options: [...(some ? [{ id: "__lethal", label: `Pay ${total(L.order.slice(0, L.k))} for ${L.k}` }] : []),
+      { id: "__all", label: `Pay ${total(ids)} for all ${n}` }, { id: "__none", label: `Don't attack ${who}` }, { id: "__back", label: "Back" }],
+    // (out of time: nobody is there to want the mana spent)
+    onTimeout: "__none",
+  };
+  const toOutput = (a) => {
+    if (a[0] === "__back") return o.back();
+    const chosen = a[0] === "__lethal" ? L.order.slice(0, L.k) : a[0] === "__all" ? L.order : [];
+    return attackTaxPlan(o, at + 1, { ...plan, [D]: { ids: chosen, name: who } });
+  };
+  return next(ui, toOutput);
+}
+
+// The answer to a payment Forge asks for an attacker of the seat's tax plan (attackTaxPlan), or null when it is not
+// one: auto-pay, then pay from the pool once that covers the cost; the first one auto-pay can't finish is cancelled, and
+// so is every later one at that defender ("as many as they can"). The plan itself never picks paying life; what
+// Forge's auto-pay does with a {W/P} (Norn's Annex) is its own.
+function taxPlanPay(seat, input) {
+  const plans = seat.taxPlan || {};
+  const d = Object.keys(plans).find((x) => plans[x].ids.includes(input.cardId));
+  if (!d) return null;
+  const p = plans[d];
+  if (p.failed) return { type: "cancel" };
+  if (input.canConfirmFromPool) { p.paid++; p.tried = null; return { type: "pay", auto: false }; }
+  if (p.tried === input.cardId) { p.failed = true; return { type: "cancel" }; }
+  p.tried = input.cardId;
+  return { type: "pay", auto: true };
+}
+// what a tax plan came to, said once priority comes back: "Paid for 9 of 14 attackers at Blue; the other 5 stay home."
+// for each defender whose payments ran out; nothing when every one was paid
+function taxPlanWords(taxPlan) {
+  return Object.values(taxPlan || {}).filter((p) => p.failed && p.paid < p.ids.length)
+    .map((p) => `Paid for ${p.paid} of ${p.ids.length} attackers at ${p.name}; the other ${p.ids.length - p.paid} stay home.`);
 }
 
 // Forge's own bookkeeping in a trigger's text is no words for a player: "... you control [Zone Changer: Deadeye
@@ -8681,7 +8888,12 @@ function onPrompt(seat, prompt) {
   // (the attack just declared is only the declaration's: its refusal and its tax payments come before any priority, so
   // priority ends it. A payment after that, a pump on an attacker in the same step or an ability a turn later, is no
   // attack tax: payManaCost)
-  if (prompt.input?.type === "chooseAction" || prompt.kind === "priority") seat.lastAttack = null;
+  if (prompt.input?.type === "chooseAction" || prompt.kind === "priority") {
+    seat.lastAttack = null;
+    // (and the tax plan's payments are over: what it came to when the mana ran out, attackTaxPlan)
+    for (const w of taxPlanWords(seat.taxPlan)) chat(`[MTG] ${w}`, seat.color);
+    seat.taxPlan = null;
+  }
   // MTG_RAW=1 (tests): every question as the engine sent it, to see what a prompt carries
   if (process.env.MTG_RAW) log(`raw ${seat.color}: ${JSON.stringify(prompt).slice(0, 4000)}`);
   if (prompt.kind === "priority") { seat.respond(0, "chooseAction", { type: "pass" }); return; }
@@ -8993,6 +9205,11 @@ function onPrompt(seat, prompt) {
       break;
     }
     case "payManaCost":
+      // (an attacker of the seat's tax plan pays by itself, only while the declaration's payments run: taxPlanPay)
+      if (gv.step === "combatDeclareAttackers" && input.cardId) {
+        const planned = taxPlanPay(seat, input);
+        if (planned) { seat.respond(prompt.promptId, type, planned); return; }
+      }
       // Four seat fields about paying, kept apart on purpose (merging them changed behaviour, see
       // docs/reviews/structural-review-bridge-2026-10-20.md #2): autoPayCard = Forge's auto-pay asked for this card,
       // tappedFor = a source tapped by hand for it, autoPayFailedFor = auto-pay already failed for it (survives a tap),
@@ -10087,6 +10304,7 @@ function onPrompt(seat, prompt) {
       }
       break;
     case "chooseAttackers": {
+      seat.taxPlan = null; // (a declaration asked again makes its own plan)
       // A creature with more than one player or planeswalker to attack has "→ whom?" as its first option: a click on it
       // picks that, and so does All attack, and whom it attacks is asked after (attackWhom) instead of Forge's first
       // target for everyone (item 25, the user 2026-11-10). A life counter or planeswalker clicked, or a pair picked in
@@ -10134,7 +10352,7 @@ function onPrompt(seat, prompt) {
       // Silent Arbiter, a creature that can only attack alone) is stopped here and the limit said, nothing sent: Forge
       // would only refuse it (the user's pick (a), 2026-11-10). Creatures picked one by one still go to Forge, whose
       // refusal is explained as before.
-      const declare = (byAttacker, all) => {
+      const declare = (byAttacker, all, quiet = false) => {
         const assignments = Object.entries(byAttacker).map(([attackerId, targetId]) => ({ attackerId, targetId }));
         if (all) {
           const { broken } = attackRefusalReason(gv, assignments, attackData);
@@ -10144,9 +10362,18 @@ function onPrompt(seat, prompt) {
             return next({ ...askUi, text: [[stop, mustLine].filter(Boolean).join(" "), ...remind.lines].join("\n"), note: stop }, toOutput);
           }
         }
-        seat.lastAttack = assignments;
-        seat.attackRefused = null;
-        return { type: "declareAttackers", assignments };
+        const finish = (sent, taxPlan) => {
+          seat.lastAttack = sent;
+          seat.attackRefused = null;
+          seat.taxPlan = taxPlan;
+          return { type: "declareAttackers", assignments: sent };
+        };
+        // (the attack tax at the lethal minimum, asked per taxed defender; the plan's payments then answer by
+        // themselves: attackTaxPlan, taxPlanPay. Not for No attacks or End turn: those ask nothing, and a creature that
+        // must attack pays its tax as before)
+        if (quiet) return finish(assignments, null);
+        return attackTaxPlan({ gv, input, assignments, E: attackData, label: attackerLabel, defender: (id) => defenderWords(gv, input, id),
+          back: () => next(askUi, toOutput), done: finish });
       };
       toOutput = (a) => {
         const byAttacker = {};
@@ -10160,8 +10387,10 @@ function onPrompt(seat, prompt) {
           const [att, tgt] = v.split("|");
           if (tgt !== "?" || byAttacker[att] == null) byAttacker[att] = tgt;
         }
+        // (a token stack still waiting for "whom?" is split among the players by itself, one stack each: attackSplit)
+        Object.assign(byAttacker, attackSplit(gv, input, byAttacker, forP || seat.slot, attackData));
         const asked = input.attackers.filter((at) => byAttacker[at.attackerId] === "?");
-        if (!asked.length) return declare(byAttacker, a.includes("__allattack"));
+        if (!asked.length) return declare(byAttacker, a.includes("__allattack"), none);
         return attackWhom({ asked, byAttacker, cname: attackerLabel, defender: (id) => defenderWords(gv, input, id), taxAt: remind.taxAt,
           done: (chosen) => declare(chosen, a.includes("__allattack")), back: () => next(askUi, toOutput) });
       };
