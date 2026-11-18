@@ -353,6 +353,7 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 |---|---|
 | `mtg help` | the list of commands |
 | `mtg ready` | the same as the READY? button |
+| `mtg commander` | point at your commander first: marks that card as your commander (when READY? didn't find one on your command zone) |
 | `mtg clear deck` | removes your own deck and commander from your seat (when your Delete key does nothing on them); not during a game |
 | `mtg friendly 0\|1\|2` | free mulligans each, for everyone, the same as the Free mulligans button |
 | `mtg mode 2hg` / `mtg mode ffa` | host: the next games are Two-Headed Giant (White + Red against Yellow + Blue) or free-for-all again. Partners share one life total (80 a team), poison (15 loses) and a commander's damage (42 loses), lose together and see each other's hands. Each player takes their own turn, the team's two turns back to back. Blocking is one team decision (the **Block with <partner>** panel, see "Team games" above): each partner sets their own blockers, sees the team's block line by line, and clicks Agree or changes it; after four changes the team leader's blocks stand ("<leader> decides (team leader)"). `mtg 2hg turns shared` (host, not yet tried live) makes it one turn for each team: both partners untap, draw, attack and block together, and the team leader (White, or Yellow) puts the team's triggers in order; `mtg 2hg turns own` goes back. House rule (not the official rules): your partner gaining or losing life counts as you gaining or losing it, so your Ajani's Pridemate grows when your partner gains life and "if you gained life this turn" counts their gains (each gain still triggers each card once). All four seats play (Forge AI players fill the empty ones). Commander only |
@@ -368,9 +369,13 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 | `mtg accomplishments` | your accomplishments (a forced tie earns Stalemate) |
 | `mtg team <colour> 1\|2` | host, after `mtg mode 2hg` or `mtg mode 2v2`: move a seat to team 1 or 2 (in Two-Headed Giant partners must sit next to each other in turn order; 2v2 takes any 2 + 2) |
 | `mtg engine on` / `off` | anyone seated: the rules engine on or off |
+| `mtg ai <colour> harmless\|forge [deck]` / `mtg ai <colour> off` | host: who plays an empty seat, in every game while nobody sits there: `forge` a Forge AI player (with the deck named, or one of its own), `harmless` a test player that keeps its hand, passes every priority and never attacks or blocks; `off` frees the seat again. The companion's page sets the same |
 | `mtg start [ai N]` | anyone seated: start (optionally with N Forge AI players) |
 | `mtg reset` | host: end the game and give the imported decks back (anyone seated once the game is over) |
 | `mtg undo [N]` / `mtg vote yes/no` | rewind, and the vote on it (the player who asked: `mtg vote no` takes it back) |
+| `mtg repeat <n>` | after one pass of a loop by hand, back to the same board, repeat it n more times (up to 1000); the same as the Repeat ×N button. Anyone may respond, and that stops it |
+| `mtg stop` | stop a long run of triggers resolving by itself (your next priority with something on the stack is asked); it also stops a Repeat ×N |
+| `mtg refresh` | your hand, your question and your panels drawn again (after a lag-out, or a question that never showed) |
 | `mtg hold` / `mtg hold off` | keep priority once after something goes on the stack, to respond to your own trigger or with an ability (or press Hold); over your own spell you are asked anyway when you hold a spell to cast |
 | `mtg skip <phase>` / `mtg skip off` | the Auto-resolve list's "Until" choices, typed: upkeep, draw, main, combat, blockers, damage, main2, end, mine |
 | `mtg timer [seconds]` / `mtg timer off` | turn timers for everyone (host) |
@@ -378,8 +383,12 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 | `mtg art off` / `mtg art on` | host: everyone sees the normal card pictures / the pictures players linked in their deck lists (`1 Sol Ring #https://...`) |
 | `mtg fix` (`yes` / `no` / `done` / `cancel`) | the manual fix, as the Fix... button |
 | `mtg concede` | leave the game (twice within 15 s); in Two-Headed Giant and Three-Headed Giant it concedes for your whole team (in 2v2 and Juggernaut only for you). In best of three it concedes the game, not the match |
-| `mtg effects on/off`, `mtg sounds on/off` | your own effects and sounds |
-| `mtg sounds test <kind> [N]` | host: play one table sound now, with N the one for N at once (death 5 plays the 4-stack); kinds: knockout, wipe, death, exile, damage, lifegain, instant, counter (counter and knockout have no sound yet) |
+| `mtg effects on/off`, `mtg sounds on/off` | your own effects and sounds (the host's `mtg sounds on/off` is shared) |
+| `mtg animations on/off` | host: the table's animations, for everyone (also under Settings) |
+| `mtg fx on/low/off`, `mtg fx test <effect> [colour]` | host: the table's particle effects, all, fewer or none; `test` plays one now, at the card you point at |
+| `mtg sounds test <kind> [N]` | host: play one table sound now, with N the one for N at once (death 5 plays the 4-stack); kinds: knockout, wipe, bighit, death, exile, countered, playerhit, damage, lifegain, treasure, treasurespend, sorcery, instant, counter |
+| `mtg planechase on\|off` | host: Planechase in the next games |
+| `mtg planes random [N]` / `mtg planes <name>; <name>` | host: the planar decks: N random planes and phenomena a player (10 unless given, 1 to 30), or the planes named |
 | `mtg mana 99` | (testing) a manual fix in one line: 99 of each mana until the end of the turn |
 | `mtg debug <scenario>` / `list` / `off` | (testing) a test board from `scenarios/<name>.json`: 20 lands out (the commander's colours, or the lands the file names) and the scenario's cards in hand, plus anything it puts in other zones for you or the opponents. Typed before a game, it is set up at your first priority on your own turn (your opening hand is kept by itself); during one, at the next moment with nothing on the stack. Other players vote as for any fix |
 | `mtg hand <card>, <card> ...` / `mtg hand off` / `mtg hand` | (testing, with the host's debug tools on, against the AI only) your next game's starting cards, up to 7, the rest dealt from your deck; also the companion's **Starting hand** (Table tools → Debug tools). The engine deals the opening hand itself, so the picked cards are swapped in at your first priority in turn 1 and the dealt hand is kept by itself. (Getting them at the keep-or-mulligan question is coming) |
