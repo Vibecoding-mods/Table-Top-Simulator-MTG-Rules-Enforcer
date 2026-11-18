@@ -25,7 +25,7 @@ cd /build
   SharedTurnsDevTest SharedCombatTest SharedTurnsPlayTest ArchenemyTest ArchenemySchemeSweepTest ArchenemyViewTest \
   FirstPlayerTest CardStateRewindTest BigTurnsTest ThreeHeadedGiantTest ProtocolDefaultsTest AttackTaxLethalTest \
   SnapshotSpeedTest StressCapsTest ReplacementIndexTest TieOfferTest UnboundedTokensTest HeldPassResponseTest CostBadgeTest \
-  BigBoardFixesTest TeamChoiceTest
+  BigBoardFixesTest TeamChoiceTest LongTailTest
 failed=""
 for c in "$@"; do
   echo "=== $c"
