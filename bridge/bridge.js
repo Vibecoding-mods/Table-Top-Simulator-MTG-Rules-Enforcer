@@ -11882,7 +11882,7 @@ function onPrompt(seat, prompt) {
       // In plain words (playtest 2026-10-22: "pick #1 ... in the order the engine asks for" was confusing). Triggers:
       // the first in the list resolves first (Manabrew's own client: "Leftmost resolves first"). Cards put back on the
       // library: the LAST in the list ends on top (headless Ponder, kept order Abundance, Command Tower, Swamp: it drew
-      // Swamp, then Command Tower), so the player picks top first and the list is turned round. Cards bound for the
+      // Swamp, then Command Tower), so the player picks top first and the answer is turned round. Cards bound for the
       // bottom: the order rarely matters.
       const what = `${prompt.sourceAbilityText || ""} ${prompt.sourceCard?.text || ""}`;
       // (and "the rest on the bottom", Ripple's: Surging Dementia's three asked "click the card to put on top", hp-23 gap)
@@ -11960,7 +11960,10 @@ function onPrompt(seat, prompt) {
         return { id: i.id, label: labelOf(i, `${one ? cardLabel(i.card) : i.card?.identity?.name || cardLabel(i.card)} ×${block.length}`), img: imgOf(i.card) };
       });
       const unblock = (ids) => ids.flatMap((id) => (blocks.of.get(id) || [{ id }]).map((b) => b.id));
-      const step = orderSteps(words, hint, onTop ? [...items].reverse() : items,
+      // (shown in Forge's order: cards looked at on a library come top card first, getTopXCardsFromLibrary's and Dig's,
+      // so "Keep this order" leaves the library as it was; only the answer is turned round. Both were turned round, so
+      // Ponder's kept order put the third card on top: it drew the Island under Brainstorm's two, Mairsil hand test #28)
+      const step = orderSteps(words, hint, items,
         (ids) => ({ type: "reorderDecision", orderedIds: unblock(onTop ? [...ids].reverse() : ids) }));
       if (step.auto) { seat.respond(prompt.promptId, type, step.auto); return; }
       ({ ui, toOutput } = step);
