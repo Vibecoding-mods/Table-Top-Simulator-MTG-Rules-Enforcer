@@ -20,6 +20,9 @@ const fn = (src, name) => {
   return src.slice(a, b + 5);
 };
 const FUNCS = ["engineTieXml", "engineTieUpdate", "engineTieDraw", "engineTieWaits", "engineTieWords", "engineSteamOf", "engineSteamIds", "onMtgTie"].map((n) => fn(RENDERER, n)).join("");
+// (the seat colours list the renderer's functions walk, from its one definition)
+const SEATS = /\nENGINE_SEATS = \{[^}]*\}/.exec(RENDERER);
+if (!SEATS) { console.log("FAIL test_table_tie_offer: ENGINE_SEATS is gone"); process.exit(1); }
 // the chat's tie and accomplishments branches, from make-engine-copy.js's engineChat
 const chatFrom = COPY.indexOf('  elseif cmd == "tie" then');
 const chatTo = COPY.indexOf('  elseif cmd == "glow" then', chatFrom);
@@ -44,7 +47,7 @@ function lastSent() local s = sent[#sent] if s == nil then return "none" end ret
 `;
 const L = lauxlib.luaL_newstate();
 lualib.luaL_openlibs(L);
-if (lauxlib.luaL_loadstring(L, to_luastring(STUBS + FUNCS)) !== lua.LUA_OK || lua.lua_pcall(L, 0, 0, 0) !== lua.LUA_OK) {
+if (lauxlib.luaL_loadstring(L, to_luastring(STUBS + SEATS[0] + FUNCS)) !== lua.LUA_OK || lua.lua_pcall(L, 0, 0, 0) !== lua.LUA_OK) {
   console.log(`FAIL test_table_tie_offer: the code doesn't load: ${lua.lua_tojsstring(L, -1)}`); process.exit(1);
 }
 const q = (src) => {
