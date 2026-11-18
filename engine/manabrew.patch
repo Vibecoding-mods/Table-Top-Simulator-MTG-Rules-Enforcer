@@ -21775,10 +21775,10 @@ index 0000000..a5d3088
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ThreeHeadedGiantTest.java b/forge-harness/src/test/java/forge/harness/host/ThreeHeadedGiantTest.java
 new file mode 100644
-index 0000000..bc18d03
+index 0000000..4736f0d
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/ThreeHeadedGiantTest.java
-@@ -0,0 +1,333 @@
+@@ -0,0 +1,462 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -21834,6 +21834,11 @@ index 0000000..bc18d03
 +        CHECKS.put("cr810.8b aConcessionConcedesForAllThree", ThreeHeadedGiantTest::aConcessionConcedesForAllThree);
 +        CHECKS.put("cr805.10d theDefendingTeamOfThreeBlocksAsOneDecision", ThreeHeadedGiantTest::theDefendingTeamOfThreeBlocksAsOneDecision);
 +        CHECKS.put("cr805.10d aRevisePromptNamesThePartnerWhoChanged", ThreeHeadedGiantTest::aRevisePromptNamesThePartnerWhoChanged);
++        CHECKS.put("cr805.10d threes aMiddlePartnersChangeReasksOnlyWhoAnswered", ThreeHeadedGiantTest::aMiddlePartnersChangeReasksOnlyWhoAnswered);
++        CHECKS.put("cr805.10d threes aChangeInAReviseRoundReasksTheOtherTwoInTurnOrder", ThreeHeadedGiantTest::aChangeInAReviseRoundReasksTheOtherTwoInTurnOrder);
++        CHECKS.put("cr805.10d threes theCapAfterFourReasksLetsThePrimaryDecide", ThreeHeadedGiantTest::theCapAfterFourReasksLetsThePrimaryDecide);
++        CHECKS.put("cr805.10d threes aFirstAnswerTellsNobody", ThreeHeadedGiantTest::aFirstAnswerTellsNobody);
++        CHECKS.put("cr805.10d threes reasksAfterTwoChangesGoInTurnOrder", ThreeHeadedGiantTest::reasksAfterTwoChangesGoInTurnOrder);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
 +            check(e.getKey(), e.getValue());
 +        }
@@ -21955,6 +21960,130 @@ index 0000000..bc18d03
 +        final String first = f.session.getLatestPromptJson();
 +        expect(first.contains("\"title\":\"Block with Green and Purple\""), "the round 1 prompt doesn't name both partners: " + first);
 +        combat.setTeamBlockRound(-1);
++    }
++
++    private static void aMiddlePartnersChangeReasksOnlyWhoAnswered() throws Exception {
++        final Fixture f = new Fixture();
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        final Card giant = creature("Hill Giant", f.p(0));
++        final Card wall = creature("Wall of Wood", f.p(3));
++        final Card courser = creature("Centaur Courser", f.p(4));
++        creature("Trained Armodon", f.p(5));
++        final Combat combat = combatOf(f, f.p(0));
++        combat.addAttacker(bears, f.p(3));
++        combat.addAttacker(giant, f.p(3));
++        final Told told = scriptTold(f, Map.of(f.p(3), List.of(Map.of(wall, bears)), f.p(4), List.of(Map.of(courser, giant)), f.p(5), List.of(Map.of())));
++        declareBlockers(f);
++        expect(told.asked.equals(List.of("Green", "Blue", "Purple", "Green after Blue")),
++                "the team of three was asked " + told.asked + ", not Green, Blue, Purple, then only Green (who had answered) after Blue's change");
++        expect(new ArrayList<>(combat.getBlockers(bears)).equals(List.of(wall)) && new ArrayList<>(combat.getBlockers(giant)).equals(List.of(courser)),
++                "the team's block is " + combat.getBlockers(bears) + " / " + combat.getBlockers(giant));
++    }
++
++    private static void aChangeInAReviseRoundReasksTheOtherTwoInTurnOrder() throws Exception {
++        final Fixture f = new Fixture();
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        final Card giant = creature("Hill Giant", f.p(0));
++        final Card wall = creature("Wall of Wood", f.p(3));
++        creature("Centaur Courser", f.p(4));
++        final Card ox = creature("Trained Armodon", f.p(5));
++        final Combat combat = combatOf(f, f.p(0));
++        combat.addAttacker(bears, f.p(3));
++        combat.addAttacker(giant, f.p(3));
++        final Told told = scriptTold(f, Map.of(f.p(3), List.of(Map.of(), Map.of(wall, bears)), f.p(4), List.of(Map.of()), f.p(5), List.of(Map.of(ox, giant))));
++        declareBlockers(f);
++        expect(told.asked.equals(List.of("Green", "Blue", "Purple", "Green after Purple", "Blue after Green", "Purple after Green")),
++                "the team of three was asked " + told.asked + ", not round 1, Green after Purple, then Blue and Purple in turn order after Green's change");
++        expect(new ArrayList<>(combat.getBlockers(bears)).equals(List.of(wall)) && new ArrayList<>(combat.getBlockers(giant)).equals(List.of(ox)),
++                "the team's block is " + combat.getBlockers(bears) + " / " + combat.getBlockers(giant));
++    }
++
++    private static void theCapAfterFourReasksLetsThePrimaryDecide() throws Exception {
++        final Fixture f = new Fixture();
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        final Card giant = creature("Hill Giant", f.p(0));
++        final Card wall = creature("Wall of Wood", f.p(3));
++        creature("Centaur Courser", f.p(4));
++        final Card ox = creature("Trained Armodon", f.p(5));
++        final Combat combat = combatOf(f, f.p(0));
++        combat.addAttacker(bears, f.p(3));
++        combat.addAttacker(giant, f.p(3));
++        final Told told = scriptTold(f, Map.of(f.p(3), List.of(Map.of(wall, bears), Map.of()), f.p(4), List.of(Map.of()), f.p(5), List.of(Map.of(ox, giant), Map.of())));
++        declareBlockers(f);
++        expect(told.asked.equals(List.of("Green", "Blue", "Purple", "Green after Purple", "Blue after Green", "Purple after Green", "Green after Purple")),
++                "the team of three was asked " + told.asked + ", not round 1 then four re-asks before the cap");
++        expect(new ArrayList<>(combat.getBlockers(bears)).equals(List.of(wall)) && combat.getBlockers(giant).isEmpty(),
++                "at the cap the block is " + combat.getBlockers(bears) + " / " + combat.getBlockers(giant) + ", not the primary Green's latest (Wall of Wood on the Bears) with the partners' latest (none)");
++        expect(told.notices.stream().filter(n -> n.contains("Green") && (n.contains("settles") || n.contains("decides"))).count() == 3,
++                "the three defenders were not each told the primary decides: " + told.notices);
++    }
++
++    private static void aFirstAnswerTellsNobody() throws Exception {
++        final Fixture f = new Fixture();
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        final Card wall = creature("Wall of Wood", f.p(3));
++        creature("Centaur Courser", f.p(4));
++        creature("Trained Armodon", f.p(5));
++        final Combat combat = combatOf(f, f.p(0));
++        combat.addAttacker(bears, f.p(3));
++        final Told told = scriptTold(f, Map.of(f.p(3), List.of(Map.of(wall, bears))));
++        declareBlockers(f);
++        expect(told.asked.equals(List.of("Green", "Blue", "Purple")), "the team of three was asked " + told.asked + ", not once each");
++        expect(told.notices.isEmpty(), "a first answer, with no partner answered yet, told " + told.notices);
++    }
++
++    private static void reasksAfterTwoChangesGoInTurnOrder() throws Exception {
++        final Fixture f = new Fixture();
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        final Card giant = creature("Hill Giant", f.p(0));
++        final Card wall = creature("Wall of Wood", f.p(3));
++        final Card courser = creature("Centaur Courser", f.p(4));
++        final Card ox = creature("Trained Armodon", f.p(5));
++        final Combat combat = combatOf(f, f.p(0));
++        combat.addAttacker(bears, f.p(3));
++        combat.addAttacker(giant, f.p(3));
++        final Told told = scriptTold(f, Map.of(f.p(3), List.of(Map.of(), Map.of(wall, bears), Map.of(wall, bears)),
++                f.p(4), List.of(Map.of(), Map.of(courser, giant)), f.p(5), List.of(Map.of(ox, giant))));
++        declareBlockers(f);
++        expect(told.asked.equals(List.of("Green", "Blue", "Purple", "Green after Purple", "Blue after Green", "Green after Blue", "Purple after Blue")),
++                "the team of three was asked " + told.asked + ", not Green before Purple once Blue's change left both to ask again (turn order, not the order they were left)");
++        expect(new ArrayList<>(combat.getBlockers(bears)).equals(List.of(wall)) && combat.getBlockers(giant).containsAll(List.of(courser, ox)),
++                "the team's block is " + combat.getBlockers(bears) + " / " + combat.getBlockers(giant));
++    }
++
++    private static final class Told {
++        final List<String> asked = new ArrayList<>();
++        final List<String> notices = new ArrayList<>();
++    }
++
++    private static Told scriptTold(final Fixture f, final Map<Player, List<Map<Card, Card>>> answers) {
++        final Told out = new Told();
++        for (final Player p : f.game.getPlayers()) {
++            final List<Map<Card, Card>> mine = answers.getOrDefault(p, List.of(Map.of()));
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                private int asks;
++
++                @Override
++                public void declareBlockers(final Player defender, final Combat combat) {
++                    final Player changer = combat.getTeamBlockChangedBy();
++                    out.asked.add(defender.getName() + (combat.getTeamBlockRound() > 0 ? " after " + (changer == null ? "nobody" : changer.getName()) : ""));
++                    for (final Card own : new ArrayList<>(combat.getAllBlockers())) {
++                        if (own.getController() == defender) {
++                            combat.undoBlockingAssignment(own);
++                        }
++                    }
++                    for (final Map.Entry<Card, Card> e : mine.get(asks++ % mine.size()).entrySet()) {
++                        combat.addBlocker(e.getValue(), e.getKey());
++                    }
++                }
++
++                @Override
++                public void notifyOfValue(final SpellAbility sa, final GameObject target, final String value) {
++                    out.notices.add(p.getName() + ": " + value);
++                }
++            });
++        }
++        return out;
 +    }
 +
 +    private static List<Integer> lives(final Fixture f) {
