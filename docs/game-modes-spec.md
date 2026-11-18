@@ -1,7 +1,17 @@
 # Game modes spec: Standard, 2v2 (Team Commander and Two-Headed Giant), Juggernaut, six seats, Three-Headed Giant
 
 Status: spec, first written 2026-10-21 (milestone **M8**), **rewritten 2026-11-13** as the one current spec for every
-game mode. Nothing in §3–§9 is built. The Ready / Start buttons (§10) are built and live since 2026-10-21.
+game mode. The Ready / Start buttons (§10) are built and live since 2026-10-21.
+
+**Built since (status 2026-11-18; each section's "as built" note has the details):**
+- Standard, 1v1 and free-for-all (§3); best of three (§3.6), with the limits its note gives.
+- Team plumbing (§4) and 2v2 Team Commander / Standard 2v2 (§4.1).
+- Two-Headed Giant: Level 1 (§5.9), the rules audit and its one house rule (§5.9.1), Level 2's shared team turns as a
+  host option (§5.11), and the team's joint block (§5.12).
+- Juggernaut (§6.1). Archenemy (§13, new).
+- Three-Headed Giant at Level 1 (§8.4) and the six-seat table's code (§7; the six-seat save itself is not made yet).
+- Two-Headed Giant is the official rules plus one house rule (§5.9.1: a partner's life gain or loss counts as yours);
+  nothing else is shared beyond what the rules share.
 
 **What changed on 2026-11-13** (each change is marked "(2026-11-13)" where it lands):
 - The "engine spike" of the old phase 2 is done on paper: Forge's real team code is read and quoted in §2, with file:line.
@@ -668,8 +678,10 @@ has to be easy to read and easy to do".
   While a partner's joint block is open, the other partner's corner says "Waiting for Yellow..." (`engineTeamDeclaring`).
 - **Older prompts:** without the fields nothing changes: the old title, no Agree, no pre-fill, the panel not forced open
   (`test_bridge_golden`, `test_table_golden`; `tests/test_bridge_2hg_team_block.js` free-for-all and old-prompt cases).
-- **Shared turns by default:** `ENGINE_TEAM_TURNS = "shared"`, so a Two-Headed Giant Start sends `teamTurns: "shared"`
-  and the bridge's gameConfig `teamRules: "sharedTurns"`.
+- **Shared turns are a host option (as on main, 2026-11-18):** `ENGINE_TEAM_TURNS` is unset by default, so a Two-Headed
+  Giant game has each player's own turn; `mtg 2hg turns shared` makes a Start send `teamTurns: "shared"` (the bridge's
+  gameConfig `teamRules: "sharedTurns"`), and `mtg 2hg turns own` takes it back. The Teams button then reads "2HG team
+  turns". Not yet tried with several people.
 - **Tests:** `tests/test_bridge_2hg_team_block.js` drives `tests/golden/fixtures/2hg-team-block.json` (hand-built in the
   report's shapes, with its `decidingPlayerId` sequences: a change of mind, agreement, no change, the cap, a refusal,
   free-for-all; and the change of mind at Level 1). `tests/test_table_2hg_team_block.js` plays the bridge's prompts on
@@ -722,7 +734,7 @@ on purpose. Its team and per-player parts are §4.)
 - **Looks:** the tint round every mat, the Juggernaut's gold; the phase bar says "(JUGGERNAUT)" / "(YOU, THE
   JUGGERNAUT)" on its turns. The engine sends `teamNumber` only to a player with a teammate, so the bridge makes the
   lone Juggernaut a side of its own.
-- **Not built:** Archenemy schemes.
+- **Archenemy** is its own mode now: §13.
 
 ## 7. The six-seat table ("just copy everything and make sure it works with two more people")
 
@@ -870,6 +882,18 @@ skipping the first draw.
 
 Needs: §4, §5 Level 1 (or 2), and §7 (the six-seat table). In Level 1, three back-to-back turns per team.
 
+### 8.4 As built (2026-11-16, branches `three-headed-giant` and `3hg-table`; in engine1120)
+- **Setup (host):** `mtg mode 3hg`, or the Teams button on the six-seat table (Commander: None → 2HG → Juggernaut → 3HG;
+  Standard: None → 2v2 → 3HG). The teams are the table's sides, White + Red + Yellow against Green + Blue + Purple;
+  `mtg team` is refused. On the four-seat table it is refused ("Three-Headed Giant is played on the six-seat table").
+- **Numbers:** 120 life a team in Commander (the user's decision, §12; 63 commander damage), 45 in Standard; poison 20.
+  Level 1 only: each player's own turn, the team's back to back; a shared-turns request is ignored for 3HG.
+- **Table:** the life counter's hover "Team life: ...", "POISON n/20", the phase bar's team tags. Not built: the team
+  tint and shared team-life panel between the mats (drawn only for teams of two), and a team life tracker for three
+  mats a side (§8.3).
+- **Not done:** the six-seat save ("MTG 6 player table - ENGINE MODE") isn't made yet, so 3HG has not run on a real
+  table; nothing was tried in TTS. Conceding says "You are both out for good" even with three partners.
+
 ## 9. Order of work and hours
 
 | # | Step | Hours | Needs |
@@ -939,6 +963,25 @@ The questions as asked:
 4. **Six seats:** do you want M6 un-parked now, and may it become a second table save ("Mock MTGA 6 player")? (The m6
    spec's commander damage question, A or B, comes with it.)
 5. **Partners' hands:** in 2HG and 3HG, should partners see each other's hands on the table? The rules allow it.
+
+## 13. Archenemy (as built 2026-11-16/17; in engine1121)
+
+- **Setup (host):** `mtg archenemy <colour>` (a player or an AI) or `off`; the setup tile's **Archenemy** button
+  cycles Off and the four colours (four-player table only). The switch overrides the table's teams: the archenemy
+  against everyone else as one team, 2-4 players, Commander or Standard.
+- **Scheme deck:** `mtg schemes random` (20 of Forge's schemes) or `mtg schemes <name>; <name>; ...` (at least 20, at
+  most 2 of each).
+- **Game:** the archenemy has 80 life in Commander (40 in Standard) and goes first; the others keep their own life and
+  turns. At each of the archenemy's first main phases the top scheme is set in motion. The archenemy wins when all the
+  others have lost; they win together when the archenemy loses.
+- **Table (look only):** the scheme set in motion last, face up at 1.5× by the archenemy's mat; ongoing schemes in a row
+  beside it; the scheme deck face down ("ARCHENEMY / 20 SCHEMES", hover for the count); a gold banner "SET IN MOTION:
+  <SCHEME>" on every screen once per scheme; "(ARCHENEMY)" in the phase bar; the archenemy's mat line in gold.
+- **Undo is off** in Archenemy games: "the schemes in play can't be rewound yet".
+- **Six seats: coming.** On the six-seat table the Start is refused ("Archenemy is played on the 4-player table for
+  now"), and the setup button is hidden. The six-seat work is on an unmerged branch.
+- **Not checked on the real table:** the schemes' spots, the setup button's place, the banner across a bridge restart;
+  schemes are drawn at a normal card's shape for now.
 
 ## Sources
 
