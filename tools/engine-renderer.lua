@@ -464,15 +464,19 @@ function engineCostChange(mc, ec, em)
 end
 -- The cost badge's buttons for card c, in drawing order: { name, label, colour, tooltip, font colour, { x, y, z, w, h,
 -- fs } }. The rim first, a little below the counter, which is drawn over it; the chip last.
--- First, a playable row card's origin when it came from a graveyard (the bridge's og): "FROM GRAVEYARD" across the
--- top of its art, as it left the graveyard pile for the row (readability audit B4).
+-- First, a playable row card's origin when it came from a graveyard or exile (the bridge's og): "FROM GRAVEYARD" or
+-- "FROM EXILE" across the top of its art, as it left that pile for the row (readability audit B4; live check 1, an
+-- adventure creature on its adventure showed nothing). Its hover says where it is cast from, and why when the bridge
+-- knows (ogw: who let it be played, madness, warp).
 BADGE.from = { x = 0, y = 0.3, z = -0.8, w = 760, h = 110, fs = 70, bg = { 0.24, 0.2, 0.3, 0.95 } }
 function engineCostParts(c)
   local parts = {}
   if c.fd or c.pv then return parts end -- (a card hidden from the others: buttons may show to every player, so none)
-  if c.og == "graveyard" then
+  if c.og == "graveyard" or c.og == "exile" then
     local F = BADGE.from
-    parts[1] = { "costFrom", "FROM GRAVEYARD", F.bg, "Playable from its owner's graveyard", { 1, 1, 1 }, { x = F.x, y = F.y, z = F.z, w = F.w, h = F.h, fs = F.fs } }
+    local tip = c.og == "exile" and "Playable from exile" or "Playable from its owner's graveyard"
+    if type(c.ogw) == "string" and c.ogw ~= "" then tip = tip .. ": " .. c.ogw end
+    parts[1] = { "costFrom", c.og == "exile" and "FROM EXILE" or "FROM GRAVEYARD", F.bg, tip, { 1, 1, 1 }, { x = F.x, y = F.y, z = F.z, w = F.w, h = F.h, fs = F.fs } }
   end
   local ch = engineCostChange(c.mc, c.ec, c.em)
   if ch == nil then return parts end
@@ -499,7 +503,7 @@ end
 -- The one string that says whether the cost badge changed (updateBadge's engineBadge)
 function engineCostText(c)
   local out = {}
-  for _, b in ipairs(engineCostParts(c)) do out[#out + 1] = b[1] .. "=" .. b[2] .. "=" .. table.concat(b[3], ",") .. "=" .. string.format("%.3f", b[6].x) end
+  for _, b in ipairs(engineCostParts(c)) do out[#out + 1] = b[1] .. "=" .. b[2] .. "=" .. table.concat(b[3], ",") .. "=" .. string.format("%.3f", b[6].x) .. "=" .. tostring(b[4]) end
   return table.concat(out, ";")
 end
 function engineCostDraw(o, c)
@@ -1917,6 +1921,29 @@ function engineMarksOutward(o)
   if s > 0.01 then return 1 elseif s < -0.01 then return -1 end
   return 0
 end
+-- The strip a player's marks boxes may fill on their life tracker: every box ENGINE_MARKS_FIT allows (`boxes`, the last
+-- one "+n MORE") at the tallest one-line box (380 at font 300), from `top` down, `inner` towards the middle to `max`
+-- wide, in the tracker's button coordinates (x as a button's, the object's local x negated). A GIF frame keeps off it
+-- (engineGif.freeSpot): live check 1, White's frame on the 4-player table lay at (4.2, -7.9), over SPELLS THIS TURN and
+-- the effects boxes under it. { o, x1, x2, z1, z2, k = local units in one world unit }, or nil with no tracker.
+function engineMarksStrip(color)
+  local o = getObjectFromGUID((LIFE_TRACKERS or {})[color] or "")
+  if o == nil then return nil end
+  local F = ENGINE_MARKS_FIT
+  local sign = engineMarksOutward(o)
+  if sign == 0 then sign = 1 end
+  local xa, xb = sign * -F.inner / F.perLocal, sign * (F.max - F.inner) / F.perLocal
+  local sc = o.getScale()
+  return { o = o, x1 = math.min(xa, xb), x2 = math.max(xa, xb), z1 = F.top, z2 = F.top + F.boxes * (380 + F.gap) / F.perLocal,
+    k = 1 / math.max(0.01, (sc and sc.x) or 1) }
+end
+-- whether a square of half-size `half` (world units) at world point p reaches into strip s (engineMarksStrip)
+function engineMarksStripHit(s, p, half)
+  if s == nil then return false end
+  local l = s.o.positionToLocal(p)
+  local bx, h = -l.x, half * s.k
+  return bx + h > s.x1 and bx - h < s.x2 and l.z + h > s.z1 and l.z - h < s.z2
+end
 function enginePlayerCounters(o, pl)
   if o == nil then return end
   local parts = {}
@@ -2450,9 +2477,13 @@ end
 -- Planned attacks (the user 2026-11-16: "targeting lines ... to show who you're targeting before attacks"): while the
 -- turn player answers the attack question, each attacker picked so far is drawn dashed, in a light shade of their seat
 -- colour, to whom it will attack (enginePlannedAttacks); the declared board's attack lines replace them.
+-- (Live check 1: the planned line was too thin and faint to see, 0.12 wide, halfway to white, on a low arc under the
+-- cards; now as wide as a target line, a quarter towards white, on a target line's arc, ten dashes. And from White to
+-- Red on the 4-player table it ran over White's own life counter, the two counters 7 apart at the middle: it bends
+-- around the attacker's own counter, towards the middle of the table, ENGINE_LINE_AVOID.)
 do -- (its own scope, as the setup buttons below: the main chunk is at standard Lua's 200-locals limit)
 local LINE_STYLE = { target = { color = {0.35, 0.85, 1}, thickness = 0.3001 }, attack = { color = {1, 0.32, 0.4}, thickness = 0.2201 },
-  block = { color = {1, 0.8, 0.25}, thickness = 0.1601 }, planned = { color = {1, 0.75, 0.8}, thickness = 0.1201 } }
+  block = { color = {1, 0.8, 0.25}, thickness = 0.1601 }, planned = { color = {1, 0.75, 0.8}, thickness = 0.2601 } }
 -- TTS's seat colours, for the planned lines (mixed halfway to white when drawn, so they read lighter than a declared line)
 local SEAT_RGB = { White = {1, 1, 1}, Brown = {0.44, 0.23, 0.09}, Red = {0.86, 0.1, 0.09}, Orange = {0.96, 0.39, 0.11},
   Yellow = {0.9, 0.9, 0.17}, Green = {0.19, 0.7, 0.17}, Teal = {0.13, 0.69, 0.61}, Blue = {0.12, 0.53, 1},
@@ -2462,7 +2493,7 @@ local function plannedStyle(color)
   if plannedStyles[color] == nil then
     local rgb = SEAT_RGB[tostring(color)]
     plannedStyles[color] = rgb == nil and LINE_STYLE.planned or
-      { color = { (1 + rgb[1]) / 2, (1 + rgb[2]) / 2, (1 + rgb[3]) / 2 }, thickness = LINE_STYLE.planned.thickness }
+      { color = { (1 + 3 * rgb[1]) / 4, (1 + 3 * rgb[2]) / 4, (1 + 3 * rgb[3]) / 4 }, thickness = LINE_STYLE.planned.thickness }
   end
   return plannedStyles[color]
 end
@@ -2505,6 +2536,43 @@ local function arc(a, b, lift)
     pts[#pts + 1] = { a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t + 0.3 + 4 * h * t * (1 - t), a.z + (b.z - a.z) * t }
   end
   return pts
+end
+-- The life counter's footprint a planned attack line keeps off (world half-sizes across and along the table from the
+-- counter's centre: the heart, its +/- buttons and the commander-damage icons, at the tracker's 1.258 scale), how far
+-- outside it the line stays, and the most it bends (world units of the curve's middle)
+ENGINE_LINE_AVOID = { hx = 3.4, hz = 2.7, clear = 0.4, most = 14 }
+-- (ENGINE_LINE_AVOID.hit, .arc: functions on the global, no new locals)
+-- whether a curve's points (from `from` on) reach into the footprint around t
+function ENGINE_LINE_AVOID.hit(pts, t, from)
+  local A = ENGINE_LINE_AVOID
+  for i = from, #pts do
+    if math.abs(pts[i][1] - t.x) < A.hx + A.clear and math.abs(pts[i][3] - t.z) < A.hz + A.clear then return true end
+  end
+  return false
+end
+-- a raised curve from a to b, 21 points, bent around the life counter at `avoid` when the straight one would cross it:
+-- a quadratic curve whose middle is pushed sideways, to the side of the line away from the attacker's mat (`mat`, so
+-- it bends towards the middle of the table, not over the marks boxes under the counter), as little as clears it
+function ENGINE_LINE_AVOID.arc(a, b, lift, avoid, mat)
+  local d = math.sqrt((b.x - a.x) ^ 2 + (b.z - a.z) ^ 2)
+  local h = lift or (0.5 + d * 0.12)
+  local nx, nz = 0, 0
+  if d > 0.001 then nx, nz = -(b.z - a.z) / d, (b.x - a.x) / d end
+  if avoid ~= nil and mat ~= nil and nx * (avoid.x - mat.x) + nz * (avoid.z - mat.z) < 0 then nx, nz = -nx, -nz end
+  local pts = {}
+  local push = 0
+  while true do
+    pts = {}
+    local cx, cz = (a.x + b.x) / 2 + nx * push, (a.z + b.z) / 2 + nz * push
+    for i = 0, 20 do
+      local t = i / 20
+      local u = 1 - t
+      pts[#pts + 1] = { u * u * a.x + 2 * u * t * cx + t * t * b.x, a.y + (b.y - a.y) * t + 0.3 + 4 * h * t * (1 - t), u * u * a.z + 2 * u * t * cz + t * t * b.z }
+    end
+    -- (the curve's start may lie on the counter itself, a creature dropped there: only the part past it is checked)
+    if avoid == nil or push >= 2 * ENGINE_LINE_AVOID.most or not ENGINE_LINE_AVOID.hit(pts, avoid, 4) then return pts end
+    push = push + 1
+  end
 end
 -- Attack lunge (the player, 2026-10-22, as in Arena): when combat damage is dealt, each attacking card swings all of
 -- the way into what it hits (its blocker, the planeswalker or battle, or the back centre of the defending player's
@@ -2604,12 +2672,13 @@ function engineDrawLines(m, stackSpot)
   local ours = {}
   local drawn = {} -- (one line per pair of spots: twenty tokens in one stack attacking one player are one line)
   -- (dashed: five short lines along the arc, the first gap at the attacker and the last dash on the target)
-  local function add(a, b, style, lift, dashed)
+  -- (avoid, mat: a planned line's attacker's own life counter and mat, bentArc)
+  local function add(a, b, style, lift, dashed, avoid, mat)
     if a == nil or b == nil then return end
     local key = string.format("%.2f,%.2f,%.2f,%.2f,%.4f", a.x, a.z, b.x, b.z, style.thickness)
     if drawn[key] then return end
     drawn[key] = true
-    local pts = arc(a, b, lift)
+    local pts = dashed and ENGINE_LINE_AVOID.arc(a, b, lift, avoid, mat) or arc(a, b, lift)
     if not dashed then ours[#ours + 1] = { points = pts, color = style.color, thickness = style.thickness } return end
     for i = 2, #pts - 1, 2 do ours[#ours + 1] = { points = { pts[i], pts[i + 1] }, color = style.color, thickness = style.thickness } end
   end
@@ -2637,7 +2706,8 @@ function engineDrawLines(m, stackSpot)
     -- attacking; a token stack split among players is one stack, and one line, per player: engineCombatSubs reads the
     -- same plan)
     for _, pa in ipairs(enginePlannedAttacks(m)) do
-      add(cardSpot(pa[1]), LIFE_TRACKERS[pa[2]] ~= nil and playerSpot(pa[2]) or cardSpot(pa[2]), plannedStyle(pa[3]), 0.5, true)
+      local g = seatGeometry(pa[3])
+      add(cardSpot(pa[1]), LIFE_TRACKERS[pa[2]] ~= nil and playerSpot(pa[2]) or cardSpot(pa[2]), plannedStyle(pa[3]), nil, true, lifeSpot(pa[3]), g and g.mat or nil)
     end
   end
   -- only when they changed (setVectorLines redraws for everyone and goes into the save)
@@ -11999,8 +12069,10 @@ function engineGif.play(c)
 end
 
 -- ───── spawning ─────
--- the first candidate spot no object lies on (else the first one). Runs once per new frame; the cheap distance test
--- comes first so the busy table's far objects cost one getPosition each (no GM notes, no bounds)
+-- the first candidate spot no object lies on, nor the strip the owner's marks boxes may fill (engineMarksStrip: buttons
+-- on the life tracker, which getBounds doesn't see), else the first one off that strip, else the first one. Runs once
+-- per new frame; the cheap distance test comes first so the busy table's far objects cost one getPosition each (no GM
+-- notes, no bounds)
 function engineGif.freeSpot(c, g)
   local G = engineGif
   local near = {}
@@ -12012,19 +12084,21 @@ function engineGif.freeSpot(c, g)
     end
   end
   local half = G.SIZE + 0.2
-  local first = nil
+  local strip = engineMarksStrip(c)
+  local first, offStrip = nil, nil
   for _, r in ipairs(G.SPOTS_R) do
     for _, f in ipairs(G.SPOTS_F) do
       local p = onTable(g.mat + g.right * r + g.fwd * f, 0.2)
       if first == nil then first = p end
-      local free = true
+      local free = not engineMarksStripHit(strip, p, half)
+      if free and offStrip == nil then offStrip = p end
       for _, b in ipairs(near) do
-        if math.abs(b.center.x - p.x) < half + b.size.x / 2 and math.abs(b.center.z - p.z) < half + b.size.z / 2 then free = false break end
+        if free and math.abs(b.center.x - p.x) < half + b.size.x / 2 and math.abs(b.center.z - p.z) < half + b.size.z / 2 then free = false end
       end
       if free then return p end
     end
   end
-  return first
+  return offStrip or first
 end
 -- (re)spawns c's frame showing G.state[c], where the old one lay (or in a free spot); one at a time per colour
 function engineGif.spawn(c)
