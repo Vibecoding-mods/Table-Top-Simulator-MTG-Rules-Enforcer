@@ -72,7 +72,7 @@ All of these are still open: nothing was seen in TTS. See (d), which adds the ne
     (`cloud/l2-team-choices`, engine1126): the controller of the spell or ability chooses, as the rules
     say (not the whole team); with no controller in the game, the active team's leader;
   - ~~805.10c's "attacking player" with no creature named goes to the active team's first seat~~ (same branch): the
-    controller chooses there too. `TeamChoiceTest`, 18 checks;
+    controller chooses there too. `TeamChoiceTest`, 31 checks with the review fixes (`cloud/l2-team-choices-fixes`);
   - 805.3a's simultaneous mulligans are checked only for order.
 
 **Best of three:**
