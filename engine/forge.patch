@@ -1,5 +1,5 @@
 diff --git a/forge-ai/src/main/java/forge/ai/AiAttackController.java b/forge-ai/src/main/java/forge/ai/AiAttackController.java
-index c3b3b8ab..08516aac 100644
+index c3b3b8ab..5ba38bfd 100644
 --- a/forge-ai/src/main/java/forge/ai/AiAttackController.java
 +++ b/forge-ai/src/main/java/forge/ai/AiAttackController.java
 @@ -126,6 +126,18 @@ public class AiAttackController {
@@ -59,7 +59,7 @@ index c3b3b8ab..08516aac 100644
          // round away slightly so a single land drop doesn't mean players with earlier turn order are predictably attacked
          // grows with game age since by then threat ranges become less narrow
          int threatLimit = Collections.max(threatScores.values()) - 10 - ai.getGame().getPhaseHandler().getTurn();
-@@ -232,6 +265,53 @@ public class AiAttackController {
+@@ -232,6 +265,243 @@ public class AiAttackController {
          return Aggregates.random(threatScores.keySet());
      }
  
@@ -74,33 +74,223 @@ index c3b3b8ab..08516aac 100644
 +        return best;
 +    }
 +
-+    // The assault past the budget, with no attacker-blocker checks: each of the defender's possible blockers (and its
-+    // extra blocks) blocks the biggest attacker it could, a blocker without flying or reach only those without flying,
-+    // and is what is left lethal? (Other evasion counts as none, so it errs on not attacking.)
++    // The assault past the budget, with no attacker-blocker checks (attackers + blockers, sorted): is what the
++    // defender's possible blockers can't stop lethal? Each side is read once:
++    //  - a blocker that can't block (CombatUtil.canBlock for this turn or the next, as this controller is asked) is none;
++    //    one that can block any number blocks as many as there are attackers, an extra block count is capped the same;
++    //    the rest are counted in bins by what limits whom they can block (flying or reach, shadow, horsemanship,
++    //    colour), and their toughness is summed (times how many blocks each makes);
++    //  - an attacker none of the bins can block (flying, shadow, horsemanship, protection from every blocker's colour,
++    //    or "can't be blocked") is unblocked; double strike deals twice; menace takes two blocks; infect counts nothing
++    //    toward life;
++    //  - the tramplers that the bins can block deal at least their total less every blocker's toughness (no more than the
++    //    biggest trampler's damage, times its blocks), however the defender gang-blocks them, and a trampler that a first
++    //    or double striker there could kill
++    //    first counts nothing; the tramplers take none of the blocks below;
++    //  - the defender's blocks go where they stop the most damage per block (ground blocks to ground attackers first,
++    //    then flying or reach to any), a menace attacker allowed half a block: that is at least what the defender can
++    //    stop;
++    //  - lethal only when that reaches the defender's life plus what every lifelink blocker could gain (its power, twice
++    //    with double strike), and never with a Fog the defender may have or a teammate who can't lose, so the estimate
++    //    errs on not attacking. Deathtouch, the attackers' own first strike and other blocking limits count as none (each
++    //    makes the defender look stronger, never weaker).
 +    private boolean cheapAssault() {
-+        if (defendingOpponent == null || defendingOpponent.getLife() <= 0 || defendingOpponent.cantLoseForZeroOrLessLife()) {
++        if (defendingOpponent == null || defendingOpponent.getLife() <= 0) {
 +            return false;
 +        }
-+        int groundBlocks = 0, airBlocks = 0;
-+        for (Card b : this.blockers) {
-+            if (b.hasKeyword(Keyword.FLYING) || b.hasKeyword(Keyword.REACH)) {
-+                airBlocks += 1 + b.canBlockAdditional();
-+            } else {
-+                groundBlocks += 1 + b.canBlockAdditional();
++        for (Player p : defendingOpponent.sharedLifeTeam()) {
++            if (p.isInGame() && p.cantLoseForZeroOrLessLife()) {
++                return false;
 +            }
 +        }
-+        final List<Integer> ground = new ArrayList<>(), left = new ArrayList<>();
++        if (ComputerUtil.hasAFogEffect(defendingOpponent, ai, true)) {
++            return false;
++        }
++        final int[] bins = new int[256];
++        final int cap = Math.max(1, this.attackers.size());
++        long groundBlocks = 0, airBlocks = 0, lifeBack = 0;
++        int firstStrikePower = -1;
++        final List<int[]> toughness = new ArrayList<>();
++        for (Card b : this.blockers) {
++            if (!CombatUtil.canBlock(b, this.nextTurn)) {
++                continue;
++            }
++            final boolean air = b.hasKeyword(Keyword.FLYING) || b.hasKeyword(Keyword.REACH);
++            final int blocks = b.canBlockAny() ? cap : (int) Math.min(cap, 1L + Math.max(0, b.canBlockAdditional()));
++            if (air) {
++                airBlocks += blocks;
++            } else {
++                groundBlocks += blocks;
++            }
++            toughness.add(new int[] {Math.max(0, b.getNetToughness()), blocks});
++            final int power = Math.max(0, b.getNetCombatDamage());
++            final boolean strikesTwice = b.hasKeyword(Keyword.DOUBLE_STRIKE);
++            if (b.hasKeyword(Keyword.LIFELINK)) {
++                lifeBack += (long) power * (strikesTwice ? 2 : 1);
++            }
++            if (strikesTwice || b.hasKeyword(Keyword.FIRST_STRIKE)) {
++                firstStrikePower = Math.max(firstStrikePower, power);
++            }
++            bins[blockerBin(air, b.hasKeyword(Keyword.SHADOW), b.hasKeyword(Keyword.HORSEMANSHIP), b.getColor().getColor())]++;
++        }
++        final java.util.Set<Card> unblockableHosts = new java.util.HashSet<>();
++        final List<forge.game.staticability.StaticAbility> unblockableRules = new ArrayList<>();
++        readUnblockable(unblockableHosts, unblockableRules);
++        long unblocked = 0;
++        final List<long[]> ground = new ArrayList<>(), anyBlock = new ArrayList<>(), tramplers = new ArrayList<>();
 +        for (Card a : this.attackers) {
-+            (a.hasKeyword(Keyword.FLYING) ? left : ground).add(a.getNetCombatDamage());
++            if (a.hasKeyword(Keyword.INFECT)) {
++                continue;
++            }
++            final long hit = (long) Math.max(0, a.getNetCombatDamage()) * (a.hasKeyword(Keyword.DOUBLE_STRIKE) ? 2 : 1);
++            if (hit == 0) {
++                continue;
++            }
++            if (unblockable(a, unblockableHosts, unblockableRules) || StaticAbilityAssignCombatDamageAsUnblocked.assignCombatDamageAsUnblocked(a)
++                    || !anyBinBlocks(bins, a)) {
++                unblocked += hit;
++                continue;
++            }
++            final int need = a.hasKeyword(Keyword.MENACE) ? 2 : 1;
++            final long[] entry = {hit, need, a.hasKeyword(Keyword.FLYING) ? 1 : 0, a.getNetToughness()};
++            if (a.hasKeyword(Keyword.TRAMPLE)) {
++                tramplers.add(entry);
++            } else {
++                (entry[2] == 1 ? anyBlock : ground).add(new long[] {hit, need});
++            }
 +        }
-+        ground.sort(Collections.reverseOrder());
-+        left.addAll(ground.subList(Math.min(groundBlocks, ground.size()), ground.size()));
-+        left.sort(Collections.reverseOrder());
-+        int damage = 0;
-+        for (int i = airBlocks; i < left.size(); i++) {
-+            damage += left.get(i);
++        long trampleHit = 0, biggestHit = 0, held = 0;
++        for (long[] t : tramplers) {
++            if (firstStrikePower < Math.max(1, t[3])) {
++                trampleHit += t[0];
++                biggestHit = Math.max(biggestHit, t[0]);
++            }
 +        }
-+        return damage >= defendingOpponent.getLife();
++        for (int[] t : toughness) {
++            held += Math.min(t[0], biggestHit) * t[1];
++        }
++        unblocked += Math.max(0, trampleHit - held);
++        final java.util.Comparator<long[]> perBlock = (x, y) -> Long.compare(y[0] * x[1], x[0] * y[1]);
++        ground.sort(perBlock);
++        long left = groundBlocks;
++        for (long[] g : ground) {
++            if (left >= g[1]) {
++                left -= g[1];
++            } else if (left > 0) {
++                left = 0;
++                anyBlock.add(new long[] {g[0] / 2, 1});
++            } else {
++                anyBlock.add(g);
++            }
++        }
++        anyBlock.sort(perBlock);
++        left = airBlocks;
++        for (long[] g : anyBlock) {
++            if (left >= g[1]) {
++                left -= g[1];
++            } else if (left > 0) {
++                left = 0;
++                unblocked += g[0] / 2;
++            } else {
++                unblocked += g[0];
++            }
++        }
++        final boolean lethal = unblocked >= (long) defendingOpponent.getLife() + lifeBack;
++        (lethal ? CHEAP_LETHAL : CHEAP_SAFE).incrementAndGet();
++        return lethal;
++    }
++
++    // cheapAssault's answers, so tests can see the estimate without timing: how often it found the attack lethal, and not
++    private static final java.util.concurrent.atomic.AtomicLong CHEAP_LETHAL = new java.util.concurrent.atomic.AtomicLong();
++    private static final java.util.concurrent.atomic.AtomicLong CHEAP_SAFE = new java.util.concurrent.atomic.AtomicLong();
++    public static long getCheapAssaultsLethal() {
++        return CHEAP_LETHAL.get();
++    }
++    public static long getCheapAssaultsSafe() {
++        return CHEAP_SAFE.get();
++    }
++
++    // The "can't be blocked" rules that hold whatever the blocker (no ValidBlocker or relative test; landwalk left out),
++    // read once from the game's static abilities: one on its own host (Phantom Warrior) by host, the rest as rules
++    // matched against each attacker. (CombatUtil.canBeBlocked with no combat asks applyCantBlockByAbility with no
++    // blocker, which never says "can't".)
++    private void readUnblockable(final java.util.Set<Card> hosts, final List<forge.game.staticability.StaticAbility> rules) {
++        for (Card host : ai.getGame().getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
++            for (forge.game.staticability.StaticAbility st : host.getStaticAbilities()) {
++                if (!st.checkConditions(forge.game.staticability.StaticAbilityMode.CantBlockBy) || st.hasParam("ValidBlocker")
++                        || st.hasParam("ValidAttackerRelative") || st.hasParam("ValidBlockerRelative") || st.isKeyword(Keyword.LANDWALK)) {
++                    continue;
++                }
++                if (st.hasParam("ValidDefender") && !st.matchesValidParam("ValidDefender", defendingOpponent)) {
++                    continue;
++                }
++                final String valid = st.getParam("ValidAttacker");
++                if ("Creature.Self".equals(valid) || "Card.Self".equals(valid)) {
++                    hosts.add(host);
++                } else {
++                    rules.add(st);
++                }
++            }
++        }
++    }
++
++    private static boolean unblockable(final Card a, final java.util.Set<Card> hosts, final List<forge.game.staticability.StaticAbility> rules) {
++        if (hosts.contains(a)) {
++            return a.isCreature();
++        }
++        for (forge.game.staticability.StaticAbility st : rules) {
++            if (st.matchesValidParam("ValidAttacker", a)) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    private static int blockerBin(final boolean air, final boolean shadow, final boolean horsemanship, final byte colors) {
++        return (air ? 128 : 0) | (shadow ? 64 : 0) | (horsemanship ? 32 : 0) | (colors & 31);
++    }
++
++    // Whether some counted blocker could block this attacker as far as its evasion and protection say; protection
++    // from a quality other than colour, and fear, intimidate and skulk, count as no evasion
++    private static boolean anyBinBlocks(final int[] bins, final Card a) {
++        final boolean flying = a.hasKeyword(Keyword.FLYING), shadow = a.hasKeyword(Keyword.SHADOW), horse = a.hasKeyword(Keyword.HORSEMANSHIP);
++        final int protection = protectedColors(a);
++        for (int bin = 0; bin < bins.length; bin++) {
++            if (bins[bin] == 0 || (flying && (bin & 128) == 0) || (shadow && (bin & 64) == 0) || (horse && (bin & 32) == 0)) {
++                continue;
++            }
++            final int colors = bin & 31;
++            if (protection == 64 || (colors & protection) != 0) {
++                continue;
++            }
++            return true;
++        }
++        return false;
++    }
++
++    private static final String[] COLOR_WORDS = {"white", "blue", "black", "red", "green"};
++
++    // The colours an attacker's protection keeps blockers of (MagicColor bits), 64 for protection from everything
++    private static int protectedColors(final Card a) {
++        int mask = 0;
++        for (forge.game.keyword.KeywordInterface k : a.getKeywords(Keyword.PROTECTION)) {
++            final String text = String.valueOf(k.getOriginal()).toLowerCase(java.util.Locale.ROOT);
++            if (text.equals("protection from everything")) {
++                return 64;
++            }
++            if (text.equals("protection from each color") || text.equals("protection from all colors")) {
++                mask |= forge.card.MagicColor.ALL_COLORS;
++                continue;
++            }
++            final String what = text.startsWith("protection from ") ? text.substring("protection from ".length())
++                    : text.startsWith("protection:card.") ? text.substring("protection:card.".length()).split(":")[0] : "";
++            for (int c = 0; c < COLOR_WORDS.length; c++) {
++                if (what.equals(COLOR_WORDS[c])) {
++                    mask |= forge.card.MagicColor.WUBRG[c];
++                }
++            }
++        }
++        return mask;
 +    }
 +
 +    // the checks doAssault makes (each attacker's attack cost, each attacker against the blockers), so tests can count
@@ -113,7 +303,7 @@ index c3b3b8ab..08516aac 100644
      public static List<Card> sortAttackers(final List<Card> in) {
          final List<Card> result = new ArrayList<>();
  
-@@ -577,10 +657,15 @@ public class AiAttackController {
+@@ -577,10 +847,15 @@ public class AiAttackController {
          }
      }
  
@@ -129,7 +319,7 @@ index c3b3b8ab..08516aac 100644
  
          if (ai.isCardInPlay("Beastmaster Ascension") && this.attackers.size() > 1) {
              final CardCollectionView beastions = ai.getCardsIn(ZoneType.Battlefield, "Beastmaster Ascension");
-@@ -634,6 +719,7 @@ public class AiAttackController {
+@@ -634,6 +909,7 @@ public class AiAttackController {
  
          Map<Card, Integer> attackCosts = Maps.newHashMap();
          for (Card attacker : categorizedAttackers) {
@@ -137,7 +327,7 @@ index c3b3b8ab..08516aac 100644
              Cost tax = CombatUtil.getAttackCost(ai.getGame(), attacker, defendingOpponent);
              if (tax != null && tax.getCostMana().getMana().getCMC() > 0) {
                  // TODO might sort by quotient of dmg/cost for best combination
-@@ -653,6 +739,9 @@ public class AiAttackController {
+@@ -653,6 +929,9 @@ public class AiAttackController {
          // when an attacker gets taxed the best priority to pay for damage is usually: 1. unblockable 2. trample 3. normal
          CardCollection accountedBlockers = new CardCollection(this.blockers);
          while (!categorizedAttackers.isEmpty()) {
@@ -147,7 +337,7 @@ index c3b3b8ab..08516aac 100644
              Card attacker = categorizedAttackers.get(0);
              int cost = attackCosts.getOrDefault(attacker, 0);
              if (cost > myFreeMana) {
-@@ -663,6 +752,7 @@ public class AiAttackController {
+@@ -663,6 +942,7 @@ public class AiAttackController {
                  attackCosts.remove(attacker);
                  continue;
              }
@@ -155,7 +345,7 @@ index c3b3b8ab..08516aac 100644
              if (!CombatUtil.canBeBlocked(attacker, accountedBlockers, null)
                      || StaticAbilityAssignCombatDamageAsUnblocked.assignCombatDamageAsUnblocked(attacker)) {
                  unblockedAttackers.add(attacker);
-@@ -681,8 +771,12 @@ public class AiAttackController {
+@@ -681,8 +961,12 @@ public class AiAttackController {
          // TODO need to sort attackers AI shouldn't pay for to the end
  
          for (Card blocker : this.blockers) {
@@ -1320,7 +1510,7 @@ index 8d204538..c41c160c 100644
          return noGUIUser;
      }
 diff --git a/forge-game/src/main/java/forge/game/GameAction.java b/forge-game/src/main/java/forge/game/GameAction.java
-index e6cbe012..438d8f35 100644
+index e6cbe012..f4a3f26f 100644
 --- a/forge-game/src/main/java/forge/game/GameAction.java
 +++ b/forge-game/src/main/java/forge/game/GameAction.java
 @@ -21,6 +21,7 @@ import com.google.common.collect.*;
@@ -1331,7 +1521,7 @@ index e6cbe012..438d8f35 100644
  import forge.card.CardStateName;
  import forge.card.CardType.Supertype;
  import forge.card.ColorSet;
-@@ -1049,6 +1050,17 @@ public class GameAction {
+@@ -1049,6 +1050,60 @@ public class GameAction {
          return holdCheckingStaticAbilities;
      }
  
@@ -1346,10 +1536,53 @@ index e6cbe012..438d8f35 100644
 +        return staticPasses;
 +    }
 +
++    // CR 613.8 dependency detection tries each pair of a layer's statics: it applies one, filters the battlefield again
++    // for the other, then undoes the first. Every pair starts from the same state, so each static's own filter and
++    // conditions are worked out once per search (DependencyScans), not once per pair. A static that applies to nothing
++    // changes nothing, so its pairs can't make a dependency. The results stay good for the next search in the layer
++    // while the static applied in between changed nothing. Off: the old scan for each pair (the tests compare both).
++    public static boolean dependencyScanCache = true;
++    private long dependencyScans;
++
++    public long getDependencyScans() {
++        return dependencyScans;
++    }
++
++    private final class DependencyScans {
++        final Map<StaticAbility, CardCollectionView> affected = Maps.newHashMap();
++        final Map<StaticAbility, Boolean> applies = Maps.newHashMap();
++        final Map<StaticAbility, Boolean> noPlayers = Maps.newHashMap();
++
++        CardCollectionView affected(final StaticAbility stAb, final CardCollectionView preList) {
++            CardCollectionView got = affected.get(stAb);
++            if (got == null) {
++                dependencyScans++;
++                got = StaticAbilityContinuous.getAffectedCards(stAb, preList);
++                affected.put(stAb, got);
++            }
++            return got;
++        }
++
++        boolean applies(final StaticAbility stAb, final StaticAbilityLayer layer) {
++            return applies.computeIfAbsent(stAb, st -> st.appliesBefore(layer));
++        }
++
++        boolean appliesToNothing(final StaticAbility stAb, final CardCollectionView cards) {
++            return cards.isEmpty() && stAb.hasParam("Affected")
++                    && noPlayers.computeIfAbsent(stAb, st -> StaticAbilityContinuous.getAffectedPlayers(st).isEmpty());
++        }
++
++        void clear() {
++            affected.clear();
++            applies.clear();
++            noPlayers.clear();
++        }
++    }
++
      // This doesn't check layers or if the ability gets removed by other effects
      public boolean hasStaticAbilityAffectingZone(ZoneType zone, StaticAbilityLayer layer) {
          for (final Card ca : game.getCardsIn(ZoneType.STATIC_ABILITIES_SOURCE_ZONES)) {
-@@ -1109,6 +1121,7 @@ public class GameAction {
+@@ -1109,6 +1164,7 @@ public class GameAction {
          if (game.isGameOver()) {
              return;
          }
@@ -1357,7 +1590,99 @@ index e6cbe012..438d8f35 100644
          game.getTracker().freeze(); //prevent views flickering during while updating for state-based effects
          game.getTracker().holdChangeVersion();
  
-@@ -1988,7 +2001,8 @@ public class GameAction {
+@@ -1167,6 +1223,7 @@ public class GameAction {
+                 }
+             }
+ 
++            final DependencyScans scans = dependencyScanCache ? new DependencyScans() : null;
+             final long signature = staticsSignature(staticsForLayer);
+             final boolean reuseOrder = cached != null && Long.valueOf(signature).equals(cached.signature.get(layer));
+             final List<Integer> cachedOrder = reuseOrder ? cached.order.get(layer) : null;
+@@ -1185,10 +1242,11 @@ public class GameAction {
+                     }
+                 } else if (!stAb.isCharacteristicDefining()) {
+                     // dependency with CDA seems unlikely
+-                    stAb = findStaticAbilityToApply(layer, staticsForLayer, preList, affectedPerAbility, dependencies);
++                    stAb = findStaticAbilityToApply(layer, staticsForLayer, preList, affectedPerAbility, dependencies, scans);
+                 }
+                 order.add(stAb.getId());
+                 staticsForLayer.remove(stAb);
++                final boolean nothingForPlayers = scans != null && scans.appliesToNothing(stAb, CardCollection.EMPTY);
+                 final CardCollectionView previouslyAffected = affectedPerAbility.get(stAb);
+                 final CardCollectionView affectedHere;
+                 if (previouslyAffected == null) {
+@@ -1203,6 +1261,9 @@ public class GameAction {
+                     affectedHere = previouslyAffected;
+                     stAb.applyContinuousAbility(layer, previouslyAffected);
+                 }
++                if (scans != null && affectedHere != null && !(nothingForPlayers && affectedHere.isEmpty())) {
++                    scans.clear();
++                }
+                 if (affectedHere != null) {
+                     affectedPerLayer.computeIfAbsent(layer, l -> Sets.newHashSet()).addAll(affectedHere);
+                     for (final Card c : affectedHere) {
+@@ -1332,7 +1393,7 @@ public class GameAction {
+     }
+ 
+     private StaticAbility findStaticAbilityToApply(StaticAbilityLayer layer, List<StaticAbility> staticsForLayer, CardCollectionView preList, Map<StaticAbility, CardCollectionView> affectedPerAbility,
+-                                                   Table<StaticAbility, StaticAbility, Set<StaticAbilityLayer>> dependencies) {
++                                                   Table<StaticAbility, StaticAbility, Set<StaticAbilityLayer>> dependencies, final DependencyScans scans) {
+         StaticAbility first = staticsForLayer.get(0);
+         if (staticsForLayer.size() == 1) {
+             return first;
+@@ -1359,7 +1420,12 @@ public class GameAction {
+             boolean compareAffected = false;
+             CardCollectionView affectedHere = affectedPerAbility.get(stAb);
+             if (affectedHere == null) {
+-                affectedHere = StaticAbilityContinuous.getAffectedCards(stAb, preList);
++                if (scans != null) {
++                    affectedHere = scans.affected(stAb, preList);
++                } else {
++                    dependencyScans++;
++                    affectedHere = StaticAbilityContinuous.getAffectedCards(stAb, preList);
++                }
+                 compareAffected = true;
+             }
+             Iterable<Object> effectResults = generateContinuousEffectChanges(layer, stAb);
+@@ -1371,7 +1437,18 @@ public class GameAction {
+ 
+                 boolean removeFull = true;
+                 CardCollectionView affectedOther = affectedPerAbility.get(otherStAb);
+-                if (affectedOther == null) {
++                if (affectedOther == null && scans != null) {
++                    if (!scans.applies(otherStAb, layer)) {
++                        continue;
++                    }
++                    final CardCollectionView cards = scans.affected(otherStAb, preList);
++                    if (scans.appliesToNothing(otherStAb, cards)) {
++                        game.getStaticEffects().removeStaticEffect(otherStAb, layer, true);
++                        continue;
++                    }
++                    affectedOther = StaticAbilityContinuous.applyContinuousAbility(otherStAb, new CardCollection(cards), layer);
++                } else if (affectedOther == null) {
++                    dependencyScans++;
+                     affectedOther = otherStAb.applyContinuousAbilityBefore(layer, preList);
+                     if (affectedOther == null) {
+                         // ability was removed
+@@ -1388,6 +1465,7 @@ public class GameAction {
+                 boolean dependency = exists != stAb.getHostCard().getStaticAbilities().contains(stAb);
+                 // ...what it applies to...
+                 if (!dependency && compareAffected) {
++                    dependencyScans++;
+                     CardCollectionView affectedAfterOther = StaticAbilityContinuous.getAffectedCards(stAb, preList);
+                     dependency = !Iterators.elementsEqual(affectedHere.iterator(), affectedAfterOther.iterator());
+                 }
+@@ -1807,7 +1885,8 @@ public class GameAction {
+         if (!c.isScheme() || c.getType().hasSupertype(Supertype.Ongoing)) {
+             return;
+         }
+-        if (!game.getStack().hasSourceOnStack(c, null)) {
++        // CR 904.10: only once no triggered ability of any scheme is on the stack or waiting to be put on it
++        if (!game.getStack().hasSchemeTrigger()) {
+             moveTo(ZoneType.SchemeDeck, c, -1, null, AbilityKey.newMap());
+         }
+     }
+@@ -1988,7 +2067,8 @@ public class GameAction {
              // then the rest have lost!
              reason = GameEndReason.WinsGameSpellEffect;
              for (Player pl : allPlayers) {
@@ -1367,7 +1692,7 @@ index e6cbe012..438d8f35 100644
                      continue;
                  }
  
-@@ -2015,6 +2029,19 @@ public class GameAction {
+@@ -2015,6 +2095,19 @@ public class GameAction {
              }
          }
  
@@ -1387,7 +1712,7 @@ index e6cbe012..438d8f35 100644
          if (losers != null) {
              for (Player p : losers) {
                  game.onPlayerLost(p);
-@@ -2380,6 +2407,52 @@ public class GameAction {
+@@ -2380,6 +2473,52 @@ public class GameAction {
      public void startGame(GameOutcome lastGameOutcome) {
          startGame(lastGameOutcome, null);
      }
@@ -1440,7 +1765,7 @@ index e6cbe012..438d8f35 100644
      public void startGame(GameOutcome lastGameOutcome, Runnable startGameHook) {
          Player first = determineFirstTurnPlayer(lastGameOutcome);
  
-@@ -2395,6 +2468,7 @@ public class GameAction {
+@@ -2395,6 +2534,7 @@ public class GameAction {
  
              game.setAge(GameStage.Mulligan);
              for (final Player p1 : game.getPlayers()) {
@@ -1448,7 +1773,7 @@ index e6cbe012..438d8f35 100644
                  // Choose starting hand for each player with multiple hands
                  if (StaticData.instance().getFilteredHandsEnabled() ) {
                      drawStartingHand(p1);
-@@ -2451,6 +2525,12 @@ public class GameAction {
+@@ -2451,6 +2591,12 @@ public class GameAction {
                  return game.getPlayers().get(0);
              }
  
@@ -1461,7 +1786,7 @@ index e6cbe012..438d8f35 100644
              // 904.6: in Archenemy games the Archenemy goes first
              if (game.getRules().hasAppliedVariant(GameType.Archenemy)) {
                  for (Player p : game.getPlayers()) {
-@@ -2471,7 +2551,7 @@ public class GameAction {
+@@ -2471,7 +2617,7 @@ public class GameAction {
          if (!powerPlayers.isEmpty()) {
              List<Player> players = Lists.newArrayList(powerPlayers);
              Collections.shuffle(players, MyRandom.getRandom());
@@ -1470,7 +1795,7 @@ index e6cbe012..438d8f35 100644
          }
  
          boolean isFirstGame = lastGameOutcome == null;
-@@ -2499,9 +2579,36 @@ public class GameAction {
+@@ -2499,9 +2645,36 @@ public class GameAction {
              }
          }
          goesFirst = goesFirst.getController().chooseStartingPlayer(isFirstGame);
@@ -1973,6 +2298,18 @@ index c7208809..032b00a7 100644
      }
  
      private static CardCollectionView getCardsToCopy(Game game) {
+diff --git a/forge-game/src/main/java/forge/game/ability/AbilityKey.java b/forge-game/src/main/java/forge/game/ability/AbilityKey.java
+index f1dcd57c..03c290e3 100644
+--- a/forge-game/src/main/java/forge/game/ability/AbilityKey.java
++++ b/forge-game/src/main/java/forge/game/ability/AbilityKey.java
+@@ -91,6 +91,7 @@ public enum AbilityKey {
+     Map("Map"),
+     Mana("Mana"),
+     MergedCards("MergedCards"),
++    MovedBatch("MovedBatch"), // ReplacementHandler.MovedBatch: one effect's tokens of one kind entering together
+     Mode("Mode"),
+     NaturalResult("NaturalResult"),
+     NewCard("NewCard"),
 diff --git a/forge-game/src/main/java/forge/game/ability/AbilityUtils.java b/forge-game/src/main/java/forge/game/ability/AbilityUtils.java
 index 9d90c5c3..411e3375 100644
 --- a/forge-game/src/main/java/forge/game/ability/AbilityUtils.java
@@ -2497,7 +2834,7 @@ index 48ef9963..8fd74d94 100644
              eff.setSVar("NumTurns", "Number$" + numTurns);
              SpellAbility calcTurn = AbilityFactory.getAbility(effect, eff);
 diff --git a/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java b/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java
-index 7bc3aae4..29a7f10a 100644
+index 7bc3aae4..5fef1a97 100644
 --- a/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java
 +++ b/forge-game/src/main/java/forge/game/ability/effects/TokenEffectBase.java
 @@ -1,6 +1,7 @@
@@ -2508,7 +2845,30 @@ index 7bc3aae4..29a7f10a 100644
  import java.util.List;
  import java.util.Map;
  import java.util.Set;
-@@ -108,12 +109,30 @@ public abstract class TokenEffectBase extends SpellAbilityEffect {
+@@ -24,6 +25,7 @@ import forge.game.ability.SpellAbilityEffect;
+ import forge.game.card.token.TokenInfo;
+ import forge.game.event.GameEventCardStatsChanged;
+ import forge.game.player.Player;
++import forge.game.replacement.ReplacementHandler;
+ import forge.game.replacement.ReplacementType;
+ import forge.game.spellability.SpellAbility;
+ import forge.game.trigger.Trigger;
+@@ -71,6 +73,14 @@ public abstract class TokenEffectBase extends SpellAbilityEffect {
+         return makeTokenTable(createTokenTable(players, tokenScripts, finalAmount, sa), clone, triggerList, combatChanged, sa);
+     }
+ 
++    // tokens that entered with the static checks held (the batch above), so tests can count them without timing
++    // run after each token is made (tests only: TokenBatchTest throws from it, to see a batch end on an exception)
++    public static volatile java.util.function.Consumer<Card> afterEachTokenForTests;
++    private static final java.util.concurrent.atomic.AtomicLong TOKENS_BATCHED = new java.util.concurrent.atomic.AtomicLong();
++    public static long getTokensBatched() {
++        return TOKENS_BATCHED.get();
++    }
++
+     protected TokenCreateTable makeTokenTable(TokenCreateTable tokenTable, final boolean clone, CardZoneTable triggerList, MutableBoolean combatChanged, final SpellAbility sa) {
+         final Card host = sa.getHostCard();
+         final Game game = host.getGame();
+@@ -108,14 +118,53 @@ public abstract class TokenEffectBase extends SpellAbilityEffect {
          moveParams.put(AbilityKey.LastStateBattlefield, game.copyLastStateBattlefield());
          moveParams.put(AbilityKey.LastStateGraveyard, game.copyLastStateGraveyard());
  
@@ -2529,6 +2889,7 @@ index 7bc3aae4..29a7f10a 100644
              Player controller = prototype.getController();
 -            int cellAmount = c.getValue();
 -            game.recordTokenRequest(cellAmount);
+-
 +            final String pile = TokenPile.key(prototype);
 +            final int room = Math.max(0, Math.min(Game.UNBOUNDED_TOKENS - pileSizes.getOrDefault(pile, 0),
 +                    Game.UNBOUNDED_TOKENS - madeByEffect));
@@ -2538,9 +2899,70 @@ index 7bc3aae4..29a7f10a 100644
 +            }
 +            pileSizes.merge(pile, cellAmount, Integer::sum);
 +            madeByEffect += cellAmount;
- 
++
++            // The tokens of one kind enter together. The first goes as before; when no replacement effect could
++            // apply to it (ReplacementHandler.MovedBatch), the rest enter with the static checks held and one pass
++            // runs after them: each still triggers on its own (the zone change triggers wait, and are collected and
++            // checked after the effect, as before) and gets its ETB counters, and the layers are applied once to all.
++            // Not for copies of permanents, tokens attached as they're made, or tokens made with counters (their
++            // checks need the static abilities applied to each one).
++            final boolean batchable = !clone && prototype.getCopiedPermanent() == null && !sa.hasParam("AttachedTo")
++                    && !sa.hasParam("WithCountersType") && cellAmount > 1 && !game.getAction().isHoldingStaticAbilities();
++            final List<Card> heldTokens = Lists.newArrayList();
++            final ReplacementHandler.MovedBatch batch = batchable ? new ReplacementHandler.MovedBatch() : null;
++            if (batch != null) {
++                moveParams.put(AbilityKey.MovedBatch, batch);
++            }
++            boolean held = false;
++            Throwable failure = null;
++            try {
              for (int i = 0; i < cellAmount; i++) {
++                if (batch != null && !held && batch.nothingApplies()) {
++                    game.getAction().setHoldCheckingStaticAbilities(true);
++                    held = true;
++                    TOKENS_BATCHED.addAndGet(cellAmount - i);
++                }
                  Card tok = new CardCopyService(prototype).copyCard(true);
+                 // disconnect from prototype
+                 tok.getStates().forEach(cs -> tok.getState(cs).resetOriginalHost(prototype));
+@@ -217,6 +266,37 @@ public abstract class TokenEffectBase extends SpellAbilityEffect {
+                 if (sa.hasParam("CleanupForEach")) {
+                     moved.removeRemembered(prototype.getRemembered());
+                 }
++                if (held) {
++                    heldTokens.add(moved);
++                }
++                if (afterEachTokenForTests != null) {
++                    afterEachTokenForTests.accept(moved);
++                }
++            }
++            } catch (RuntimeException | Error thrown) {
++                failure = thrown;
++                throw thrown;
++            } finally {
++                moveParams.remove(AbilityKey.MovedBatch);
++                if (held) {
++                    // (a batch starts only with the hold off, so it goes back off; the pass after it never hides an
++                    // exception from the batch)
++                    game.getAction().setHoldCheckingStaticAbilities(false);
++                    try {
++                        game.getAction().checkStaticAbilities();
++                        // (each one's entry as it is now, with the layers: what its enters triggers test)
++                        for (final Card token : heldTokens) {
++                            if (token.getZone() != null) {
++                                token.getZone().refreshAddedLKI(token);
++                            }
++                        }
++                    } catch (RuntimeException passFailed) {
++                        if (failure == null) {
++                            throw passFailed;
++                        }
++                        failure.addSuppressed(passFailed);
++                    }
++                }
+             }
+         }
+ 
 diff --git a/forge-game/src/main/java/forge/game/card/Card.java b/forge-game/src/main/java/forge/game/card/Card.java
 index bcc6c1ac..d51f0079 100644
 --- a/forge-game/src/main/java/forge/game/card/Card.java
@@ -4975,10 +5397,37 @@ index 66837611..360e66ad 100644
                  }
              }
 diff --git a/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java b/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java
-index 4d9877fb..065e878d 100644
+index 4d9877fb..3e9ba9ce 100644
 --- a/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java
 +++ b/forge-game/src/main/java/forge/game/replacement/ReplacementHandler.java
-@@ -99,6 +99,7 @@ public class ReplacementHandler {
+@@ -66,6 +66,26 @@ public class ReplacementHandler {
+         game = gameState;
+     }
+ 
++    // One effect's tokens of one kind entering the battlefield together (TokenEffectBase): the first is checked for
++    // replacement effects as usual, with the CR 614.12 lookahead (two full static passes for each layer). When no
++    // replacement effect could apply to it at any layer, the rest of that kind are its copies entering at the same
++    // time, and none can apply to them either: replacement effects of permanents entering simultaneously don't apply
++    // to each other (614.12), and nothing was replaced, so nothing else changed. They skip the check.
++    public static final class MovedBatch {
++        private boolean checked;
++        private boolean nothingApplies;
++
++        public boolean nothingApplies() {
++            return checked && nothingApplies;
++        }
++    }
++    private int replacersFound;
++    private static final java.util.concurrent.atomic.AtomicLong MOVED_CHECKS = new java.util.concurrent.atomic.AtomicLong();
++    // Moved-to-the-battlefield replacement checks made (each a 614.12 lookahead per layer), so tests can count them
++    public static long getMovedChecks() {
++        return MOVED_CHECKS.get();
++    }
++
+     public List<ReplacementEffect> getReplacementList(final ReplacementType event, final Map<AbilityKey, Object> runParams, final ReplacementLayer layer) {
+         final CardCollection preList = new CardCollection();
+         Card affectedLKI = null;
+@@ -99,6 +119,7 @@ public class ReplacementHandler {
          }
  
          final List<ReplacementEffect> possibleReplacers = Lists.newArrayList();
@@ -4986,7 +5435,7 @@ index 4d9877fb..065e878d 100644
  
          // Round up Static replacement effects
          game.forEachCardInGame(crd -> {
-@@ -122,7 +123,8 @@ public class ReplacementHandler {
+@@ -122,7 +143,8 @@ public class ReplacementHandler {
              // only when not prelist
              boolean noLKIstate = c != crd || event != ReplacementType.Moved || c.isImmutable() || runParams.get(AbilityKey.LastStateBattlefield) == null;
              if (!noLKIstate) {
@@ -4996,7 +5445,7 @@ index 4d9877fb..065e878d 100644
                  if (lastState != c) {
                      // use LKI because it has the right RE from the state before the effect started
                      c = lastState;
-@@ -172,6 +174,35 @@ public class ReplacementHandler {
+@@ -172,6 +194,35 @@ public class ReplacementHandler {
          return possibleReplacers;
      }
  
@@ -5032,7 +5481,7 @@ index 4d9877fb..065e878d 100644
      public boolean cantHappenCheck(final ReplacementType event, final Map<AbilityKey, Object> runParams) {
          return !getReplacementList(event, runParams, ReplacementLayer.CantHappen).isEmpty();
      }
-@@ -185,6 +216,7 @@ public class ReplacementHandler {
+@@ -185,6 +236,7 @@ public class ReplacementHandler {
       * @return ReplacementResult, an enum that represents what happened to the replacement effect.
       */
      public ReplacementResult run(ReplacementType event, final Map<AbilityKey, Object> runParams) {
@@ -5040,6 +5489,77 @@ index 4d9877fb..065e878d 100644
          final Object affected = runParams.get(AbilityKey.Affected);
          Player decider = null;
  
+@@ -196,23 +248,68 @@ public class ReplacementHandler {
+             decider = ((Card) affected).getController();
+         }
+ 
++        final MovedBatch batch = ReplacementType.Moved.equals(event) ? (MovedBatch) runParams.get(AbilityKey.MovedBatch) : null;
++        if (batch != null && batch.nothingApplies()) {
++            return ReplacementResult.NotReplaced;
++        }
++        if (ReplacementType.Moved.equals(event) && ZoneType.Battlefield.equals(runParams.get(AbilityKey.Destination))) {
++            MOVED_CHECKS.incrementAndGet();
++        }
++        // (only the first token's own check decides: one that applies runs this again for the updated event, where
++        // the effect already applied is no longer found)
++        final boolean decides = batch != null && !batch.checked;
++        if (decides) {
++            batch.checked = true;
++        }
++        final int found = replacersFound;
++        // A card moving to the battlefield: the CR 614.12 lookahead (two full static passes) once for all the layers.
++        // Until one of them has a replacement to apply nothing in the game changes, so each layer's list is the one
++        // its own lookahead found; the layers are still tried in their order (614.17 can't-happen first, then
++        // 616.1b to 616.1e), and once one applies the event is run again with fresh lists, as before.
++        final Map<ReplacementLayer, List<ReplacementEffect>> byLayer = lookaheadPerRun && ReplacementType.Moved.equals(event)
++                && ZoneType.Battlefield.equals(runParams.get(AbilityKey.Destination)) && runParams.get(AbilityKey.ReplacementEffect) == null
++                ? replacementsByLayer(event, runParams) : null;
+         // try out all layer
+         for (ReplacementLayer layer : ReplacementLayer.values()) {
+-            ReplacementResult res = run(event, runParams, layer, decider);
++            ReplacementResult res = byLayer == null ? run(event, runParams, layer, decider)
++                    : run(event, runParams, layer, decider, byLayer.getOrDefault(layer, Lists.newArrayList()));
+             if (res != ReplacementResult.NotReplaced) {
+                 return res;
+             }
+         }
++        if (decides) {
++            batch.nothingApplies = replacersFound == found;
++        }
+ 
+         return ReplacementResult.NotReplaced;
+     }
+ 
++    // every layer's replacement effects from one lookahead, each list in the order its own layer's lookahead finds them
++    private Map<ReplacementLayer, List<ReplacementEffect>> replacementsByLayer(final ReplacementType event, final Map<AbilityKey, Object> runParams) {
++        final Map<ReplacementLayer, List<ReplacementEffect>> byLayer = new java.util.EnumMap<>(ReplacementLayer.class);
++        for (final ReplacementEffect re : getReplacementList(event, runParams, null)) {
++            // (one with no layer was in no layer's list before either)
++            if (re.getLayer() != null) {
++                byLayer.computeIfAbsent(re.getLayer(), l -> Lists.newArrayList()).add(re);
++            }
++        }
++        return byLayer;
++    }
++
++    // false: a lookahead for each layer, as before (tests compare the two)
++    public static volatile boolean lookaheadPerRun = true;
++
+     private ReplacementResult run(final ReplacementType event, final Map<AbilityKey, Object> runParams, final ReplacementLayer layer, final Player decider) {
+-        final List<ReplacementEffect> possibleReplacers = getReplacementList(event, runParams, layer);
++        return run(event, runParams, layer, decider, getReplacementList(event, runParams, layer));
++    }
++
++    private ReplacementResult run(final ReplacementType event, final Map<AbilityKey, Object> runParams, final ReplacementLayer layer, final Player decider,
++            final List<ReplacementEffect> possibleReplacers) {
+ 
+         if (possibleReplacers.isEmpty()) {
+             return ReplacementResult.NotReplaced;
+         }
++        replacersFound++;
+ 
+         ReplacementEffect chosenRE;
+         // "can't" is never a choice
 diff --git a/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java b/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java
 index 42c36fb2..5f35f204 100644
 --- a/forge-game/src/main/java/forge/game/spellability/SpellAbilityProperty.java
@@ -5057,10 +5577,21 @@ index 42c36fb2..5f35f204 100644
              // this doesn't allow a second target, even if same object
              int num = 0;
 diff --git a/forge-game/src/main/java/forge/game/staticability/StaticAbility.java b/forge-game/src/main/java/forge/game/staticability/StaticAbility.java
-index 60226a90..fb97935c 100644
+index 60226a90..a1a373a5 100644
 --- a/forge-game/src/main/java/forge/game/staticability/StaticAbility.java
 +++ b/forge-game/src/main/java/forge/game/staticability/StaticAbility.java
-@@ -409,7 +409,7 @@ public class StaticAbility extends CardTraitBase implements IIdentifiable, Clone
+@@ -276,6 +276,10 @@ public class StaticAbility extends CardTraitBase implements IIdentifiable, Clone
+         return StaticAbilityContinuous.applyContinuousAbility(this, layer, preList);
+     }
+ 
++    public final boolean appliesBefore(final StaticAbilityLayer layer) {
++        return shouldApplyContinuousAbility(layer, false);
++    }
++
+     public final CardCollectionView applyContinuousAbility(final StaticAbilityLayer layer, final CardCollectionView affected) {
+         if (!shouldApplyContinuousAbility(layer, true)) {
+             return null;
+@@ -409,7 +413,7 @@ public class StaticAbility extends CardTraitBase implements IIdentifiable, Clone
  
          if (hasParam("PlayerTurn")) {
              List<Player> players = AbilityUtils.getDefinedPlayers(hostCard, getParam("PlayerTurn"), this);
@@ -5123,6 +5654,19 @@ index bf8a95fe..627f5674 100644
 +        return stAb.matchesValidParam("ValidSA", sa);
      }
  }
+diff --git a/forge-game/src/main/java/forge/game/staticability/StaticAbilityContinuous.java b/forge-game/src/main/java/forge/game/staticability/StaticAbilityContinuous.java
+index dae24312..096990d9 100644
+--- a/forge-game/src/main/java/forge/game/staticability/StaticAbilityContinuous.java
++++ b/forge-game/src/main/java/forge/game/staticability/StaticAbilityContinuous.java
+@@ -1002,7 +1002,7 @@ public final class StaticAbilityContinuous {
+         return cards;
+     }
+ 
+-    private static List<Player> getAffectedPlayers(final StaticAbility stAb) {
++    public static List<Player> getAffectedPlayers(final StaticAbility stAb) {
+         final Map<String, String> params = stAb.getMapParams();
+         final Card hostCard = stAb.getHostCard();
+         final Player controller = hostCard.getController();
 diff --git a/forge-game/src/main/java/forge/game/staticability/StaticAbilityManaConvert.java b/forge-game/src/main/java/forge/game/staticability/StaticAbilityManaConvert.java
 index 87f94552..bc482096 100644
 --- a/forge-game/src/main/java/forge/game/staticability/StaticAbilityManaConvert.java
@@ -5635,7 +6179,7 @@ index 8ab7dbe3..43ca371f 100644
  
      @Override
 diff --git a/forge-game/src/main/java/forge/game/zone/MagicStack.java b/forge-game/src/main/java/forge/game/zone/MagicStack.java
-index 35ea040c..8350e504 100644
+index 35ea040c..2f002742 100644
 --- a/forge-game/src/main/java/forge/game/zone/MagicStack.java
 +++ b/forge-game/src/main/java/forge/game/zone/MagicStack.java
 @@ -76,6 +76,8 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
@@ -5821,6 +6365,29 @@ index 35ea040c..8350e504 100644
  
      public final void onNextTurn() {
          final Player active = game.getPhaseHandler().getPlayerTurn();
+@@ -959,6 +1072,22 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+         return thisTurnActivated;
+     }
+ 
++    // CR 904.10: a triggered ability of any scheme on the stack or waiting to be put on it (a non-ongoing scheme face up
++    // in the command zone stays there until there is none)
++    public final boolean hasSchemeTrigger() {
++        for (SpellAbilityStackInstance si : stack) {
++            if (si.isTrigger() && si.getSourceCard() != null && si.getSourceCard().isScheme()) {
++                return true;
++            }
++        }
++        for (SpellAbility sa : simultaneousStackEntryList) {
++            if (sa.isTrigger() && sa.getHostCard() != null && sa.getHostCard().isScheme()) {
++                return true;
++            }
++        }
++        return false;
++    }
++
+     public final boolean hasSourceOnStack(final Card source, final Predicate<SpellAbility> pred) {
+         if (source == null) {
+             return false;
 diff --git a/forge-game/src/main/java/forge/game/zone/StackMerge.java b/forge-game/src/main/java/forge/game/zone/StackMerge.java
 new file mode 100644
 index 00000000..19e20b28
@@ -5948,7 +6515,7 @@ index 00000000..19e20b28
 +    }
 +}
 diff --git a/forge-game/src/main/java/forge/game/zone/Zone.java b/forge-game/src/main/java/forge/game/zone/Zone.java
-index 8050c40f..6bf14ae9 100644
+index 8050c40f..b69b2fb2 100644
 --- a/forge-game/src/main/java/forge/game/zone/Zone.java
 +++ b/forge-game/src/main/java/forge/game/zone/Zone.java
 @@ -262,6 +262,15 @@ public class Zone implements java.io.Serializable, Iterable<Card> {
@@ -5967,6 +6534,31 @@ index 8050c40f..6bf14ae9 100644
      @Override
      public Iterator<Card> iterator() {
          return cardList.iterator();
+@@ -286,6 +295,24 @@ public class Zone implements java.io.Serializable, Iterable<Card> {
+         return result;
+     }
+ 
++    // A card's entry here taken again, as it is now (TokenEffectBase: a token that entered with the static checks held,
++    // once the pass after them has run). The enters triggers read this copy (TriggerChangesZone, CR 603.6b), so it
++    // must show the card with the layers applied, as an entry taken without the hold does.
++    public void refreshAddedLKI(Card c) {
++        for (final ZoneType zt : cardsAddedThisTurn.keySet()) {
++            final List<Card> added = cardsAddedThisTurn.get(zt);
++            final int at = added.lastIndexOf(c);
++            if (at >= 0) {
++                final Card old = added.get(at);
++                final Card lki = CardCopyService.getLKICopy(c);
++                added.set(at, lki);
++                enteredFromThisTurn.remove(old);
++                enteredFromThisTurn.put(lki, zt);
++                return;
++            }
++        }
++    }
++
+     public void saveLKI(Card c, Card old) {
+         final Zone oldZone = game.getZoneOf(old);
+         final ZoneType zt = oldZone == null ? ZoneType.Stack : oldZone.getZoneType();
 diff --git a/forge-gui/res/cardsfolder/a/aetherling.txt b/forge-gui/res/cardsfolder/a/aetherling.txt
 index f6e89bab..88978a3b 100644
 --- a/forge-gui/res/cardsfolder/a/aetherling.txt
