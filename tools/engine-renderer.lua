@@ -2470,6 +2470,13 @@ function engineCornerWrap(label, per)
   end
   return rest == "" and first or (first .. "\n" .. rest)
 end
+-- A corner button's label as it is drawn: as it is up to `one` characters (the usual font), else wrapped to `per` a line
+-- (engineCornerWrap), and whether it is the long kind, at the smaller font with the whole label in its tooltip
+function engineCornerText(label, one, per)
+  if label == nil or #label <= one then return label, false end
+  local text = engineCornerWrap(label, per)
+  return text, text ~= label
+end
 -- A card picture the screen UI can draw, for every player. TTS's screen UI can't draw .webp, and Scryfall's CDN refuses
 -- TTS's downloader by its user-agent (HTTP 400): both left pictures white. The bridge's own route on this PC reached
 -- only the host: the other players saw grey tiles with names (playtest 2026-10-23). wsrv.nl, a public image proxy,
@@ -5541,10 +5548,9 @@ function engineUpdateCorner(color, p)
   -- (longer still: two lines at a smaller font, the whole label in its tooltip; cut at one line, "Sacrifice a nonland
   -- p..." and "Pay Reveal a Swamp or..." hid what they paid, hand test Mairsil bug 26)
   local bigFull, smallFull = bigLabel, smallLabel
-  if bigLabel and #bigLabel > 22 then bigLabel = engineCornerWrap(bigLabel, ENGINE_CORNER_WRAP.big) end
-  if smallLabel and #smallLabel > 30 then smallLabel = engineCornerWrap(smallLabel, ENGINE_CORNER_WRAP.small) end
-  local bigTwo = bigLabel ~= nil and bigLabel ~= bigFull
-  local smallTwo = smallLabel ~= nil and smallLabel ~= smallFull
+  local bigTwo, smallTwo
+  bigLabel, bigTwo = engineCornerText(bigLabel, 22, ENGINE_CORNER_WRAP.big)
+  smallLabel, smallTwo = engineCornerText(smallLabel, 30, ENGINE_CORNER_WRAP.small)
   -- (passing priority with mana floating loses it: the pass button says how much is in your pool, "Next (3 floating)",
   -- PLAN 2026-11-13; after the cut above, so the count is never cut off: "Resolve (999 floating)" is 22)
   -- (the pool of the player the priority is for: a player this seat controls, Mindslaver's turn, is the bridge's
