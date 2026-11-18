@@ -9143,7 +9143,7 @@
     "step": "click: enginePick(\"Blue\", 1) enginePick(\"Blue\", 2)",
     "fx": [
      "f2238 \"UI.setAttributes\" \"eng_opt_Blue_1\" {color=\"#E53935\",text=\"[x] first\",textColor=\"#ffffff\"}",
-     "f2238 \"UI.setAttributes\" \"eng_big_Blue\" {color=\"#e8711a\",text=\"1 of 1 chosen\",textColor=\"#fffffE\"}",
+     "f2238 \"UI.setAttributes\" \"eng_big_Blue\" {color=\"#e8711a\",text=\"Done (1 of 1 chosen)\",textColor=\"#fffffE\"}",
      "f2238 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (1 of 1)\",textColor=\"#fffffE\"}",
      "f2238 \"highlightOff\" obj:s00003",
      "f2238 \"highlightOff\" obj:s00006",
@@ -9184,7 +9184,7 @@
     "step": "click: enginePick(\"Blue\", 1)",
     "fx": [
      "f2256 \"UI.setAttributes\" \"eng_opt_Blue_1\" {color=\"#E53935\",text=\"[x] a card\",textColor=\"#ffffff\"}",
-     "f2256 \"UI.setAttributes\" \"eng_big_Blue\" {color=\"#e8711a\",text=\"1 of 1 chosen\",textColor=\"#ffffff\"}",
+     "f2256 \"UI.setAttributes\" \"eng_big_Blue\" {color=\"#e8711a\",text=\"Done (1 of 1 chosen)\",textColor=\"#ffffff\"}",
      "f2256 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (1 of 1)\",textColor=\"#ffffff\"}",
      "f2256 \"highlightOff\" obj:s00003",
      "f2256 \"highlightOn\" obj:s00003 {1=1,2=0.7,3=0.15}"
@@ -15994,7 +15994,7 @@
      "f466 \"UI.setValue\" \"eng_title_Blue\" \"Choose a land card in your graveyard\"",
      "f466 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#262626\",text=\"[  ] Island\",textColor=\"#ffffff\"}",
      "f466 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"true\",color=\"#262626\",text=\"[  ] Swamp\",textColor=\"#fffffE\"}",
-     "f466 \"UI.setValue\" \"eng_hint_Blue\" \"Choose a land card in your graveyard\"",
+     "f466 \"UI.setValue\" \"eng_hint_Blue\" \"Choose a land card in your graveyard\\\nRight-click that graveyard or exile pile -> Search, and drag the card out. Or Choices (top left).\"",
      "f466 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#e8711a\",text=\"0 of 1 chosen\",textColor=\"#fffffE\"}",
      "f466 \"UI.setAttributes\" \"eng_confirm_Blue\" {color=\"#1e6f5c\",text=\"Done (0 of 1)\",textColor=\"#ffffff\"}",
      "f466 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",color=\"#1e6f5c\",textColor=\"#fffffE\"}"

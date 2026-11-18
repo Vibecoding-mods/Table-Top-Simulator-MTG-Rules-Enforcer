@@ -4912,7 +4912,12 @@ end
 -- (they had drifted: the panel opened while the hint said "Click a glowing card", suite review 2026-10-27).
 function engineAnswerPlace(p)
   if p == nil then return nil end
-  if enginePileOnly(p) > ROW_MAX then return "panel" end
+  -- (or some of the cards are in a pile and their pictures don't all fit the row, which then shows none: Dimir
+  -- Doppelganger's 9 graveyard targets, 6 in White's pile and 3 lone cards, said "Click a glowing card" with no panel,
+  -- Mairsil hand test #10 2026-11-18)
+  local pile, pictures = enginePileOnly(p), 0
+  for _, o in ipairs(p.options or {}) do if o.img ~= nil then pictures = pictures + 1 end end
+  if pile > ROW_MAX or (pile > 0 and pictures > ROW_MAX) then return "panel" end
   if engineLifePayOption(p) ~= nil then
     local n = 0
     for _, o in ipairs(p.options or {}) do local id = tostring(o.id) if not id:find("^tap:") and not id:find("^untap:") then n = n + 1 end end
@@ -5322,8 +5327,13 @@ function engineUpdateCorner(color, p)
     -- pile's cards are no objects of their own)
     elseif q.copies then
       hint = title .. "\nPick it in the card row or the Engine panel."
-    elseif kind == "cards" and q.pileChoices ~= nil then
-      hint = title .. "\nRight-click that graveyard or exile pile -> Search, and drag the card out. Or Choices (top left)."
+    -- (by the question's own kind too: cards only in piles have no objects, so enginePromptKind finds no "cards" and the
+    -- hint was the bare title, Mairsil's cage choice from the graveyard, hand test #4)
+    elseif q.pileChoices ~= nil and (kind == "cards" or describePrompt(q).kind == "cards") then
+      -- (some in a pile, some on the table or in the hand: both ways, Mairsil's cage choice from hand or graveyard, hand
+      -- test #4 2026-11-18)
+      hint = title .. (#q.pileChoices < #(q.options or {}) and "\nClick a glowing card, or right-click a graveyard or exile pile -> Search and drag the card out. Or Choices (top left)."
+        or "\nRight-click that graveyard or exile pile -> Search, and drag the card out. Or Choices (top left).")
     elseif kind == "cards" and engineExactPick(q) then
       hint = title .. "\nClick " .. q.max .. " glowing card" .. (q.max == 1 and "" or "s") .. ": the last click answers." .. (q.cancel and " (Or Cancel.)" or "")
     elseif kind == "cards" then hint = title .. (q.cancel and "\nClick the glowing cards, then Done (or Cancel)." or "\nClick the glowing cards, then Done.")
@@ -5456,6 +5466,9 @@ function engineUpdateCorner(color, p)
     -- 2026-10-27); the button counts instead and does nothing
     if all == nil and none == nil and engineExactPick(p) then
       big, bigLabel, labelOnly = nil, count(engineSelected[color]) .. " of " .. p.max .. " chosen", true
+      -- (once the pick is made and still unanswered, the button sends it: "1 of 1 chosen" did nothing when pressed and
+      -- the question could only be answered by dragging, Volrath's Shapeshifter's discard, Mairsil hand test #14)
+      if count(engineSelected[color]) == p.max then big, bigLabel, labelOnly = "confirm", "Done (1 of 1 chosen)", nil end
     end
     if small == nil and p.cancel then small, smallLabel = "cancel", "Cancel" end
   end
@@ -6449,6 +6462,10 @@ function onMtgSlot(player, value, id)
     end
   end
   pick(color, v)
+  -- (an exact pick answers at the last click here too, as the card row, its buttons and the table's cards do: a line
+  -- picked in the list left the corner at an inert "1 of 1 chosen", Mairsil hand test #14 2026-11-18; and the panel's
+  -- Done sits beside Cancel, which a quick second click hit three times for Reanimate, #16)
+  if type(v) == "number" and not engineBrowse[color] then engineConfirmIfComplete(color) end
   if o == nil or engineTell == nil then return end
   local label = tostring(o.label)
   if engineSelectedFor(color, v) then
@@ -6991,6 +7008,9 @@ end
 function onMtgSearch(player, value, id)
   if player.color ~= idColor(id) then return end
   if engineFixHandNote ~= nil and engineFixHandNote(player.color, value) then return end -- (the box is a fix note then)
+  -- (what the box shows now: setText skips a value its cache already holds, so the next question's clearing "" was
+  -- skipped and the box kept "Serra" over an unfiltered list, Mairsil hand test #13 2026-11-18)
+  uiCache["eng_search_" .. player.color] = tostring(value or "")
   engineFilter[player.color] = value
   updateOptions(player.color)
 end
