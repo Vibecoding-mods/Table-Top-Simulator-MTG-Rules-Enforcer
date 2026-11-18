@@ -3337,7 +3337,7 @@ function exiledWithNote(c) {
 }
 // A caged card (Mairsil, the Pretender: its owner's card in exile with a cage counter; that player's permanents whose
 // text names cage counters have its activated abilities, whoever caged it): those permanents on the board drawn now
-// (tableCtx), or null for a card with no cage counter (hand test Mairsil bugs 5, 6)
+// (tableCtx), or null for a card with no cage counter, or when no board has been drawn yet (hand test Mairsil bugs 5, 6)
 function cageHoldersOf(c) {
   if (!Object.entries(c?.counters || {}).some(([k, n]) => n && k.toUpperCase() === "CAGE")) return null;
   const ctx = game?.tableCtx;
