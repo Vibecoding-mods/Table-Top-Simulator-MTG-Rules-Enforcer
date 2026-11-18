@@ -1,15 +1,15 @@
 diff --git a/forge-ai/src/main/java/forge/ai/AiAttackController.java b/forge-ai/src/main/java/forge/ai/AiAttackController.java
-index c3b3b8ab..05f8815f 100644
+index c3b3b8ab..08516aac 100644
 --- a/forge-ai/src/main/java/forge/ai/AiAttackController.java
 +++ b/forge-ai/src/main/java/forge/ai/AiAttackController.java
 @@ -126,6 +126,18 @@ public class AiAttackController {
      }
  
      public static List<Card> getOpponentCreatures(final Player defender) {
-+        if (!defender.getGame().getRules().hasTeamBlocks()) {
++        if (!defender.getGame().getRules().hasSharedTeamLife()) {
 +            return getPlayersPossibleBlockers(defender);
 +        }
-+        // CR 805.10d: with shared team life or shared team turns the defender's teammates may block a creature attacking the defender
++        // CR 805.10d: with shared team life the defender's teammates may block a creature attacking the defender
 +        List<Card> defenders = new ArrayList<>();
 +        for (Player p : defender.getYourTeam()) {
 +            defenders.addAll(getPlayersPossibleBlockers(p));
@@ -21,8 +21,155 @@ index c3b3b8ab..05f8815f 100644
          List<Card> defenders = defender.getCreaturesInPlay();
          int totalMana = ComputerUtilMana.getAvailableManaEstimate(defender, true);
          int manaReserved = 0; // for paying the cost to transform
+@@ -198,9 +210,26 @@ public class AiAttackController {
+         if (opponents.size() < 2) {
+             return Iterables.getFirst(opponents, null);
+         }
++        if (!ai.getController().isAI()) {
++            return choosePreferredDefenderScored(ai, forCombatDmg, opponents);
++        }
++        final AiController aic = ((PlayerControllerAi) ai.getController()).getAi();
++        final long outer = aic.halveCombatDeadline();
++        try {
++            return choosePreferredDefenderScored(ai, forCombatDmg, opponents);
++        } finally {
++            aic.restoreCombatDeadline(outer);
++        }
++    }
++    private static Player choosePreferredDefenderScored(Player ai, boolean forCombatDmg, PlayerCollection opponents) {
+ 
+         Map<Player, Integer> threatScores = Maps.newHashMap();
+         for (Player opp : opponents) {
++            // each score predicts that opponent's next combat (a full block assignment); past the budget (in a declaration,
++            // half of it: AiController.halveCombatDeadline) the cheap choice
++            if (AiController.evalDeadlinePassed(ai)) {
++                return lowestLife(opponents);
++            }
+             final int life = opp.getLife();
+             int score = ComputerUtil.evaluateBoardPosition(ai, opp);
+             int lowLifeThreshold = Math.min(20, opp.getStartingLife());
+@@ -225,6 +254,10 @@ public class AiAttackController {
+             }
+             threatScores.put(opp, score);
+         }
++        // (a prediction cut short by the budget answers "in danger", so the scores can't be compared)
++        if (AiController.evalDeadlinePassed(ai)) {
++            return lowestLife(opponents);
++        }
+         // round away slightly so a single land drop doesn't mean players with earlier turn order are predictably attacked
+         // grows with game age since by then threat ranges become less narrow
+         int threatLimit = Collections.max(threatScores.values()) - 10 - ai.getGame().getPhaseHandler().getTurn();
+@@ -232,6 +265,53 @@ public class AiAttackController {
+         return Aggregates.random(threatScores.keySet());
+     }
+ 
++    // The defender when the budget has passed: the opponent with the least life, the first in turn order on a tie.
++    private static Player lowestLife(final PlayerCollection opponents) {
++        Player best = null;
++        for (Player opp : opponents) {
++            if (best == null || opp.getLife() < best.getLife()) {
++                best = opp;
++            }
++        }
++        return best;
++    }
++
++    // The assault past the budget, with no attacker-blocker checks: each of the defender's possible blockers (and its
++    // extra blocks) blocks the biggest attacker it could, a blocker without flying or reach only those without flying,
++    // and is what is left lethal? (Other evasion counts as none, so it errs on not attacking.)
++    private boolean cheapAssault() {
++        if (defendingOpponent == null || defendingOpponent.getLife() <= 0 || defendingOpponent.cantLoseForZeroOrLessLife()) {
++            return false;
++        }
++        int groundBlocks = 0, airBlocks = 0;
++        for (Card b : this.blockers) {
++            if (b.hasKeyword(Keyword.FLYING) || b.hasKeyword(Keyword.REACH)) {
++                airBlocks += 1 + b.canBlockAdditional();
++            } else {
++                groundBlocks += 1 + b.canBlockAdditional();
++            }
++        }
++        final List<Integer> ground = new ArrayList<>(), left = new ArrayList<>();
++        for (Card a : this.attackers) {
++            (a.hasKeyword(Keyword.FLYING) ? left : ground).add(a.getNetCombatDamage());
++        }
++        ground.sort(Collections.reverseOrder());
++        left.addAll(ground.subList(Math.min(groundBlocks, ground.size()), ground.size()));
++        left.sort(Collections.reverseOrder());
++        int damage = 0;
++        for (int i = airBlocks; i < left.size(); i++) {
++            damage += left.get(i);
++        }
++        return damage >= defendingOpponent.getLife();
++    }
++
++    // the checks doAssault makes (each attacker's attack cost, each attacker against the blockers), so tests can count
++    // them without timing
++    private static final java.util.concurrent.atomic.AtomicLong ASSAULT_CHECKS = new java.util.concurrent.atomic.AtomicLong();
++    public static long getAssaultChecks() {
++        return ASSAULT_CHECKS.get();
++    }
++
+     public static List<Card> sortAttackers(final List<Card> in) {
+         final List<Card> result = new ArrayList<>();
+ 
+@@ -577,10 +657,15 @@ public class AiAttackController {
+         }
+     }
+ 
++    // Whether every attacker should go in. Its loops are the attackers times the blockers, with no natural bound on a
++    // wide board; past the budget (or once it passes) the answer is the cheap estimate, cheapAssault.
+     private boolean doAssault() {
+         if (ai.cantWin()) {
+             return false;
+         }
++        if (AiController.evalDeadlinePassed(ai)) {
++            return cheapAssault();
++        }
+ 
+         if (ai.isCardInPlay("Beastmaster Ascension") && this.attackers.size() > 1) {
+             final CardCollectionView beastions = ai.getCardsIn(ZoneType.Battlefield, "Beastmaster Ascension");
+@@ -634,6 +719,7 @@ public class AiAttackController {
+ 
+         Map<Card, Integer> attackCosts = Maps.newHashMap();
+         for (Card attacker : categorizedAttackers) {
++            ASSAULT_CHECKS.incrementAndGet();
+             Cost tax = CombatUtil.getAttackCost(ai.getGame(), attacker, defendingOpponent);
+             if (tax != null && tax.getCostMana().getMana().getCMC() > 0) {
+                 // TODO might sort by quotient of dmg/cost for best combination
+@@ -653,6 +739,9 @@ public class AiAttackController {
+         // when an attacker gets taxed the best priority to pay for damage is usually: 1. unblockable 2. trample 3. normal
+         CardCollection accountedBlockers = new CardCollection(this.blockers);
+         while (!categorizedAttackers.isEmpty()) {
++            if (AiController.evalDeadlinePassed(ai)) {
++                return cheapAssault();
++            }
+             Card attacker = categorizedAttackers.get(0);
+             int cost = attackCosts.getOrDefault(attacker, 0);
+             if (cost > myFreeMana) {
+@@ -663,6 +752,7 @@ public class AiAttackController {
+                 attackCosts.remove(attacker);
+                 continue;
+             }
++            ASSAULT_CHECKS.incrementAndGet();
+             if (!CombatUtil.canBeBlocked(attacker, accountedBlockers, null)
+                     || StaticAbilityAssignCombatDamageAsUnblocked.assignCombatDamageAsUnblocked(attacker)) {
+                 unblockedAttackers.add(attacker);
+@@ -681,8 +771,12 @@ public class AiAttackController {
+         // TODO need to sort attackers AI shouldn't pay for to the end
+ 
+         for (Card blocker : this.blockers) {
++            if (AiController.evalDeadlinePassed(ai)) {
++                return cheapAssault();
++            }
+             if (blocker.canBlockAny()) {
+                 for (Card attacker : this.attackers) {
++                    ASSAULT_CHECKS.incrementAndGet();
+                     if (CombatUtil.canBlock(attacker, blocker)) {
+                         remainingAttackers.remove(attacker);
+                         blockedAttackers.add(attacker);
 diff --git a/forge-ai/src/main/java/forge/ai/AiBlockController.java b/forge-ai/src/main/java/forge/ai/AiBlockController.java
-index eb732342..a545a636 100644
+index eb732342..b3413836 100644
 --- a/forge-ai/src/main/java/forge/ai/AiBlockController.java
 +++ b/forge-ai/src/main/java/forge/ai/AiBlockController.java
 @@ -142,7 +142,9 @@ public class AiBlockController {
@@ -30,9 +177,9 @@ index eb732342..a545a636 100644
          // If I don't have any planeswalkers then sorting doesn't really matter
          if (defenders.size() == 1 || !attackingCmd.isEmpty()) {
 -            final CardCollection attackers = combat.getAttackersOf(defenders.get(0));
-+            // CR 805.10d: with shared team life or shared team turns, the creatures attacking any player of the team
-+            final CardCollection attackers = ai.getGame().getRules().hasTeamBlocks()
-+                    ? ComputerUtilCombat.attackersOfBlockingTeam(ai, combat) : combat.getAttackersOf(defenders.get(0));
++            // CR 805.10d: with shared team life, the creatures attacking either player of the team
++            final CardCollection attackers = ai.getGame().getRules().hasSharedTeamLife()
++                    ? ComputerUtilCombat.attackersOfTeam(ai, combat) : combat.getAttackersOf(defenders.get(0));
              // Begin with the attackers that pose the biggest threat
              ComputerUtilCard.sortByEvaluateCreature(attackers);
              CardLists.sortByPowerDesc(attackers);
@@ -43,8 +190,8 @@ index eb732342..a545a636 100644
 -            } else if (defender instanceof Player && defender.equals(ai)) {
 -                firstAttacker = combat.getAttackersOf(defender);
 -                CardLists.sortByPowerDesc(firstAttacker);
-+            } else if (defender instanceof Player p && ComputerUtilCombat.blockingTeam(ai).contains(p)) {
-+                // CR 805.10d: with shared team life or shared team turns, a teammate's attackers are the team's to block
++            } else if (defender instanceof Player p && ai.sharedLifeTeam().contains(p)) {
++                // CR 805.10d: with shared team life, a teammate's attackers threaten this player's life too
 +                firstAttacker.addAll(combat.getAttackersOf(defender));
              }
          }
@@ -63,13 +210,31 @@ index eb732342..a545a636 100644
          blockersLeft = new ArrayList<>(possibleBlockers); // keeps track of all unassigned blockers
          blockedButUnkilled = new ArrayList<>(); // keeps track of all blocked attackers that currently wouldn't be destroyed
      }
-@@ -1122,6 +1129,49 @@ public class AiBlockController {
-         }
+@@ -1123,6 +1130,75 @@ public class AiBlockController {
          attackers = sortPotentialAttackers(combat);
          assignBlockers(combat, possibleBlockers);
-+        if (AiController.evalDeadlinePassed(ai)) {
-+            makeChumpBlocksPastDeadline(combat, possibleBlockers);
+     }
++
++    /** The real block declaration (AiController.declareBlockersFor): the assignment, then past the budget the chump
++     * blocks below. A prediction of a combat (ComputerUtil.predictNextCombatsRemainingLife and the like) is only the
++     * assignment: past the budget its answer is "in danger" anyway, and the chump pass is the attackers times the
++     * blockers. */
++    public void declareBlockers(final Combat combat) {
++        final boolean began = ComputerUtilCombat.beginPumpCosts();
++        try {
++            assignBlockersForCombat(combat, null);
++            if (AiController.evalDeadlinePassed(ai)) {
++                makeChumpBlocksPastDeadline(combat, ai.getCreaturesInPlay());
++            }
++        } finally {
++            ComputerUtilCombat.endPumpCosts(began);
 +        }
++    }
++
++    private static long chumpEvaluations;
++
++    public static long getChumpEvaluations() {
++        return chumpEvaluations;
 +    }
 +
 +    // Past the declaration's budget the steps above stop where they are, and on a big board that can be before the
@@ -78,24 +243,31 @@ index eb732342..a545a636 100644
 +    // times the blockers, with no combat prediction.
 +    private void makeChumpBlocksPastDeadline(final Combat combat, final List<Card> possibleBlockers) {
 +        final List<Card> unblocked = new ArrayList<>();
++        final Map<Card, Integer> unblockedDamage = new HashMap<>();
 +        int damage = 0;
 +        for (final Card attacker : combat.getAttackersOf(ai)) {
 +            if (combat.getBlockers(attacker).isEmpty()) {
 +                unblocked.add(attacker);
-+                damage += ComputerUtilCombat.damageIfUnblocked(attacker, ai, combat, false);
++                chumpEvaluations++;
++                final int dealt = ComputerUtilCombat.damageIfUnblocked(attacker, ai, combat, false);
++                unblockedDamage.put(attacker, dealt);
++                damage += dealt;
 +            }
 +        }
 +        if (ai.cantLoseForZeroOrLessLife()) {
 +            return;
 +        }
-+        unblocked.sort((a, b) -> Integer.compare(ComputerUtilCombat.damageIfUnblocked(b, ai, combat, false), ComputerUtilCombat.damageIfUnblocked(a, ai, combat, false)));
++        unblocked.sort((a, b) -> Integer.compare(unblockedDamage.get(b), unblockedDamage.get(a)));
 +        final List<Card> free = new ArrayList<>();
++        final Map<Card, Integer> value = new HashMap<>();
 +        for (final Card b : possibleBlockers) {
 +            if (!combat.isBlocking(b) && CombatUtil.canBlock(b, combat)) {
 +                free.add(b);
++                chumpEvaluations++;
++                value.put(b, ComputerUtilCard.evaluateCreature(b));
 +            }
 +        }
-+        free.sort((a, b) -> Integer.compare(ComputerUtilCard.evaluateCreature(a), ComputerUtilCard.evaluateCreature(b)));
++        free.sort((a, b) -> Integer.compare(value.get(a), value.get(b)));
 +        for (final Card attacker : unblocked) {
 +            if (damage < ai.getLife()) {
 +                break;
@@ -110,14 +282,43 @@ index eb732342..a545a636 100644
 +                }
 +            }
 +        }
-     }
++    }
      /**
       * assignBlockersForCombat() with additional and possibly "virtual" blockers.
+      * @param combat combat instance
 diff --git a/forge-ai/src/main/java/forge/ai/AiController.java b/forge-ai/src/main/java/forge/ai/AiController.java
-index 549fdaf8..9aee5501 100644
+index 549fdaf8..be782b0c 100644
 --- a/forge-ai/src/main/java/forge/ai/AiController.java
 +++ b/forge-ai/src/main/java/forge/ai/AiController.java
-@@ -232,7 +232,7 @@ public class AiController {
+@@ -121,6 +121,27 @@ public class AiController {
+     private static final boolean TRACE_DEADLINE = Boolean.getBoolean("forge.trace-deadline");
+     private boolean tracedPass;
+ 
++    // The defender choice's share of an attack declaration's budget (AiAttackController.choosePreferredDefenderPlayer):
++    // while it runs, the combat deadline is half of what is left, so its combat predictions stop there and the
++    // declaration itself (doAssault and the rest) keeps the other half. Returns the deadline to put back.
++    private static final java.util.concurrent.atomic.AtomicLong COMBAT_SHARES = new java.util.concurrent.atomic.AtomicLong();
++    public static long getCombatShares() {
++        return COMBAT_SHARES.get();
++    }
++    public long halveCombatDeadline() {
++        final long outer = combatDeadline;
++        final long now = System.currentTimeMillis();
++        // (one already passed stays as it is: moved to "now" it would count as not passed yet)
++        if (outer != Long.MAX_VALUE && outer > now) {
++            combatDeadline = now + (outer - now) / 2;
++            COMBAT_SHARES.incrementAndGet();
++        }
++        return outer;
++    }
++    public void restoreCombatDeadline(final long outer) {
++        combatDeadline = outer;
++    }
++
+     public static boolean evalDeadlinePassed(final Player p) {
+         return p.getController().isAI() && ((PlayerControllerAi) p.getController()).getAi().evalDeadlinePassed();
+     }
+@@ -232,7 +253,7 @@ public class AiController {
          for (final Card c : ccvGameBattlefield) {
              final String curse = c.getSVar("AICurseEffect");
              final Card host = sa.getHostCard();
@@ -126,7 +327,16 @@ index 549fdaf8..9aee5501 100644
                  return true;
              } else if ("DestroyCreature".equals(curse) && sa.isSpell() && host.isCreature()
                      && !host.hasKeyword(Keyword.INDESTRUCTIBLE)) {
-@@ -1394,6 +1394,9 @@ public class AiController {
+@@ -1349,7 +1370,7 @@ public class AiController {
+         combatDeadline = Math.min(outerCombatDeadline, System.currentTimeMillis() + game.getAITimeout() * 1000L);
+         final long startedAt = System.currentTimeMillis();
+         try {
+-            block.assignBlockersForCombat(combat);
++            block.declareBlockers(combat);
+         } finally {
+             combatDeadline = outerCombatDeadline;
+             if (TRACE_DEADLINE && System.currentTimeMillis() - startedAt > 3000) {
+@@ -1394,6 +1415,9 @@ public class AiController {
  
      private void removeUnpayableAttackers(Combat combat) {
          for (Card attacker : combat.getAttackers().threadSafeIterable()) {
@@ -136,6 +346,44 @@ index 549fdaf8..9aee5501 100644
              Cost attackCost = CombatUtil.getAttackCost(game, attacker, combat.getDefenderByAttacker(attacker));
              if (attackCost == null) {
                  continue;
+diff --git a/forge-ai/src/main/java/forge/ai/ComputerUtil.java b/forge-ai/src/main/java/forge/ai/ComputerUtil.java
+index 789eb07b..f986e750 100644
+--- a/forge-ai/src/main/java/forge/ai/ComputerUtil.java
++++ b/forge-ai/src/main/java/forge/ai/ComputerUtil.java
+@@ -2937,7 +2937,13 @@ public class ComputerUtil {
+                 () -> evaluateBoardPositionChanged(ai, opponent),
+                 List.of(AiCache::identity, AiCache::identity), ai, opponent);
+     }
++    // board evaluations made (evaluateBoardPosition, not from the cache), so tests can count them without timing
++    private static final java.util.concurrent.atomic.AtomicLong BOARD_EVALUATIONS = new java.util.concurrent.atomic.AtomicLong();
++    public static long getBoardEvaluations() {
++        return BOARD_EVALUATIONS.get();
++    }
+     private static int evaluateBoardPositionChanged(final Player ai, final Player opponent) {
++        BOARD_EVALUATIONS.incrementAndGet();
+         int rating = 0;
+ 
+         rating += opponent.getCardsIn(ZoneType.Hand).size() * 15;
+@@ -3204,6 +3210,11 @@ public class ComputerUtil {
+         }
+         return result;
+     }
++    // block assignments made to predict a combat (predictNextCombatsRemainingLife), so tests can count them without timing
++    private static final java.util.concurrent.atomic.AtomicLong COMBAT_PREDICTIONS = new java.util.concurrent.atomic.AtomicLong();
++    public static long getCombatPredictions() {
++        return COMBAT_PREDICTIONS.get();
++    }
+     private static int predictNextCombatsRemainingLifeUncached(Player ai, boolean serious, boolean checkDiff, int payment, final CardCollection excludedBlockers, final List<Player> opps) {
+         // life won't change
+         int remainingLife = Integer.MAX_VALUE;
+@@ -3242,6 +3253,7 @@ public class ComputerUtil {
+             // TODO if it's next turn ignore mustBlockCards
+             AiBlockController block = new AiBlockController(ai, false);
+             // TODO for performance skip ahead to safer blocking approach (though probably only when not in checkDiff mode as that could lead to inflated prediction)
++            COMBAT_PREDICTIONS.incrementAndGet();
+             block.assignBlockersForCombat(combat, excludedBlockers);
+ 
+             // TODO predict other, noncombat sources of damage and add them to the "payment" variable.
 diff --git a/forge-ai/src/main/java/forge/ai/ComputerUtilCard.java b/forge-ai/src/main/java/forge/ai/ComputerUtilCard.java
 index 1f5ce6e9..6ef46c6d 100644
 --- a/forge-ai/src/main/java/forge/ai/ComputerUtilCard.java
@@ -150,18 +398,54 @@ index 1f5ce6e9..6ef46c6d 100644
                  combat.addAttacker(c, ai);
              }
 diff --git a/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java b/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java
-index 1dfd5d98..83e420bd 100644
+index 1dfd5d98..733de321 100644
 --- a/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java
 +++ b/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java
-@@ -33,6 +33,7 @@ import forge.game.cost.CostPayment;
- import forge.game.keyword.Keyword;
- import forge.game.phase.PhaseType;
- import forge.game.player.Player;
-+import forge.game.player.PlayerCollection;
- import forge.game.replacement.ReplacementEffect;
- import forge.game.replacement.ReplacementLayer;
- import forge.game.replacement.ReplacementType;
-@@ -181,10 +182,11 @@ public class ComputerUtilCombat {
+@@ -63,6 +63,43 @@ import java.util.Map;
+  */
+ public class ComputerUtilCombat {
+ 
++    // A block declaration asks, for every attacker and blocker pair, whether either side could pay for a pump ability
++    // (ComputerUtilCost.canPayCost: the mana sources on the whole board). The declaration changes only the combat, not
++    // the game, so within one (pumpCostsOnce) each ability's answer for a player is worked out once. Off: as before.
++    public static boolean pumpCostMemo = true;
++    private static final ThreadLocal<java.util.Map<SpellAbility, java.util.Map<Player, Boolean>>> PUMP_COSTS = new ThreadLocal<>();
++    private static long pumpCostChecks;
++
++    public static long getPumpCostChecks() {
++        return pumpCostChecks;
++    }
++
++    public static boolean beginPumpCosts() {
++        if (!pumpCostMemo || PUMP_COSTS.get() != null) {
++            return false;
++        }
++        PUMP_COSTS.set(new java.util.IdentityHashMap<>());
++        return true;
++    }
++
++    public static void endPumpCosts(final boolean began) {
++        if (began) {
++            PUMP_COSTS.remove();
++        }
++    }
++
++    private static boolean canPayPump(final SpellAbility ability, final Player payer) {
++        final java.util.Map<SpellAbility, java.util.Map<Player, Boolean>> known = PUMP_COSTS.get();
++        if (known == null) {
++            pumpCostChecks++;
++            return ComputerUtilCost.canPayCost(ability, payer, false);
++        }
++        return known.computeIfAbsent(ability, a -> new java.util.HashMap<>()).computeIfAbsent(payer, p -> {
++            pumpCostChecks++;
++            return ComputerUtilCost.canPayCost(ability, p, false);
++        });
++    }
++
+     /**
+      * <p>
+      * canAttackNextTurn.
+@@ -181,10 +218,11 @@ public class ComputerUtilCombat {
                  return 0;
              }
  
@@ -175,7 +459,7 @@ index 1dfd5d98..83e420bd 100644
              }
          }
          return sum;
-@@ -206,8 +208,8 @@ public class ComputerUtilCombat {
+@@ -206,8 +244,8 @@ public class ComputerUtilCombat {
          if (!attacked.canReceiveCounters(CounterEnumType.POISON)) {
              return 0;
          }
@@ -186,7 +470,7 @@ index 1dfd5d98..83e420bd 100644
          int poison = 0;
          if (attacker.isInfectDamage(attacked)) {
              int pd = predictDamageTo(attacked, damage, attacker, true);
-@@ -215,12 +217,12 @@ public class ComputerUtilCombat {
+@@ -215,12 +253,12 @@ public class ComputerUtilCombat {
              if (pd > 1 || !attacker.getController().getOpponents().getCardsIn(ZoneType.Battlefield).anyMatch(CardPredicates.nameEquals("Vorinclex, Monstrous Raider"))) {
                  poison = pd;
                  if (attacker.hasDoubleStrike()) {
@@ -201,7 +485,7 @@ index 1dfd5d98..83e420bd 100644
          }
          return poison;
      }
-@@ -298,27 +300,62 @@ public class ComputerUtilCombat {
+@@ -298,29 +336,45 @@ public class ComputerUtilCombat {
          int damage = 0;
  
          if (ai.canLoseLife()) {
@@ -219,15 +503,18 @@ index 1dfd5d98..83e420bd 100644
 -                    if (dmgAfterShielding > 0) {
 -                        damage += dmgAfterShielding;
 -                    }
+-                }
 +            // CR 810.9: with shared team life, damage to a teammate comes off this player's life too
 +            for (final Player attacked : ai.sharedLifeTeam()) {
 +                damage += combatDamageTo(attacked, combat);
-+            }
-+        }
-+
-+        return ai.getLife() - damage;
-+    }
-+
+             }
+-
+-            damage += sumDamageIfUnblocked(unblocked, ai);
+         }
+ 
+         return ai.getLife() - damage;
+     }
+ 
 +    private static int combatDamageTo(final Player attacked, final Combat combat) {
 +        int damage = 0;
 +        final List<Card> unblocked = Lists.newArrayList();
@@ -242,45 +529,26 @@ index 1dfd5d98..83e420bd 100644
 +                int dmgAfterShielding = getAttack(attacker) - totalShieldDamage(attacker, blockers);
 +                if (dmgAfterShielding > 0) {
 +                    damage += dmgAfterShielding;
-                 }
-             }
++                }
++            }
 +        }
- 
--            damage += sumDamageIfUnblocked(unblocked, ai);
++
 +        return damage + sumDamageIfUnblocked(unblocked, attacked);
 +    }
 +
 +    // CR 805.10d, 810.9: with shared team life, the creatures attacking any player of this player's team
-+    // CR 805.10d: the players whose attackers this player's creatures may block, the whole team with shared team life or
-+    // shared team turns
-+    public static PlayerCollection blockingTeam(final Player ai) {
-+        if (ai.getGame().getRules().hasTeamBlocks()) {
-+            return ai.getYourTeam();
-         }
-+        final PlayerCollection self = new PlayerCollection();
-+        self.add(ai);
-+        return self;
-+    }
- 
--        return ai.getLife() - damage;
-+    public static CardCollection attackersOfBlockingTeam(final Player ai, final Combat combat) {
-+        final CardCollection attackers = new CardCollection();
-+        for (final Player p : blockingTeam(ai)) {
-+            attackers.addAll(combat.getAttackersOf(p));
-+        }
-+        return attackers;
-+    }
-+
 +    public static CardCollection attackersOfTeam(final Player ai, final Combat combat) {
 +        final CardCollection attackers = new CardCollection();
 +        for (final Player p : ai.sharedLifeTeam()) {
 +            attackers.addAll(combat.getAttackersOf(p));
 +        }
 +        return attackers;
-     }
- 
++    }
++
      // calculates the amount of poison counters after the attack
-@@ -332,11 +369,18 @@ public class ComputerUtilCombat {
+     /**
+      * <p>
+@@ -332,11 +386,18 @@ public class ComputerUtilCombat {
       * @return a int.
       */
      public static int resultingPoison(final Player ai, final Combat combat) {
@@ -302,7 +570,7 @@ index 1dfd5d98..83e420bd 100644
          int poison = 0;
  
          final List<Card> attackers = combat.getAttackersOf(ai);
-@@ -361,15 +405,15 @@ public class ComputerUtilCombat {
+@@ -361,15 +422,15 @@ public class ComputerUtilCombat {
  
          poison += sumPoisonIfUnblocked(unblocked, ai);
  
@@ -322,7 +590,7 @@ index 1dfd5d98..83e420bd 100644
                      res.add(c);
                  }
              }
-@@ -391,7 +435,7 @@ public class ComputerUtilCombat {
+@@ -391,7 +452,7 @@ public class ComputerUtilCombat {
      }
      public static boolean lifeInDanger(final Player ai, final Combat combat, final int payment) {
          // life in danger only cares about the player's life. Not Planeswalkers' life
@@ -331,7 +599,7 @@ index 1dfd5d98..83e420bd 100644
              return false;
          }
  
-@@ -408,7 +452,7 @@ public class ComputerUtilCombat {
+@@ -408,7 +469,7 @@ public class ComputerUtilCombat {
          }
  
          // check for creatures that must be blocked
@@ -340,7 +608,7 @@ index 1dfd5d98..83e420bd 100644
  
          final List<Card> threateningCommanders = getLifeThreateningCommanders(ai, combat);
  
-@@ -474,7 +518,7 @@ public class ComputerUtilCombat {
+@@ -474,7 +535,7 @@ public class ComputerUtilCombat {
          final List<Card> threateningCommanders = getLifeThreateningCommanders(ai, combat);
  
          // check for creatures that must be blocked
@@ -349,15 +617,51 @@ index 1dfd5d98..83e420bd 100644
  
          for (final Card attacker : attackers) {
              final List<Card> blockers = combat.getBlockers(attacker);
+@@ -992,7 +1053,7 @@ public class ComputerUtilCombat {
+                 pBonus = AbilityUtils.calculateAmount(ability.getHostCard(), ability.getParamOrDefault("CounterNum", "1"), ability);
+             }
+ 
+-            if (pBonus > 0 && ComputerUtilCost.canPayCost(ability, blocker.getController(), false)) {
++            if (pBonus > 0 && canPayPump(ability, blocker.getController())) {
+                 power += pBonus;
+             }
+         }
+@@ -1120,7 +1181,7 @@ public class ComputerUtilCombat {
+                 tBonus = AbilityUtils.calculateAmount(ability.getHostCard(), ability.getParamOrDefault("CounterNum", "1"), ability);
+             }
+ 
+-            if (tBonus > 0 && ComputerUtilCost.canPayCost(ability, blocker.getController(), false)) {
++            if (tBonus > 0 && canPayPump(ability, blocker.getController())) {
+                 toughness += tBonus;
+             }
+         }
+@@ -1321,7 +1382,7 @@ public class ComputerUtilCombat {
+                 }
+             }
+ 
+-            if (pBonus > 0 && ComputerUtilCost.canPayCost(ability, attacker.getController(), false)) {
++            if (pBonus > 0 && canPayPump(ability, attacker.getController())) {
+                 power += pBonus;
+             }
+         }
+@@ -1542,7 +1603,7 @@ public class ComputerUtilCombat {
+                 tBonus = AbilityUtils.calculateAmount(ability.getHostCard(), ability.getParamOrDefault("CounterNum", "1"), ability);
+             }
+ 
+-            if (tBonus > 0 && ComputerUtilCost.canPayCost(ability, attacker.getController(), false)) {
++            if (tBonus > 0 && canPayPump(ability, attacker.getController())) {
+                 toughness += tBonus;
+             }
+         }
 diff --git a/forge-ai/src/main/java/forge/ai/ComputerUtilMana.java b/forge-ai/src/main/java/forge/ai/ComputerUtilMana.java
-index 5f96dead..b963290c 100644
+index 5f96dead..def1a348 100644
 --- a/forge-ai/src/main/java/forge/ai/ComputerUtilMana.java
 +++ b/forge-ai/src/main/java/forge/ai/ComputerUtilMana.java
 @@ -594,8 +594,35 @@ public class ComputerUtilMana {
          return manaProduced;
      }
  
-+    // A real payment has the combat declarations' budget (Game.getAITimeout). Each mana ability activated runs a full
++    // A real payment has its own budget (Game.getAIPayTimeoutMs, shorter than the declarations'). Each mana ability activated runs a full
 +    // static pass (MagicStack.add), and on a big board each costs hundreds of milliseconds once the state has changed.
 +    // Past the budget the rest of the payment holds the static checks, and one pass runs when it ends.
 +    private static final class PayBudget {
@@ -374,7 +678,7 @@ index 5f96dead..b963290c 100644
 +        if (test) {
 +            return payManaCost(cost, sa, ai, true, checkPlayable, effect, null);
 +        }
-+        final PayBudget budget = new PayBudget(System.currentTimeMillis() + ai.getGame().getAITimeout() * 1000L);
++        final PayBudget budget = new PayBudget(System.currentTimeMillis() + ai.getGame().getAIPayTimeoutMs());
 +        try {
 +            return payManaCost(cost, sa, ai, false, checkPlayable, effect, budget);
 +        } finally {
@@ -705,7 +1009,7 @@ index 7f8642da..1e9b6cea 100644
                  // Cast it if it's a sorcery.
              } else if (phase.getPhase().isBefore(PhaseType.COMBAT_DECLARE_BLOCKERS)) {
 diff --git a/forge-ai/src/main/java/forge/ai/simulation/GameCopier.java b/forge-ai/src/main/java/forge/ai/simulation/GameCopier.java
-index abb04f52..1609f827 100644
+index abb04f52..17c85a5d 100644
 --- a/forge-ai/src/main/java/forge/ai/simulation/GameCopier.java
 +++ b/forge-ai/src/main/java/forge/ai/simulation/GameCopier.java
 @@ -95,6 +95,7 @@ public class GameCopier {
@@ -716,6 +1020,14 @@ index abb04f52..1609f827 100644
              newPlayer.setLifeStartedThisTurnWith(origPlayer.getLifeStartedThisTurnWith());
              newPlayer.setDamageReceivedThisTurn(origPlayer.getDamageReceivedThisTurn());
              newPlayer.setLandsPlayedThisTurn(origPlayer.getLandsPlayedThisTurn());
+@@ -227,6 +228,7 @@ public class GameCopier {
+         newGame.dangerouslySyncCardIdCounters(origGame);
+         newGame.EXPERIMENTAL_RESTORE_SNAPSHOT = origGame.EXPERIMENTAL_RESTORE_SNAPSHOT;
+         newGame.AI_TIMEOUT = origGame.AI_TIMEOUT;
++        newGame.AI_PAY_TIMEOUT_MS = origGame.AI_PAY_TIMEOUT_MS;
+         newGame.setAge(origGame.getAge());
+ 
+         // TODO countersAddedThisTurn
 diff --git a/forge-ai/src/main/java/forge/ai/simulation/SpellAbilityPicker.java b/forge-ai/src/main/java/forge/ai/simulation/SpellAbilityPicker.java
 index 32394268..e7c90cb7 100644
 --- a/forge-ai/src/main/java/forge/ai/simulation/SpellAbilityPicker.java
@@ -730,10 +1042,21 @@ index 32394268..e7c90cb7 100644
          }
          print("---- choose ability  (phase = " + phaseStr + ")");
 diff --git a/forge-game/src/main/java/forge/game/Game.java b/forge-game/src/main/java/forge/game/Game.java
-index 8d204538..93a52607 100644
+index 8d204538..c41c160c 100644
 --- a/forge-game/src/main/java/forge/game/Game.java
 +++ b/forge-game/src/main/java/forge/game/Game.java
-@@ -1016,7 +1016,7 @@ public class Game {
+@@ -101,6 +101,10 @@ public class Game {
+ 
+     private final Zone stackZone = new Zone(ZoneType.Stack, this);
+     public int AI_TIMEOUT = 5;
++    // A real AI payment's own budget, shorter than the declarations' AI_TIMEOUT: past it the payment still finishes
++    // (with the static checks held), and the work before the deadline is reached and the one pass after it come on top,
++    // so a 5 s budget gave 7.5 s at 6 seats x 90 permanents (ComputerUtilMana.PayBudget).
++    public int AI_PAY_TIMEOUT_MS = 2000;
+ 
+     public boolean EXPERIMENTAL_RESTORE_SNAPSHOT = false;
+     // While this is false here, its really set by the Match/Preferences
+@@ -1016,7 +1020,7 @@ public class Game {
                  planarController = getNextPlayerAfter(p);
              }
              CardCollection planesLeavingGame =  new CardCollection();
@@ -742,7 +1065,7 @@ index 8d204538..93a52607 100644
                  if (c.getOwner().equals(p)) {
                      planesLeavingGame.add(c);
                      planarController.removeCurrentPlane(c);
-@@ -1115,7 +1115,7 @@ public class Game {
+@@ -1115,7 +1119,7 @@ public class Game {
      // on its next allocation and re-throws: strong termination pressure.
      //
      // Calibration (false-positive draw on a legitimate big turn is the key
@@ -751,7 +1074,7 @@ index 8d204538..93a52607 100644
      // turn is low THOUSANDS of objects/trigger-fires, so the cap sits an
      // order of magnitude above any legitimate game, yet 25k Cards is far
      // below 3g-heap exhaustion. Tunable at boot without a rebuild
-@@ -1134,33 +1134,155 @@ public class Game {
+@@ -1134,33 +1138,155 @@ public class Game {
          }
      }
  
@@ -849,10 +1172,8 @@ index 8d204538..93a52607 100644
 +    /** Tests only: what share of the heap is in use (null: the runtime's). */
 +    public static void setHeapReader(final java.util.function.DoubleSupplier reader) {
 +        heapUsed = reader == null ? RUNTIME_HEAP : reader;
-     }
- 
--    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
--    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
++    }
++
 +    private RunawayChoice runawayChoice;
 +    private int cardsAllowedThisTurn = 0;
 +    private int triggersAllowedThisTurn = 0;
@@ -918,15 +1239,17 @@ index 8d204538..93a52607 100644
 +        cardsCapPending = false;
 +        askOrDraw(cardsCreatedThisTurn, addCap(runawayCardsPerTurnCap, cardsAllowedThisTurn), "cards created");
 +        cardsAllowedThisTurn = addCap(cardsAllowedThisTurn, runawayCardsPerTurnCap);
-+    }
-+
+     }
+ 
+-    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
+-    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
 +    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CARDS_PER_TURN;
 +    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_TRIGGERS_PER_TURN;
 +    private static volatile int runawayStackItemsCap = RUNAWAY_STACK_ITEMS;
  
      public static void setRunawayCardsPerTurnCap(final int cap) {
          runawayCardsPerTurnCap = cap > 0 ? cap : Integer.MAX_VALUE;
-@@ -1168,6 +1290,9 @@ public class Game {
+@@ -1168,6 +1294,9 @@ public class Game {
      public static void setRunawayTriggersPerTurnCap(final int cap) {
          runawayTriggersPerTurnCap = cap > 0 ? cap : Integer.MAX_VALUE;
      }
@@ -936,7 +1259,7 @@ index 8d204538..93a52607 100644
  
      private int runawayTurnStamp = -1;
      private int cardsCreatedThisTurn = 0;
-@@ -1186,17 +1311,21 @@ public class Game {
+@@ -1186,17 +1315,21 @@ public class Game {
              runawayTurnStamp = turnNow;
              cardsCreatedThisTurn = 0;
              triggersFiredThisTurn = 0;
@@ -962,7 +1285,7 @@ index 8d204538..93a52607 100644
              runawayFinalizing = true;
              try {
                  // Mirror the engine's OWN draw path, GameDrawEffect.resolve():
-@@ -1220,16 +1349,75 @@ public class Game {
+@@ -1220,16 +1353,75 @@ public class Game {
       *  TriggerHandler.runWaitingTriggers(). */
      public void recordTriggerFired() {
          resetRunawayWindowOnTurnChange();
@@ -1040,7 +1363,7 @@ index 8d204538..93a52607 100644
          return ++cardIdCounter;
      }
      public int nextHiddenCardId() {
-@@ -1410,7 +1598,8 @@ public class Game {
+@@ -1410,7 +1602,8 @@ public class Game {
              player.onCleanupPhase();
          }
          for (final Card c : getCardsIncludePhasingIn(ZoneType.Battlefield)) {
@@ -1050,7 +1373,7 @@ index 8d204538..93a52607 100644
          }
          for (final Card card : getCardsInGame()) {
              card.resetActivationsPerTurn();
-@@ -1479,6 +1668,23 @@ public class Game {
+@@ -1479,6 +1672,23 @@ public class Game {
          countersRemovedThisTurn.clear();
      }
  
@@ -1074,7 +1397,7 @@ index 8d204538..93a52607 100644
      public void addCounterRemovedThisTurn(CounterType cType, Card card, Integer value) {
          countersRemovedThisTurn.put(cType, Pair.of(CardCopyService.getLKICopy(card), value));
      }
-@@ -1590,6 +1796,9 @@ public class Game {
+@@ -1590,6 +1800,9 @@ public class Game {
      public Boolean getDayTime() {
          return this.daytime;
      }
@@ -1084,8 +1407,18 @@ index 8d204538..93a52607 100644
      public void setDayTime(Boolean value) {
          if (StaticAbilityCantChangeDayTime.cantChangeDay(this, value)) {
              return;
+@@ -1613,6 +1826,9 @@ public class Game {
+     public int getAITimeout() {
+         return AI_TIMEOUT;
+     }
++    public long getAIPayTimeoutMs() {
++        return Math.min(AI_PAY_TIMEOUT_MS, AI_TIMEOUT * 1000L);
++    }
+     public boolean isNoGUIUser() {
+         return noGUIUser;
+     }
 diff --git a/forge-game/src/main/java/forge/game/GameAction.java b/forge-game/src/main/java/forge/game/GameAction.java
-index e6cbe012..f59416b2 100644
+index e6cbe012..5b2c3767 100644
 --- a/forge-game/src/main/java/forge/game/GameAction.java
 +++ b/forge-game/src/main/java/forge/game/GameAction.java
 @@ -1049,6 +1049,17 @@ public class GameAction {
@@ -1114,17 +1447,7 @@ index e6cbe012..f59416b2 100644
          game.getTracker().freeze(); //prevent views flickering during while updating for state-based effects
          game.getTracker().holdChangeVersion();
  
-@@ -1807,7 +1819,8 @@ public class GameAction {
-         if (!c.isScheme() || c.getType().hasSupertype(Supertype.Ongoing)) {
-             return;
-         }
--        if (!game.getStack().hasSourceOnStack(c, null)) {
-+        // CR 904.10: only once no triggered ability of any scheme is on the stack or waiting to be put on it
-+        if (!game.getStack().hasSchemeTrigger()) {
-             moveTo(ZoneType.SchemeDeck, c, -1, null, AbilityKey.newMap());
-         }
-     }
-@@ -1988,7 +2001,8 @@ public class GameAction {
+@@ -1988,7 +2000,8 @@ public class GameAction {
              // then the rest have lost!
              reason = GameEndReason.WinsGameSpellEffect;
              for (Player pl : allPlayers) {
@@ -1134,7 +1457,7 @@ index e6cbe012..f59416b2 100644
                      continue;
                  }
  
-@@ -2015,6 +2029,19 @@ public class GameAction {
+@@ -2015,6 +2028,19 @@ public class GameAction {
              }
          }
  
@@ -1154,7 +1477,7 @@ index e6cbe012..f59416b2 100644
          if (losers != null) {
              for (Player p : losers) {
                  game.onPlayerLost(p);
-@@ -2451,6 +2478,12 @@ public class GameAction {
+@@ -2451,6 +2477,12 @@ public class GameAction {
                  return game.getPlayers().get(0);
              }
  
@@ -1167,7 +1490,7 @@ index e6cbe012..f59416b2 100644
              // 904.6: in Archenemy games the Archenemy goes first
              if (game.getRules().hasAppliedVariant(GameType.Archenemy)) {
                  for (Player p : game.getPlayers()) {
-@@ -2471,7 +2504,7 @@ public class GameAction {
+@@ -2471,7 +2503,7 @@ public class GameAction {
          if (!powerPlayers.isEmpty()) {
              List<Player> players = Lists.newArrayList(powerPlayers);
              Collections.shuffle(players, MyRandom.getRandom());
@@ -1176,7 +1499,7 @@ index e6cbe012..f59416b2 100644
          }
  
          boolean isFirstGame = lastGameOutcome == null;
-@@ -2499,9 +2532,36 @@ public class GameAction {
+@@ -2499,9 +2531,36 @@ public class GameAction {
              }
          }
          goesFirst = goesFirst.getController().chooseStartingPlayer(isFirstGame);
@@ -1271,7 +1594,7 @@ index ce9e5fb0..df975794 100644
  
      abstract public void setCounters(final Multiset<CounterType> allCounters);
 diff --git a/forge-game/src/main/java/forge/game/GameRules.java b/forge-game/src/main/java/forge/game/GameRules.java
-index 2a2d5583..6f5c8dd6 100644
+index 2a2d5583..b8e60e7d 100644
 --- a/forge-game/src/main/java/forge/game/GameRules.java
 +++ b/forge-game/src/main/java/forge/game/GameRules.java
 @@ -8,6 +8,15 @@ public class GameRules {
@@ -1290,7 +1613,7 @@ index 2a2d5583..6f5c8dd6 100644
      private int gamesPerMatch = 3;
      private int gamesToWinMatch = 2;
      private boolean playForAnte = false;
-@@ -61,6 +70,47 @@ public class GameRules {
+@@ -61,6 +70,41 @@ public class GameRules {
          this.poisonCountersToLose = amount;
      }
  
@@ -1313,12 +1636,6 @@ index 2a2d5583..6f5c8dd6 100644
 +    }
 +    public void setSharedTeamLife(final boolean shared) {
 +        this.sharedTeamLife = shared;
-+    }
-+
-+    // CR 805.10d: a defender may block a creature attacking a teammate with shared team life (the team blocks as one,
-+    // level 1) or shared team turns (Two-Headed Giant level 2, Archenemy's CR 904.2)
-+    public boolean hasTeamBlocks() {
-+        return sharedTeamLife || sharedTeamTurns;
 +    }
 +
 +    public boolean hasSharedTeamTurns() {
@@ -2686,7 +3003,7 @@ index 79f6139c..f24e531a 100644
                  attackers.remove(attacker);
                  // player wants to assign another first
 diff --git a/forge-game/src/main/java/forge/game/combat/CombatUtil.java b/forge-game/src/main/java/forge/game/combat/CombatUtil.java
-index a95828ff..85ad4265 100644
+index a95828ff..de1bea5c 100644
 --- a/forge-game/src/main/java/forge/game/combat/CombatUtil.java
 +++ b/forge-game/src/main/java/forge/game/combat/CombatUtil.java
 @@ -29,6 +29,7 @@ import forge.game.keyword.Keyword;
@@ -2721,9 +3038,9 @@ index a95828ff..85ad4265 100644
              // Rule 802.4a: A player can block only creatures attacking him/her or a planeswalker he/she controls
              Player attacked = combat.getDefendingPlayerRelatedTo(attacker);
 -            if (attacked != null && attacked != defendingPlayer) {
-+            // CR 805.10d: with shared team life or shared team turns a defender may block a creature attacking a teammate
++            // CR 805.10d: with shared team life a defender may block a creature attacking a teammate
 +            if (attacked != null && attacked != defendingPlayer
-+                    && !(defendingPlayer != null && defendingPlayer.getGame().getRules().hasTeamBlocks() && !attacked.isOpponentOf(defendingPlayer))) {
++                    && !(defendingPlayer != null && defendingPlayer.getGame().getRules().hasSharedTeamLife() && !attacked.isOpponentOf(defendingPlayer))) {
                  return false;
              }
          }
@@ -2855,7 +3172,7 @@ index 0b747a2f..f1b06281 100644
       * <p>
       * Add a hardcoded trigger that will execute "at <phase>".
 diff --git a/forge-game/src/main/java/forge/game/phase/PhaseHandler.java b/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
-index 4a3a94df..073dc911 100644
+index 4a3a94df..71f1021a 100644
 --- a/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
 +++ b/forge-game/src/main/java/forge/game/phase/PhaseHandler.java
 @@ -20,6 +20,8 @@ package forge.game.phase;
@@ -3625,7 +3942,7 @@ index 4a3a94df..073dc911 100644
 +                }
 +            }
 +        }
-+        tellTeam(team, List.of(primary.getName() + " decides (team leader)"));
++        tellTeam(team, List.of(primary.getName() + " settles the team's blocks (rule 805.2)"));
 +    }
 +
 +    // CR 805.10d: with shared team life but not shared turns (level 1), the defending team is the attacked player and
@@ -5339,7 +5656,7 @@ index 8ab7dbe3..43ca371f 100644
  
      @Override
 diff --git a/forge-game/src/main/java/forge/game/zone/MagicStack.java b/forge-game/src/main/java/forge/game/zone/MagicStack.java
-index 35ea040c..2f002742 100644
+index 35ea040c..8350e504 100644
 --- a/forge-game/src/main/java/forge/game/zone/MagicStack.java
 +++ b/forge-game/src/main/java/forge/game/zone/MagicStack.java
 @@ -76,6 +76,8 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
@@ -5525,29 +5842,6 @@ index 35ea040c..2f002742 100644
  
      public final void onNextTurn() {
          final Player active = game.getPhaseHandler().getPlayerTurn();
-@@ -959,6 +1072,22 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
-         return thisTurnActivated;
-     }
- 
-+    // CR 904.10: a triggered ability of any scheme on the stack or waiting to be put on it (a non-ongoing scheme face up
-+    // in the command zone stays there until there is none)
-+    public final boolean hasSchemeTrigger() {
-+        for (SpellAbilityStackInstance si : stack) {
-+            if (si.isTrigger() && si.getSourceCard() != null && si.getSourceCard().isScheme()) {
-+                return true;
-+            }
-+        }
-+        for (SpellAbility sa : simultaneousStackEntryList) {
-+            if (sa.isTrigger() && sa.getHostCard() != null && sa.getHostCard().isScheme()) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    }
-+
-     public final boolean hasSourceOnStack(final Card source, final Predicate<SpellAbility> pred) {
-         if (source == null) {
-             return false;
 diff --git a/forge-game/src/main/java/forge/game/zone/StackMerge.java b/forge-game/src/main/java/forge/game/zone/StackMerge.java
 new file mode 100644
 index 00000000..19e20b28

@@ -354,10 +354,33 @@ public final class BigBoardCheck {
             System.out.println("pass perSeat=" + perSeat + " sameState=" + same + " ms afterTap=" + ms(s1) + " ms dependencyScans=" + (act.getGame().getAction().getDependencyScans() - d0));
             return;
         }
-        final Combat combat = new Combat(act);
+        Combat combat = new Combat(act);
         if (what.equals("attack")) {
             act.getGame().getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, act, 5);
             act.getGame().getPhaseHandler().setCombat(combat);
+        }
+        Player blocking = t.players.get(1);
+        if (what.equals("block")) {
+            act.getGame().getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, act, 5);
+            combat = new Combat(act);
+            act.getGame().getPhaseHandler().setCombat(combat);
+            final List<Player> defenders = new ArrayList<>(t.players.subList(1, t.players.size()));
+            int k = 0;
+            for (final Card c : act.getCreaturesInPlay()) {
+                for (int tries = 0; tries < defenders.size(); tries++) {
+                    final Player d = defenders.get(k++ % defenders.size());
+                    if (CombatUtil.canAttack(c, d)) {
+                        combat.addAttacker(c, d);
+                        break;
+                    }
+                }
+            }
+            for (final Player d : defenders) {
+                if (combat.getAttackersOf(d).size() > combat.getAttackersOf(blocking).size()) {
+                    blocking = d;
+                }
+            }
+            blocking.setLife(Math.max(1, Math.min(blocking.getLife(), 6)), null);
         }
         final Thread main = Thread.currentThread();
         final Map<String, Integer> incl = new java.util.HashMap<>();
@@ -397,12 +420,15 @@ public final class BigBoardCheck {
             ActionSpace.getPossibleActions(act, true, true);
         } else if (what.equals("attack")) {
             act.getController().declareAttackers(act, combat);
+        } else if (what.equals("block")) {
+            blocking.getController().declareBlockers(blocking, combat);
         } else {
             ComputerUtilMana.payManaCost(sa.getPayCosts(), act, sa, false);
         }
         final double took = ms(t0);
         sampler.interrupt();
-        System.out.println("sample " + what + " perSeat=" + perSeat + " ms=" + took + " samples=" + n[0]);
+        System.out.println("sample " + what + " perSeat=" + perSeat + " ms=" + took + " samples=" + n[0]
+                + (what.equals("block") ? " attackers=" + combat.getAttackersOf(blocking).size() + " of " + combat.getAttackers().size() + " blockers=" + combat.getAllBlockers().size() + " life=" + blocking.getLife() : ""));
         incl.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(25)
                 .forEach(e -> System.out.println("  incl " + e.getValue() + " " + e.getKey()));
         self.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(5)
