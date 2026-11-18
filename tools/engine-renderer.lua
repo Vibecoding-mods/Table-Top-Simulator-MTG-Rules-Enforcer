@@ -4399,10 +4399,21 @@ local function stashObject(o)
   o.setInvisibleTo(engineEveryone())
 end
 
+-- A seat's Standard sideboard: the deck (or card) the player put on their graveyard spot before the game, sent with
+-- their deck ("mtg ready", engineSendDecks). Put away with the imported deck when a game starts (else it lies where the
+-- engine's graveyard cards go) and back with it after; nil when there is none, or what lies there is the engine's.
+function engineSideboardObject(color)
+  local gy = data[color] and data[color].graveyard
+  local o = gy and getDeckFromZone(gy)
+  if o == nil or (o.type ~= "Deck" and o.type ~= "Card") or tostring(o.getGMNotes()):sub(1, 6) == "engine" or tostring(o.getName()):find("Identity", 1, true) ~= nil then return nil end
+  return o
+end
+
 local function stashImported(colors)
   for _, color in ipairs(colors) do
     local zone = data[color] and data[color].libraryZone
     stashObject(zone and getDeckFromZone(zone))
+    stashObject(engineSideboardObject(color))
     for _, o in ipairs(Player[color].getHandObjects() or {}) do
       if o.type == "Card" and not tostring(o.getName()):find("Identity") and not tostring(o.getGMNotes()):find("^engine:") then stashObject(o) end
     end
@@ -4443,6 +4454,7 @@ function engineClearDeck(color)
     o.destruct()
   end
   take(getDeckFromZone(d.libraryZone))
+  take(engineSideboardObject(color)) -- (its sideboard on the graveyard spot too)
   local anchors = {}
   for _, guid in ipairs(TAX_LABELS[color] or {}) do
     local a = getObjectFromGUID(guid)

@@ -76,7 +76,8 @@ All of these are still open: nothing was seen in TTS. See (d), which adds the ne
 - ~~Sideboarding between games, "Concede match", game 1's random pick, "Game 2 of 3"~~ (`cloud/bo3-extras`, on main).
 - ~~The roll winner chooses play or draw~~ (`cloud/bo3-roll-choice`, in engine1124).
 - **Still open:**
-  - a deck imported on the table has no sideboard, so in a real game nobody is asked to sideboard;
+  - ~~a deck imported on the table has no sideboard, so in a real game nobody is asked to sideboard~~
+    (`cloud/sideboard-imported`: a second deck on the seat's graveyard spot is its sideboard, read by `mtg ready`);
   - no turn-timer clock for sideboarding;
   - no laid-out swap.
 
