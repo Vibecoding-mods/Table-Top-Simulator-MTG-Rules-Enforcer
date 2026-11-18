@@ -5820,7 +5820,7 @@ function engineResetUi()
   for k in pairs(engineCombatTab) do engineCombatTab[k] = nil end
 end
 
-engineLogHidden = {} -- colour -> true when the player closed the game log
+engineLogShown = {} -- colour -> true when the player opened the game log (Log button); closed by default
 AUTO_PACE_DELAY = 2
 
 -- "Your mana pool: GG B" for the player's own floating mana, and under it the other players' that isn't empty,
@@ -5962,7 +5962,7 @@ local function updatePanel(color)
   setAttr("eng_stops_" .. color, "active", engineBrowse[color] and "false" or "true")
   setAttr("eng_logbtn_" .. color, "active", inGame and "true" or "false")
   -- (hidden while the log is empty: an empty black box at the top right, 2026-11-10)
-  setAttr("eng_log_" .. color, "active", (inGame and not engineLogHidden[color] and #engineLog > 0) and "true" or "false")
+  setAttr("eng_log_" .. color, "active", (inGame and engineLogShown[color] and #engineLog > 0) and "true" or "false")
   -- (the Settings tab's lines say what each switch is now: a switch changed from the chat shows too)
   if engineBrowse[color] == "settings" and panelReady then updateOptions(color) end
   setText("eng_status_" .. color, statusText() .. poolText(color) .. pendingText(color))
@@ -6635,7 +6635,7 @@ function engineOnLog(m)
 end
 function onMtgLog(player, value, id)
   if player.color ~= idColor(id) then return end
-  engineLogHidden[player.color] = not engineLogHidden[player.color] or nil
+  engineLogShown[player.color] = not engineLogShown[player.color] or nil
   updatePanel(player.color)
 end
 

@@ -460,8 +460,7 @@
    {
     "step": "10 gamelog",
     "fx": [
-     "f90 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws 7 cards\\\nAI 1 draws 7 cards\\\nAI 2 draws 7 cards\\\nAI 3 draws 7 cards\"",
-     "f90 \"UI.setAttribute\" \"eng_log_Blue\" \"active\" \"true\""
+     "f90 \"UI.setValue\" \"eng_logtext_Blue\" \"Blue draws 7 cards\\\nAI 1 draws 7 cards\\\nAI 2 draws 7 cards\\\nAI 3 draws 7 cards\""
     ]
    },
    {
@@ -3998,7 +3997,6 @@
      "f1878 \"UI.setAttributes\" \"eng_browse_Blue\" {active=\"false\"}",
      "f1878 \"UI.setAttributes\" \"eng_set_Blue\" {active=\"false\"}",
      "f1878 \"UI.setAttributes\" \"eng_logbtn_Blue\" {active=\"false\"}",
-     "f1878 \"UI.setAttribute\" \"eng_log_Blue\" \"active\" \"false\"",
      "f1878 \"UI.setValue\" \"eng_status_Blue\" \"\"",
      "f1878 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
      "f1878 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
@@ -4634,8 +4632,7 @@
    {
     "step": "12 gamelog",
     "fx": [
-     "f102 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 1 ---\"",
-     "f102 \"UI.setAttribute\" \"eng_log_Blue\" \"active\" \"true\""
+     "f102 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 1 ---\""
     ]
    },
    {
@@ -13225,7 +13222,6 @@
      "f6085 \"UI.setAttributes\" \"eng_browse_Blue\" {active=\"false\"}",
      "f6085 \"UI.setAttributes\" \"eng_set_Blue\" {active=\"false\"}",
      "f6085 \"UI.setAttributes\" \"eng_logbtn_Blue\" {active=\"false\"}",
-     "f6085 \"UI.setAttribute\" \"eng_log_Blue\" \"active\" \"false\"",
      "f6085 \"UI.setValue\" \"eng_status_Blue\" \"\"",
      "f6085 \"UI.setAttribute\" \"eng_phase_Blue\" \"active\" \"false\"",
      "f6085 \"UI.setAttribute\" \"eng_phasebg_Blue\" \"active\" \"false\"",
@@ -13436,7 +13432,6 @@
      "f6175 \"UI.setAttributes\" \"eng_browse_Blue\" {active=\"true\",color=\"#1A1A1A\",textColor=\"#FFFFFF\"}",
      "f6175 \"UI.setAttributes\" \"eng_set_Blue\" {active=\"true\",color=\"#1A1A1A\",textColor=\"#FFFFFF\"}",
      "f6175 \"UI.setAttributes\" \"eng_logbtn_Blue\" {active=\"true\",color=\"#1A1A1A\",textColor=\"#ffffff\"}",
-     "f6175 \"UI.setAttribute\" \"eng_log_Blue\" \"active\" \"true\"",
      "f6175 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 6th turn (game turn 10) - combatDeclareBlockers - priority: PlayerBlue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
      "f6175 \"UI.setAttribute\" \"eng_phase_Blue\" \"active\" \"true\"",
      "f6175 \"UI.setAttribute\" \"eng_phasebg_Blue\" \"active\" \"true\"",
@@ -17664,8 +17659,7 @@
    {
     "step": "12 gamelog",
     "fx": [
-     "f102 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 1 ---\"",
-     "f102 \"UI.setAttribute\" \"eng_log_Blue\" \"active\" \"true\""
+     "f102 \"UI.setValue\" \"eng_logtext_Blue\" \"--- AI 1's turn 1 ---\""
     ]
    },
    {

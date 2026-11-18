@@ -580,8 +580,7 @@
    {
     "step": "7 gamelog",
     "fx": [
-     "f72 \"UI.setValue\" \"eng_logtext_White\" \"White draws 7 cards\\\nAI 1 draws 7 cards\\\nAI 2 draws 7 cards\\\nAI 3 draws 7 cards\\\nAI 4 draws 7 cards\\\nAI 5 draws 7 cards\"",
-     "f72 \"UI.setAttribute\" \"eng_log_White\" \"active\" \"true\""
+     "f72 \"UI.setValue\" \"eng_logtext_White\" \"White draws 7 cards\\\nAI 1 draws 7 cards\\\nAI 2 draws 7 cards\\\nAI 3 draws 7 cards\\\nAI 4 draws 7 cards\\\nAI 5 draws 7 cards\""
     ]
    },
    {
@@ -5596,7 +5595,6 @@
      "f2046 \"UI.setAttributes\" \"eng_browse_White\" {active=\"false\"}",
      "f2046 \"UI.setAttributes\" \"eng_set_White\" {active=\"false\"}",
      "f2046 \"UI.setAttributes\" \"eng_logbtn_White\" {active=\"false\"}",
-     "f2046 \"UI.setAttribute\" \"eng_log_White\" \"active\" \"false\"",
      "f2046 \"UI.setValue\" \"eng_status_White\" \"\"",
      "f2046 \"UI.setValue\" \"eng_title_White\" \"Waiting for other players...\"",
      "f2046 \"UI.setAttributes\" \"eng_opt_White_1\" {active=\"false\"}",

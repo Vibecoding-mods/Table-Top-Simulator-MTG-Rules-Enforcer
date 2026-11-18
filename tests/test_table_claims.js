@@ -1008,11 +1008,16 @@ for (const kind of ["Land", "Creature"]) {
 {
   const r = run([q('engineScoopRedraw()', "draw"), q('local x = __sim.longXml() return tostring(x:find("eng_cover", 1, true) ~= nil) .. "|" .. tostring(engineToolCoverXml)', "xml"),
     q('engineLog = {} engineRenderPanels("none") return tostring(UI.getAttribute("eng_log_Blue", "active"))', "empty log"),
-    q('engineOnLog({ lines = { "Blue casts Opt" } }) return tostring(UI.getAttribute("eng_log_Blue", "active"))', "first line")]);
+    q('engineOnLog({ lines = { "Blue casts Opt" } }) return tostring(UI.getAttribute("eng_log_Blue", "active"))', "first line"),
+    q('onMtgLog(Player.Blue, nil, "eng_logbtn_Blue") return tostring(UI.getAttribute("eng_log_Blue", "active"))', "opened"),
+    q('onMtgLog(Player.Blue, nil, "eng_logbtn_Blue") return tostring(UI.getAttribute("eng_log_Blue", "active"))', "closed again")]);
   ok("black boxes: no tool covers in the screen UI", valueOf(r, "xml") === "false|nil", String(valueOf(r, "xml")) + " " + r.errors.join(" | "));
   ok("black boxes: nothing sets a cover", !r.steps.some((st) => (st.fx || []).some((l) => l.includes("eng_cover"))), "a cover was set");
   ok("black boxes: the log panel is hidden while the log is empty", valueOf(r, "empty log") === "false", String(valueOf(r, "empty log")));
-  ok("black boxes: the log panel shows with its first line", valueOf(r, "first line") === "true", String(valueOf(r, "first line")));
+  // (closed until the player opens it: the user, 2026-11-18, "the log doesn't auto open")
+  ok("log: it stays closed when the first line comes", valueOf(r, "first line") === "false", String(valueOf(r, "first line")));
+  ok("log: the Log button opens it", valueOf(r, "opened") === "true", String(valueOf(r, "opened")));
+  ok("log: and closes it again", valueOf(r, "closed again") === "false", String(valueOf(r, "closed again")));
 }
 // The log panel keeps its newest line in view (engineLogFit; live check 2026-11-11: a 9-row debug-setup line and 2-3-row
 // mills overflowed the 280 px box, TTS clipped the bottom and the panel stopped at 14:49 while the log ran to 14:52)
