@@ -292,7 +292,16 @@ engineGroupShown = {} -- engine card id -> the "xN" count its badge last showed 
 
 local COUNTER_NAMES = { P1P1 = "+1/+1", M1M1 = "-1/-1", LOYALTY = "Loyalty", POISON = "Poison", SHIELD = "Shield",
   STUN = "Stun", LORE = "Lore", OIL = "Oil", CHARGE = "Charge", TIME = "Time", FADE = "Fade", AGE = "Age", DEFENSE = "Defense" }
-function engineNoop() end
+-- The click of a label drawn on a card (its badges, status box, cost badge, a count): a click on that card, as if the
+-- label weren't there. A button takes the click from the object under it, so a tall status box ("At end step:
+-- sacrifice Pestermite" on Mairsil) caught the click meant for the card when it was a target (hand test Mairsil bug 1).
+-- On anything else (a life counter's marks) it does nothing.
+function engineNoop(obj, color)
+  if obj == nil or color == nil or Player == nil or Player[color] == nil or onPlayerAction == nil then return end
+  local okGm, gm = pcall(function() return tostring(obj.getGMNotes()) end)
+  if not okGm or string.sub(gm, 1, 7) ~= "engine:" then return end
+  onPlayerAction(Player[color], Player.Action.Select, { obj })
+end
 -- M5 step 2, Arena's layout: power/toughness bottom right (blue when raised, red when lowered or damaged: the
 -- toughness shown is what is left after damage), loyalty/defense there for planeswalkers and battles, +1/+1 and
 -- -1/-1 counters as a dark-blue tag top right with other counters under it, "xN" top left on a group of tokens.
@@ -1612,7 +1621,9 @@ end
 local ATTACH = { scale = 0.5, extraCols = 0.6 } -- auras/equipment: half size, beside their host
 -- A fan's step for its count (stress catalog #5): `step` apart up to `show` cards, then squeezed so the whole fan
 -- spans what `show` cards span: Sram's 30 auras reached 28 units from their host, under the next row and seat.
-ENGINE_FAN = { attach = { step = 1.0, show = 6 }, linked = { step = 0.35, show = 8 } }
+-- (linked: few, how many lie side by side, their centres `across` apart in all: a half-size card is 1.1 wide, so two
+-- fill the host's width)
+ENGINE_FAN = { attach = { step = 1.0, show = 6 }, linked = { step = 0.35, show = 8, few = 3, across = 1.1 } }
 function engineFanStep(count, fan)
   if count <= fan.show then return fan.step end
   return fan.step * (fan.show - 1) / (count - 1)
@@ -2425,6 +2436,36 @@ function engineCut(text, n)
     if #cut - i + 1 < need then cut = cut:sub(1, i - 1) end
   end
   return cut
+end
+-- A corner button's long words on two lines of at most `per` characters, broken between words (a word longer than a
+-- line is cut there), the second line cut with "…" past `per` (engineUpdateCorner). The corner's big button is 280 px
+-- wide: 26 px bold holds 22 characters a line, 17 px bold two lines of 26; the small one 18 px holds 30, 14 px two of 34.
+ENGINE_CORNER_WRAP = { big = 26, bigFont = "17", small = 34, smallFont = "14" }
+function engineCornerWrap(label, per)
+  label = tostring(label or "")
+  if #label <= per then return label end
+  local first, rest = "", ""
+  for w in label:gmatch("%S+") do
+    if rest == "" and (first == "" or #first + 1 + #w <= per) then first = first == "" and w or (first .. " " .. w)
+    else rest = rest == "" and w or (rest .. " " .. w) end
+  end
+  if #first > per then
+    local head = engineCut(first, per)
+    rest = first:sub(#head + 1) .. (rest ~= "" and (" " .. rest) or "")
+    first = head
+  end
+  if #rest > per then
+    -- (at the last whole word when one ends past half the line)
+    local cut, at, sp = engineCut(rest, per - 1), 1, nil
+    while true do
+      local s = string.find(cut, " ", at, true)
+      if s == nil then break end
+      sp, at = s, s + 1
+    end
+    if sp ~= nil and sp > per / 2 then cut = string.sub(cut, 1, sp - 1) end
+    rest = cut .. "…"
+  end
+  return rest == "" and first or (first .. "\n" .. rest)
 end
 -- A card picture the screen UI can draw, for every player. TTS's screen UI can't draw .webp, and Scryfall's CDN refuses
 -- TTS's downloader by its user-agent (HTTP 400): both left pictures white. The bridge's own route on this PC reached
@@ -4144,15 +4185,33 @@ function engineRender(m)
       end
     end
   end
+  -- an aura or equipment lies with its host, on the host's seat: AI 3's Coercive Impetus on AI 1's Craw Wurm was drawn
+  -- with AI 3's turn and step onto AI 1's next creature, and White's Mark of the Rani on AI 2's creature lay loose on
+  -- White's side (hand test Mairsil bug 25); it stays its controller's card (attCtl: its clicks, its meta colour)
+  local hostSeat, attachedOn, attCtl = {}, {}, {}
+  for _, pl in ipairs(m.players or {}) do
+    for _, c in ipairs(pl.battlefield or {}) do hostSeat[c.id] = (onOther[c.id] and c.attP) or pl.color end
+  end
+  for _, pl in ipairs(m.players or {}) do
+    for _, c in ipairs(pl.battlefield or {}) do
+      if c.att ~= nil and not onOther[c.id] and pl.color ~= nil then
+        local at = hostSeat[c.att]
+        if at == nil or not present[at] or seatGeometry(at) == nil then at = pl.color end
+        attachedOn[at] = attachedOn[at] or {}
+        table.insert(attachedOn[at], c)
+        attCtl[c.id] = pl.color
+      end
+    end
+  end
   for _, pl in ipairs(m.players or {}) do
     local color = pl.color
     local g = color and seatGeometry(color)
     if g ~= nil then
       engineColors[color] = true
-      local creatures, others, lands, attached = {}, {}, {}, {}
+      local creatures, others, lands, attached = {}, {}, {}, attachedOn[color] or {}
       for _, c in ipairs(pl.battlefield or {}) do
         if onOther[c.id] then -- (drawn on the cursed player's mat, below)
-        elseif c.att ~= nil then attached[#attached + 1] = c
+        elseif c.att ~= nil then -- (drawn with its host, attachedOn)
         elseif hasType(c, "Land") then lands[#lands + 1] = c
         elseif hasType(c, "Creature") then creatures[#creatures + 1] = c
         else others[#others + 1] = c end
@@ -4175,7 +4234,7 @@ function engineRender(m)
         -- toward the next column (the space layoutRow left), first one level with the host's top, then downward
         -- (closer together past ENGINE_FAN.attach.show of them, so the fan stays its size: engineFanStep)
         local spot = host - g.right * (GRID.colStep * (0.5 + ATTACH.extraCols / 2)) + g.fwd * (0.8 - engineFanStep(hosts[c.att], ENGINE_FAN.attach) * (k - 1)) + Vector(0, 0.02 * k, 0)
-        place(c, spot, Vector(0, g.rotY + (c.tap and 90 or 0), 0), seen, nil, { zone = "attached", color = color, host = c.att })
+        place(c, spot, Vector(0, g.rotY + (c.tap and 90 or 0), 0), seen, nil, { zone = "attached", color = attCtl[c.id] or color, host = c.att })
       end
       local pend = enginePending[color]
       local graveShown = pl.graveyard or {}
@@ -5475,8 +5534,13 @@ function engineUpdateCorner(color, p)
   -- a long label ("Keep this order: Mist-Syndicate Naga, Crystal Ball, ...") keeps only the part before the colon
   if bigLabel and #bigLabel > 22 and bigLabel:find(":") then bigLabel = bigLabel:sub(1, bigLabel:find(":", 1, true) - 1) end
   if smallLabel and #smallLabel > 30 and smallLabel:find(":") then smallLabel = smallLabel:sub(1, smallLabel:find(":", 1, true) - 1) end
-  if bigLabel and #bigLabel > 22 then bigLabel = engineCut(bigLabel, 21) .. "…" end
-  if smallLabel and #smallLabel > 30 then smallLabel = engineCut(smallLabel, 29) .. "…" end
+  -- (longer still: two lines at a smaller font, the whole label in its tooltip; cut at one line, "Sacrifice a nonland
+  -- p..." and "Pay Reveal a Swamp or..." hid what they paid, hand test Mairsil bug 26)
+  local bigFull, smallFull = bigLabel, smallLabel
+  if bigLabel and #bigLabel > 22 then bigLabel = engineCornerWrap(bigLabel, ENGINE_CORNER_WRAP.big) end
+  if smallLabel and #smallLabel > 30 then smallLabel = engineCornerWrap(smallLabel, ENGINE_CORNER_WRAP.small) end
+  local bigTwo = bigLabel ~= nil and bigLabel ~= bigFull
+  local smallTwo = smallLabel ~= nil and smallLabel ~= smallFull
   -- (passing priority with mana floating loses it: the pass button says how much is in your pool, "Next (3 floating)",
   -- PLAN 2026-11-13; after the cut above, so the count is never cut off: "Resolve (999 floating)" is 22)
   -- (the pool of the player the priority is for: a player this seat controls, Mindslaver's turn, is the bridge's
@@ -5500,8 +5564,10 @@ function engineUpdateCorner(color, p)
     smallAt = (fresh and was.smallLabel ~= nil and smallLabel ~= nil and was.smallLabel ~= smallLabel) and os.clock() or was.smallAt,
     group = group, groupLabel = groupLabel,
     groupAt = (fresh and was.groupLabel ~= nil and groupLabel ~= nil and was.groupLabel ~= groupLabel) and os.clock() or was.groupAt }
-  setButton("eng_big_" .. color, { active = (big ~= nil or labelOnly) and "true" or "false", text = bigLabel or " ", color = bigColor })
-  setButton("eng_big2_" .. color, { active = small ~= nil and "true" or "false", text = smallLabel or " ", color = smallColor })
+  setButton("eng_big_" .. color, { active = (big ~= nil or labelOnly) and "true" or "false", text = bigLabel or " ", color = bigColor,
+    fontSize = bigTwo and ENGINE_CORNER_WRAP.bigFont or "26", tooltip = bigTwo and bigFull or "" })
+  setButton("eng_big2_" .. color, { active = small ~= nil and "true" or "false", text = smallLabel or " ", color = smallColor,
+    fontSize = smallTwo and ENGINE_CORNER_WRAP.smallFont or "18", tooltip = smallTwo and smallFull or "" })
   -- (no call while it was never shown: the XML has it hidden, and the hint at its usual place)
   if group ~= nil then
     setButton("eng_big3_" .. color, { active = "true", text = groupLabel, tooltip = groupTip })
@@ -6735,7 +6801,8 @@ function engineTieXml()
     .. '<HorizontalLayout width="440" height="40" rectAlignment="LowerCenter" offsetXY="0 10" spacing="16" childForceExpandWidth="true">'
     .. '<Button id="eng_tieyes" onClick="onMtgTie" color="#2e7d32" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Tie</Button>'
     .. '<Button id="eng_tieno" onClick="onMtgTie" color="#8e2a2a" textColor="#ffffff" fontSize="18" fontStyle="Bold" active="false">Keep playing</Button>'
-    .. '</HorizontalLayout></Panel>\n'
+    .. '</HorizontalLayout>'
+    .. '<Button id="eng_tiehide" onClick="onMtgTie" width="26" height="26" rectAlignment="UpperRight" offsetXY="-3 -3" color="#3a3a3a" textColor="#ffffff" fontSize="14" active="false">X</Button></Panel>\n'
 end
 function engineTieUpdate(t, gameOver)
   local sig = gameOver and "over" or t == nil and "" or (tostring(t.id) .. "|" .. tostring(t.status) .. "|" .. tostring(t.rounds) .. "|" .. table.concat(t.waiting or {}, ","))
@@ -6743,16 +6810,36 @@ function engineTieUpdate(t, gameOver)
   ENGINE_TIE_SIG = sig
   engineTieDraw(t, gameOver)
 end
+-- After a no (declined) the pop-up only counts the rounds to a forced tie, for the rest of the game: it is a one-line
+-- strip under the turn bar then, clear of the centre questions' titles and the battlefield it lay over at full size
+-- (hand test Mairsil bug 12), and each player may close it (X) for that offer; the words go to their chat, and
+-- "mtg tie" says them again (ENGINE_TIE_LAST). ENGINE_TIE_HIDDEN: { key = the offer's id, by colour = true }.
 function engineTieDraw(t, gameOver)
   local open = t ~= nil and not gameOver and (t.status == "pending" or t.status == "declined")
+  local strip = open and t.status == "declined"
   ENGINE_TIE_UI = open
+  ENGINE_TIE_LAST = open and t or nil
+  local key = open and tostring(t.id) or nil
+  if ENGINE_TIE_HIDDEN == nil or ENGINE_TIE_HIDDEN.key ~= key then ENGINE_TIE_HIDDEN = { key = key, by = {} } end
   local v = {}
   for c in pairs(engineColors) do
     if open and t.status == "pending" and Player[c] ~= nil and Player[c].seated and engineTieWaits(t, c) then v[#v + 1] = c end
   end
   table.sort(v)
   ENGINE_TIE_ASKED = "|" .. table.concat(v, "|") .. "|"
-  setAttr("eng_tie", "active", open and "true" or "false")
+  -- (who sees it: everyone but those who closed the strip; a closed pending offer's question is never hidden)
+  local see = {}
+  for _, c in ipairs({ "White", "Brown", "Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink", "Grey", "Black" }) do if not (strip and ENGINE_TIE_HIDDEN.by[c]) then see[#see + 1] = c end end
+  setAttr("eng_tie", "active", (open and #see > 0) and "true" or "false")
+  if open then
+    setAttr("eng_tie", "visibility", table.concat(see, "|"))
+    setAttr("eng_tie", "height", strip and "52" or "146")
+    setAttr("eng_tie", "offsetXY", strip and "0 -114" or "0 -272")
+    setAttr("eng_tietext", "height", strip and "48" or "84")
+    setAttr("eng_tietext", "fontSize", strip and "13" or "18")
+    setAttr("eng_tietext", "offsetXY", strip and "-12 -2" or "0 -6")
+    setAttr("eng_tiehide", "active", strip and "true" or "false")
+  end
   -- (an empty visibility would show the buttons to everyone)
   if #v > 0 then setAttr("eng_tieyes", "visibility", table.concat(v, "|")) setAttr("eng_tieno", "visibility", table.concat(v, "|")) end
   setAttr("eng_tieyes", "active", #v > 0 and "true" or "false")
@@ -6788,6 +6875,15 @@ function engineSteamIds(colors)
 end
 function onMtgTie(player, value, id)
   local c = player.color
+  if id == "eng_tiehide" then
+    -- (closed for this player and this offer; the words stay in their chat, and "mtg tie" says them again)
+    local t = ENGINE_TIE_LAST
+    if t == nil or t.status ~= "declined" then return end
+    ENGINE_TIE_HIDDEN.by[c] = true
+    player.broadcast("[MTG] " .. engineTieWords(t, false) .. " (Type  mtg tie  to read this again.)", { 1, 0.85, 0.4 })
+    engineTieDraw(t, false)
+    return
+  end
   if (ENGINE_TIE_ASKED or ""):find("|" .. c .. "|", 1, true) == nil then return end
   if id == "eng_tieyes" then engineSend("tieVote", { color = c, accept = true, steam = engineSteamOf(c) })
   elseif id == "eng_tieno" then engineSend("tieVote", { color = c, accept = false, steam = engineSteamOf(c) }) end
@@ -7365,6 +7461,7 @@ do
     engineTableLog(meta.color, "card slid back onto its mat: " .. tostring(o.getName():match("^[^\n]*")))
   end
   function engineContainHome(id) return enginePlanned[id] end -- (for the tests)
+  function engineMetaColor(id) return (engineMeta[id] or {}).color end -- (for the tests)
   function engineContainTick()
     if not ENGINE_MODE or lastTable == nil or engineFix ~= nil then return end
     local now = os.clock()
@@ -8360,7 +8457,9 @@ function engineMarkSpecial(m)
     for _, c in ipairs(pl.exile or {}) do
       if engineSpecial[c.id] == nil and c.ew ~= nil and onField[c.ew] ~= nil then engineSpecial[c.id] = "linked" end
       -- (a face-up card with time counters, suspended: out of the pile, its counters on its own badge, enginePlaceSpecial)
-      if engineSpecial[c.id] == nil and engineTimeCounters(c) > 0 then engineSpecial[c.id] = "suspended" end
+      -- (and a caged one no permanent lies over, its cage counter on that badge: in the pile it showed neither its cage
+      -- nor that it still gives its abilities, hand test Mairsil bug 6)
+      if engineSpecial[c.id] == nil and (engineTimeCounters(c) > 0 or engineCageCounters(c) > 0) then engineSpecial[c.id] = "suspended" end
     end
   end
   engineLinkHost = onField
@@ -8377,6 +8476,12 @@ SUSPEND_FIT = { fwd = 6.85, step = 1.25, per = 3 }
 function engineTimeCounters(c)
   if c == nil or c.fd or c.n == nil then return 0 end
   for k, n in pairs(c.ctr or {}) do if string.upper(tostring(k)) == "TIME" then return tonumber(n) or 0 end end
+  return 0
+end
+-- A caged card's cage counters (Mairsil, the Pretender's), 0 for a face-down one
+function engineCageCounters(c)
+  if c == nil or c.fd or c.n == nil then return 0 end
+  for k, n in pairs(c.ctr or {}) do if string.upper(tostring(k)) == "CAGE" then return tonumber(n) or 0 end end
   return 0
 end
 function engineSuspendSpot(g, k)
@@ -8485,7 +8590,12 @@ function enginePlaceSpecial(m, seen)
           perHost[c.ew] = (perHost[c.ew] or 0) + 1
           local n = perHost[c.ew]
           local step = engineFanStep(linkedOf[c.ew], ENGINE_FAN.linked)
-          local spot = host + g.fwd * (1.1 + step * (n - 1)) + g.right * (step * (n - 1)) + Vector(0, -0.02 * n, 0)
+          -- (up to ENGINE_FAN.linked.few of them side by side across the host's width, each name in sight, past that a
+          -- diagonal fan: two caged cards under Mairsil lay 0.35 apart, one over the other's name, hand test Mairsil bug 5)
+          local few = linkedOf[c.ew] <= ENGINE_FAN.linked.few
+          local side = few and linkedOf[c.ew] > 1 and ENGINE_FAN.linked.across / (linkedOf[c.ew] - 1) or 0
+          local across = few and side * (n - 1 - (linkedOf[c.ew] - 1) / 2) or step * (n - 1)
+          local spot = host + g.fwd * (1.1 + ((few and linkedOf[c.ew] < 3) and 0 or step * (n - 1))) + g.right * across + Vector(0, -0.02 * n, 0)
           place(c, spot, Vector(0, g.rotY, c.fd and 180 or 0), seen, nil, { zone = "linked", color = hostColor, host = c.ew })
         end
       end
