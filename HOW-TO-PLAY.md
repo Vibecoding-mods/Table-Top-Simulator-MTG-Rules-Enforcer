@@ -302,8 +302,13 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 - **Sideboarding:** a player whose deck came with a sideboard is asked **Keep deck**, **Swap cards** (take cards out,
   then bring sideboard cards in; the main deck keeps 60 or more, the sideboard at most 15) or **Reset to registered**.
   Only you see what you swapped; the others see "Blue is done sideboarding for game 2". The next game waits until every
-  player is done. For now a deck imported on the table has no sideboard (the Card Importer keeps it in the Notebook),
-  so only a deck loaded with its sideboard is asked.
+  player is done.
+- **Your sideboard, for a deck you import on the table:** the Card Importer puts a list's sideboard in the Notebook,
+  not in the deck. So import the 15 as a deck of their own (paste only the sideboard's lines), and put that deck face
+  down on your **graveyard spot** before the game, with your main deck on the library spot as usual. `mtg ready`
+  checks both together (60 or more in the deck, at most 15 in the sideboard, at most 4 of a card across the two) and
+  tells only you "Sideboard: 15 cards". When the game starts it is put away with your deck, and it comes back when the
+  game ends. `mtg clear deck` takes it away too. In Commander a deck there is left alone.
 - **The score:** "MATCH 1–0" and "GAME 2" under each life total, "GAME 2 OF 3" on the bar at the top, and a line in the
   chat and the log after each game. The first to win 2 games wins the match ("MATCH WON"); a drawn game counts for
   neither, and the match ends after at most 5 games.

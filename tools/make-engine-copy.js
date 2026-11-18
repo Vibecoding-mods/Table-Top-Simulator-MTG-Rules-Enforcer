@@ -819,6 +819,21 @@ function engineSendDecks(colors, requester)
       end
     end
     for _, o in ipairs(handCards(color)) do entry.library[#entry.library + 1] = cardInfo(o.getData()) end
+    -- (a Standard sideboard: a second deck, or one card, on the seat's graveyard spot before the game; the Card Importer
+    -- puts a list's sideboard in the Notebook, so the player imports it as a deck of its own and puts it there. Sent with
+    -- the deck, the bridge checks it and tells its owner only; best of three sideboards with it. Never an engine card)
+    local gy = data[color] and data[color].graveyard
+    local side = gy and getDeckFromZone(gy)
+    if side ~= nil and tostring(side.getGMNotes()):sub(1, 6) ~= "engine" then
+      entry.sideboard = {}
+      local sd = side.getData()
+      if side.type == "Card" then entry.sideboard[1] = cardInfo(sd)
+      else
+        for _, c in ipairs(sd.ContainedObjects or {}) do
+          if c.GMNotes ~= "libcard" and tostring(c.GMNotes or ""):sub(1, 6) ~= "engine" then entry.sideboard[#entry.sideboard + 1] = cardInfo(c, sd.CustomDeck) end
+        end
+      end
+    end
     seats[color] = entry
   end
   readyRequest = readyRequest + 1

@@ -1113,7 +1113,7 @@ function englishName(c) {
 function foreignToAsk(seats) {
   const index = forgeIndex(), out = [];
   for (const entry of Object.values(seats)) {
-    for (const c of [...asList(entry?.commander), ...asList(entry?.library)]) {
+    for (const c of [...asList(entry?.commander), ...asList(entry?.library), ...asList(entry?.sideboard)]) {
       if (!c?.n || index[normName(c.n)] || englishName(c)) continue;
       const k = foreignKeys(c);
       if ((k.id && !foreignMissed.has(k.id)) || !foreignMissed.has(k.name)) out.push(c);
@@ -1359,6 +1359,10 @@ function checkDeck(color, entry, mode = gameMode.mode) {
   };
   for (const c of asList(entry.commander)) { const n = resolve(c); if (n) commanders.push(n); }
   for (const c of asList(entry.library)) { const n = resolve(c); if (n) cards.push(n); }
+  // (Standard: a second deck on the seat's graveyard spot is the sideboard, read by the table before a game, entry.sideboard;
+  // best of three sideboards with it between games. Commander has none: a deck there is left alone)
+  const sideboard = [];
+  if (std) for (const c of asList(entry.sideboard)) { const n = resolve(c); if (n) sideboard.push(n); }
   // (Standard: nothing is a commander, so nothing comes out of the library: standardProblems says the command zone's)
   if (!std) for (const cmd of commanders) { const i = cards.indexOf(cmd); if (i >= 0) cards.splice(i, 1); } // commander left in the library
   const counts = {};
@@ -1372,8 +1376,9 @@ function checkDeck(color, entry, mode = gameMode.mode) {
   if (!asList(entry.library).length) problems.push("no deck found in your library zone; put your imported deck there");
   if (!std && !commanders.length) problems.push("no commander found; put it on your command zone, or hover it and type: mtg commander");
   if (unknown.length) problems.push(`the engine doesn't know ${unknown.length} card(s): ${unknown.slice(0, 8).join(", ")}${unknown.length > 8 ? `, and ${unknown.length - 8} more` : ""}. Swap them out or fix the names`);
-  // (the table reads no sideboard: the Card Importer puts a list's sideboard in the Notebook, so there is none to check)
-  if (std && asList(entry.library).length) problems.push(...standardProblems(cards, commanders));
+  // (the Card Importer puts a list's sideboard in the Notebook, not in the deck: the player imports it as its own deck
+  // and puts it on their graveyard spot, entry.sideboard; checked with the main deck, 15 at most and 4 of a card across both)
+  if (std && asList(entry.library).length) problems.push(...standardProblems(cards, commanders, sideboard));
   const warnings = [];
   if (!std && asList(entry.library).length && total !== 100) warnings.push(`${total} cards (Commander decks are 100 including the commander)`);
   if (!std && extras.length) warnings.push(`more than one copy of: ${extras.slice(0, 5).join(", ")}${extras.length > 5 ? " ..." : ""} (fine only if the card allows it)`);
@@ -1386,11 +1391,13 @@ function checkDeck(color, entry, mode = gameMode.mode) {
     chat(`[MTG] ${label}: not ready${std ? " for Standard" : ""}.\n- ${problems.join("\n- ")}${warnings.length ? `\nAlso: ${warnings.join("; ")}` : ""}${foreign}${artSaid}`, color);
     return false;
   }
-  readyDecks[color] = { deckName: entry.deckName || `${color}'s deck`, cards, commanders, images, mode };
+  readyDecks[color] = { deckName: entry.deckName || `${color}'s deck`, cards, commanders, images, mode, ...(std ? { sideboard } : {}) };
   checkDeckImages(images);
   if (std) {
-    chat(`[MTG] ${label}: ready for Standard. ${cards.length} cards; every card is known to the engine and legal in Standard.${foreign}${artSaid}`, color);
-    log(`${color} deck ready for Standard: ${cards.length} cards`);
+    // (the sideboard said to its owner only: this chat goes to that colour, and the log names no card)
+    const sb = sideboard.length ? ` Sideboard: ${sideboard.length} cards (from your graveyard spot), for sideboarding between the games of a best of three.` : "";
+    chat(`[MTG] ${label}: ready for Standard. ${cards.length} cards; every card is known to the engine and legal in Standard.${sb}${foreign}${artSaid}`, color);
+    log(`${color} deck ready for Standard: ${cards.length} cards${sideboard.length ? `, sideboard ${sideboard.length}` : ""}`);
     return true;
   }
   chat(`[MTG] ${label}: ready. ${cards.length} cards + commander ${commanders.join(" & ")}; every card is known to the engine.${warnings.length ? `\nCheck: ${warnings.join("; ")}` : ""}${foreign}${artSaid}`, color);
