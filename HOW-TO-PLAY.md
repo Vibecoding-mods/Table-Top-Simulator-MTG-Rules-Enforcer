@@ -37,15 +37,10 @@ five minutes:
 
 ### Optional: Own server (the engine on another computer)
 
-The MTG Companion can use an engine (the relay and the Forge room) that runs on a server of yours, instead of starting
-one on this computer. TTS and the bridge still run here.
-
-Step 1 below sets up the server, whichever computer you play on. Then:
-
-- **On Windows:** in the companion's page, the **Own server: use the host's engine** box takes the server's address
-  (**Server**), its **Key** and, behind TLS, **Secure (wss://)**. Press **Use this server**; **Use this computer** goes
-  back to the engine here. A friend can use the host's engine this way, with the host's server key.
-- **On Linux and macOS** (`start.sh`, or "MTG Companion.command"): a file, `server.json` (step 2 and after).
+The MTG Companion (on Windows, and on Linux and macOS: `start.sh`, or "MTG Companion.command") can use an engine (the relay
+and the Forge room) that runs on a server of yours, instead of starting one on this computer. TTS and the bridge still
+run here. On every system it is set with a file, `server.json`, in the companion's folder (step 2): there is no box on
+the status page for it. A friend uses the host's engine the same way, with the host's server key.
 
 1. On the server (Ubuntu or Debian): `sudo bash tools/setup-server.sh`. It runs the relay and a Forge room in Docker, binds
    the relay to your Tailscale address if there is one (else to the server itself: `--bind <ip>` or `--public` change that;
