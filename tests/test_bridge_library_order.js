@@ -84,6 +84,25 @@ const labels = (seat) => (seat.prompt?.ui?.options || []).filter((o) => o.id !==
     same("triggers: Keep this order sends Forge's order", calls.at(-1)?.out?.orderedIds, ["sa-0", "sa-1"]);
   });
 
+  // ── Dig's rest on top in any order (Dig Through Time's kind): the same ──
+  await run(async (h) => {
+    const { seat, calls } = setup(h);
+    const DIG = "Look at the top five cards of your library. Put one of them into your hand and the rest on top of your library in any order.";
+    h.B.onPrompt(seat, ORDER(805, "Impulse Kind", DIG, three)); await h.flush();
+    same("dig: the cards shown top card first", labels(seat), ["Cryptic Command", "Diabolic Tutor", "Island"]);
+    await answer(h, 805, "engine-card-2");
+    await answer(h, 805, "engine-card-3");
+    await answer(h, 805, "engine-card-1");
+    same("dig: the clicked order is the library's, top card first", library(topIds, calls.at(-1)?.out?.orderedIds || []), ["engine-card-2", "engine-card-3", "engine-card-1"]);
+  });
+  // ── bound for the bottom: the order rarely matters, so it isn't asked, and goes as Forge lists it, not turned round ──
+  await run(async (h) => {
+    const { seat, calls } = setup(h);
+    const BOTTOM = "Look at the top three cards of your library. Put them on the bottom of your library in any order.";
+    h.B.onPrompt(seat, ORDER(806, "Bottom Kind", BOTTOM, three)); await h.flush();
+    same("bottom: answered at once, with Forge's order", [seat.prompt?.promptId === 806, calls.at(-1)?.out?.orderedIds], [false, topIds]);
+  });
+
   process.stdout.write(failed ? `${failed} failed (${passed} passed)\n` : `all ${passed} library order checks pass\n`);
   process.exit(failed ? 1 : 0);
 })().catch((e) => { process.stdout.write(`FAIL test_bridge_library_order: ${e.stack}\n`); process.exit(1); });

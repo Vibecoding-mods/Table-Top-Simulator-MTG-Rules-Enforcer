@@ -292,6 +292,9 @@ engineGroupShown = {} -- engine card id -> the "xN" count its badge last showed 
 
 local COUNTER_NAMES = { P1P1 = "+1/+1", M1M1 = "-1/-1", LOYALTY = "Loyalty", POISON = "Poison", SHIELD = "Shield",
   STUN = "Stun", LORE = "Lore", OIL = "Oil", CHARGE = "Charge", TIME = "Time", FADE = "Fade", AGE = "Age", DEFENSE = "Defense" }
+-- Every seat colour, in one list: what the pop-ups, the effects, the GIF panels and the tie strip each go through to show
+-- something to everyone but the players who closed it (ipairs only: nothing sorts or changes it)
+ENGINE_SEATS = { "White", "Brown", "Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink", "Grey", "Black" }
 -- The click of a label drawn on a card (its badges, status box, cost badge, a count): a click on that card, as if the
 -- label weren't there. A button takes the click from the object under it, so a tall status box ("At end step:
 -- sacrifice Pestermite" on Mairsil) caught the click meant for the card when it was a target (hand test Mairsil bug 1).
@@ -2467,6 +2470,14 @@ function engineCornerWrap(label, per)
   end
   return rest == "" and first or (first .. "\n" .. rest)
 end
+-- A corner button's label as it is drawn: as it is up to `one` characters (the usual font), else wrapped to `per` a line
+-- (engineCornerWrap), and whether it is the long kind, at the smaller font with the whole label in its tooltip. A label
+-- of a few characters past `one` still fits on one line at the smaller font, so it is the long kind unwrapped (at the
+-- usual font it ran past the button's edge)
+function engineCornerText(label, one, per)
+  if label == nil or #label <= one then return label, false end
+  return engineCornerWrap(label, per), true
+end
 -- A card picture the screen UI can draw, for every player. TTS's screen UI can't draw .webp, and Scryfall's CDN refuses
 -- TTS's downloader by its user-agent (HTTP 400): both left pictures white. The bridge's own route on this PC reached
 -- only the host: the other players saw grey tiles with names (playtest 2026-10-23). wsrv.nl, a public image proxy,
@@ -2500,7 +2511,7 @@ popShown = nil -- { id, at, token } of the stack item the pop-up shows
 -- that pops up shows to everyone again.
 enginePopClosed = {}
 do
-  local POP_COLOURS = { "White", "Brown", "Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink", "Grey", "Black" }
+  local POP_COLOURS = ENGINE_SEATS
   local function popVisibility()
     local v = {}
     for _, c in ipairs(POP_COLOURS) do if not enginePopClosed[c] and not engineEffectsOff[c] then v[#v + 1] = c end end
@@ -2872,7 +2883,7 @@ do
   local FX = { prev = nil, dimmed = {}, VIOLET = { 0.62, 0.25, 0.95 }, OUT = { 0.38, 0.38, 0.42 },
     slotUntil = {}, slotOn = {}, slotText = {}, gen = 0, built = false, jumpNext = false, sndAt = {}, sndLast = -100,
     UNIT = 100, AX = 1, AY = 1, ROT0 = 180, LIFT = 0.7, CARD = 2.2, SHOW = false, SLOTS = 6, PER_BOARD = 6, MAX_RINGS = 4, MAX_HITS = 4,
-    COLOURS = { "White", "Brown", "Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink", "Grey", "Black" },
+    COLOURS = ENGINE_SEATS,
     SOUND_OF = { knockout = "knockout", death = "death", wave = "death", player = "playerhit", damage = "damage", counter = "counter", countered = "countered" },
     WIPE = 3, BURST_MAX = 8, BIG_HIT = 5 }
   local TRACK = LIFE_TRACKERS
@@ -5538,10 +5549,9 @@ function engineUpdateCorner(color, p)
   -- (longer still: two lines at a smaller font, the whole label in its tooltip; cut at one line, "Sacrifice a nonland
   -- p..." and "Pay Reveal a Swamp or..." hid what they paid, hand test Mairsil bug 26)
   local bigFull, smallFull = bigLabel, smallLabel
-  if bigLabel and #bigLabel > 22 then bigLabel = engineCornerWrap(bigLabel, ENGINE_CORNER_WRAP.big) end
-  if smallLabel and #smallLabel > 30 then smallLabel = engineCornerWrap(smallLabel, ENGINE_CORNER_WRAP.small) end
-  local bigTwo = bigLabel ~= nil and bigLabel ~= bigFull
-  local smallTwo = smallLabel ~= nil and smallLabel ~= smallFull
+  local bigTwo, smallTwo
+  bigLabel, bigTwo = engineCornerText(bigLabel, 22, ENGINE_CORNER_WRAP.big)
+  smallLabel, smallTwo = engineCornerText(smallLabel, 30, ENGINE_CORNER_WRAP.small)
   -- (passing priority with mana floating loses it: the pass button says how much is in your pool, "Next (3 floating)",
   -- PLAN 2026-11-13; after the cut above, so the count is never cut off: "Resolve (999 floating)" is 22)
   -- (the pool of the player the priority is for: a player this seat controls, Mindslaver's turn, is the bridge's
@@ -6830,7 +6840,7 @@ function engineTieDraw(t, gameOver)
   ENGINE_TIE_ASKED = "|" .. table.concat(v, "|") .. "|"
   -- (who sees it: everyone but those who closed the strip; a closed pending offer's question is never hidden)
   local see = {}
-  for _, c in ipairs({ "White", "Brown", "Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink", "Grey", "Black" }) do if not (strip and ENGINE_TIE_HIDDEN.by[c]) then see[#see + 1] = c end end
+  for _, c in ipairs(ENGINE_SEATS) do if not (strip and ENGINE_TIE_HIDDEN.by[c]) then see[#see + 1] = c end end
   setAttr("eng_tie", "active", (open and #see > 0) and "true" or "false")
   if open then
     setAttr("eng_tie", "visibility", table.concat(see, "|"))
@@ -12063,7 +12073,7 @@ engineGif = {
   -- (its columns span +10.75 .. -10.85), nearest the table's centre first
   SPOTS_R = { 15.2, 13.1, -15.2, -13.1 },
   SPOTS_F = { -7.5, -4.2, -0.9, 2.4, 5.7, 8.4 },
-  COLORS = { "White", "Brown", "Red", "Orange", "Yellow", "Green", "Teal", "Blue", "Purple", "Pink", "Grey", "Black" },
+  COLORS = ENGINE_SEATS,
 }
 
 function engineGif.say(color, text)
