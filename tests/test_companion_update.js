@@ -309,7 +309,7 @@ async function revertTests() {
   // R3. killed at each journal step: the next start finishes it (all placed) or undoes it (the package as after the
   // update, the backup whole, so Revert works again)
   addRelease("v1r", {}); // (a latest with no manifest: the next start's check finds nothing to install)
-  for (const die of ["move", "place", "written", "placed"]) {
+  for (const die of ["move", "place", "written", "placed", "finishing"]) {
     reset();
     const tag = `v23${die}`;
     publish(tag, { app: { version: `a23${die}`, body: newApp() }, table: unchanged("table"), images: { version: `i23${die}`, body: Buffer.from(`tar ${die}`) }, runtime: unchanged("runtime"), companion: unchanged("companion") }, { previous: v1Manifest });
@@ -322,7 +322,7 @@ async function revertTests() {
     ok(`revert killed at ${die}: died with a journal on disk`, !r.out.includes("Went back") && !r.out.includes("undone") && fs.existsSync(path.join(p.pkg, "update-journal.json")), JSON.stringify(r));
     server.latest = "v1r";
     const next = await run(p, ["--update-check"]);
-    if (die === "placed") {
+    if (die === "placed" || die === "finishing") { // (finishing: files in place, the cleanup not done, the journal still there)
       ok(`revert killed at ${die}: the next start finishes it`, next.out.includes("The revert to v1 was interrupted after its files were in place"), JSON.stringify(next));
       same(`revert killed at ${die}: every file as before the update`, noUpdates(snapshot(p.pkg)), original);
       ok(`revert killed at ${die}: no journal, no backup/v1, no revert-undo`, !fs.existsSync(path.join(p.pkg, "update-journal.json")) && !fs.existsSync(path.join(p.pkg, "backup", "v1")) && !fs.existsSync(path.join(p.pkg, "revert-undo")), tree(p.pkg).join(","));
