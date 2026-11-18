@@ -50,10 +50,10 @@ const BRIDGE = [
 ];
 const TABLE = [
   ["anyone sets the mode", "elseif not isHost then pl.broadcast(\"[MTG] Only the host can change the game mode", "elseif false then pl.broadcast(\"[MTG] Only the host can change the game mode", "mtg mode: only the host changes it"],
-  ["Standard never sent with decks", "engineSend(\"decks\", { seats = seats, request = mine, mode = engineModeSent() })", "engineSend(\"decks\", { seats = seats, request = mine })", "Standard: the deck check says Standard"],
+  ["Standard never sent with decks", "local msg = { seats = seats, request = mine, mode = engineModeSent() }", "local msg = { seats = seats, request = mine }", "Standard: the deck check says Standard"],
   ["Standard never sent with a start", "friendly = engineFriendly, mode = engineModeSent() })", "friendly = engineFriendly })", "Standard: the start says Standard"],
   ["a mode change mid-game drops the game's READYs", "if not running then for k in pairs(engineReadyState) do engineReadyState[k] = nil end end", "for k in pairs(engineReadyState) do engineReadyState[k] = nil end", "mode changed in a game: for the next one, the game's READYs kept"],
-  ["the mode message not sent", "engineSend(\"mode\", { color = pl and pl.color or nil, mode = mode })", "", "mtg mode standard: sent to the bridge"],
+  ["the format message not sent", "engineSend(\"format\", { color = pl and pl.color or nil, format = f.key, mode = f.mode, banned = r.banned, restricted = r.restricted })", "", "mtg mode standard: sent to the bridge"],
   ["trackers left on the table","o.setPosition(p + Vector(0, -15, 0))\n          o.setInvisibleTo(engineEveryone())","o.setInvisibleTo(engineEveryone())","Standard: every commander damage tracker under the table, hidden, locked, its spot on it"],
   ["trackers not put back", "if x ~= nil and y ~= nil and z ~= nil then o.setPosition(Vector(x, y, z)) o.setLock(parts[4] == \"true\") end", "", "Commander again: the trackers back where they were, shown, with their own lock"],
   ["tax labels not blanked", "local label = std and \"\" or tostring(o.getVar(\"val\") or 0)", "local label = tostring(o.getVar(\"val\") or 0)", "Standard: the tax labels blank"],
@@ -62,7 +62,7 @@ const TABLE = [
   ["the game's mode ignored", "engineRunningMode = m.mode or \"commander\"", "engineRunningMode = \"commander\"", "a Standard game running: the game's mode decides"],
   // (not here: engineClear's engineRunningMode = nil. engineModeNow already reads the next games' mode once there is no
   // table, so leaving it set changes nothing a test can see: an equivalent mutant)
-  ["the button always says Commander", "return \"Game mode\\n\" .. (ENGINE_GAME_MODE == \"standard\" and \"Standard\" or \"Commander\")", "return \"Game mode\\nCommander\"", "mode button: says Standard"],
+  ["the button always says Casual Commander", "function engineFormatLabel() return \"Format\\n\" .. engineFormatNow().name end", "function engineFormatLabel() return \"Format\\nCasual Commander\" end", "mode button: says Standard"],
 ];
 
 const only = process.env.MUT_ONLY ? new RegExp(process.env.MUT_ONLY) : null;

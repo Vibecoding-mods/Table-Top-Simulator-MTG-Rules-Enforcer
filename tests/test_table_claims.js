@@ -399,7 +399,7 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
     { frames: 200 }, q(labels, "after tile"),
     q('for _, o in ipairs(getObjects()) do if o.getGMNotes() == "mtgsetup" then o.clearButtons() o.createButton({ click_function = "onMtgSetupEngine", function_owner = Global, label = "Engine: on" }) end end', "friendly wiped"),
     { frames: 200 }, q(labels, "after friendly")] });
-  ok("precondition: READY? on Blue's mat and the tile drawn", /READY\?/.test(String(valueOf(r, "drawn"))) && /\|Engine: on,Free mulligans\nNone,Game mode\nCommander,Teams\nNone,Archenemy\nOff$/.test(String(valueOf(r, "drawn"))), String(valueOf(r, "drawn")));
+  ok("precondition: READY? on Blue's mat and the tile drawn", /READY\?/.test(String(valueOf(r, "drawn"))) && /\|Engine: on,Free mulligans\nNone,Format\nCasual Commander,Banned list\nNone,Teams\nNone,Archenemy\nOff$/.test(String(valueOf(r, "drawn"))), String(valueOf(r, "drawn")));
   ok("setup buttons: the free-mulligan buttons wiped (the middle one right) are drawn again", valueOf(r, "after friendly") === valueOf(r, "drawn"), String(valueOf(r, "after friendly")));
   ok("setup buttons: a stale middle tile alone is drawn again", valueOf(r, "after tile") === valueOf(r, "drawn"), String(valueOf(r, "after tile")));
   ok("setup buttons: wiped or stale, they are drawn again within 2 s", valueOf(r, "after") === valueOf(r, "drawn"), `${valueOf(r, "drawn")} -> ${valueOf(r, "after")}`);

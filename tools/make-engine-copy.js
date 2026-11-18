@@ -328,7 +328,7 @@ patchScripts("Global: hook 'mtg engine' chat command before other chat handling"
 
 ${TAG} the table's profile (tools/table-profile.js, docs/m6-six-seat-spec.md §2.2): its seats clockwise, each seat's life
 -- tracker, commander-damage trackers (victim -> attacker -> GUID; on the 6-player table the ones this build made) and
--- commander zones, the Start tile's spot, the west strip's Game mode / Free mulligans / Teams buttons' spots, the
+-- commander zones, the Start tile's spot, the west strip's Format / Free mulligans / Teams buttons' spots (and the east strip's format switches), the
 -- table's own Untap / Reveal / Draw / Mill / Scry buttons and Mulligan tiles (every seat's) and the Draw buttons alone
 TABLE_PROFILE = {
   id = ${JSON.stringify(PROFILE.id)},
@@ -448,6 +448,8 @@ function engineStartGame(pl, rest, cleared)
   local start = { stamp = engineStamp(), seats = seats, bots = bots, requireReady = true, aiSeats = aiSeats, autoReset = true, friendly = engineFriendly, mode = engineModeSent(), teams = engineTeamsSent ~= nil and engineTeamsSent() or nil,
     teamMode = engineTeamModeSent ~= nil and engineTeamModeSent() or nil, juggernaut = engineJuggSent ~= nil and engineJuggSent() or nil,
     teamTurns = engineTeamTurnsSent ~= nil and engineTeamTurnsSent() or nil }
+  -- (the format and its two switches: nothing for Casual Commander, docs/format-banlist-spec.md §6.4)
+  if engineRulesInto ~= nil then engineRulesInto(start) end
   -- (the table's seats, clockwise, when it isn't the 4-player table: engineHello, tools/engine-renderer.lua)
   if ENGINE_TABLE_SEATS ~= nil then start.tableSeats = ENGINE_TABLE_SEATS end
   -- (the seated players' Steam IDs: the bridge keeps a forced tie's accomplishment by them)
@@ -470,6 +472,8 @@ function engineChat(message, pl)
   local isHost = pl.host or ((pl.admin or pl.promoted) and not (ENGINE_PROMOTED or {})[tostring(pl.steam_id)])
   -- (the team modes' "mtg mode 2hg|2v2|juggernaut|ffa", "mtg team ...", "mtg juggernaut ..." and "mtg 2hg turns ...": engineTeamChat, engine-renderer.lua)
   if engineTeamChat ~= nil and engineTeamChat(cmd, rest, pl, isHost) then return false end
+  -- (the format, its two switches and its ban list: "mtg format", "mtg banned", "mtg restricted", "mtg banlist": engineFormatChat)
+  if engineFormatChat ~= nil and engineFormatChat(cmd, rest, pl, isHost) then return false end
   -- engine mode, starting a game, friendly mulligans and clearing a finished one: anyone, seated or not (playtest
   -- 2026-10-25: "allow non host to turn the engine on and off and to start games"; 2026-11-10: "allow anyone to
   -- click engine on/off and start too"); ending a running game stays the host's
@@ -676,10 +680,11 @@ function engineChat(message, pl)
       if engineArchNoted ~= nil then engineArchNoted(rest) engineSetupButtons() end
     else engineSend("schemes", { color = pl.color, text = rest }) end
   elseif cmd == "mode" then
-    -- the next games' mode (host): mtg mode standard / mtg mode commander (docs/game-modes-spec.md §3.4); "mtg mode" says it
-    if rest == "" then pl.broadcast("[MTG] Game mode: " .. (ENGINE_GAME_MODE == "standard" and "Standard" or "Commander") .. (ENGINE_TEAMS ~= nil and engineTeamsText ~= nil and (", " .. (ENGINE_TEAM_NAMES[ENGINE_TEAM_MODE or "2hg"] or "Two-Headed Giant") .. " (" .. engineTeamsText() .. ")") or "") .. ". The host changes it:  mtg mode standard  or  mtg mode commander  (or the Game mode button); teams:  mtg mode 2hg,  mtg mode 2v2,  mtg mode juggernaut,  mtg mode 3hg  (the six-seat table)  or  mtg mode ffa  (or the Teams button).")
+    -- the next games' mode (host): mtg mode standard / mtg mode commander (docs/game-modes-spec.md §3.4), now the Standard
+    -- or the Casual Commander format (engineSetModeFormat); "mtg mode" says it
+    if rest == "" then pl.broadcast("[MTG] Game mode: " .. (ENGINE_GAME_MODE == "standard" and "60-card" or "Commander") .. ", format " .. engineFormatNow().name .. (ENGINE_TEAMS ~= nil and engineTeamsText ~= nil and (", " .. (ENGINE_TEAM_NAMES[ENGINE_TEAM_MODE or "2hg"] or "Two-Headed Giant") .. " (" .. engineTeamsText() .. ")") or "") .. ". The host changes it:  mtg format <name>  (or the Format button;  mtg format  lists them), or  mtg mode standard  /  mtg mode commander ; teams:  mtg mode 2hg,  mtg mode 2v2,  mtg mode juggernaut,  mtg mode 3hg  (the six-seat table)  or  mtg mode ffa  (or the Teams button).")
     elseif not isHost then pl.broadcast("[MTG] Only the host can change the game mode (everyone plays it).")
-    elseif rest == "standard" or rest == "commander" then engineSetGameMode(rest, pl)
+    elseif rest == "standard" or rest == "commander" then engineSetModeFormat(rest, pl)
     else pl.broadcast("[MTG] Use:  mtg mode standard  (60-card decks, 20 life, no commander) or  mtg mode commander") end
   elseif cmd == "art" then
     -- the players' own card pictures (a deck line "1 Sol Ring #https://..."), on or off for everyone (host):
@@ -724,7 +729,8 @@ function engineChat(message, pl)
   else
     pl.broadcast("[MTG] Commands:\\n${[
       " mtg ready / mtg ready all (host) - check decks",
-      " mtg mode standard|commander (host) - the next games' format: Standard (60 cards, 20 life, no commander) or Commander",
+      " mtg format [name] (host) - the next games' format: Casual Commander (the default), Commander, Duel Commander, Pauper Commander, PreDH, Casual 60-card, Standard, Pioneer, Modern, Legacy, Vintage, Pauper, Premodern, Old School, Historic, Timeless, Alchemy (also the Format button; mtg mode standard|commander picks Standard or Casual Commander)",
+      " mtg banned on|off, mtg restricted on|off (host) - the format's banned cards not allowed / allowed (house rule), its restricted cards 1 copy / the normal limit; mtg banlist - its banned cards (the Notebook's Banned list tab); mtg banlist refresh (host) - the bridge checks for a newer list now",
       " mtg mode 2hg / 2v2 / juggernaut / 3hg / ffa (host) - Two-Headed Giant or Juggernaut (one against three) in Commander, 2v2 (White + Red vs Yellow + Blue) in Standard, Three-Headed Giant (the six-seat table's sides, three a team) in either, or free-for-all; mtg team <colour> 1|2 (host) - move a seat; mtg juggernaut <colour> / life|hand|draw|land <n> / cmd 21|42 / order first|after (host) - the Juggernaut",
       " mtg commander - hover your commander first",
       " mtg clear deck - remove your own deck and commander from your seat (not during a game)",
@@ -873,7 +879,9 @@ function engineSendDecks(colors, requester)
   end
   readyRequest = readyRequest + 1
   local mine = readyRequest
-  engineSend("decks", { seats = seats, request = mine, mode = engineModeSent() })
+  local msg = { seats = seats, request = mine, mode = engineModeSent() }
+  if engineRulesInto ~= nil then engineRulesInto(msg) end -- (the format and its switches: nothing for Casual Commander)
+  engineSend("decks", msg)
   broadcastToColor("[MTG] Checking deck" .. (#colors > 1 and "s" or "") .. " with the rules engine...", requester, {0.8, 0.8, 0.8})
   Wait.time(function()
     if readyRequest == mine then
