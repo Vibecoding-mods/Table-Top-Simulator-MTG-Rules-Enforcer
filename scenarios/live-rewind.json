@@ -1,0 +1,13 @@
+{
+  "label": "rewind and the restore points: a board that changes on each of your turns. Bitterblossom (each upkeep: lose 1 life, a 1/1 Faerie Rogue token), Phyrexian Arena (each upkeep: draw a card, lose 1 life), Luminarch Aspirant (each combat: a +1/+1 counter on a creature of yours). Your hand starts empty (no discards to make). Play three turns, then open Undo: each turn has its restore point, and a rewind takes the life, the tokens and the counters back. scenarios/LIVE-CHECKS.md (a)",
+  "lands": {
+    "Plains": 4,
+    "Swamp": 3
+  },
+  "keepHand": false,
+  "battlefield": [
+    "Bitterblossom",
+    "Phyrexian Arena",
+    "Luminarch Aspirant"
+  ]
+}

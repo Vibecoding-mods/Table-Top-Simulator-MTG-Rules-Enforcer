@@ -1,0 +1,20 @@
+{
+  "label": "art and effects: a double-faced card on the battlefield (Huntmaster of the Fells: its back, Ravager of the Fells, in its hover and art) and one in hand (Delver of Secrets), a Treasure token, and Raise the Alarm to cast (two Soldier tokens: their art, the GIF frame still beside them, the token sounds). scenarios/LIVE-CHECKS.md (c)",
+  "lands": {
+    "Plains": 3,
+    "Mountain": 3,
+    "Island": 2,
+    "Forest": 2
+  },
+  "keepHand": false,
+  "hand": [
+    "Raise the Alarm",
+    "Delver of Secrets"
+  ],
+  "battlefield": [
+    "Huntmaster of the Fells"
+  ],
+  "tokens": [
+    "treasure"
+  ]
+}
