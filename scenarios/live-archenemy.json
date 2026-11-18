@@ -1,0 +1,18 @@
+{
+  "label": "Archenemy on four seats: you the archenemy (mtg archenemy <your colour> before the game); a scheme is set in motion at your first main phase, turn 1, and one each turn after. Some board to play with: lands and creatures for you, a blocker each for the others. scenarios/LIVE-CHECKS.md (b)",
+  "lands": {
+    "Mountain": 4,
+    "Swamp": 3
+  },
+  "keepHand": true,
+  "battlefield": [
+    "Hill Giant",
+    "Grizzly Bears"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Wall of Wood"
+    ],
+    "lands": 2
+  }
+}
