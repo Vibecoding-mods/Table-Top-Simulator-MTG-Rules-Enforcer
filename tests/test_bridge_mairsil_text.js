@@ -37,7 +37,7 @@ function setup(h) {
   const seat = new h.B.Seat("Blue", "neheb_minotaur_commander");
   seat.slot = "player-0";
   h.B._setGame({ seats: new Map([["Blue", seat]]), bots: 1, total: 2, playerOrder: ["tts-Blue-ab12", "self-hosted-node-77-bot"],
-    slotNames: { "player-0": "Blue", "player-1": "AI 1" }, slotColor: { "player-0": "Blue", "player-1": "White" },
+    slotNames: { "player-0": "Blue", "player-1": "AI 1", "player-2": "AI 2" }, slotColor: { "player-0": "Blue", "player-1": "White", "player-2": "Red" },
     started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {}, eventSeq: 10 });
   return seat;
 }
@@ -265,6 +265,107 @@ async function tableFor(gv) {
       t = JSON.stringify(h.effects.filter((e) => e.tts).map((e) => e.tts));
     } finally { harness.restore(); }
     ok("#27 Deadpool's choice reads as the swap, not \"Chose 1 card\"", t.includes("Exchanged text boxes with Abyssal Persecutor") && !t.includes("Chose 1 card"), t.match(/.{0,300}Deadpool.{0,300}/)?.[0] || t.slice(0, 400));
+    // and when it has gone and comes back with a choice of its own, the swap isn't remembered for it
+    const gone = board((b) => { put(b, "graveyard", dp({ text: DEADPOOL })); put(b, "battlefield", card(151, "Abyssal Persecutor", ["Creature"], { p: 6, t: 6, text: PERSECUTOR })); });
+    const back = board((b) => { put(b, "battlefield", dp({ text: DEADPOOL, currentText: DEADPOOL, choices: [{ kind: "chosenCard", count: 1 }] })); put(b, "battlefield", card(151, "Abyssal Persecutor", ["Creature"], { p: 6, t: 6, text: PERSECUTOR })); });
+    const h2 = harness.load();
+    let t2;
+    try {
+      const seat = setup(h2);
+      for (const [x, y] of [[before, after], [after, gone], [gone, back]]) h2.B.logEvents(h2.B.logSnapshot(x), h2.B.logSnapshot(y), y, null);
+      seat.board = { state: { gameView: back }, fingerprint: null };
+      h2.B.sendTable(); await h2.flush();
+      t2 = JSON.stringify(h2.effects.filter((e) => e.tts).map((e) => e.tts));
+    } finally { harness.restore(); }
+    ok("#27 a Deadpool that left and came back is no longer said to have swapped", t2.includes("Chose 1 card") && !t2.includes("Exchanged text boxes"), t2.match(/.{0,200}Deadpool.{0,200}/)?.[0] || t2.slice(0, 300));
+  }
+
+  // ── break-it additions (jr suite 2026-11-18): each check below failed to fail when the code it watches was broken ──
+  // #17 the same join rule in the other lists: a long list's first names, the sideboard swap, a counted attack
+  {
+    const h = harness.load();
+    let long, swap, tok, cost;
+    try {
+      long = h.B.fewNames(["A", "B", "C", "D", "E", "F", "G", "Deadpool, Trading Card", "I", "J", "K"]);
+      swap = h.B.swapWords(["Island", "Island", "Deadpool, Trading Card"]);
+      tok = h.B.tokensCounted(["Deadpool, Trading Card", "Soldier token", "Soldier token"]);
+      cost = h.B.yesNoWords("Pay Reveal a Swamp or Mountain card from your hand?", "Foreboding Ruins", {});
+    } finally { harness.restore(); }
+    same("#17 a long list's first names are joined by the same rule", long, "A; B; C; D; E; F; G; Deadpool, Trading Card ... and 3 more");
+    same("#17 a sideboard swap's names, counted, joined by the same rule", swap, "Island ×2; Deadpool, Trading Card");
+    same("#17 an attack's names, tokens counted, joined by the same rule", tok, "Deadpool, Trading Card; 2 Soldier tokens");
+    same("#33 a yes/no question that pays a reveal is asked as the reveal", cost.slice(0, 3), ["Reveal a Swamp or Mountain card from your hand?", "Yes", "No"]);
+  }
+  // #17 suspect: two names, one with a comma in it
+  {
+    const SUSPECT = "Suspect target creature. Suspect another target creature.";
+    const spell = card(160, "Case of the Stashed Skeleton", ["Enchantment"], { text: SUSPECT });
+    const pair = [card(161, "Body Double", ["Creature"], { ctl: "player-1", owner: "player-1" }), card(162, "Deadpool, Trading Card", ["Creature"], { ctl: "player-1", owner: "player-1" })];
+    const before = board((b) => { for (const c of pair) put(b, "battlefield", c, "player-1");
+      b.stack = [{ id: "engine-stack-20", sourceId: spell.id, controllerId: "player-0", ownerId: "player-0", identity: { name: "Case of the Stashed Skeleton" }, sourceAbilityText: SUSPECT,
+        targets: pair.map((c) => ({ kind: "card", id: c.id })), text: `Case of the Stashed Skeleton (160) - ${SUSPECT}` }]; });
+    const after = board((b) => { for (const c of pair) put(b, "battlefield", c, "player-1"); put(b, "graveyard", { ...spell }); });
+    const lines = between(before, after, [ev(spell.id, "Stack", "Graveyard")]);
+    ok("#17 two suspected creatures, one with a comma, are told apart", lines.includes("Body Double; Deadpool, Trading Card are suspected: menace, and can't block"), JSON.stringify(lines));
+  }
+  // #30 "untap all" says untaps, only for what it turned; "tap all" leaves out what was tapped already and what it targeted
+  {
+    const ai = (n, name, tapped) => card(n, name, ["Creature"], { ctl: "player-1", owner: "player-1", more: { tapped } });
+    const MASS = "Untap all creatures.";
+    const spell = card(170, "Awakening Wave", ["Instant"], { text: MASS });
+    const stack = (text, targets = []) => [{ id: "engine-stack-21", sourceId: spell.id, controllerId: "player-0", ownerId: "player-0", identity: { name: spell.identity.name }, sourceAbilityText: text, targets, text: `Awakening Wave (170) - ${text}` }];
+    const field = (b, tappedBefore, list) => { for (const [n, name, wasTapped] of list) put(b, "battlefield", ai(n, name, tappedBefore ? wasTapped : !wasTapped), "player-1"); };
+    // untap: three were tapped, one was untapped already
+    const list = [[171, "Craw Wurm", true], [172, "Craw Wurm", true], [173, "Serra Angel", true], [174, "Llanowar Elves", false]];
+    const b0 = board((b) => { field(b, true, list); b.stack = stack(MASS); });
+    const b1 = board((b) => { for (const [n, name] of list) put(b, "battlefield", ai(n, name, false), "player-1"); put(b, "graveyard", { ...spell }); });
+    const lines = between(b0, b1, [ev(spell.id, "Stack", "Graveyard")]);
+    ok("#30 Awakening Wave's untap is logged as untapping, not the creature already untapped", lines.includes("Awakening Wave untaps AI 1's Craw Wurm ×2, Serra Angel"), JSON.stringify(lines));
+    // tap: a creature the spell targeted is its own line's, and one tapped already isn't turned
+    const TAP = "Tap target creature. Tap all other creatures your opponents control.";
+    const t0 = board((b) => { for (const [n, name, , t] of [[181, "Craw Wurm", 0, false], [182, "Craw Wurm", 0, false], [183, "Serra Angel", 0, false], [184, "Llanowar Elves", 0, true]]) put(b, "battlefield", ai(n, name, t), "player-1"); b.stack = stack(TAP, [{ kind: "card", id: id(181) }]); });
+    const t1 = board((b) => { for (const [n, name] of [[181, "Craw Wurm"], [182, "Craw Wurm"], [183, "Serra Angel"], [184, "Llanowar Elves"]]) put(b, "battlefield", ai(n, name, true), "player-1"); put(b, "graveyard", { ...spell }); });
+    const tl = between(t0, t1, [ev(spell.id, "Stack", "Graveyard")]);
+    ok("#30 'tap all' names only what it turned: not the creature it targeted, not one tapped already", tl.some((l) => l === "Awakening Wave taps AI 1's Craw Wurm, Serra Angel"), JSON.stringify(tl));
+  }
+  // #30 a spell whose controller stays the same says nothing about control
+  {
+    const wurm = card(190, "Craw Wurm", ["Creature"], { ctl: "player-0" });
+    const sp = (ctl) => ({ id: "engine-stack-22", sourceId: id(191), controllerId: ctl, ownerId: "player-1", identity: { name: "Coercive Impetus" }, sourceAbilityText: "Enchant creature", targets: [{ kind: "card", id: id(190) }], text: "Coercive Impetus (191) - Enchant creature" });
+    const same0 = between(board((b) => { put(b, "battlefield", wurm); b.stack = [sp("player-1")]; }), board((b) => { put(b, "battlefield", wurm); b.stack = [sp("player-1")]; }));
+    ok("#30 a spell on the stack under the same controller: no control line", !same0.some((l) => /gains control/.test(l)), JSON.stringify(same0));
+  }
+  // #17 control: the cause given back is named only for what that card was taken by, and not once it is back
+  {
+    const INS = "Untap all creatures and gain control of them until end of turn. They gain haste until end of turn.";
+    const spell = card(200, "Insurrection", ["Sorcery"], { text: INS });
+    const blank3 = () => { const b = blank(); b.players.push({ id: "player-2", life: 40, manaPool: {} }); b.zones.push(...ZONES.map((zone) => ({ zone, ownerId: "player-2", cards: [], count: 0 }))); return b; };
+    const at = (ctl, fill = () => {}) => { const b = blank3(); put(b, "battlefield", card(201, "Craw Wurm", ["Creature"], { ctl, owner: "player-1", p: 6, t: 4 }), "player-1"); fill(b); return b; };
+    const stolen = [at("player-1", (b) => { b.stack = [{ id: "engine-stack-23", sourceId: spell.id, controllerId: "player-0", ownerId: "player-0", identity: { name: "Insurrection" }, sourceAbilityText: INS, targets: [], text: INS }]; }),
+      [at("player-0", (b) => put(b, "graveyard", { ...spell })), [ev(spell.id, "Stack", "Graveyard")]]];
+    const gains = (ls) => ls.filter((l) => / gains control of /.test(l));
+    // taken by Insurrection, then handed on to a third player by something no log saw: that is not Insurrection ending
+    const [, passed] = logRun([...stolen, at("player-2")]);
+    same("#17 control that moves on to a third player is not 'Insurrection ends'", gains(passed), ["AI 2 gains control of Craw Wurm from Blue"]);
+    // taken, given back (named), taken again by something no log saw, and back again: that last return has no cause to name
+    const [, back, again, backAgain] = logRun([...stolen, at("player-1"), at("player-0"), at("player-1")]);
+    same("#17 the return is named for Insurrection", gains(back), ["AI 1 gains control of Craw Wurm from Blue (Insurrection ends)"]);
+    same("#17 once it is back, a later return is not named for Insurrection again", [gains(again), gains(backAgain)], [["Blue gains control of Craw Wurm from AI 1"], ["AI 1 gains control of Craw Wurm from Blue"]]);
+  }
+  // #29 Fact or Fiction's piles: a name that is the start of a longer one, an empty pile, a pile nobody has seen the cards of
+  {
+    const FOF = "Reveal the top five cards of your library. An opponent separates those cards into two piles. Put one pile into your hand and the other into your graveyard.";
+    const piles = (names, a, b) => shown(ask(board(() => {}), { sourceCard: { id: id(121), identity: { name: "Fact or Fiction" }, types: ["Instant"], controllerId: "player-0", text: FOF }, sourceAbilityText: FOF,
+      lastShown: { src: "Fact or Fiction", names }, input: { type: "chooseFromSelection", minTotal: 1, maxTotal: 1, presentation: { title: "Fact or Fiction" }, options: [{ label: a }, { label: b }] } }, 0));
+    same("#29 the longest known name is taken first: Vampire Nighthawk, not Vampire", piles(["Vampire", "Vampire Nighthawk", "Island"], "-- Pile 1 (2 cards) -- Vampire Nighthawk Island", "-- Pile 2 (0 cards) --")?.options,
+      ["Pile 1: Vampire Nighthawk, Island", "Pile 2: no cards"]);
+    same("#29 a pile whose cards were never seen is counted", piles([], "-- Pile 1 (2 cards) --", "-- Pile 2 (1 card) --")?.options, ["Pile 1: 2 face-down cards", "Pile 2: a face-down card"]);
+  }
+  // #24 a number in parentheses after something that isn't a card's name is the number it is
+  {
+    const r = ask(board((b) => put(b, "hand", card(210, "Island", ["Land"]))), { sourceCard: { id: id(211), identity: { name: "Perplexing Chimera" }, types: ["Creature"], controllerId: "player-0" },
+      input: { type: "chooseBoolean", confirmLabel: "Yes", denyLabel: "No", presentation: { title: "Exile cards from the top of your library (3)?" } } });
+    ok("#24 a count in parentheses after no card's name stays", r.ui && /\(3\)/.test(r.ui.title), r.ui?.title);
   }
 
   process.stdout.write(failed ? `${failed} failed (${passed} passed)\n` : `all ${passed} Mairsil text checks pass\n`);
