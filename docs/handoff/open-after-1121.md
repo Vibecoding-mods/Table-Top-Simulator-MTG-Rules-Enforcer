@@ -1,5 +1,7 @@
 # What is still open, across this cloud session's handoff reports
 
+**Superseded (2026-11-18) by [open-after-1124.md](open-after-1124.md).**
+
 Written 2026-11-17 from the 21 reports and measurement notes this session pushed (every commit with this session's
 trailer, read from `origin`). Read-only: nothing was changed or re-run for this list.
 - Branch names are where each report lives on `origin`. Some are merged locally already: local main was about 10
