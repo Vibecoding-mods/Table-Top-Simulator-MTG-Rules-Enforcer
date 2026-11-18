@@ -942017,5 +942017,7569 @@
    },
    "teamMode": "3hg"
   }
+ },
+ {
+  "name": "tie offer: a player who can't lose, the offer to every seat, the harmless bot accepts",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "relay": {
+     "state": {
+      "kind": "directive",
+      "fromPlayer": "player-3",
+      "directive": {
+       "type": "tieVote",
+       "voteId": 1,
+       "accept": true
+      }
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] === Game: White, Red, Yellow, Blue ===\n[time] White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).",
+     "color": null
+    }
+   },
+   {
+    "fetch": "https://api.scryfall.com/cards/collection",
+    "method": "POST",
+    "body": {
+     "identifiers": [
+      {
+       "name": "Forest"
+      },
+      {
+       "name": "Grizzly Bears"
+      },
+      {
+       "name": "Hill Giant"
+      },
+      {
+       "name": "Juggernaut"
+      }
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no)."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": [
+        {
+         "s": 1,
+         "id": "engine-card-1",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-3",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-4",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-5",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-6",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-7",
+         "sick": true,
+         "ctl": "White"
+        }
+       ],
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-29",
+         "p": "2",
+         "t": "2",
+         "ctl": "White"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": [],
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-1",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-3",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-4",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-5",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-6",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-7",
+         "sick": true,
+         "ctl": "White"
+        }
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": [
+        {
+         "s": 1,
+         "id": "engine-card-8",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-9",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-10",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-11",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-12",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-13",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-14",
+         "sick": true,
+         "ctl": "Red"
+        }
+       ],
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-30",
+         "p": "5",
+         "t": "3",
+         "ctl": "Red"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": [],
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-8",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-9",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-10",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-11",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-12",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-13",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-14",
+         "sick": true,
+         "ctl": "Red"
+        }
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": [],
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-31",
+         "p": "2",
+         "t": "2",
+         "ctl": "Yellow"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": []
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-32",
+         "p": "3",
+         "t": "3",
+         "ctl": "Blue"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": []
+      }
+     ],
+     "stack": [],
+     "cards": {
+      "engine-card-1": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-2": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-3": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-4": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-5": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-6": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-7": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-29": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-8": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-9": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-10": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-11": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-12": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-13": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-14": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-30": {
+       "n": "Juggernaut",
+       "b": "",
+       "tl": "Artifact Creature — Juggernaut",
+       "cmc": 4,
+       "ty": [
+        "Artifact",
+        "Creature"
+       ],
+       "bp": 5,
+       "bt": 3,
+       "cl": "C"
+      },
+      "engine-card-31": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-32": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      }
+     },
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "pending",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [
+       "White",
+       "Red",
+       "Yellow",
+       "Blue"
+      ],
+      "waitingNames": [
+       "White",
+       "Red",
+       "Yellow"
+      ],
+      "declinedBy": null,
+      "declinedColor": null,
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "texts",
+     "texts": {
+      "engine-card-1": "({T}: Add {G}.)",
+      "engine-card-2": "({T}: Add {G}.)",
+      "engine-card-7": "({T}: Add {G}.)",
+      "engine-card-8": "({T}: Add {G}.)",
+      "engine-card-9": "({T}: Add {G}.)",
+      "engine-card-14": "({T}: Add {G}.)",
+      "engine-card-30": "Juggernaut attacks each combat if able.\nJuggernaut can't be blocked by Walls."
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {
+      "engine-card-1": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-2": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-3": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-4": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-5": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-6": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-7": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-29": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-8": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-9": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-10": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-11": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-12": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-13": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-14": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-30": {
+       "n": "Juggernaut",
+       "f": "kf024fc70d-5107-4c9f-42ee-7f917c37b4ed",
+       "b": "",
+       "tl": "Artifact Creature — Juggernaut",
+       "cmc": 4,
+       "ty": [
+        "Artifact",
+        "Creature"
+       ],
+       "bp": 5,
+       "bt": 3,
+       "cl": "C"
+      },
+      "engine-card-31": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-32": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      }
+     },
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "pending",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [
+       "White",
+       "Red",
+       "Yellow",
+       "Blue"
+      ],
+      "waitingNames": [
+       "White",
+       "Red",
+       "Yellow"
+      ],
+      "declinedBy": null,
+      "declinedColor": null,
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "texts",
+     "texts": {
+      "engine-card-1": "({T}: Add {G}.)",
+      "engine-card-2": "({T}: Add {G}.)",
+      "engine-card-7": "({T}: Add {G}.)",
+      "engine-card-8": "({T}: Add {G}.)",
+      "engine-card-9": "({T}: Add {G}.)",
+      "engine-card-14": "({T}: Add {G}.)",
+      "engine-card-30": "Juggernaut attacks each combat if able.\nJuggernaut can't be blocked by Walls."
+     }
+    }
+   },
+   {
+    "writeFile": "image-cache-klrmngr.json.tmp",
+    "bytes": 480
+   },
+   {
+    "rename": [
+     "image-cache-klrmngr.json.tmp",
+     "image-cache-klrmngr.json"
+    ]
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "pending",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [
+       "White",
+       "Red",
+       "Yellow",
+       "Blue"
+      ],
+      "waitingNames": [
+       "White",
+       "Red",
+       "Yellow"
+      ],
+      "declinedBy": null,
+      "declinedColor": null,
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   }
+  ],
+  "result": {
+   "tie": {
+    "id": 1,
+    "status": "pending",
+    "locked": [
+     {
+      "who": "White",
+      "color": "White",
+      "why": [
+       "can't lose the game"
+      ]
+     }
+    ],
+    "waiting": [
+     "White",
+     "Red",
+     "Yellow",
+     "Blue"
+    ],
+    "waitingNames": [
+     "White",
+     "Red",
+     "Yellow"
+    ],
+    "declinedBy": null,
+    "declinedColor": null,
+    "rounds": 0,
+    "toForce": 3
+   },
+   "overWhy": null
+  }
+ },
+ {
+  "name": "tie offer: accepted by everyone, the game a draw",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "relay": {
+     "state": {
+      "kind": "directive",
+      "fromPlayer": "player-3",
+      "directive": {
+       "type": "tieVote",
+       "voteId": 1,
+       "accept": true
+      }
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] === Game: White, Red, Yellow, Blue ===\n[time] White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).",
+     "color": null
+    }
+   },
+   {
+    "fetch": "https://api.scryfall.com/cards/collection",
+    "method": "POST",
+    "body": {
+     "identifiers": [
+      {
+       "name": "Forest"
+      },
+      {
+       "name": "Grizzly Bears"
+      },
+      {
+       "name": "Hill Giant"
+      },
+      {
+       "name": "Juggernaut"
+      }
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no)."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": [
+        {
+         "s": 1,
+         "id": "engine-card-1",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-3",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-4",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-5",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-6",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-7",
+         "sick": true,
+         "ctl": "White"
+        }
+       ],
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-29",
+         "p": "2",
+         "t": "2",
+         "ctl": "White"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": [],
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-1",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-3",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-4",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-5",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-6",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-7",
+         "sick": true,
+         "ctl": "White"
+        }
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": [
+        {
+         "s": 1,
+         "id": "engine-card-8",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-9",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-10",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-11",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-12",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-13",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-14",
+         "sick": true,
+         "ctl": "Red"
+        }
+       ],
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-30",
+         "p": "5",
+         "t": "3",
+         "ctl": "Red"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": [],
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-8",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-9",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-10",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-11",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-12",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-13",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-14",
+         "sick": true,
+         "ctl": "Red"
+        }
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": [],
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-31",
+         "p": "2",
+         "t": "2",
+         "ctl": "Yellow"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": []
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-32",
+         "p": "3",
+         "t": "3",
+         "ctl": "Blue"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": []
+      }
+     ],
+     "stack": [],
+     "cards": {
+      "engine-card-1": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-2": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-3": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-4": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-5": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-6": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-7": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-29": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-8": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-9": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-10": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-11": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-12": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-13": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-14": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-30": {
+       "n": "Juggernaut",
+       "b": "",
+       "tl": "Artifact Creature — Juggernaut",
+       "cmc": 4,
+       "ty": [
+        "Artifact",
+        "Creature"
+       ],
+       "bp": 5,
+       "bt": 3,
+       "cl": "C"
+      },
+      "engine-card-31": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-32": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      }
+     },
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "pending",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [
+       "White",
+       "Red",
+       "Yellow",
+       "Blue"
+      ],
+      "waitingNames": [
+       "White",
+       "Red",
+       "Yellow"
+      ],
+      "declinedBy": null,
+      "declinedColor": null,
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "texts",
+     "texts": {
+      "engine-card-1": "({T}: Add {G}.)",
+      "engine-card-2": "({T}: Add {G}.)",
+      "engine-card-7": "({T}: Add {G}.)",
+      "engine-card-8": "({T}: Add {G}.)",
+      "engine-card-9": "({T}: Add {G}.)",
+      "engine-card-14": "({T}: Add {G}.)",
+      "engine-card-30": "Juggernaut attacks each combat if able.\nJuggernaut can't be blocked by Walls."
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {
+      "engine-card-1": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-2": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-3": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-4": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-5": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-6": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-7": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-29": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-8": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-9": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-10": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-11": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-12": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-13": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-14": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-30": {
+       "n": "Juggernaut",
+       "f": "kf024fc70d-5107-4c9f-42ee-7f917c37b4ed",
+       "b": "",
+       "tl": "Artifact Creature — Juggernaut",
+       "cmc": 4,
+       "ty": [
+        "Artifact",
+        "Creature"
+       ],
+       "bp": 5,
+       "bt": 3,
+       "cl": "C"
+      },
+      "engine-card-31": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-32": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      }
+     },
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "pending",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [
+       "White",
+       "Red",
+       "Yellow",
+       "Blue"
+      ],
+      "waitingNames": [
+       "White",
+       "Red",
+       "Yellow"
+      ],
+      "declinedBy": null,
+      "declinedColor": null,
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "texts",
+     "texts": {
+      "engine-card-1": "({T}: Add {G}.)",
+      "engine-card-2": "({T}: Add {G}.)",
+      "engine-card-7": "({T}: Add {G}.)",
+      "engine-card-8": "({T}: Add {G}.)",
+      "engine-card-9": "({T}: Add {G}.)",
+      "engine-card-14": "({T}: Add {G}.)",
+      "engine-card-30": "Juggernaut attacks each combat if able.\nJuggernaut can't be blocked by Walls."
+     }
+    }
+   },
+   {
+    "writeFile": "image-cache-klrmngr.json.tmp",
+    "bytes": 480
+   },
+   {
+    "rename": [
+     "image-cache-klrmngr.json.tmp",
+     "image-cache-klrmngr.json"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  tieVote {\"accept\":true}\n"
+   },
+   {
+    "log": "White accepts the tie (offer 1)"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "directive",
+      "fromPlayer": "player-0",
+      "directive": {
+       "type": "tieVote",
+       "voteId": 1,
+       "accept": true
+      }
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Red    tieVote {\"accept\":true}\n"
+   },
+   {
+    "log": "Red accepts the tie (offer 1)"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "directive",
+      "fromPlayer": "player-1",
+      "directive": {
+       "type": "tieVote",
+       "voteId": 1,
+       "accept": true
+      }
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Yellow tieVote {\"accept\":true}\n"
+   },
+   {
+    "log": "Yellow accepts the tie (offer 1)"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "directive",
+      "fromPlayer": "player-2",
+      "directive": {
+       "type": "tieVote",
+       "voteId": 1,
+       "accept": true
+      }
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Everyone accepted the tie: the game is a draw.\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] Everyone accepted the tie: the game is a draw.\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Everyone accepted the tie: the game is a draw.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Everyone accepted the tie: the game is a draw."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": true,
+     "overWhy": "a draw: everyone accepted the tie",
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "agreed",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [],
+      "waitingNames": [],
+      "declinedBy": null,
+      "declinedColor": null,
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   }
+  ],
+  "result": {
+   "tie": {
+    "id": 1,
+    "status": "agreed",
+    "locked": [
+     {
+      "who": "White",
+      "color": "White",
+      "why": [
+       "can't lose the game"
+      ]
+     }
+    ],
+    "waiting": [],
+    "waitingNames": [],
+    "declinedBy": null,
+    "declinedColor": null,
+    "rounds": 0,
+    "toForce": 3
+   },
+   "overWhy": "a draw: everyone accepted the tie",
+   "endWords": "a draw: everyone accepted the tie"
+  }
+ },
+ {
+  "name": "tie offer: Keep playing, the forced-tie rule said, a late vote told no tie is open",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "relay": {
+     "state": {
+      "kind": "directive",
+      "fromPlayer": "player-3",
+      "directive": {
+       "type": "tieVote",
+       "voteId": 1,
+       "accept": true
+      }
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] === Game: White, Red, Yellow, Blue ===\n[time] White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).",
+     "color": null
+    }
+   },
+   {
+    "fetch": "https://api.scryfall.com/cards/collection",
+    "method": "POST",
+    "body": {
+     "identifiers": [
+      {
+       "name": "Forest"
+      },
+      {
+       "name": "Grizzly Bears"
+      },
+      {
+       "name": "Hill Giant"
+      },
+      {
+       "name": "Juggernaut"
+      }
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no)."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": [
+        {
+         "s": 1,
+         "id": "engine-card-1",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-3",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-4",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-5",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-6",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-7",
+         "sick": true,
+         "ctl": "White"
+        }
+       ],
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-29",
+         "p": "2",
+         "t": "2",
+         "ctl": "White"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": [],
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-1",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-3",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-4",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-5",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-6",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-7",
+         "sick": true,
+         "ctl": "White"
+        }
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": [
+        {
+         "s": 1,
+         "id": "engine-card-8",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-9",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-10",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-11",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-12",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-13",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-14",
+         "sick": true,
+         "ctl": "Red"
+        }
+       ],
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-30",
+         "p": "5",
+         "t": "3",
+         "ctl": "Red"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": [],
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-8",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-9",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-10",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-11",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-12",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-13",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-14",
+         "sick": true,
+         "ctl": "Red"
+        }
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": [],
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-31",
+         "p": "2",
+         "t": "2",
+         "ctl": "Yellow"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": []
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-32",
+         "p": "3",
+         "t": "3",
+         "ctl": "Blue"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": []
+      }
+     ],
+     "stack": [],
+     "cards": {
+      "engine-card-1": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-2": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-3": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-4": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-5": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-6": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-7": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-29": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-8": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-9": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-10": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-11": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-12": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-13": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-14": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-30": {
+       "n": "Juggernaut",
+       "b": "",
+       "tl": "Artifact Creature — Juggernaut",
+       "cmc": 4,
+       "ty": [
+        "Artifact",
+        "Creature"
+       ],
+       "bp": 5,
+       "bt": 3,
+       "cl": "C"
+      },
+      "engine-card-31": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-32": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      }
+     },
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "pending",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [
+       "White",
+       "Red",
+       "Yellow",
+       "Blue"
+      ],
+      "waitingNames": [
+       "White",
+       "Red",
+       "Yellow"
+      ],
+      "declinedBy": null,
+      "declinedColor": null,
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "texts",
+     "texts": {
+      "engine-card-1": "({T}: Add {G}.)",
+      "engine-card-2": "({T}: Add {G}.)",
+      "engine-card-7": "({T}: Add {G}.)",
+      "engine-card-8": "({T}: Add {G}.)",
+      "engine-card-9": "({T}: Add {G}.)",
+      "engine-card-14": "({T}: Add {G}.)",
+      "engine-card-30": "Juggernaut attacks each combat if able.\nJuggernaut can't be blocked by Walls."
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {
+      "engine-card-1": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-2": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-3": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-4": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-5": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-6": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-7": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-29": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-8": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-9": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-10": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-11": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-12": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-13": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-14": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-30": {
+       "n": "Juggernaut",
+       "f": "kf024fc70d-5107-4c9f-42ee-7f917c37b4ed",
+       "b": "",
+       "tl": "Artifact Creature — Juggernaut",
+       "cmc": 4,
+       "ty": [
+        "Artifact",
+        "Creature"
+       ],
+       "bp": 5,
+       "bt": 3,
+       "cl": "C"
+      },
+      "engine-card-31": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-32": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      }
+     },
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "pending",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [
+       "White",
+       "Red",
+       "Yellow",
+       "Blue"
+      ],
+      "waitingNames": [
+       "White",
+       "Red",
+       "Yellow"
+      ],
+      "declinedBy": null,
+      "declinedColor": null,
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "texts",
+     "texts": {
+      "engine-card-1": "({T}: Add {G}.)",
+      "engine-card-2": "({T}: Add {G}.)",
+      "engine-card-7": "({T}: Add {G}.)",
+      "engine-card-8": "({T}: Add {G}.)",
+      "engine-card-9": "({T}: Add {G}.)",
+      "engine-card-14": "({T}: Add {G}.)",
+      "engine-card-30": "Juggernaut attacks each combat if able.\nJuggernaut can't be blocked by Walls."
+     }
+    }
+   },
+   {
+    "writeFile": "image-cache-klrmngr.json.tmp",
+    "bytes": 480
+   },
+   {
+    "rename": [
+     "image-cache-klrmngr.json.tmp",
+     "image-cache-klrmngr.json"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Yellow tieVote {\"accept\":false}\n"
+   },
+   {
+    "log": "Yellow declines the tie (offer 1)"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "directive",
+      "fromPlayer": "player-2",
+      "directive": {
+       "type": "tieVote",
+       "voteId": 1,
+       "accept": false
+      }
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Yellow declined the tie. If nothing changes for 3 full rounds (no life lost, no poison or commander damage, no permanent leaving the battlefield, no card milled, nobody losing), the game ends in a forced tie.\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] Yellow declined the tie. If nothing changes for 3 full rounds (no life lost, no poison or commander damage, no permanent leaving the battlefield, no card milled, nobody losing), the game ends in a forced tie.\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Yellow declined the tie. If nothing changes for 3 full rounds (no life lost, no poison or commander damage, no permanent leaving the battlefield, no card milled, nobody losing), the game ends in a forced tie.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Yellow declined the tie. If nothing changes for 3 full rounds (no life lost, no poison or commander damage, no permanent leaving the battlefield, no card milled, nobody losing), the game ends in a forced tie."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "declined",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [],
+      "waitingNames": [],
+      "declinedBy": "Yellow",
+      "declinedColor": "Yellow",
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  tieVote {\"accept\":true}\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  told: [MTG] No tie offer is open.\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] No tie offer is open.",
+     "color": "White"
+    }
+   }
+  ],
+  "result": {
+   "tie": {
+    "id": 1,
+    "status": "declined",
+    "locked": [
+     {
+      "who": "White",
+      "color": "White",
+      "why": [
+       "can't lose the game"
+      ]
+     }
+    ],
+    "waiting": [],
+    "waitingNames": [],
+    "declinedBy": "Yellow",
+    "declinedColor": "Yellow",
+    "rounds": 0,
+    "toForce": 3
+   },
+   "overWhy": null
+  }
+ },
+ {
+  "name": "tie offer: three rounds without progress, the count started over once, then a forced tie",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "relay": {
+     "state": {
+      "kind": "directive",
+      "fromPlayer": "player-3",
+      "directive": {
+       "type": "tieVote",
+       "voteId": 1,
+       "accept": true
+      }
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] === Game: White, Red, Yellow, Blue ===\n[time] White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).",
+     "color": null
+    }
+   },
+   {
+    "fetch": "https://api.scryfall.com/cards/collection",
+    "method": "POST",
+    "body": {
+     "identifiers": [
+      {
+       "name": "Forest"
+      },
+      {
+       "name": "Grizzly Bears"
+      },
+      {
+       "name": "Hill Giant"
+      },
+      {
+       "name": "Juggernaut"
+      }
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no)."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": [
+        {
+         "s": 1,
+         "id": "engine-card-1",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-3",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-4",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-5",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-6",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-7",
+         "sick": true,
+         "ctl": "White"
+        }
+       ],
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-29",
+         "p": "2",
+         "t": "2",
+         "ctl": "White"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": [],
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-1",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-3",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-4",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-5",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-6",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-7",
+         "sick": true,
+         "ctl": "White"
+        }
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": [
+        {
+         "s": 1,
+         "id": "engine-card-8",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-9",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-10",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-11",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-12",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-13",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-14",
+         "sick": true,
+         "ctl": "Red"
+        }
+       ],
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-30",
+         "p": "5",
+         "t": "3",
+         "ctl": "Red"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": [],
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-8",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-9",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-10",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-11",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-12",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-13",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-14",
+         "sick": true,
+         "ctl": "Red"
+        }
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": [],
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-31",
+         "p": "2",
+         "t": "2",
+         "ctl": "Yellow"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": []
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-32",
+         "p": "3",
+         "t": "3",
+         "ctl": "Blue"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": []
+      }
+     ],
+     "stack": [],
+     "cards": {
+      "engine-card-1": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-2": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-3": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-4": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-5": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-6": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-7": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-29": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-8": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-9": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-10": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-11": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-12": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-13": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-14": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-30": {
+       "n": "Juggernaut",
+       "b": "",
+       "tl": "Artifact Creature — Juggernaut",
+       "cmc": 4,
+       "ty": [
+        "Artifact",
+        "Creature"
+       ],
+       "bp": 5,
+       "bt": 3,
+       "cl": "C"
+      },
+      "engine-card-31": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-32": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      }
+     },
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "pending",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [
+       "White",
+       "Red",
+       "Yellow",
+       "Blue"
+      ],
+      "waitingNames": [
+       "White",
+       "Red",
+       "Yellow"
+      ],
+      "declinedBy": null,
+      "declinedColor": null,
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "texts",
+     "texts": {
+      "engine-card-1": "({T}: Add {G}.)",
+      "engine-card-2": "({T}: Add {G}.)",
+      "engine-card-7": "({T}: Add {G}.)",
+      "engine-card-8": "({T}: Add {G}.)",
+      "engine-card-9": "({T}: Add {G}.)",
+      "engine-card-14": "({T}: Add {G}.)",
+      "engine-card-30": "Juggernaut attacks each combat if able.\nJuggernaut can't be blocked by Walls."
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {
+      "engine-card-1": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-2": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-3": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-4": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-5": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-6": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-7": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-29": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-8": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-9": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-10": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-11": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-12": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-13": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-14": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-30": {
+       "n": "Juggernaut",
+       "f": "kf024fc70d-5107-4c9f-42ee-7f917c37b4ed",
+       "b": "",
+       "tl": "Artifact Creature — Juggernaut",
+       "cmc": 4,
+       "ty": [
+        "Artifact",
+        "Creature"
+       ],
+       "bp": 5,
+       "bt": 3,
+       "cl": "C"
+      },
+      "engine-card-31": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-32": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      }
+     },
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "pending",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [
+       "White",
+       "Red",
+       "Yellow",
+       "Blue"
+      ],
+      "waitingNames": [
+       "White",
+       "Red",
+       "Yellow"
+      ],
+      "declinedBy": null,
+      "declinedColor": null,
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "texts",
+     "texts": {
+      "engine-card-1": "({T}: Add {G}.)",
+      "engine-card-2": "({T}: Add {G}.)",
+      "engine-card-7": "({T}: Add {G}.)",
+      "engine-card-8": "({T}: Add {G}.)",
+      "engine-card-9": "({T}: Add {G}.)",
+      "engine-card-14": "({T}: Add {G}.)",
+      "engine-card-30": "Juggernaut attacks each combat if able.\nJuggernaut can't be blocked by Walls."
+     }
+    }
+   },
+   {
+    "writeFile": "image-cache-klrmngr.json.tmp",
+    "bytes": 480
+   },
+   {
+    "rename": [
+     "image-cache-klrmngr.json.tmp",
+     "image-cache-klrmngr.json"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Yellow declined the tie. If nothing changes for 3 full rounds (no life lost, no poison or commander damage, no permanent leaving the battlefield, no card milled, nobody losing), the game ends in a forced tie.\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] Yellow declined the tie. If nothing changes for 3 full rounds (no life lost, no poison or commander damage, no permanent leaving the battlefield, no card milled, nobody losing), the game ends in a forced tie.\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Yellow declined the tie. If nothing changes for 3 full rounds (no life lost, no poison or commander damage, no permanent leaving the battlefield, no card milled, nobody losing), the game ends in a forced tie.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Yellow declined the tie. If nothing changes for 3 full rounds (no life lost, no poison or commander damage, no permanent leaving the battlefield, no card milled, nobody losing), the game ends in a forced tie."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "declined",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [],
+      "waitingNames": [],
+      "declinedBy": "Yellow",
+      "declinedColor": "Yellow",
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Tie warning: 1 of 3 rounds without progress. 2 more rounds like this and the game is a forced tie.\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] Tie warning: 1 of 3 rounds without progress. 2 more rounds like this and the game is a forced tie.\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Tie warning: 1 of 3 rounds without progress. 2 more rounds like this and the game is a forced tie.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Tie warning: 1 of 3 rounds without progress. 2 more rounds like this and the game is a forced tie."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "declined",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [],
+      "waitingNames": [],
+      "declinedBy": "Yellow",
+      "declinedColor": "Yellow",
+      "rounds": 1,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Tie warning: 2 of 3 rounds without progress. One more round like this and the game is a forced tie.\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] Tie warning: 2 of 3 rounds without progress. One more round like this and the game is a forced tie.\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Tie warning: 2 of 3 rounds without progress. One more round like this and the game is a forced tie.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Tie warning: 2 of 3 rounds without progress. One more round like this and the game is a forced tie."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "declined",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [],
+      "waitingNames": [],
+      "declinedBy": "Yellow",
+      "declinedColor": "Yellow",
+      "rounds": 2,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Progress: the tie count starts over (0 of 3 rounds).\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] Progress: the tie count starts over (0 of 3 rounds).\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Progress: the tie count starts over (0 of 3 rounds).",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Progress: the tie count starts over (0 of 3 rounds)."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "declined",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [],
+      "waitingNames": [],
+      "declinedBy": "Yellow",
+      "declinedColor": "Yellow",
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Tie warning: 1 of 3 rounds without progress. 2 more rounds like this and the game is a forced tie.\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] Tie warning: 1 of 3 rounds without progress. 2 more rounds like this and the game is a forced tie.\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Tie warning: 1 of 3 rounds without progress. 2 more rounds like this and the game is a forced tie.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Tie warning: 1 of 3 rounds without progress. 2 more rounds like this and the game is a forced tie."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "declined",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [],
+      "waitingNames": [],
+      "declinedBy": "Yellow",
+      "declinedColor": "Yellow",
+      "rounds": 1,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Tie warning: 2 of 3 rounds without progress. One more round like this and the game is a forced tie.\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] Tie warning: 2 of 3 rounds without progress. One more round like this and the game is a forced tie.\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Tie warning: 2 of 3 rounds without progress. One more round like this and the game is a forced tie.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Tie warning: 2 of 3 rounds without progress. One more round like this and the game is a forced tie."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "declined",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [],
+      "waitingNames": [],
+      "declinedBy": "Yellow",
+      "declinedColor": "Yellow",
+      "rounds": 2,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] 3 rounds without progress: the game is a forced tie.\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] 3 rounds without progress: the game is a forced tie.\n"
+   },
+   {
+    "log": "accomplishment: White earned Stalemate (1)"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  told: [MTG] Accomplishment: Stalemate. Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.\n"
+   },
+   {
+    "log": "accomplishment: Red earned Stalemate (1)"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Red    told: [MTG] Accomplishment: Stalemate. Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.\n"
+   },
+   {
+    "log": "accomplishment: Yellow has no Steam ID, so Stalemate isn't kept"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] 3 rounds without progress: the game is a forced tie.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "3 rounds without progress: the game is a forced tie."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Accomplishment: Stalemate. Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+     "color": "White"
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Accomplishment: Stalemate. Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+     "color": "Red"
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": true,
+     "overWhy": "a forced tie: 3 rounds without progress",
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "forced",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [],
+      "waitingNames": [],
+      "declinedBy": "Yellow",
+      "declinedColor": "Yellow",
+      "rounds": 3,
+      "toForce": 3
+     }
+    }
+   }
+  ],
+  "result": {
+   "tie": {
+    "id": 1,
+    "status": "forced",
+    "locked": [
+     {
+      "who": "White",
+      "color": "White",
+      "why": [
+       "can't lose the game"
+      ]
+     }
+    ],
+    "waiting": [],
+    "waitingNames": [],
+    "declinedBy": "Yellow",
+    "declinedColor": "Yellow",
+    "rounds": 3,
+    "toForce": 3
+   },
+   "overWhy": "a forced tie: 3 rounds without progress",
+   "endWords": "a forced tie: 3 rounds without progress"
+  }
+ },
+ {
+  "name": "tie offer: Stalemate at a forced tie, for everyone with a Steam ID, once a game, then mtg accomplishments",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "relay": {
+     "state": {
+      "kind": "directive",
+      "fromPlayer": "player-3",
+      "directive": {
+       "type": "tieVote",
+       "voteId": 1,
+       "accept": true
+      }
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] === Game: White, Red, Yellow, Blue ===\n[time] White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no).",
+     "color": null
+    }
+   },
+   {
+    "fetch": "https://api.scryfall.com/cards/collection",
+    "method": "POST",
+    "body": {
+     "identifiers": [
+      {
+       "name": "Forest"
+      },
+      {
+       "name": "Grizzly Bears"
+      },
+      {
+       "name": "Hill Giant"
+      },
+      {
+       "name": "Juggernaut"
+      }
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "White can't lose the game, so the game may never end. A tie is offered. Waiting for White, Red and Yellow: press Tie or Keep playing (or type  mtg tie yes / mtg tie no)."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": [
+        {
+         "s": 1,
+         "id": "engine-card-1",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-3",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-4",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-5",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-6",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-7",
+         "sick": true,
+         "ctl": "White"
+        }
+       ],
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-29",
+         "p": "2",
+         "t": "2",
+         "ctl": "White"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": [],
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-1",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-3",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-4",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-5",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-6",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "White"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-7",
+         "sick": true,
+         "ctl": "White"
+        }
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": [
+        {
+         "s": 1,
+         "id": "engine-card-8",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-9",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-10",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-11",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-12",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-13",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-14",
+         "sick": true,
+         "ctl": "Red"
+        }
+       ],
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-30",
+         "p": "5",
+         "t": "3",
+         "ctl": "Red"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": [],
+       "revealed": [
+        {
+         "s": 1,
+         "id": "engine-card-8",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-9",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-10",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-11",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-12",
+         "p": "2",
+         "t": "2",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-13",
+         "p": "3",
+         "t": "3",
+         "sick": true,
+         "ctl": "Red"
+        },
+        {
+         "s": 1,
+         "id": "engine-card-14",
+         "sick": true,
+         "ctl": "Red"
+        }
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": [],
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-31",
+         "p": "2",
+         "t": "2",
+         "ctl": "Yellow"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": []
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "battlefield": [
+        {
+         "s": 1,
+         "id": "engine-card-32",
+         "p": "3",
+         "t": "3",
+         "ctl": "Blue"
+        }
+       ],
+       "graveyard": [],
+       "exile": [],
+       "command": []
+      }
+     ],
+     "stack": [],
+     "cards": {
+      "engine-card-1": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-2": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-3": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-4": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-5": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-6": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-7": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-29": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-8": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-9": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-10": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-11": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-12": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-13": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-14": {
+       "n": "Forest",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-30": {
+       "n": "Juggernaut",
+       "b": "",
+       "tl": "Artifact Creature — Juggernaut",
+       "cmc": 4,
+       "ty": [
+        "Artifact",
+        "Creature"
+       ],
+       "bp": 5,
+       "bt": 3,
+       "cl": "C"
+      },
+      "engine-card-31": {
+       "n": "Grizzly Bears",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-32": {
+       "n": "Hill Giant",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      }
+     },
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "pending",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [
+       "White",
+       "Red",
+       "Yellow",
+       "Blue"
+      ],
+      "waitingNames": [
+       "White",
+       "Red",
+       "Yellow"
+      ],
+      "declinedBy": null,
+      "declinedColor": null,
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "texts",
+     "texts": {
+      "engine-card-1": "({T}: Add {G}.)",
+      "engine-card-2": "({T}: Add {G}.)",
+      "engine-card-7": "({T}: Add {G}.)",
+      "engine-card-8": "({T}: Add {G}.)",
+      "engine-card-9": "({T}: Add {G}.)",
+      "engine-card-14": "({T}: Add {G}.)",
+      "engine-card-30": "Juggernaut attacks each combat if able.\nJuggernaut can't be blocked by Walls."
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {
+      "engine-card-1": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-2": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-3": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-4": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-5": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-6": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-7": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-29": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-8": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-9": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-10": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-11": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-12": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-13": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      },
+      "engine-card-14": {
+       "n": "Forest",
+       "f": "kfac12ee4a-edb1-76eb-73ce-3f6c0d1e9036",
+       "b": "",
+       "tl": "Basic Land — Forest",
+       "cmc": 0,
+       "ty": [
+        "Land"
+       ],
+       "cl": "C"
+      },
+      "engine-card-30": {
+       "n": "Juggernaut",
+       "f": "kf024fc70d-5107-4c9f-42ee-7f917c37b4ed",
+       "b": "",
+       "tl": "Artifact Creature — Juggernaut",
+       "cmc": 4,
+       "ty": [
+        "Artifact",
+        "Creature"
+       ],
+       "bp": 5,
+       "bt": 3,
+       "cl": "C"
+      },
+      "engine-card-31": {
+       "n": "Grizzly Bears",
+       "f": "kf5e1a4ec4-bfbd-4da1-b3d3-83c1ab8a6f88",
+       "b": "",
+       "tl": "Creature — Bear",
+       "cmc": 2,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 2,
+       "bt": 2,
+       "cl": "G"
+      },
+      "engine-card-32": {
+       "n": "Hill Giant",
+       "f": "kf3890f5f6-6a2a-1a63-430f-394d3d08d8c9",
+       "b": "",
+       "tl": "Creature — Giant",
+       "cmc": 4,
+       "ty": [
+        "Creature"
+       ],
+       "bp": 3,
+       "bt": 3,
+       "cl": "R"
+      }
+     },
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "pending",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [
+       "White",
+       "Red",
+       "Yellow",
+       "Blue"
+      ],
+      "waitingNames": [
+       "White",
+       "Red",
+       "Yellow"
+      ],
+      "declinedBy": null,
+      "declinedColor": null,
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "texts",
+     "texts": {
+      "engine-card-1": "({T}: Add {G}.)",
+      "engine-card-2": "({T}: Add {G}.)",
+      "engine-card-7": "({T}: Add {G}.)",
+      "engine-card-8": "({T}: Add {G}.)",
+      "engine-card-9": "({T}: Add {G}.)",
+      "engine-card-14": "({T}: Add {G}.)",
+      "engine-card-30": "Juggernaut attacks each combat if able.\nJuggernaut can't be blocked by Walls."
+     }
+    }
+   },
+   {
+    "writeFile": "image-cache-klrmngr.json.tmp",
+    "bytes": 480
+   },
+   {
+    "rename": [
+     "image-cache-klrmngr.json.tmp",
+     "image-cache-klrmngr.json"
+    ]
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Red    tieVote {\"accept\":false,\"steam\":\"76561190000000022\"}\n"
+   },
+   {
+    "log": "Red declines the tie (offer 1)"
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "directive",
+      "fromPlayer": "player-1",
+      "directive": {
+       "type": "tieVote",
+       "voteId": 1,
+       "accept": false
+      }
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Red declined the tie. If nothing changes for 3 full rounds (no life lost, no poison or commander damage, no permanent leaving the battlefield, no card milled, nobody losing), the game ends in a forced tie.\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] Red declined the tie. If nothing changes for 3 full rounds (no life lost, no poison or commander damage, no permanent leaving the battlefield, no card milled, nobody losing), the game ends in a forced tie.\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Red declined the tie. If nothing changes for 3 full rounds (no life lost, no poison or commander damage, no permanent leaving the battlefield, no card milled, nobody losing), the game ends in a forced tie.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Red declined the tie. If nothing changes for 3 full rounds (no life lost, no poison or commander damage, no permanent leaving the battlefield, no card milled, nobody losing), the game ends in a forced tie."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "declined",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [],
+      "waitingNames": [],
+      "declinedBy": "Red",
+      "declinedColor": "Red",
+      "rounds": 0,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] 3 rounds without progress: the game is a forced tie.\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] 3 rounds without progress: the game is a forced tie.\n"
+   },
+   {
+    "log": "accomplishment: White earned Stalemate (1)"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  told: [MTG] Accomplishment: Stalemate. Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.\n"
+   },
+   {
+    "log": "accomplishment: Red earned Stalemate (1)"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Red    told: [MTG] Accomplishment: Stalemate. Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.\n"
+   },
+   {
+    "log": "accomplishment: Yellow has no Steam ID, so Stalemate isn't kept"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] 3 rounds without progress: the game is a forced tie.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "3 rounds without progress: the game is a forced tie."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Accomplishment: Stalemate. Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+     "color": "White"
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Accomplishment: Stalemate. Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+     "color": "Red"
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": true,
+     "overWhy": "a forced tie: 3 rounds without progress",
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "forced",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [],
+      "waitingNames": [],
+      "declinedBy": "Red",
+      "declinedColor": "Red",
+      "rounds": 3,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": true,
+     "overWhy": "a draw",
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] 3 rounds without progress: the game is a forced tie.\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] 3 rounds without progress: the game is a forced tie.\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] 3 rounds without progress: the game is a forced tie.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "3 rounds without progress: the game is a forced tie."
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 1,
+     "step": "upkeep",
+     "active": "White",
+     "activeTurnNo": 1,
+     "priority": "White",
+     "gameOver": true,
+     "overWhy": "a forced tie: 3 rounds without progress",
+     "winner": null,
+     "players": [
+      {
+       "color": "White",
+       "slot": "player-0",
+       "name": "White",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Red",
+       "slot": "player-1",
+       "name": "Red",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command",
+        "revealed"
+       ]
+      },
+      {
+       "color": "Yellow",
+       "slot": "player-2",
+       "name": "Yellow",
+       "ai": false,
+       "life": 30,
+       "status": "playing",
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "keep": [
+        "hand",
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      },
+      {
+       "color": "Blue",
+       "slot": "player-3",
+       "name": "Blue",
+       "ai": true,
+       "life": 30,
+       "status": "playing",
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 33,
+       "handCount": 7,
+       "hand": null,
+       "keep": [
+        "battlefield",
+        "graveyard",
+        "exile",
+        "command"
+       ]
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [
+       {
+        "id": 1,
+        "label": "turn 1, White's upkeep"
+       }
+      ],
+      "vote": null
+     },
+     "tie": {
+      "id": 1,
+      "status": "forced",
+      "locked": [
+       {
+        "who": "White",
+        "color": "White",
+        "why": [
+         "can't lose the game"
+        ]
+       }
+      ],
+      "waiting": [],
+      "waitingNames": [],
+      "declinedBy": "Red",
+      "declinedColor": "Red",
+      "rounds": 3,
+      "toForce": 3
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  accomplishments {\"steam\":\"76561190000000001\"}\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  told: [MTG] Your accomplishments: Stalemate (1 time, last 2026-10-20).\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Your accomplishments: Stalemate (1 time, last 2026-10-20).",
+     "color": "White"
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Red    accomplishments {\"steam\":\"76561190000000022\"}\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Red    told: [MTG] Your accomplishments: Stalemate (1 time, last 2026-10-20).\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Your accomplishments: Stalemate (1 time, last 2026-10-20).",
+     "color": "Red"
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Yellow accomplishments {\"steam\":\"\"}\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Yellow told: [MTG] Accomplishments are kept by Steam ID, and this seat has none.\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Accomplishments are kept by Steam ID, and this seat has none.",
+     "color": "Yellow"
+    }
+   }
+  ],
+  "result": {
+   "white": [
+    {
+     "id": "forced-tie",
+     "name": "Stalemate",
+     "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+     "count": 1,
+     "first": "2026-10-20",
+     "last": "2026-10-20"
+    }
+   ],
+   "red": [
+    {
+     "id": "forced-tie",
+     "name": "Stalemate",
+     "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+     "count": 1,
+     "first": "2026-10-20",
+     "last": "2026-10-20"
+    }
+   ],
+   "redFromStart": []
+  }
  }
 ]
