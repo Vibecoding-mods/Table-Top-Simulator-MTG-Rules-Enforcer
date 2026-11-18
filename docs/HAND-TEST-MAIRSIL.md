@@ -127,3 +127,25 @@ Fixed on four branches, merged into local main 7f32845; not yet deployed or re-t
 
 To re-check live after the deploy: 14, 7, 20, the tie strip, the two-line corner labels, a click on a status label,
 side-by-side caged cards, caged cards beside the exile pile, static goad on an Impetus aura, Long River's Pull.
+
+## Live re-test (2026-11-18, engine1128, table 594aef5e then 7299c332)
+
+Seen fixed on the real table:
+- 14: a pick in the Choices list sent Volrath's Shapeshifter's discard at once.
+- 10: Dimir Doppelganger's graveyard target opened the picture panel.
+- 11: the exile line reads cleanly.
+- 2: Pestermite's may question reads "use its ability (tap or untap Plains)?".
+- 23: the Choices header names the player.
+- 7: Rite of Replication shows its front in the kicker question, the preview and on the stack.
+
+New from the re-test:
+- The tie strip at 114 px covered the name plate and the Scoop button. It was moved to 170 px (5bcdf31), with a test,
+  and deployed in table 7299c332. Its new place is not yet seen live.
+- Rite of Replication's kicker hint repeats ("Pick, then Done. Pick it, then Done."), and the preview read "a copy of ."
+  before the target was chosen. Both are being fixed on fix/retest-text.
+- Found by the user: rikrassen's importer refused DeckCheck links. They now go through the table's DeckCheck code as a
+  decklist (1bc5c00, deployed in 7299c332). Its panel is not yet tried live.
+
+Not re-checked live: 20, which was never reproduced; the corner labels and label clicks; caged cards; static goad;
+Reanimate; Insurrection's grouped log; Long River's Pull. Synthetic clicks don't reach TTS unless it is the front
+window, so these need a person at the table or a long scripted run.
