@@ -896079,7 +896079,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Archenemy: Blue (80 life, goes first, 20 random schemes) vs White + Red + Yellow (40 life each, their own turns). The archenemy sets a scheme in motion at each of their first main phases; the archenemy wins when all the others have lost, and they win together when the archenemy loses. Undo is off in Archenemy games.\n"
+    "text": "[time] all    told: [MTG] Archenemy: Blue (80 life, goes first, 20 random schemes) vs White + Red + Yellow (40 life each, one turn together). The archenemy sets a scheme in motion at each of their first main phases; the archenemy wins when all the others have lost, and they win together when the archenemy loses. Undo is off in Archenemy games.\n"
    },
    {
     "log": "setup: seats Blue, bots 3, relay ws://127.0.0.1:9443"
@@ -896162,7 +896162,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Archenemy: Blue (80 life, goes first, 20 random schemes) vs White + Red + Yellow (40 life each, their own turns). The archenemy sets a scheme in motion at each of their first main phases; the archenemy wins when all the others have lost, and they win together when the archenemy loses. Undo is off in Archenemy games.",
+     "text": "[MTG] Archenemy: Blue (80 life, goes first, 20 random schemes) vs White + Red + Yellow (40 life each, one turn together). The archenemy sets a scheme in motion at each of their first main phases; the archenemy wins when all the others have lost, and they win together when the archenemy loses. Undo is off in Archenemy games.",
      "color": null
     }
    },
@@ -906835,7 +906835,7 @@
       "roomId": "room-1",
       "payload": {
        "type": "gameConfig",
-       "teamRules": "teams",
+       "teamRules": "teamTurns",
        "archenemy": true,
        "players": [
         {
@@ -907870,7 +907870,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Archenemy: Red (80 life, goes first, 20 chosen schemes) vs White + Yellow + Blue (40 life each, their own turns). The archenemy sets a scheme in motion at each of their first main phases; the archenemy wins when all the others have lost, and they win together when the archenemy loses. Undo is off in Archenemy games.\n"
+    "text": "[time] all    told: [MTG] Archenemy: Red (80 life, goes first, 20 chosen schemes) vs White + Yellow + Blue (40 life each, one turn together). The archenemy sets a scheme in motion at each of their first main phases; the archenemy wins when all the others have lost, and they win together when the archenemy loses. Undo is off in Archenemy games.\n"
    },
    {
     "log": "setup: seats Blue, bots 3, relay ws://127.0.0.1:9443"
@@ -907885,7 +907885,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Archenemy: Red (80 life, goes first, 20 chosen schemes) vs White + Yellow + Blue (40 life each, their own turns). The archenemy sets a scheme in motion at each of their first main phases; the archenemy wins when all the others have lost, and they win together when the archenemy loses. Undo is off in Archenemy games.",
+     "text": "[MTG] Archenemy: Red (80 life, goes first, 20 chosen schemes) vs White + Yellow + Blue (40 life each, one turn together). The archenemy sets a scheme in motion at each of their first main phases; the archenemy wins when all the others have lost, and they win together when the archenemy loses. Undo is off in Archenemy games.",
      "color": null
     }
    },
@@ -918548,7 +918548,7 @@
       "roomId": "room-1",
       "payload": {
        "type": "gameConfig",
-       "teamRules": "teams",
+       "teamRules": "teamTurns",
        "archenemy": true,
        "players": [
         {
@@ -919451,7 +919451,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] all    told: [MTG] Archenemy: White (40 life, goes first, 20 chosen schemes) vs Red + Yellow + Blue (20 life each, their own turns). The archenemy sets a scheme in motion at each of their first main phases; the archenemy wins when all the others have lost, and they win together when the archenemy loses. Undo is off in Archenemy games.\n"
+    "text": "[time] all    told: [MTG] Archenemy: White (40 life, goes first, 20 chosen schemes) vs Red + Yellow + Blue (20 life each, one turn together). The archenemy sets a scheme in motion at each of their first main phases; the archenemy wins when all the others have lost, and they win together when the archenemy loses. Undo is off in Archenemy games.\n"
    },
    {
     "log": "setup: seats Blue, bots 3, relay ws://127.0.0.1:9443"
@@ -919534,7 +919534,7 @@
    {
     "tts": {
      "t": "chat",
-     "text": "[MTG] Archenemy: White (40 life, goes first, 20 chosen schemes) vs Red + Yellow + Blue (20 life each, their own turns). The archenemy sets a scheme in motion at each of their first main phases; the archenemy wins when all the others have lost, and they win together when the archenemy loses. Undo is off in Archenemy games.",
+     "text": "[MTG] Archenemy: White (40 life, goes first, 20 chosen schemes) vs Red + Yellow + Blue (20 life each, one turn together). The archenemy sets a scheme in motion at each of their first main phases; the archenemy wins when all the others have lost, and they win together when the archenemy loses. Undo is off in Archenemy games.",
      "color": null
     }
    },
@@ -925299,7 +925299,7 @@
       "roomId": "room-1",
       "payload": {
        "type": "gameConfig",
-       "teamRules": "teams",
+       "teamRules": "teamTurns",
        "archenemy": true,
        "players": [
         {
