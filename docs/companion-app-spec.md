@@ -631,24 +631,34 @@ also copies the old exe into `backup\<old version>\companion\MTG Companion.exe`,
   is kept yet: the first update makes one.", or a backup that lacks a part whose version differs (only the newest backup keeps
   the engine images). It asks first, naming both versions and what goes back (the table, the app, the engine).
 - **Never during a game**: the revert waits like an update (`updates.json` `pendingRevert`, status `revert-ready`) and goes back
-  2 minutes after the game (`Updates.InstallNow`). It is refused while an update waits for a game.
+  2 minutes after the game (`Updates.InstallNow`). It is refused while an update waits for a game, and **Update now** is refused
+  (and greyed out) while a revert waits: else the update would install after the game and the revert would then undo it. The
+  wait is one flag (`UpdateState.RevertWaiting`, which the buttons read rather than the status a check overwrites); a wait whose
+  backup can no longer be put back is dropped, at the start and when it runs.
 - **The same machinery as Apply**, under the mutex `Local\MtgTtsCompanionUpdate`, with an earlier journal finished first: the
   journal (`kind: "revert"`, `source`: the backup) is written before the first move and after every move; the newer files
   are **moved** to `revert-undo\<version>\`; each backup path is journaled as placed, then moved in; then reload, the engine
   images (`docker load` + `compose up -d`) if the backup held them, the table save through the same hash-guarded install if it
   held the table, and the bridge. A part the backup holds is replaced whole, so a path the update added (and the backup lacks)
-  goes too. The friend's picture cache stays the newer one. Any failure is undone from the journal ("The revert failed and was
-  undone: …"); an undo that can't move a path back keeps it (never deletes the only copy of the older version) and says so.
+  goes too. The friend's picture cache stays the newer one. Apply and Revert share the move, effects and undo steps
+  (`MoveExisted`, `PlacedThenEffects`, `UndoFailed`). Any failure is undone from the journal ("The revert failed and was
+  undone: …"); an undo that can't move a path back keeps it (never deletes the only copy of the older version), keeps the
+  journal and says so, and the next start's Recover tries again.
 - **The app itself**: when the backup holds the old exe and its version differs, the old exe is copied to
-  `MTG Companion.new.exe` and takes over with the same `--replace-old` swap, which writes its version into `version.json`; the
+  `MTG Companion.new.exe` (before the backup goes) and takes over with the same `--replace-old` swap, which writes its version
+  into `version.json`, started only after the journal is gone (its own start would otherwise finish the journal again); the
   app being replaced doesn't start the bridge (its loop would hold the exe). Without that exe (a backup made before
   2026-11-17, or a release that needed the new app first), the app stays the newer one and `version.json` says so.
-- **After a revert** the backup it used and `revert-undo\` are deleted, and the release it went back from is remembered as
-  `updates.json` `skipped`: the automatic check says "Skipped v… (you went back from it with Revert). Check for updates offers it
-  again." and offers nothing; **Check for updates** clears it and offers that release again; a newer release is offered as usual.
+- **After a revert** the backup it used and `revert-undo\` are deleted, and the release it went back from is added to
+  `updates.json` `skipped` (a comma-separated list, so two reverts in a row skip both releases; a failed revert puts the list
+  back as it was): the automatic check says "Skipped v… (you went back from it with Revert). Check for updates offers it
+  again." and offers nothing; **Check for updates** clears the list and offers that release again; a release not in the list is
+  offered as usual.
 - **Killed half way**: `Updater.Recover` at the next start finishes a revert whose files are all in place ("The revert to v… was
   interrupted after its files were in place; the start finishes it.") or undoes it ("… was interrupted, so it was undone.
-  Revert update tries again."), exactly like an update.
+  Revert update tries again."), exactly like an update. Finishing writes the newer app's version into `version.json` (the
+  older exe never took over), cleans up, and deletes the journal last, so a kill during the finish is finished again; the
+  revert itself keeps that order (kill point `--test-die-at finishing`).
 - **Linux and macOS** (`companion-node`): no Revert. That companion only checks; it installs nothing, so it keeps no backup. Its
   update line ends with "Revert: not on Linux or macOS. … to go back, unpack the older package from the project's Releases page
   beside this one", and there is no button.

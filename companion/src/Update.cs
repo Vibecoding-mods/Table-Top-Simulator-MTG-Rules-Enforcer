@@ -111,7 +111,7 @@ namespace MtgCompanion
         public string Text = "";            // the one line for the window and the tray
         public List<string> Changes;        // what the offered release changes: "table", "app", "engine" (Updates.Changes)
         public RevertInfo Revert;           // what Revert would go back to (the Controller's, after each change of the package)
-        public bool RevertWaiting;          // Revert was pressed during a game: it goes back after the game
+        public bool RevertWaiting;          // Revert was pressed during a game: it goes back after the game (the one place this is kept: Controller.PendingRevert reads it; a check changes Status, never this)
         public UpdateState Copy() { return (UpdateState)MemberwiseClone(); }
 
         // after a check. laterSame: Later was pressed for this same release
@@ -520,18 +520,31 @@ namespace MtgCompanion
         // the automatic check's line for the release the player went back from
         public static string SkippedText(string version) { return "Skipped " + version + " (you went back from it with Revert). Check for updates offers it again."; }
 
-        // the automatic check: the release the player went back from isn't offered; a manual check, or any other
+        // updates.json "skipped": every release Revert went back from since the last manual check, comma-separated (a
+        // tag never holds a comma, ValidTag). Two reverts in a row (v3 to v2 to v1) skip both v3 and v2.
+        public static bool IsSkipped(string skipped, string version)
+        {
+            return skipped != null && version != null && skipped.Split(',').Contains(version);
+        }
+        public static string AddSkipped(string skipped, string version)
+        {
+            if (version == null || IsSkipped(skipped, version)) return skipped;
+            return string.IsNullOrEmpty(skipped) ? version : skipped + "," + version;
+        }
+
+        // the automatic check: a release the player went back from isn't offered; a manual check, or any other
         // release, is. (skipped: updates.json "skipped", written by Revert, cleared by a manual check)
         public static CheckResult SkipReverted(CheckResult r, string skipped, bool manual)
         {
-            if (manual || r == null || skipped == null || !r.Available || r.Manifest.Version != skipped) return r;
+            if (manual || r == null || !r.Available || !IsSkipped(skipped, r.Manifest.Version)) return r;
             r.Skipped = true;
-            r.Text = SkippedText(skipped);
+            r.Text = SkippedText(r.Manifest.Version);
             return r;
         }
 
         // ── Revert (docs/companion-app-spec.md §11.6)
 
+        public const string RevertWaitsText = "The revert is waiting for the game to end; update after it has gone back.";
         public const string NoBackup = "No earlier version is kept yet: the first update makes one.";
         public const string BackupExe = "companion/MTG Companion.exe"; // (this app's exe, kept in the backup by an update that replaced it)
         public const string RevertHold = "revert-undo"; // (in the package: the newer files while a revert runs, so it can be undone)

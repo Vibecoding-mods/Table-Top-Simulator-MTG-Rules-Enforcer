@@ -90,7 +90,7 @@ anyone into your server's games.
   installs until you press **Update now**, and never during a game: it waits, and installs 2 minutes after the game ends.
 - Each update keeps a copy of what it replaced. **Revert to v…** (beside Check for updates, and in the tray menu) goes back to
   the version before the last update: the table, the app and the engine as they were, and the companion itself if the update
-  changed it. It asks first, and during a game it waits like an update. If something goes wrong half way (even a power cut), the
+  changed it. It asks first, and during a game it waits like an update (Update now is greyed out until it has gone back). If something goes wrong half way (even a power cut), the
   companion finishes or undoes it the next time it starts.
 - It is greyed out (**Revert update**) when there is no earlier version to go back to, for example before the first update.
 - After going back, the companion won't offer that same release again by itself. Press **Check for updates** when you want it,

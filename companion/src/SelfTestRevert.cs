@@ -46,6 +46,10 @@ namespace MtgCompanion
             var other = Updates.SkipReverted(new CheckResult { Manifest = m, Plan = plan, Text = line }, "v-older", false);
             Check("skip: a newer release (another tag) is offered by the automatic check", other.Available && !other.Skipped);
             Check("skip: nothing skipped: offered", Updates.SkipReverted(new CheckResult { Manifest = m, Plan = plan, Text = line }, null, false).Available);
+            Check("skip list: a second revert adds its release, the first one stays", Updates.AddSkipped(null, "v3") == "v3" && Updates.AddSkipped("v3", "v2") == "v3,v2" && Updates.AddSkipped("v3,v2", "v3") == "v3,v2" && Updates.AddSkipped("v3", null) == "v3", Updates.AddSkipped("v3", "v2"));
+            var twice = Updates.SkipReverted(new CheckResult { Manifest = m, Plan = plan, Text = line }, "v-other," + m.Version, false);
+            Check("skip list: the automatic check skips any release in the list (two reverts in a row)", twice.Skipped && !twice.Available && twice.Text == Updates.SkippedText(m.Version), twice.Text);
+            Check("skip list: a whole tag, never part of one", !Updates.IsSkipped(m.Version + "0", m.Version) && !Updates.IsSkipped(m.Version.Substring(0, m.Version.Length - 1), m.Version) && Updates.IsSkipped("a," + m.Version + ",b", m.Version));
 
             // ── which backup can be put back
             var cur = J.Parse("{\"release\":\"v2\",\"built\":\"2026-11-10T12:00:00Z\",\"parts\":{\"app\":\"a2\",\"table\":\"s1\",\"images\":\"i2\",\"runtime\":\"r1\",\"companion\":\"c2\"}}");
@@ -96,6 +100,14 @@ namespace MtgCompanion
                 rb = J.Arr(J.Parse(J.Write(WebUi.UpdateSection(busy, true, false))), "actions").FirstOrDefault(a => J.Str(a, "id") == "update-revert");
                 Check("button: " + status + ": disabled", rb != null && !J.Bool(rb, "enabled") && J.Str(rb, "confirm") == null, J.Write(rb));
             }
+            var waitingRevert = new UpdateState { Status = "available", Available = "v3", Notes = "n", Revert = full, RevertWaiting = true };
+            var wsec = J.Parse(J.Write(WebUi.UpdateSection(waitingRevert, true, false)));
+            var wnow = J.Arr(wsec, "actions").FirstOrDefault(a => J.Str(a, "id") == "update-now");
+            rb = J.Arr(wsec, "actions").FirstOrDefault(a => J.Str(a, "id") == "update-revert");
+            Check("button: a revert waits and a check found an update meanwhile: Update now disabled, says the revert waits", wnow != null && !J.Bool(wnow, "enabled") && J.Str(wnow, "title") == Updates.RevertWaitsText, J.Write(wnow));
+            Check("button: a revert waits under another status: Revert disabled, says it waits", rb != null && !J.Bool(rb, "enabled") && J.Str(rb, "title") == "The revert is waiting for the game to end.", J.Write(rb));
+            rb = J.Arr(J.Parse(J.Write(WebUi.UpdateSection(new UpdateState { Status = "up-to-date", Available = "v3", Revert = full, DeferredUntilGameEnds = true }, true, false))), "actions").FirstOrDefault(a => J.Str(a, "id") == "update-revert");
+            Check("button: an update waits under another status: Revert disabled", rb != null && !J.Bool(rb, "enabled") && J.Str(rb, "title").Contains("waiting for the game"), J.Write(rb));
             Check("titles: reverting, waiting for the game, reverted, skipped", WebUi.UpdateTitle(new UpdateState { Status = "reverting" }).Contains("Going back") && WebUi.UpdateTitle(new UpdateState { Status = "revert-ready" }).Contains("after the game")
                 && WebUi.UpdateTitle(new UpdateState { Status = "reverted" }).Contains("Went back") && WebUi.UpdateTitle(new UpdateState { Status = "skipped" }).Contains("skipped"));
             var rs = new UpdateState { Status = "available", Available = "v3", Notes = "x", Changes = new List<string> { "table" } };
@@ -107,6 +119,61 @@ namespace MtgCompanion
             Check("state: a failed revert is failed, with the error", rs.Status == "failed" && rs.Error.Contains("undone"));
 
             RevertFilesChecks();
+        }
+
+        // the real Controller (its worker isn't started: nothing runs): a revert that waited for a game when the app last
+        // ran still waits, Update now and a second Revert are refused meanwhile; without a backup the wait is dropped
+        static void ControllerRevertChecks()
+        {
+            sb.AppendLine("-- revert: the Controller's wait");
+            var root = Path.Combine(Path.GetTempPath(), "mtg-selftest-revertc-" + Guid.NewGuid().ToString("N"));
+            var oldLog = Log.File;
+            try
+            {
+                Directory.CreateDirectory(root);
+                Log.File = Path.Combine(root, "companion.log");
+                var pkg = MakeRevertPkg(root, "c1");
+                var state = Path.Combine(root, "s");
+                new Updater(Layout.Make(Mode.Friend, pkg), state, "x.exe", null).Remember("pendingRevert", "yes");
+                var c = new Controller(Layout.Make(Mode.Friend, pkg), false, Path.Combine(root, "saves"), state, "x.exe");
+                var us = c.Update;
+                Check("start: a revert that waited still waits (revert-ready)", us.RevertWaiting && us.Status == "revert-ready" && us.Text.Contains("v1"), us.Status + " " + us.Text);
+                var why = c.UpdateNow();
+                Check("start: Update now is refused while the revert waits (it would be undone after the game)", why == Updates.RevertWaitsText, why);
+                why = c.RevertNow();
+                Check("start: a second Revert is refused while it waits", why != null && why.Contains("already waiting"), why);
+                // the backup gone meanwhile: the wait isn't restored, and it is dropped from updates.json
+                Directory.Delete(Path.Combine(pkg, "backup"), true);
+                var c2 = new Controller(Layout.Make(Mode.Friend, pkg), false, Path.Combine(root, "saves"), state, "x.exe");
+                Check("start without a backup: nothing waits, the wait dropped", !c2.Update.RevertWaiting && J.Str(new Updater(Layout.Make(Mode.Friend, pkg), state, "x.exe", null).State(), "pendingRevert") == null, c2.Update.Status);
+            }
+            catch (Exception e) { Check("revert Controller: ran to the end", false, e.ToString()); }
+            finally
+            {
+                Log.File = oldLog;
+                try { Directory.Delete(root, true); } catch { }
+            }
+        }
+
+        // effects whose first bridge start fails after the backup folder was replaced by a file, so the undo can't move a
+        // placed path back into it
+        class BlockedUndoEffects : IUpdateEffects
+        {
+            readonly string source; bool blocked;
+            public BlockedUndoEffects(string source) { this.source = source; }
+            public bool Locked() { return false; }
+            public void StopBridge() { }
+            public void Reload() { }
+            public bool LoadImages() { return true; }
+            public bool InstallSave() { return true; }
+            public bool StartBridge()
+            {
+                if (blocked) return true;
+                blocked = true;
+                Directory.Delete(source, true);
+                File.WriteAllText(source, "in the way");
+                return false;
+            }
         }
 
         // a package on disk: v2 installed over v1 (backup\v1 with the old bridge, engine images, version.json, exe)
@@ -174,22 +241,29 @@ namespace MtgCompanion
                 pkg = MakeRevertPkg(root, "p2");
                 state = Path.Combine(root, "s2"); fxFile = Path.Combine(root, "fx2.txt");
                 u = new Updater(Layout.Make(Mode.Friend, pkg), state, Path.Combine(pkg, "MTG Companion.exe"), null);
+                u.Remember("skipped", "v9"); // (an earlier revert's)
                 var before = Snap(pkg);
                 res = u.Revert(new FakeEffects(fxFile, new string[0], () => true), "");
                 Check("game on: deferred, says it goes back after the game", res.Deferred && !res.Ok && res.Text.Contains("after this game") && res.Text.Contains("v1"), res.Text);
                 Check("game on: nothing touched, no effects, waiting remembered", Snap(pkg) == before && !File.Exists(fxFile) && J.Str(u.State(), "pendingRevert") != null);
                 res = u.Revert(new FakeEffects(fxFile, new string[0], () => false), "");
                 Check("game over: reverted, the wait cleared", res.Ok && J.Str(u.State(), "pendingRevert") == null, res.Text);
+                Check("disk: a second revert keeps the first one's skip", J.Str(u.State(), "skipped") == "v9,v2", J.Write(u.State()));
+                // a wait for a game whose revert can't go back any more (the backup gone): the wait ends, not kept forever
+                u.Remember("pendingRevert", "yes");
+                res = u.Revert(new FakeEffects(fxFile, new string[0], () => false), "");
+                Check("no backup any more: refused, the wait cleared", !res.Ok && res.Text == Updates.NoBackup && J.Str(u.State(), "pendingRevert") == null, res.Text + " " + J.Write(u.State()));
 
                 // a step that fails: undone, the package exactly as it was, nothing skipped
                 pkg = MakeRevertPkg(root, "p3");
                 state = Path.Combine(root, "s3"); fxFile = Path.Combine(root, "fx3.txt");
                 u = new Updater(Layout.Make(Mode.Friend, pkg), state, Path.Combine(pkg, "MTG Companion.exe"), null);
+                u.Remember("skipped", "v9"); // (an earlier revert's: the failed one puts it back, not nothing)
                 before = Snap(pkg);
                 res = u.Revert(new FakeEffects(fxFile, new[] { "start-bridge" }, () => false), "");
                 Check("failed: undone, says so", !res.Ok && res.Text.Contains("The revert failed and was undone") && res.Text.Contains("bridge didn't start"), res.Text);
                 Check("failed: every file exactly as it was (backup\\v1 too)", Snap(pkg) == before, Snap(pkg));
-                Check("failed: nothing skipped", J.Str(u.State(), "skipped") == null);
+                Check("failed: nothing skipped (an earlier skip stays as it was)", J.Str(u.State(), "skipped") == "v9", J.Write(u.State()));
                 fx = File.ReadAllLines(fxFile);
                 Check("failed: the newer images loaded again, the bridge started again", fx.SequenceEqual(new[] { "stop-bridge", "reload", "load-images", "start-bridge", "reload", "load-images", "start-bridge" }), string.Join(",", fx));
 
@@ -199,6 +273,23 @@ namespace MtgCompanion
                 res = u.Revert(new FakeEffects(fxFile, new string[0], () => false), "");
                 Check("journal unwritable: refused, nothing changed, the bridge untouched", !res.Ok && res.Text.Contains("Nothing was changed") && Snap(pkg) == before && !File.Exists(fxFile), res.Text);
                 u.TestJournalFail = false;
+
+                // a failed revert whose undo can't move the older files back (the backup folder replaced by a file): they
+                // stay where they are, never deleted (the only copy of the older version), the journal stays; once the
+                // way is clear the next start's Recover finishes the undo
+                pkg = MakeRevertPkg(root, "p6");
+                state = Path.Combine(root, "s6");
+                u = new Updater(Layout.Make(Mode.Friend, pkg), state, Path.Combine(pkg, "MTG Companion.exe"), null);
+                before = Snap(pkg);
+                var src6 = Path.Combine(pkg, "backup", "v1");
+                res = u.Revert(new BlockedUndoEffects(src6), "");
+                Check("undo blocked: the revert says what couldn't be put back", !res.Ok && res.Text.Contains("couldn't be put back") && res.Text.Contains("bridge"), res.Text);
+                Check("undo blocked: the only copy of the older version stays (bridge, tar), never deleted",
+                    File.Exists(Path.Combine(pkg, "bridge", "bridge.js")) && File.ReadAllText(Path.Combine(pkg, "bridge", "bridge.js")) == "old bridge" && File.Exists(Path.Combine(pkg, "images", "mtg-images.tar")) && File.ReadAllText(Path.Combine(pkg, "images", "mtg-images.tar")) == "old tar", Snap(pkg));
+                Check("undo blocked: the newer files kept in revert-undo, the journal kept", File.Exists(Path.Combine(pkg, Updates.RevertHold, "v2", "bridge", "bridge.js")) && File.Exists(Path.Combine(pkg, Updates.JournalFile)), Snap(pkg));
+                File.Delete(src6);
+                var said = Updater.Recover(pkg);
+                Check("undo blocked, then the way clear: the next start undoes it, every file as it was", said != null && said.Contains("so it was undone") && Snap(pkg) == before && !File.Exists(Path.Combine(pkg, Updates.JournalFile)), said + " / " + Snap(pkg));
 
                 // killed half way (a revert journal on disk, as a kill leaves it): Recover undoes it
                 pkg = MakeRevertPkg(root, "p4");
@@ -212,7 +303,7 @@ namespace MtgCompanion
                     Replaced = new List<string> { "version.json", "stack/deployed.json", "bridge", "decks", "images" }, Existed = new List<string> { "version.json", "stack/deployed.json", "bridge", "decks", "images" }, Moved = new List<string> { "version.json", "bridge" } };
                 kj.Placed.Add(new[] { "bridge", Path.Combine(pkg, "backup", "v1", "bridge") });
                 File.WriteAllText(Path.Combine(pkg, Updates.JournalFile), J.Write(kj.ToJson()));
-                var said = Updater.Recover(pkg);
+                said = Updater.Recover(pkg);
                 Check("killed placing: Recover undoes it and says so", said != null && said.Contains("The revert to v1 was interrupted, so it was undone"), said);
                 Check("killed placing: every file exactly as it was, no journal", Snap(pkg) == before && !File.Exists(Path.Combine(pkg, Updates.JournalFile)), Snap(pkg));
                 // killed with everything placed: finished, the newer files and the used backup go
@@ -221,10 +312,14 @@ namespace MtgCompanion
                 Directory.CreateDirectory(hold);
                 Directory.Move(Path.Combine(pkg, "bridge"), Path.Combine(hold, "bridge"));
                 Directory.Move(Path.Combine(pkg, "backup", "v1", "bridge"), Path.Combine(pkg, "bridge"));
-                kj = new Journal { Kind = "revert", Source = Path.Combine(pkg, "backup", "v1"), Target = "v1", Backup = hold, Phase = "placed", Replaced = new List<string> { "bridge" }, Existed = new List<string> { "bridge" }, Moved = new List<string> { "bridge" } };
+                File.Move(Path.Combine(pkg, "version.json"), Path.Combine(hold, "version.json"));
+                File.Move(Path.Combine(pkg, "backup", "v1", "version.json"), Path.Combine(pkg, "version.json"));
+                kj = new Journal { Kind = "revert", Source = Path.Combine(pkg, "backup", "v1"), Target = "v1", Backup = hold, Phase = "placed", Replaced = new List<string> { "bridge", "version.json" }, Existed = new List<string> { "bridge", "version.json" }, Moved = new List<string> { "bridge", "version.json" } };
                 File.WriteAllText(Path.Combine(pkg, Updates.JournalFile), J.Write(kj.ToJson()));
                 said = Updater.Recover(pkg);
                 Check("killed placed: Recover finishes it", said != null && said.Contains("The revert to v1 was interrupted after its files were in place"), said);
+                var pv = J.Parse(File.ReadAllText(Path.Combine(pkg, "version.json")));
+                Check("killed placed: version.json is v1's but names the app that still runs (c2: no older exe took over)", J.Str(pv, "release") == "v1" && J.Str(J.Get(pv, "parts"), "app") == "a1" && J.Str(J.Get(pv, "parts"), "companion") == "c2", J.Write(pv));
                 Check("killed placed: the old bridge stays, the newer files and the backup gone", File.ReadAllText(Path.Combine(pkg, "bridge", "bridge.js")) == "old bridge" && !Directory.Exists(hold) && !Directory.Exists(Path.Combine(pkg, "backup", "v1")) && !File.Exists(Path.Combine(pkg, Updates.JournalFile)), Snap(pkg));
             }
             catch (Exception e) { Check("revert on disk: ran to the end", false, e.ToString()); }
@@ -233,6 +328,7 @@ namespace MtgCompanion
                 Log.File = oldLog;
                 try { Directory.Delete(root, true); } catch { }
             }
+            ControllerRevertChecks();
         }
     }
 }

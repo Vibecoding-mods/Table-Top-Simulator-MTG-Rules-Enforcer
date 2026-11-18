@@ -742,21 +742,23 @@ namespace MtgCompanion
             if (!friend || observe || u == null) return null;
             bool working = UpdateWorking(u.Status);
             bool offered = u.Available != null && (u.Status == "available" || u.Status == "failed");
+            // (the flags, not only the status: a check run meanwhile changes the status while the wait goes on)
+            bool updateWaits = u.DeferredUntilGameEnds || u.Status == "ready", revertWaits = u.RevertWaiting || u.Status == "revert-ready";
             var actions = new List<object>();
             if (offered)
             {
-                actions.Add(UpdateButton("update-now", "Update now", !working, u.Notes ?? "Downloads and installs " + u.Available + ".",
+                actions.Add(UpdateButton("update-now", "Update now", !working && !revertWaits, revertWaits ? Updates.RevertWaitsText : u.Notes ?? "Downloads and installs " + u.Available + ".",
                     "Install update " + u.Available + " now?\n\n" + (u.Notes ?? "") + "\n\nThe bridge stops for a minute while it installs. During a game it only downloads, and installs 2 minutes after the game."));
                 if (u.Status == "available" && !u.Later) actions.Add(UpdateButton("update-later", "Later", true, "No reminder for this update until you check again.", null));
             }
             actions.Add(UpdateButton("update-check", u.Status == "checking" ? "Checking…" : "Check for updates", !working, u.LastCheck != null ? "Last checked " + u.LastCheck : "Not checked yet.", null));
             // Revert: enabled only when a backup can be put back, and not while an update or revert runs or waits
             var rv = u.Revert;
-            bool canRevert = rv != null && rv.Possible && !working && u.Status != "ready" && u.Status != "revert-ready";
+            bool canRevert = rv != null && rv.Possible && !working && !updateWaits && !revertWaits;
             string revertTitle = Updates.RevertTitle(rv);
             if (rv != null && rv.Possible && !canRevert)
-                revertTitle = u.Status == "ready" ? "Update " + u.Available + " is waiting for the game to end; revert after it is installed."
-                    : u.Status == "revert-ready" ? "The revert is waiting for the game to end."
+                revertTitle = updateWaits ? "Update " + u.Available + " is waiting for the game to end; revert after it is installed."
+                    : revertWaits ? "The revert is waiting for the game to end."
                     : "Wait: an update is being checked, downloaded or installed, or a revert is running.";
             actions.Add(UpdateButton("update-revert", Updates.RevertLabel(rv), canRevert, revertTitle, canRevert ? Updates.RevertConfirm(rv) : null));
             string line = u.Text;
