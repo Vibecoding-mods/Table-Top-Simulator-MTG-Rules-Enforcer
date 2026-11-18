@@ -157,6 +157,7 @@ only when one of their creatures can (`PhaseHandler.declareBlockersFor`: `if (Co
 ## Not done
 
 - No image, no live game.
-- The attack still runs 0.8 s over at 6 × 120. The cheap assault doesn't know trample.
+- The attack still runs 0.8 s over at 6 × 120. The cheap assault doesn't know trample (it does since
+  `cloud/cheap-assault`, `docs/handoff/cheap-assault-report.md`: trample, menace, evasion, double strike).
 - Past the budget the payment's source choice is unbounded: 10 s at 6 × 120.
 - The block declaration at 6 × 120 (7 s) wasn't in scope.

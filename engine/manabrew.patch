@@ -7584,10 +7584,10 @@ index 0000000..a62cb8d
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ArchenemyTest.java b/forge-harness/src/test/java/forge/harness/host/ArchenemyTest.java
 new file mode 100644
-index 0000000..34bbd74
+index 0000000..6f98d93
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/ArchenemyTest.java
-@@ -0,0 +1,466 @@
+@@ -0,0 +1,503 @@
 +package forge.harness.host;
 +
 +import forge.ai.LobbyPlayerAi;
@@ -7642,6 +7642,8 @@ index 0000000..34bbd74
 +        check("aSchemeIsSetInMotionAtTheArchenemysFirstMainPhase", ArchenemyTest::aSchemeIsSetInMotionAtTheArchenemysFirstMainPhase);
 +        check("aNonOngoingSchemeReturnsToTheBottom", ArchenemyTest::aNonOngoingSchemeReturnsToTheBottom);
 +        check("anOngoingSchemeStaysUntilAbandoned", ArchenemyTest::anOngoingSchemeStaysUntilAbandoned);
++        check("cr904_10 aSchemeStaysWhileAnotherSchemesTriggerIsOnTheStack", ArchenemyTest::aSchemeStaysWhileAnotherSchemesTriggerIsOnTheStack);
++        check("cr904_10 aSchemeStaysWhileAnotherSchemesTriggerWaits", ArchenemyTest::aSchemeStaysWhileAnotherSchemesTriggerWaits);
 +        check("anArchenemyWithEverySchemeInMotionStaysTheArchenemy", ArchenemyTest::anArchenemyWithEverySchemeInMotionStaysTheArchenemy);
 +        check("aStartWithNoArchenemyIsRefused", ArchenemyTest::aStartWithNoArchenemyIsRefused);
 +        check("aStartWithTwoArchenemiesIsRefused", ArchenemyTest::aStartWithTwoArchenemiesIsRefused);
@@ -7704,6 +7706,41 @@ index 0000000..34bbd74
 +        expect(names(f.white.getCardsIn(ZoneType.SchemeDeck)).equals(List.of(ROOTS, SKYWARD)),
 +                "after it resolved, the scheme deck is " + names(f.white.getCardsIn(ZoneType.SchemeDeck)) + ", not " + SKYWARD + " on the bottom");
 +        expect(f.white.getCardsIn(ZoneType.Command).stream().noneMatch(Card::isScheme), "a scheme stayed in the command zone");
++    }
++
++    private static void aSchemeStaysWhileAnotherSchemesTriggerIsOnTheStack() throws Exception {
++        final Fixture f = new Fixture(SKYWARD, ROOTS);
++        f.order(SKYWARD, ROOTS);
++        f.white.setSchemeInMotion(null);
++        f.game.getStack().addAllTriggeredAbilitiesToStack();
++        expect(f.game.getStack().size() == 1, "after " + SKYWARD + " the stack holds " + f.game.getStack().size() + ", not its trigger");
++        f.white.setSchemeInMotion(null);
++        f.game.getStack().addAllTriggeredAbilitiesToStack();
++        expect(f.game.getStack().size() == 2, "after " + ROOTS + " the stack holds " + f.game.getStack().size() + ", not both triggers");
++        f.game.getStack().resolveStack();
++        f.game.getAction().checkStateEffects(true);
++        expect(f.commandScheme(ROOTS) != null && f.commandScheme(SKYWARD) != null,
++                "with " + SKYWARD + "'s trigger still on the stack, the command zone is " + names(f.white.getCardsIn(ZoneType.Command))
++                        + " and the scheme deck " + names(f.white.getCardsIn(ZoneType.SchemeDeck)) + "; both schemes stay face up until no scheme's trigger waits");
++        f.settle();
++        expect(f.white.getCardsIn(ZoneType.Command).stream().noneMatch(Card::isScheme), "a scheme stayed after every trigger resolved: " + names(f.white.getCardsIn(ZoneType.Command)));
++        expect(f.white.getCardsIn(ZoneType.SchemeDeck).size() == 2, "the scheme deck is " + names(f.white.getCardsIn(ZoneType.SchemeDeck)));
++    }
++
++    private static void aSchemeStaysWhileAnotherSchemesTriggerWaits() throws Exception {
++        final Fixture f = new Fixture(SKYWARD, ROOTS);
++        f.order(SKYWARD, ROOTS);
++        f.white.setSchemeInMotion(null);
++        f.game.getStack().addAllTriggeredAbilitiesToStack();
++        f.game.getStack().resolveStack();
++        f.white.setSchemeInMotion(null);
++        expect(f.game.getStack().hasSimultaneousStackEntries(), ROOTS + "'s trigger isn't waiting to be put on the stack");
++        f.game.getAction().checkStateEffects(true);
++        expect(f.commandScheme(SKYWARD) != null,
++                "with " + ROOTS + "'s trigger waiting, " + SKYWARD + " left the command zone: command " + names(f.white.getCardsIn(ZoneType.Command))
++                        + ", scheme deck " + names(f.white.getCardsIn(ZoneType.SchemeDeck)));
++        f.settle();
++        expect(f.white.getCardsIn(ZoneType.Command).stream().noneMatch(Card::isScheme), "a scheme stayed after every trigger resolved: " + names(f.white.getCardsIn(ZoneType.Command)));
 +    }
 +
 +    private static void anOngoingSchemeStaysUntilAbandoned() throws Exception {
@@ -8982,10 +9019,10 @@ index 0000000..db530a4
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/BigBoardFixesTest.java b/forge-harness/src/test/java/forge/harness/host/BigBoardFixesTest.java
 new file mode 100644
-index 0000000..d1ce9c3
+index 0000000..5461e72
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/BigBoardFixesTest.java
-@@ -0,0 +1,633 @@
+@@ -0,0 +1,852 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -9059,6 +9096,22 @@ index 0000000..d1ce9c3
 +        CHECKS.put("attack: past the deadline an assault that isn't lethal isn't made", BigBoardFixesTest::noCheapAssaultWhenSafe);
 +        CHECKS.put("attack: past the deadline flyers over ground blockers are a lethal assault", BigBoardFixesTest::cheapAssaultInTheAir);
 +        CHECKS.put("attack: within the deadline the assault is weighed and the AI attacks as before", BigBoardFixesTest::assaultWithinDeadline);
++        CHECKS.put("cheap assault: trample counts what is past every blocker's toughness, each capped at the biggest trampler", BigBoardFixesTest::cheapTrample);
++        CHECKS.put("cheap assault: menace takes two blockers", BigBoardFixesTest::cheapMenace);
++        CHECKS.put("cheap assault: can't be blocked, shadow and protection from the blockers' colour are unblocked", BigBoardFixesTest::cheapEvasion);
++        CHECKS.put("cheap assault: protection from another colour than the blockers' is no evasion", BigBoardFixesTest::cheapProtectionOtherColor);
++        CHECKS.put("cheap assault: double strike deals twice", BigBoardFixesTest::cheapDoubleStrike);
++        CHECKS.put("cheap assault: a creature that can't block is no blocker", BigBoardFixesTest::cheapCantBlock);
++        CHECKS.put("cheap assault: infect counts nothing toward life", BigBoardFixesTest::cheapInfect);
++        CHECKS.put("cheap assault: flyers against reach are blocked", BigBoardFixesTest::cheapReach);
++        CHECKS.put("cheap assault: a 6x120 board lethal by trample and evasion is attacked with everything", BigBoardFixesTest::cheapWideLethal);
++        CHECKS.put("cheap assault: a 6x120 board that isn't lethal gets no assault", BigBoardFixesTest::cheapWideSafe);
++        CHECKS.put("cheap assault: a blocker that can block any number blocks them all", BigBoardFixesTest::cheapBlockAny);
++        CHECKS.put("cheap assault: a lifelink blocker's gain counts against lethal", BigBoardFixesTest::cheapLifelink);
++        CHECKS.put("cheap assault: a first striker that kills a trampler stops all of it", BigBoardFixesTest::cheapFirstStrike);
++        CHECKS.put("cheap assault: with shared team life the defender's partner blocks too", BigBoardFixesTest::cheapSharedLife);
++        CHECKS.put("cheap assault: a trampler gang-blocked lets through only what is past all its blockers", BigBoardFixesTest::cheapGangBlock);
++        CHECKS.put("cheap assault: with shared team life a partner who can't lose keeps the team from losing", BigBoardFixesTest::cheapPartnerCantLose);
 +        CHECKS.put("pay: the payment has its own budget, shorter than combat's", BigBoardFixesTest::payBudgetShorter);
 +        CHECKS.put("pay: past the payment budget, within the combat one, the static checks are held", BigBoardFixesTest::payUsesItsOwnBudget);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
@@ -9547,6 +9600,200 @@ index 0000000..d1ce9c3
 +        expect(combat.getAttackers().size() == 3, "within the deadline " + combat.getAttackers().size() + " of 3 Hill Giants attack");
 +    }
 +
++    private static final class Verdict {
++        long lethal;
++        long safe;
++        long checks;
++        int atBlue;
++        int mine;
++    }
++
++    private static Verdict cheapVerdict(final int life, final Object[] mine, final Object[] theirs) {
++        return cheapVerdict(new String[] {"White", "Blue", "Red"}, 0, life, mine, theirs);
++    }
++
++    private static Verdict cheapVerdict(final String[] names, final int others, final int life, final Object[] mine, final Object[] theirs) {
++        final Fixture f = new Fixture(false, names);
++        f.blue.setLife(life, null);
++        final Verdict v = new Verdict();
++        for (int i = 0; i < mine.length; i += 2) {
++            for (int n = 0; n < (Integer) mine[i]; n++) {
++                f.add((String) mine[i + 1], f.white, ZoneType.Battlefield).setSickness(false);
++                v.mine++;
++            }
++        }
++        for (int i = 0; i < theirs.length; i += 2) {
++            for (int n = 0; n < (Integer) theirs[i]; n++) {
++                f.add((String) theirs[i + 1], f.blue, ZoneType.Battlefield).setSickness(false);
++            }
++        }
++        for (int p = 2; p < f.players.size(); p++) {
++            f.players.get(p).setLife(life + 20, null);
++            f.add("Llanowar Elves", f.players.get(p), ZoneType.Battlefield).setSickness(false);
++            for (int n = 0; n < others; n++) {
++                f.add("Craw Wurm", f.players.get(p), ZoneType.Battlefield).setSickness(false);
++            }
++        }
++        f.settle();
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, f.white, 3);
++        final Combat combat = new Combat(f.white);
++        f.game.getPhaseHandler().setCombat(combat);
++        f.game.AI_TIMEOUT = -1;
++        final long l0 = AiAttackController.getCheapAssaultsLethal(), s0 = AiAttackController.getCheapAssaultsSafe(), a0 = AiAttackController.getAssaultChecks();
++        f.white.getController().declareAttackers(f.white, combat);
++        v.lethal = AiAttackController.getCheapAssaultsLethal() - l0;
++        v.safe = AiAttackController.getCheapAssaultsSafe() - s0;
++        v.checks = AiAttackController.getAssaultChecks() - a0;
++        v.atBlue = combat.getAttackersOf(f.blue).size();
++        return v;
++    }
++
++    private static void lethal(final Verdict v, final String what) {
++        expect(v.lethal > 0 && v.safe == 0, what + ": the estimate said lethal " + v.lethal + ", not " + v.safe);
++        expect(v.atBlue == v.mine, what + ": " + v.atBlue + " of " + v.mine + " attack Blue");
++        expect(v.checks == 0, what + ": " + v.checks + " assault checks past the deadline");
++    }
++
++    private static void safe(final Verdict v, final String what) {
++        expect(v.safe > 0 && v.lethal == 0, what + ": the estimate said not lethal " + v.safe + ", lethal " + v.lethal);
++        expect(v.checks == 0, what + ": " + v.checks + " assault checks past the deadline");
++    }
++
++    private static void cheapTrample() {
++        lethal(cheapVerdict(6, new Object[] {3, "Colossal Dreadmaw"}, new Object[] {3, "Craw Wurm"}), "3 Dreadmaws into 3 Craw Wurms, 6 life (2 past each)");
++        safe(cheapVerdict(7, new Object[] {3, "Colossal Dreadmaw"}, new Object[] {3, "Craw Wurm"}), "3 Dreadmaws into 3 Craw Wurms, 7 life");
++        safe(cheapVerdict(5, new Object[] {3, "Colossal Dreadmaw"}, new Object[] {2, "Craw Wurm", 1, "Indomitable Ancients"}), "3 Dreadmaws into toughness 10, 4 and 4, 5 life (0, 2 and 2 past)");
++        lethal(cheapVerdict(4, new Object[] {3, "Colossal Dreadmaw"}, new Object[] {2, "Craw Wurm", 1, "Indomitable Ancients"}), "the same, 4 life (the toughness-10 blocker holds one trampler, not all three)");
++        safe(cheapVerdict(2, new Object[] {1, "Colossal Dreadmaw", 1, "War Mammoth"}, new Object[] {1, "Indomitable Ancients", 1, "Grizzly Bears"}),
++                "a Dreadmaw and a War Mammoth into toughness 10 and 2, 2 life (the toughest on the biggest: 0 and 1 past)");
++    }
++
++    private static void cheapMenace() {
++        lethal(cheapVerdict(4, new Object[] {2, "Boggart Brute"}, new Object[] {1, "Craw Wurm"}), "2 Boggart Brutes, one blocker, 4 life (half a block at most, so 4 of the 6)");
++        safe(cheapVerdict(4, new Object[] {2, "Boggart Brute"}, new Object[] {2, "Craw Wurm"}), "2 Boggart Brutes, two blockers, 4 life (one Brute blocked by both)");
++        safe(cheapVerdict(5, new Object[] {2, "Boggart Brute"}, new Object[] {1, "Craw Wurm"}), "2 Boggart Brutes, one blocker, 5 life (half a block stops half a Brute)");
++        safe(cheapVerdict(4, new Object[] {1, "Boggart Brute", 2, "Grizzly Bears"}, new Object[] {2, "Craw Wurm"}), "a Brute and 2 Bears, two blockers, 4 life (the blocks go to the Bears, 2 a block)");
++    }
++
++    private static void cheapEvasion() {
++        lethal(cheapVerdict(6, new Object[] {1, "Phantom Warrior", 1, "Dauthi Slayer", 1, "White Knight", 1, "Hill Giant"}, new Object[] {3, "Walking Corpse"}),
++                "can't be blocked, shadow, protection from black and a Hill Giant, into 3 black blockers, 6 life");
++        safe(cheapVerdict(7, new Object[] {1, "Phantom Warrior", 1, "Dauthi Slayer", 1, "White Knight", 1, "Hill Giant"}, new Object[] {3, "Walking Corpse"}), "the same, 7 life");
++        safe(cheapVerdict(6, new Object[] {3, "Juggernaut"}, new Object[] {3, "Craw Wurm"}), "3 Juggernauts (can't be blocked by Walls) into 3 Craw Wurms, 6 life");
++    }
++
++    private static void cheapProtectionOtherColor() {
++        safe(cheapVerdict(6, new Object[] {3, "White Knight"}, new Object[] {3, "Craw Wurm"}), "3 White Knights (protection from black) into 3 green blockers, 6 life");
++    }
++
++    private static void cheapDoubleStrike() {
++        lethal(cheapVerdict(6, new Object[] {4, "Fencing Ace"}, new Object[] {1, "Craw Wurm"}), "4 Fencing Aces, one blocker, 6 life (3 unblocked twice)");
++        safe(cheapVerdict(7, new Object[] {4, "Fencing Ace"}, new Object[] {1, "Craw Wurm"}), "the same, 7 life");
++    }
++
++    private static void cheapCantBlock() {
++        lethal(cheapVerdict(9, new Object[] {3, "Hill Giant"}, new Object[] {3, "Bog Hoodlums"}), "3 Hill Giants into 3 creatures that can't block, 9 life");
++        safe(cheapVerdict(9, new Object[] {3, "Hill Giant"}, new Object[] {2, "Bog Hoodlums", 1, "Craw Wurm"}), "the same with one that can block, 9 life");
++    }
++
++    private static void cheapInfect() {
++        safe(cheapVerdict(2, new Object[] {3, "Glistener Elf"}, new Object[] {}), "3 Glistener Elves, no blockers, 2 life (poison, not damage)");
++    }
++
++    private static void cheapReach() {
++        safe(cheapVerdict(4, new Object[] {3, "Wind Drake"}, new Object[] {2, "Giant Spider"}), "3 Wind Drakes into 2 Giant Spiders, 4 life");
++        lethal(cheapVerdict(2, new Object[] {3, "Wind Drake"}, new Object[] {2, "Giant Spider"}), "the same, 2 life");
++        lethal(cheapVerdict(4, new Object[] {3, "Wind Drake", 3, "Hill Giant"}, new Object[] {1, "Giant Spider", 6, "Hill Giant"}),
++                "3 Wind Drakes and 3 Hill Giants into a Giant Spider and 6 Hill Giants, 4 life (ground blockers don't take flyers)");
++    }
++
++    private static void cheapWideLethal() {
++        lethal(cheapVerdict(new String[] {"White", "Blue", "Red", "Green", "Black", "Purple"}, 120, 20,
++                new Object[] {60, "Colossal Dreadmaw", 60, "Phantom Warrior"}, new Object[] {120, "Craw Wurm"}),
++                "6 players, 120 creatures each: 60 Dreadmaws and 60 Phantom Warriors into 120 Craw Wurms, 20 life");
++        lethal(cheapVerdict(new String[] {"White", "Blue", "Red", "Green", "Black", "Purple"}, 120, 20,
++                new Object[] {10, "Phantom Warrior", 110, "Hill Giant"}, new Object[] {120, "Craw Wurm"}),
++                "6 players, 120 creatures each: 10 Phantom Warriors and 110 Hill Giants into 120 Craw Wurms, 20 life");
++    }
++
++    private static void cheapWideSafe() {
++        final Verdict v = cheapVerdict(new String[] {"White", "Blue", "Red", "Green", "Black", "Purple"}, 120, 20,
++                new Object[] {120, "Hill Giant"}, new Object[] {120, "Craw Wurm"});
++        safe(v, "6 players, 120 creatures each: 120 Hill Giants into 120 Craw Wurms, 20 life");
++        expect(v.atBlue < v.mine, "the 120 Hill Giants went all in: " + v.atBlue);
++    }
++
++    private static void cheapBlockAny() {
++        safe(cheapVerdict(4, new Object[] {5, "Llanowar Elves"}, new Object[] {1, "Palace Guard"}), "5 Llanowar Elves into a Palace Guard (blocks any number), 4 life");
++        lethal(cheapVerdict(4, new Object[] {5, "Llanowar Elves"}, new Object[] {1, "Hill Giant"}), "5 Llanowar Elves into a Hill Giant, 4 life");
++    }
++
++    private static void cheapLifelink() {
++        safe(cheapVerdict(2, new Object[] {2, "Grizzly Bears"}, new Object[] {1, "Child of Night"}), "2 Grizzly Bears into a Child of Night (lifelink 2), 2 life");
++        lethal(cheapVerdict(2, new Object[] {2, "Grizzly Bears"}, new Object[] {1, "Walking Corpse"}), "2 Grizzly Bears into a Walking Corpse, 2 life");
++    }
++
++    private static void cheapFirstStrike() {
++        safe(cheapVerdict(2, new Object[] {1, "Komodo Rhino"}, new Object[] {1, "Anaba Bodyguard"}), "a Komodo Rhino (5/2 trample) into an Anaba Bodyguard (2/3 first strike), 2 life");
++        lethal(cheapVerdict(2, new Object[] {1, "Komodo Rhino"}, new Object[] {1, "Hill Giant"}), "a Komodo Rhino into a Hill Giant (no first strike), 2 life");
++    }
++
++    private static void cheapSharedLife() {
++        final Fixture f = new Fixture(true, false, "White", "Red", "Yellow", "Blue");
++        f.players.get(2).setLife(9, null);
++        f.players.get(3).setLife(9, null);
++        f.players.get(0).setLife(30, null);
++        for (int n = 0; n < 3; n++) {
++            f.add("Hill Giant", f.white, ZoneType.Battlefield).setSickness(false);
++            f.add("Craw Wurm", f.players.get(3), ZoneType.Battlefield).setSickness(false);
++        }
++        f.settle();
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, f.white, 3);
++        final Combat combat = new Combat(f.white);
++        f.game.getPhaseHandler().setCombat(combat);
++        f.game.AI_TIMEOUT = -1;
++        final long l0 = AiAttackController.getCheapAssaultsLethal(), s0 = AiAttackController.getCheapAssaultsSafe();
++        f.white.getController().declareAttackers(f.white, combat);
++        final long lethal = AiAttackController.getCheapAssaultsLethal() - l0, safe = AiAttackController.getCheapAssaultsSafe() - s0;
++        expect(safe > 0 && lethal == 0, "3 Hill Giants at Yellow (the team's 9 life; 3 Craw Wurms on Yellow's partner Blue): lethal " + lethal + ", not " + safe);
++    }
++
++    private static void cheapGangBlock() {
++        safe(cheapVerdict(2, new Object[] {1, "Colossal Dreadmaw"}, new Object[] {2, "Craw Wurm"}), "a Dreadmaw into 2 Craw Wurms, 2 life (both block it)");
++        lethal(cheapVerdict(2, new Object[] {1, "Colossal Dreadmaw"}, new Object[] {1, "Craw Wurm"}), "a Dreadmaw into a Craw Wurm, 2 life");
++        safe(cheapVerdict(5, new Object[] {2, "Colossal Dreadmaw"}, new Object[] {1, "Craw Wurm", 2, "Grizzly Bears"}),
++                "2 Dreadmaws into a Craw Wurm and 2 Grizzly Bears, 5 life (8 held, 4 past)");
++        lethal(cheapVerdict(4, new Object[] {2, "Colossal Dreadmaw"}, new Object[] {1, "Craw Wurm", 2, "Grizzly Bears"}),
++                "the same, 4 life");
++    }
++
++    private static void cheapPartnerCantLose() {
++        for (int seat = 2; seat < 4; seat++) {
++            expect(teamVerdict("Serra Angel", seat) > 0, "3 Hill Giants at the team's 3 life, a Serra Angel on seat " + seat + ": the estimate says not lethal");
++            expect(teamVerdict("Lich's Mastery", seat) <= 0, "3 Hill Giants at the team's 3 life, a Lich's Mastery on seat " + seat + ": the estimate says lethal");
++        }
++    }
++
++    private static int teamVerdict(final String partnerCard, final int seat) {
++        final Fixture f = new Fixture(true, false, "White", "Red", "Yellow", "Blue");
++        f.players.get(2).setLife(3, null);
++        f.players.get(3).setLife(3, null);
++        f.players.get(0).setLife(30, null);
++        for (int n = 0; n < 3; n++) {
++            f.add("Hill Giant", f.white, ZoneType.Battlefield).setSickness(false);
++        }
++        f.add(partnerCard, f.players.get(seat), ZoneType.Battlefield).setSickness(false);
++        f.settle();
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, f.white, 3);
++        final Combat combat = new Combat(f.white);
++        f.game.getPhaseHandler().setCombat(combat);
++        f.game.AI_TIMEOUT = -1;
++        final long l0 = AiAttackController.getCheapAssaultsLethal(), s0 = AiAttackController.getCheapAssaultsSafe();
++        f.white.getController().declareAttackers(f.white, combat);
++        final long lethal = AiAttackController.getCheapAssaultsLethal() - l0, safe = AiAttackController.getCheapAssaultsSafe() - s0;
++        return lethal > 0 && safe == 0 ? 1 : safe > 0 && lethal == 0 ? -1 : 0;
++    }
++
 +    private static void payBudgetShorter() {
 +        final Fixture f = payBoard();
 +        final long pay = f.game.getAIPayTimeoutMs();
@@ -9579,11 +9826,20 @@ index 0000000..d1ce9c3
 +        }
 +
 +        Fixture(final boolean recording, final String... names) {
++            this(false, recording, names);
++        }
++
++        Fixture(final boolean teams, final boolean recording, final String... names) {
 +            final List<RegisteredPlayer> players = new ArrayList<>();
-+            for (final String name : names) {
-+                players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(name, null)));
++            for (int i = 0; i < names.length; i++) {
++                final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(names[i], null));
++                if (teams) {
++                    rp.setTeamNumber(i < names.length / 2 ? 1 : 2);
++                }
++                players.add(rp);
 +            }
 +            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setSharedTeamLife(teams);
 +            game = new Game(players, rules, new Match(rules, players, "BigBoardFixesTest"));
 +            game.setAge(GameStage.Play);
 +            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0), 3);
@@ -12022,6 +12278,395 @@ index 0000000..7e17160
 +                }
 +            }
 +            throw new AssertionError("not in the snapshot: " + card);
++        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/DependencyScanTest.java b/forge-harness/src/test/java/forge/harness/host/DependencyScanTest.java
+new file mode 100644
+index 0000000..8dbd444
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/DependencyScanTest.java
+@@ -0,0 +1,383 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameAction;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.keyword.Keyword;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++import forge.util.MyRandom;
++
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Random;
++
++public final class DependencyScanTest {
++    private DependencyScanTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        CHECKS.put("scans: a pass after a tap, Titania's Song over 33 layer 6 statics, at most half the scans", DependencyScanTest::scansAfterTap);
++        CHECKS.put("scans: a pass whose layer 6 statics all affect nothing scans each once", DependencyScanTest::scansWhenNothingApplies);
++        CHECKS.put("same: Titania's Song over attached equipment, then gone (its effect lasts the turn)", DependencyScanTest::titaniaEquipment);
++        CHECKS.put("same: Levitation and Sephara's indestructible for fliers, then Gravity Sphere (a layer 6 dependency on flying)", DependencyScanTest::flyingDependency);
++        CHECKS.put("same: Gravity Sphere first, then Levitation and Sephara", DependencyScanTest::flyingOtherOrder);
++        CHECKS.put("same: Sephara, then Toby's flying for tokens off with two tokens and on with four", DependencyScanTest::tobyOff);
++        CHECKS.put("same: Humility then Opalescence, Serra Angel after", DependencyScanTest::humilityOpalescence);
++        CHECKS.put("same: Mycosynth Lattice under Titania's Song and March of the Machines", DependencyScanTest::latticeTitania);
++        CHECKS.put("same: the big board of layer 6 statics, a tap and an untap", DependencyScanTest::bigBoard);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            check(e.getKey(), e.getValue());
++        }
++        System.out.println(failed == 0 ? "PASS DependencyScanTest" : "FAIL DependencyScanTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private interface Scenario {
++        void play(Fixture f);
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++    private static final Keyword[] SHOWN = {Keyword.FLYING, Keyword.HASTE, Keyword.SHROUD, Keyword.LIFELINK, Keyword.TRAMPLE, Keyword.VIGILANCE,
++        Keyword.FIRST_STRIKE, Keyword.DEATHTOUCH, Keyword.HEXPROOF, Keyword.MENACE, Keyword.INDESTRUCTIBLE};
++    private static final String[] BIG = {"Titania's Song", "Levitation", "Sephara, Sky's Blade", "Gravity Sphere", "Concordant Crossroads", "Intangible Virtue",
++        "Archetype of Imagination", "Akroma's Memorial", "Gideon's Memorial", "Heliod, God of the Sun", "Fervor", "Bower Passage", "Mass Hysteria",
++        "Archetype of Courage", "Archetype of Aggression", "Archetype of Endurance", "Archetype of Finality"};
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void expect(final boolean ok, final String why) {
++        if (!ok) {
++            throw new AssertionError(why);
++        }
++    }
++
++    private static String outcome(final Scenario scenario, final boolean cache) {
++        final boolean was = GameAction.dependencyScanCache;
++        final Random rng = MyRandom.getRandom();
++        GameAction.dependencyScanCache = cache;
++        MyRandom.setRandom(new Random(1124));
++        try {
++            final Fixture f = new Fixture();
++            scenario.play(f);
++            f.settle();
++            return f.describe();
++        } finally {
++            GameAction.dependencyScanCache = was;
++            MyRandom.setRandom(rng);
++        }
++    }
++
++    private static String same(final Scenario scenario) {
++        final String before = outcome(scenario, false);
++        final String after = outcome(scenario, true);
++        expect(before.equals(after), "scanning for each pair gave\n  " + before + "\nscanning once per search gave\n  " + after);
++        return after;
++    }
++
++    private static void bigBoardOf(final Fixture f) {
++        for (final Player p : new Player[] {f.white, f.blue}) {
++            for (final String name : BIG) {
++                if (!name.equals("Titania's Song") || p == f.white) {
++                    f.add(name, p, ZoneType.Battlefield);
++                }
++            }
++            for (int i = 0; i < 8; i++) {
++                f.add("Grizzly Bears", p, ZoneType.Battlefield);
++                f.add("Plains", p, ZoneType.Battlefield);
++                f.add("Bonesplitter", p, ZoneType.Battlefield);
++            }
++        }
++        f.add("Ornithopter", f.blue, ZoneType.Battlefield);
++        f.settle();
++    }
++
++    private static long[] scansOfAPassAfterTap(final boolean cache) {
++        final boolean was = GameAction.dependencyScanCache;
++        GameAction.dependencyScanCache = cache;
++        try {
++            final Fixture f = new Fixture();
++            bigBoardOf(f);
++            final long version = f.game.getStateVersion();
++            f.white.getCardsIn(ZoneType.Battlefield).stream().filter(c -> c.getName().equals("Plains")).findFirst().orElseThrow().tap(true, null, null);
++            expect(f.game.getStateVersion() != version, "tapping a Plains didn't change the game's state version, so the order cache would hold");
++            final long s0 = f.game.getAction().getDependencyScans();
++            f.game.getAction().checkStaticAbilities();
++            final int statics = layerSixStatics(f.game);
++            return new long[] {f.game.getAction().getDependencyScans() - s0, statics};
++        } finally {
++            GameAction.dependencyScanCache = was;
++        }
++    }
++
++    private static int layerSixStatics(final Game game) {
++        int n = 0;
++        for (final Card c : game.getCardsIn(ZoneType.Battlefield)) {
++            for (final forge.game.staticability.StaticAbility st : c.getStaticAbilities()) {
++                if (st.checkMode(forge.game.staticability.StaticAbilityMode.Continuous) && st.getLayers().contains(forge.game.staticability.StaticAbilityLayer.ABILITIES)) {
++                    n++;
++                }
++            }
++        }
++        return n;
++    }
++
++    private static void scansAfterTap() {
++        final long[] perPair = scansOfAPassAfterTap(false);
++        final long[] perSearch = scansOfAPassAfterTap(true);
++        final long k = perSearch[1];
++        expect(k >= 20, "the board has only " + k + " layer 6 statics");
++        expect(perPair[0] >= k * (k - 1) / 2, "scanning for each pair made only " + perPair[0] + " scans for " + k + " statics; the board doesn't build the dependency graph");
++        expect(perSearch[0] * 2 <= perPair[0],
++                "scans for one pass: " + perPair[0] + " for each pair, " + perSearch[0] + " once per search, " + k + " layer 6 statics");
++    }
++
++    private static void scansWhenNothingApplies() {
++        final long[] got = new long[2];
++        for (final boolean cache : new boolean[] {false, true}) {
++            final boolean was = GameAction.dependencyScanCache;
++            GameAction.dependencyScanCache = cache;
++            try {
++                final Fixture f = new Fixture();
++                for (final String name : new String[] {"Levitation", "Concordant Crossroads", "Gravity Sphere", "Akroma's Memorial", "Fervor", "Intangible Virtue",
++                    "Gideon's Memorial", "Bower Passage"}) {
++                    f.add(name, f.white, ZoneType.Battlefield);
++                }
++                f.add("Plains", f.white, ZoneType.Battlefield);
++                f.settle();
++                f.white.getCardsIn(ZoneType.Battlefield).stream().filter(c -> c.getName().equals("Plains")).findFirst().orElseThrow().tap(true, null, null);
++                final long s0 = f.game.getAction().getDependencyScans();
++                f.game.getAction().checkStaticAbilities();
++                got[cache ? 1 : 0] = f.game.getAction().getDependencyScans() - s0;
++            } finally {
++                GameAction.dependencyScanCache = was;
++            }
++        }
++        expect(got[1] <= 9 && got[0] > got[1], "scans with no creatures for any of 8 layer 6 statics to affect: " + got[0] + " for each pair, " + got[1] + " once per search");
++    }
++
++    private static void titaniaEquipment() {
++        final String[] mid = new String[1];
++        final String got = same((f) -> {
++            final Card bears = f.add("Grizzly Bears", f.white, ZoneType.Battlefield);
++            final Card lions = f.add("Savannah Lions", f.white, ZoneType.Battlefield);
++            f.add("Lightning Greaves", f.white, ZoneType.Battlefield).attachToEntity(bears, null);
++            f.add("Loxodon Warhammer", f.white, ZoneType.Battlefield).attachToEntity(lions, null);
++            f.add("Swiftfoot Boots", f.white, ZoneType.Battlefield);
++            f.settle();
++            final Card song = f.add("Titania's Song", f.blue, ZoneType.Battlefield);
++            f.settle();
++            mid[0] = f.describe();
++            f.game.getAction().moveToGraveyard(song, null, null);
++        });
++        final String under = mid[0];
++        expect(under.contains("Grizzly Bears 2/2 [Creature Bear] keywords []") && under.contains("Lightning Greaves 2/2 [Artifact Creature Equipment]")
++                && under.contains("Loxodon Warhammer 3/3 [Artifact Creature Equipment]") && under.contains("Savannah Lions 2/1 [Creature Cat] keywords []"),
++                "under Titania's Song the equipment isn't a creature of its mana value with no abilities, or still grants them: " + under);
++        expect(got.contains("Grizzly Bears 2/2 [Creature Bear] keywords []") && got.contains("Lightning Greaves 2/2 [Artifact Creature Equipment]")
++                && got.contains("Titania's Song [Enchantment]") && got.contains("graveyard: Titania's Song"),
++                "with Titania's Song gone its effect doesn't last the turn (If Titania's Song leaves the battlefield, this effect continues until end of turn): " + got);
++    }
++
++    private static void flyingDependency() {
++        final String[] mid = new String[1];
++        final String got = same((f) -> {
++            f.add("Levitation", f.white, ZoneType.Battlefield);
++            f.add("Grizzly Bears", f.white, ZoneType.Battlefield);
++            f.add("Sephara, Sky's Blade", f.white, ZoneType.Battlefield);
++            f.settle();
++            mid[0] = f.describe();
++            f.add("Gravity Sphere", f.blue, ZoneType.Battlefield);
++        });
++        expect(mid[0].contains("Grizzly Bears 2/2 [Creature Bear] keywords [Flying, Indestructible]"), "Levitation's flying didn't make Sephara give indestructible: " + mid[0]);
++        expect(got.contains("Grizzly Bears 2/2 [Creature Bear] keywords []"), "Gravity Sphere after Levitation didn't take flying, and so indestructible: " + got);
++    }
++
++    private static void flyingOtherOrder() {
++        final String got = same((f) -> {
++            f.add("Gravity Sphere", f.blue, ZoneType.Battlefield);
++            f.add("Grizzly Bears", f.white, ZoneType.Battlefield);
++            f.add("Sephara, Sky's Blade", f.white, ZoneType.Battlefield);
++            f.settle();
++            f.add("Levitation", f.white, ZoneType.Battlefield);
++        });
++        expect(got.contains("Grizzly Bears 2/2 [Creature Bear] keywords [Flying, Indestructible]"), "Levitation after Gravity Sphere doesn't give flying, and Sephara indestructible: " + got);
++        expect(got.contains("Levitation (") && got.contains("<- Sephara, Sky's Blade ("), "Forge didn't find Sephara depending on Levitation (a timestamp before it): " + got);
++    }
++
++    private static void tobyOff() {
++        final String[] two = new String[1];
++        final String got = same((f) -> {
++            f.add("Sephara, Sky's Blade", f.white, ZoneType.Battlefield);
++            f.add("Toby, Beastie Befriender", f.white, ZoneType.Battlefield);
++            f.tokens(2);
++            f.settle();
++            two[0] = f.describe();
++            f.tokens(2);
++        });
++        expect(two[0].contains("Soldier Token 1/1 [Creature Soldier] keywords []") && two[0].contains("dependencies none"),
++                "with two tokens Toby's flying applied, or a dependency was found: " + two[0]);
++        expect(got.contains("Soldier Token 1/1 [Creature Soldier] keywords [Flying, Indestructible]"), "with four tokens Toby didn't give flying, and Sephara indestructible: " + got);
++    }
++
++    private static void humilityOpalescence() {
++        final String got = same((f) -> {
++            f.add("Humility", f.white, ZoneType.Battlefield);
++            f.settle();
++            f.add("Opalescence", f.white, ZoneType.Battlefield);
++            f.settle();
++            f.add("Serra Angel", f.blue, ZoneType.Battlefield);
++        });
++        expect(got.contains("Serra Angel 1/1 [Creature Angel] keywords []"), "Serra Angel under Humility isn't a 1/1 with no flying or vigilance: " + got);
++    }
++
++    private static void latticeTitania() {
++        same((f) -> {
++            f.add("Grizzly Bears", f.white, ZoneType.Battlefield);
++            f.add("Plains", f.white, ZoneType.Battlefield);
++            f.add("Island", f.blue, ZoneType.Battlefield);
++            f.add("Levitation", f.white, ZoneType.Battlefield);
++            f.add("Mycosynth Lattice", f.blue, ZoneType.Battlefield);
++            f.settle();
++            f.add("Titania's Song", f.white, ZoneType.Battlefield);
++            f.settle();
++            f.add("March of the Machines", f.blue, ZoneType.Battlefield);
++        });
++    }
++
++    private static void bigBoard() {
++        final String got = same((f) -> {
++            bigBoardOf(f);
++            final Card plains = f.white.getCardsIn(ZoneType.Battlefield).stream().filter(c -> c.getName().equals("Plains")).findFirst().orElseThrow();
++            plains.tap(true, null, null);
++            f.settle();
++            f.game.getAction().moveToPlay(f.add("Serra Angel", f.blue, ZoneType.Hand), null, null);
++            f.settle();
++            plains.untap();
++        });
++        expect(got.contains("Ornithopter"), "the big board lost its Ornithopter: " + got);
++    }
++
++    private static final class Fixture {
++        final Game game;
++        final Player white;
++        final Player blue;
++
++        Fixture() {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("White", null)));
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("Blue", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setRenderAbilityText(false);
++            game = new Game(players, rules, new Match(rules, players, "DependencyScanTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0), 3);
++            game.getPhaseHandler().onStackResolved();
++            white = game.getPlayers().get(0);
++            blue = game.getPlayers().get(1);
++        }
++
++        Card add(final String name, final Player p, final ZoneType zone) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            if (paper == null) {
++                throw new AssertionError("no card named " + name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            p.getZone(zone).add(card);
++            return card;
++        }
++
++        void tokens(final int n) {
++            final Card host = white.getCardsIn(ZoneType.Battlefield).getFirst();
++            final forge.game.spellability.SpellAbility sa = forge.game.ability.AbilityFactory.getAbility(
++                    "AB$ Token | Cost$ 0 | TokenAmount$ " + n + " | TokenScript$ w_1_1_soldier | TokenOwner$ You", host);
++            sa.setActivatingPlayer(white);
++            forge.game.ability.AbilityUtils.resolve(sa);
++        }
++
++        void settle() {
++            game.getAction().checkStaticAbilities();
++            game.getAction().checkStateEffects(true);
++        }
++
++        String describe() {
++            final StringBuilder out = new StringBuilder();
++            for (final Player p : game.getPlayers()) {
++                for (final ZoneType zone : new ZoneType[] {ZoneType.Battlefield, ZoneType.Graveyard}) {
++                    final List<String> cards = new ArrayList<>();
++                    for (final Card c : p.getCardsIn(zone)) {
++                        final StringBuilder d = new StringBuilder(c.getName());
++                        if (c.isCreature()) {
++                            d.append(' ').append(c.getNetPower()).append('/').append(c.getNetToughness());
++                        }
++                        d.append(" [").append(String.join(" ", c.getType().getCoreTypes().stream().map(Object::toString).toList()));
++                        for (final String sub : c.getType().getSubtypes()) {
++                            d.append(' ').append(sub);
++                        }
++                        d.append(']');
++                        final List<String> kws = new ArrayList<>();
++                        for (final Keyword k : SHOWN) {
++                            if (c.hasKeyword(k)) {
++                                kws.add(k.toString());
++                            }
++                        }
++                        if (c.isCreature()) {
++                            d.append(" keywords ").append(kws);
++                        } else if (!kws.isEmpty()) {
++                            d.append(" keywords ").append(kws);
++                        }
++                        if (c.isTapped()) {
++                            d.append(" tapped");
++                        }
++                        d.append(" colors ").append(c.getColor());
++                        d.append(" abilities ").append(c.getSpellAbilities().size()).append('/').append(c.getStaticAbilities().size()).append('/').append(c.getTriggers().size());
++                        cards.add(d.toString());
++                    }
++                    out.append(p.getName()).append(' ').append(zone.name().toLowerCase()).append(": ").append(String.join(", ", cards)).append(" | ");
++                }
++            }
++            final String deps = game.getView().getDependencies();
++            out.append("dependencies ").append(deps == null || deps.isEmpty() ? "none" : deps);
++            return out.toString();
 +        }
 +    }
 +}
@@ -20768,6 +21413,294 @@ index 0000000..12aacb7
 +        return card != null && card.has(name) && card.get(name).getAsBoolean();
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/StaticPassTest.java b/forge-harness/src/test/java/forge/harness/host/StaticPassTest.java
+new file mode 100644
+index 0000000..da25a25
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/StaticPassTest.java
+@@ -0,0 +1,282 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.card.CounterEnumType;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.replacement.ReplacementHandler;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++import forge.util.MyRandom;
++
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Random;
++import java.util.TreeMap;
++
++public final class StaticPassTest {
++    private StaticPassTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        CHECKS.put("passes: a card entering the battlefield runs 4 static passes, not 12", StaticPassTest::enteringPasses);
++        CHECKS.put("same: Clone under Authority of the Consuls, Grumgully, Doubling Season, Rest in Peace and Leyline of the Void", StaticPassTest::replacementHeavy);
++        CHECKS.put("same: anthems and a lord on entering creatures", StaticPassTest::anthems);
++        CHECKS.put("same: Humility then Opalescence (the layer 7 dependency)", StaticPassTest::humilityOpalescence);
++        CHECKS.put("same: Urborg entering under Blood Moon", StaticPassTest::bloodMoonUrborg);
++        CHECKS.put("same: Painter's Servant's color as it enters", StaticPassTest::paintersServant);
++        CHECKS.put("same: cards with their own enters-tapped, enters-with-counters, riot and control replacements", StaticPassTest::ownReplacements);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            check(e.getKey(), e.getValue());
++        }
++        System.out.println(failed == 0 ? "PASS StaticPassTest" : "FAIL StaticPassTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private interface Scenario {
++        void play(Fixture f);
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void expect(final boolean ok, final String why) {
++        if (!ok) {
++            throw new AssertionError(why);
++        }
++    }
++
++    private static String outcome(final Scenario scenario, final boolean perRun) {
++        final boolean was = ReplacementHandler.lookaheadPerRun;
++        final Random rng = MyRandom.getRandom();
++        ReplacementHandler.lookaheadPerRun = perRun;
++        MyRandom.setRandom(new Random(1122));
++        try {
++            final Fixture f = new Fixture();
++            scenario.play(f);
++            f.settle();
++            return f.describe();
++        } finally {
++            ReplacementHandler.lookaheadPerRun = was;
++            MyRandom.setRandom(rng);
++        }
++    }
++
++    private static String same(final Scenario scenario) {
++        final String before = outcome(scenario, false);
++        final String after = outcome(scenario, true);
++        expect(before.equals(after), "a lookahead for each layer gave\n  " + before + "\none for the run gave\n  " + after);
++        return after;
++    }
++
++    private static void enteringPasses() {
++        final long[] passes = new long[2];
++        for (final boolean perRun : new boolean[] {false, true}) {
++            final boolean was = ReplacementHandler.lookaheadPerRun;
++            ReplacementHandler.lookaheadPerRun = perRun;
++            try {
++                final Fixture f = new Fixture();
++                final Card bears = f.add("Grizzly Bears", f.white, ZoneType.Hand);
++                final long p0 = f.game.getAction().getStaticPasses();
++                f.game.getAction().moveToPlay(bears, null, null);
++                passes[perRun ? 1 : 0] = f.game.getAction().getStaticPasses() - p0;
++            } finally {
++                ReplacementHandler.lookaheadPerRun = was;
++            }
++        }
++        expect(passes[0] == 12 && passes[1] == 4, "static passes for one creature entering: " + passes[0] + " with a lookahead per layer, " + passes[1] + " with one per run");
++    }
++
++    private static void replacementHeavy() {
++        final String got = same((f) -> {
++            f.add("Doubling Season", f.white, ZoneType.Battlefield);
++            f.add("Rest in Peace", f.white, ZoneType.Battlefield);
++            f.add("Grumgully, the Generous", f.white, ZoneType.Battlefield);
++            f.add("Authority of the Consuls", f.blue, ZoneType.Battlefield);
++            f.add("Leyline of the Void", f.blue, ZoneType.Battlefield);
++            f.add("Serra Angel", f.blue, ZoneType.Battlefield);
++            f.settle();
++            f.game.getAction().moveToPlay(f.add("Clone", f.white, ZoneType.Hand), null, null);
++            f.game.getAction().moveToPlay(f.add("Hill Giant", f.white, ZoneType.Hand), null, null);
++            f.settle();
++            f.add("Essence of the Wild", f.white, ZoneType.Battlefield);
++            f.settle();
++            f.game.getAction().moveToPlay(f.add("Grizzly Bears", f.white, ZoneType.Hand), null, null);
++            f.settle();
++            f.game.getAction().moveToGraveyard(f.add("Llanowar Elves", f.white, ZoneType.Hand), null, null);
++        });
++        expect(got.contains("Clone 2/2 [Creature Shapeshifter] tapped +1/+1x2") && got.contains("Hill Giant 5/5 [Creature Giant] tapped +1/+1x2"),
++                "the Clone (its copy declined) or the Hill Giant isn't tapped with two counters (Grumgully's, doubled): " + got);
++        expect(got.split("Essence of the Wild 8/8 \\[Creature Avatar\\] tapped \\+1/\\+1x2", -1).length == 2,
++                "the Grizzly Bears didn't enter as a tapped copy of Essence of the Wild with two counters (the copy first, then the counters): " + got);
++        expect(got.contains("White exile: Llanowar Elves") && !got.contains("graveyard: Llanowar Elves"), "Rest in Peace didn't exile the Elves: " + got);
++    }
++
++    private static void anthems() {
++        final String got = same((f) -> {
++            f.add("Glorious Anthem", f.white, ZoneType.Battlefield);
++            f.add("Field Marshal", f.white, ZoneType.Battlefield);
++            f.settle();
++            for (final String name : new String[] {"Savannah Lions", "Youthful Knight", "Grizzly Bears"}) {
++                f.game.getAction().moveToPlay(f.add(name, f.white, ZoneType.Hand), null, null);
++            }
++        });
++        expect(got.contains("Grizzly Bears 3/3"), "Grizzly Bears under Glorious Anthem: " + got);
++    }
++
++    private static void humilityOpalescence() {
++        same((f) -> {
++            f.game.getAction().moveToPlay(f.add("Humility", f.white, ZoneType.Hand), null, null);
++            f.settle();
++            f.game.getAction().moveToPlay(f.add("Opalescence", f.white, ZoneType.Hand), null, null);
++            f.settle();
++            f.game.getAction().moveToPlay(f.add("Serra Angel", f.blue, ZoneType.Hand), null, null);
++        });
++    }
++
++    private static void bloodMoonUrborg() {
++        final String got = same((f) -> {
++            f.add("Blood Moon", f.blue, ZoneType.Battlefield);
++            f.settle();
++            f.game.getAction().moveToPlay(f.add("Urborg, Tomb of Yawgmoth", f.white, ZoneType.Hand), null, null);
++            f.game.getAction().moveToPlay(f.add("Forest", f.white, ZoneType.Hand), null, null);
++        });
++        expect(got.contains("Urborg, Tomb of Yawgmoth [Land Mountain]") && got.contains("Forest [Land Forest]"),
++                "Urborg isn't only a Mountain under Blood Moon, or the Forest got Swamp: " + got);
++    }
++
++    private static void paintersServant() {
++        same((f) -> {
++            f.game.getAction().moveToPlay(f.add("Painter's Servant", f.white, ZoneType.Hand), null, null);
++            f.settle();
++            f.game.getAction().moveToPlay(f.add("Grizzly Bears", f.white, ZoneType.Hand), null, null);
++        });
++    }
++
++    private static void ownReplacements() {
++        final String got = same((f) -> {
++            f.game.getAction().moveToPlay(f.add("Scavenging Ooze", f.white, ZoneType.Hand), null, null);
++            f.game.getAction().moveToPlay(f.add("Gingerbrute", f.white, ZoneType.Hand), null, null);
++            f.game.getAction().moveToPlay(f.add("Thriving Grove", f.white, ZoneType.Hand), null, null);
++            f.game.getAction().moveToPlay(f.add("Walking Ballista", f.white, ZoneType.Hand), null, null);
++            f.game.getAction().moveToPlay(f.add("Gruul Spellbreaker", f.white, ZoneType.Hand), null, null);
++            f.add("Forest", f.white, ZoneType.Hand);
++            f.game.getAction().moveToPlay(f.add("Mox Diamond", f.white, ZoneType.Hand), null, null);
++            f.game.getAction().moveToPlay(f.add("Xantcha, Sleeper Agent", f.white, ZoneType.Hand), null, null);
++        });
++        expect(got.contains("Thriving Grove [Land] tapped"), "Thriving Grove didn't enter tapped: " + got);
++        expect(got.substring(got.indexOf("Blue battlefield:")).startsWith("Blue battlefield: Xantcha, Sleeper Agent"),
++                "Xantcha didn't enter under the opponent's control (its own replacement moves it, AbilityKey.ReplacementEffect): " + got);
++    }
++
++    private static final class Fixture {
++        final Game game;
++        final Player white;
++        final Player blue;
++
++        Fixture() {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("White", null)));
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("Blue", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setRenderAbilityText(false);
++            game = new Game(players, rules, new Match(rules, players, "StaticPassTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0), 3);
++            game.getPhaseHandler().onStackResolved();
++            white = game.getPlayers().get(0);
++            blue = game.getPlayers().get(1);
++        }
++
++        Card add(final String name, final Player p, final ZoneType zone) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            if (paper == null) {
++                throw new AssertionError("no card named " + name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            p.getZone(zone).add(card);
++            return card;
++        }
++
++        void settle() {
++            game.getAction().checkStaticAbilities();
++            game.getAction().checkStateEffects(true);
++        }
++
++        String describe() {
++            final StringBuilder out = new StringBuilder();
++            for (final Player p : game.getPlayers()) {
++                for (final ZoneType zone : new ZoneType[] {ZoneType.Battlefield, ZoneType.Graveyard, ZoneType.Exile}) {
++                    final List<String> cards = new ArrayList<>();
++                    for (final Card c : p.getCardsIn(zone)) {
++                        final StringBuilder d = new StringBuilder(c.getName());
++                        if (c.isCreature()) {
++                            d.append(' ').append(c.getNetPower()).append('/').append(c.getNetToughness());
++                        }
++                        d.append(" [").append(String.join(" ", c.getType().getCoreTypes().stream().map(Object::toString).toList()));
++                        for (final String sub : c.getType().getSubtypes()) {
++                            d.append(' ').append(sub);
++                        }
++                        d.append(']');
++                        if (c.isTapped()) {
++                            d.append(" tapped");
++                        }
++                        final Map<String, Integer> counters = new TreeMap<>();
++                        for (final forge.game.card.CounterType type : c.getCounters().elementSet()) {
++                            counters.put(type.toString(), c.getCounters().count(type));
++                        }
++                        if (c.getCounters(CounterEnumType.P1P1) > 0) {
++                            counters.remove("P1P1");
++                            d.append(" +1/+1x").append(c.getCounters(CounterEnumType.P1P1));
++                        }
++                        counters.forEach((type, n) -> d.append(' ').append(type).append('x').append(n));
++                        d.append(" colors ").append(c.getColor());
++                        d.append(" abilities ").append(c.getSpellAbilities().size()).append('/').append(c.getStaticAbilities().size()).append('/').append(c.getTriggers().size());
++                        cards.add(d.toString());
++                    }
++                    out.append(p.getName()).append(' ').append(zone.name().toLowerCase()).append(": ").append(String.join(", ", cards)).append(" | ");
++                }
++            }
++            return out.toString();
++        }
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/StressCapsTest.java b/forge-harness/src/test/java/forge/harness/host/StressCapsTest.java
 new file mode 100644
 index 0000000..9ebf250
@@ -22973,6 +23906,420 @@ index 0000000..7db9dd6
 +        card.setGameTimestamp(p.getGame().getNextTimestamp());
 +        p.getZone(zone).add(card);
 +        return card;
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/TokenBatchTest.java b/forge-harness/src/test/java/forge/harness/host/TokenBatchTest.java
+new file mode 100644
+index 0000000..0d3cd37
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/TokenBatchTest.java
+@@ -0,0 +1,408 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.ability.AbilityUtils;
++import forge.game.ability.effects.TokenEffectBase;
++import forge.game.card.Card;
++import forge.game.card.CounterEnumType;
++import forge.game.keyword.Keyword;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.replacement.ReplacementHandler;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.MagicStack;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++
++public final class TokenBatchTest {
++    private TokenBatchTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        CHECKS.put("layers: after the batch every token has the anthems, the lord and their keywords", TokenBatchTest::layersAfterTheBatch);
++        CHECKS.put("passes: the static passes of one effect don't grow with the tokens it makes", TokenBatchTest::passesDontGrow);
++        CHECKS.put("passes: the replacement lookahead runs for the first token of a kind only", TokenBatchTest::lookaheadOnce);
++        CHECKS.put("triggers: each token triggers whenever another creature enters on its own", TokenBatchTest::eachTokenTriggers);
++        CHECKS.put("replacements: a replacement that applies to the first token applies to each, none batched", TokenBatchTest::replacementForEach);
++        CHECKS.put("replacements: an enters-with-counters replacement gives each token its counter, none batched", TokenBatchTest::countersForEach);
++        CHECKS.put("not batched: tokens made with counters each get them", TokenBatchTest::withCountersNotBatched);
++        CHECKS.put("hold: the static checks are not held after the effect", TokenBatchTest::holdReleased);
++        CHECKS.put("doubler: a doubled effect makes twice the tokens, batched", TokenBatchTest::doubledBatched);
++        CHECKS.put("sanity: 400 tokens on an anthem board in under 15 s", TokenBatchTest::timingSanity);
++        CHECKS.put("triggers: under a +3/+3 anthem each 1/1 token triggers Elemental Bond and Garruk's Uprising", TokenBatchTest::powerTriggers);
++        CHECKS.put("exception: one thrown mid-batch is the one that comes out, the hold released", TokenBatchTest::exceptionReleases);
++        CHECKS.put("exception: an effect inside a hold, throwing, leaves the hold on", TokenBatchTest::exceptionRestoresHold);
++        CHECKS.put("triggers: Torpor Orb stops every batched token's enter triggers", TokenBatchTest::torporOrb);
++        CHECKS.put("triggers: Hushbringer stops every batched token's enter triggers", TokenBatchTest::hushbringer);
++        CHECKS.put("layers: Humility applies to every batched token", TokenBatchTest::humility);
++        CHECKS.put("not batched: an effect while the static checks are already held", TokenBatchTest::notBatchedInsideAHold);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            check(e.getKey(), e.getValue());
++        }
++        System.out.println(failed == 0 ? "PASS TokenBatchTest" : "FAIL TokenBatchTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void expect(final boolean ok, final String why) {
++        if (!ok) {
++            throw new AssertionError(why);
++        }
++    }
++
++    private static List<Card> tokens(final Player p) {
++        final List<Card> out = new ArrayList<>();
++        for (final Card c : p.getCardsIn(ZoneType.Battlefield)) {
++            if (c.isToken()) {
++                out.add(c);
++            }
++        }
++        return out;
++    }
++
++    private static void layersAfterTheBatch() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(30, "w_1_1_soldier", "");
++        final List<Card> made = tokens(f.white);
++        expect(made.size() == 30, "made " + made.size() + " of 30");
++        expect(TokenEffectBase.getTokensBatched() - b0 == 29, "batched " + (TokenEffectBase.getTokensBatched() - b0) + " of the 29 after the first");
++        for (final Card c : made) {
++            expect(c.getNetPower() == 5 && c.getNetToughness() == 5 && c.hasKeyword(Keyword.FIRST_STRIKE) && c.hasKeyword(Keyword.VIGILANCE),
++                    "a token is " + c.getNetPower() + "/" + c.getNetToughness() + " first strike " + c.hasKeyword(Keyword.FIRST_STRIKE)
++                            + " vigilance " + c.hasKeyword(Keyword.VIGILANCE) + ", not 5/5 with both (Glorious Anthem, Intangible Virtue, Honor of the Pure, Field Marshal)");
++        }
++    }
++
++    private static void passesDontGrow() {
++        final Fixture small = new Fixture();
++        small.anthems();
++        final long s = small.passesFor(20);
++        final Fixture big = new Fixture();
++        big.anthems();
++        final long b = big.passesFor(200);
++        expect(b == s && b <= 20, "static passes for 20 tokens " + s + ", for 200 " + b);
++    }
++
++    private static void lookaheadOnce() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        final long m0 = ReplacementHandler.getMovedChecks();
++        f.make(50, "w_1_1_soldier", "");
++        expect(ReplacementHandler.getMovedChecks() - m0 == 1, "enter-the-battlefield replacement checks for 50 tokens of one kind: " + (ReplacementHandler.getMovedChecks() - m0));
++    }
++
++    private static void eachTokenTriggers() throws Exception {
++        final Fixture f = new Fixture();
++        f.add("Soul Warden", f.white);
++        f.settle();
++        f.make(40, "w_1_1_soldier", "");
++        f.game.getTriggerHandler().runWaitingTriggers();
++        int warden = 0;
++        for (final SpellAbility sa : f.pending()) {
++            warden += sa.getHostCard() != null && sa.getHostCard().getName().equals("Soul Warden") ? 1 : 0;
++        }
++        for (final forge.game.spellability.SpellAbilityStackInstance si : f.game.getStack()) {
++            warden += si.getSourceCard() != null && si.getSourceCard().getName().equals("Soul Warden") ? 1 : 0;
++        }
++        expect(warden == 40, "Soul Warden triggered " + warden + " times for 40 tokens");
++    }
++
++    private static void replacementForEach() {
++        final Fixture f = new Fixture();
++        f.add("Authority of the Consuls", f.blue);
++        f.settle();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(20, "w_1_1_soldier", "");
++        int tapped = 0;
++        for (final Card c : tokens(f.white)) {
++            tapped += c.isTapped() ? 1 : 0;
++        }
++        expect(tapped == 20, tapped + " of 20 tokens entered tapped under Authority of the Consuls");
++        expect(TokenEffectBase.getTokensBatched() == b0, "batched " + (TokenEffectBase.getTokensBatched() - b0) + " though a replacement applied");
++    }
++
++    private static void countersForEach() {
++        final Fixture f = new Fixture();
++        f.add("Grumgully, the Generous", f.white);
++        f.settle();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(20, "w_1_1_soldier", "");
++        int countered = 0;
++        for (final Card c : tokens(f.white)) {
++            countered += c.getCounters(CounterEnumType.P1P1) == 1 ? 1 : 0;
++        }
++        expect(countered == 20, countered + " of 20 tokens entered with Grumgully's +1/+1 counter");
++        expect(TokenEffectBase.getTokensBatched() == b0, "batched " + (TokenEffectBase.getTokensBatched() - b0) + " though a replacement applied");
++    }
++
++    private static void withCountersNotBatched() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(10, "w_1_1_soldier", " | WithCountersType$ P1P1 | WithCountersAmount$ 2");
++        int countered = 0;
++        for (final Card c : tokens(f.white)) {
++            countered += c.getCounters(CounterEnumType.P1P1) == 2 ? 1 : 0;
++        }
++        expect(countered == 10 && TokenEffectBase.getTokensBatched() == b0, countered + " of 10 tokens with 2 counters, " + (TokenEffectBase.getTokensBatched() - b0) + " batched");
++    }
++
++    private static void holdReleased() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        f.make(10, "w_1_1_soldier", "");
++        expect(!f.game.getAction().isHoldingStaticAbilities(), "the static checks are still held after the effect");
++        final Card later = f.add("Grizzly Bears", f.white);
++        f.game.getAction().checkStaticAbilities();
++        expect(later.getNetPower() == 3, "a creature after the effect is " + later.getNetPower() + " power, not 3 (Glorious Anthem, Honor of the Pure)");
++    }
++
++    private static void doubledBatched() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        f.add("Anointed Procession", f.white);
++        f.settle();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(25, "w_1_1_soldier", "");
++        expect(tokens(f.white).size() == 50 && TokenEffectBase.getTokensBatched() - b0 == 49, tokens(f.white).size() + " tokens, " + (TokenEffectBase.getTokensBatched() - b0) + " batched");
++    }
++
++    private static int triggersOf(final Fixture f, final String name) throws Exception {
++        f.game.getTriggerHandler().runWaitingTriggers();
++        int n = 0;
++        for (final SpellAbility sa : f.pending()) {
++            n += sa.getHostCard() != null && sa.getHostCard().getName().equals(name) ? 1 : 0;
++        }
++        for (final forge.game.spellability.SpellAbilityStackInstance si : f.game.getStack()) {
++            n += si.getSourceCard() != null && si.getSourceCard().getName().equals(name) ? 1 : 0;
++        }
++        return n;
++    }
++
++    private static void powerTriggers() throws Exception {
++        final Fixture f = new Fixture();
++        for (int i = 0; i < 3; i++) {
++            f.add("Glorious Anthem", f.white);
++        }
++        f.add("Elemental Bond", f.white);
++        f.add("Garruk's Uprising", f.white);
++        f.settle();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(20, "w_1_1_soldier", "");
++        expect(TokenEffectBase.getTokensBatched() - b0 == 19, "batched " + (TokenEffectBase.getTokensBatched() - b0) + " of 19");
++        final int bond = triggersOf(f, "Elemental Bond");
++        final int uprising = triggersOf(f, "Garruk's Uprising");
++        expect(bond == 20 && uprising == 20, "for 20 tokens at 4/4: Elemental Bond " + bond + ", Garruk's Uprising " + uprising);
++    }
++
++    private static void exceptionReleases() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        final int[] n = {0};
++        TokenEffectBase.afterEachTokenForTests = (c) -> {
++            if (++n[0] == 5) {
++                throw new IllegalStateException("boom at token 5");
++            }
++        };
++        String thrown = null;
++        try {
++            f.make(20, "w_1_1_soldier", "");
++        } catch (final IllegalStateException e) {
++            thrown = e.getMessage();
++        } finally {
++            TokenEffectBase.afterEachTokenForTests = null;
++        }
++        expect("boom at token 5".equals(thrown), "the exception that came out: " + thrown);
++        expect(!f.game.getAction().isHoldingStaticAbilities(), "the static checks are still held after the exception");
++        for (final Card c : tokens(f.white)) {
++            expect(c.getNetPower() == 5, "a token made before the exception is " + c.getNetPower() + " power, not 5: no pass after the batch");
++        }
++    }
++
++    private static void exceptionRestoresHold() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        TokenEffectBase.afterEachTokenForTests = (c) -> {
++            throw new IllegalStateException("boom");
++        };
++        f.game.getAction().setHoldCheckingStaticAbilities(true);
++        try {
++            f.make(3, "w_1_1_soldier", "");
++        } catch (final IllegalStateException expected) {
++            expect("boom".equals(expected.getMessage()), "the exception that came out: " + expected.getMessage());
++        } finally {
++            TokenEffectBase.afterEachTokenForTests = null;
++        }
++        final boolean held = f.game.getAction().isHoldingStaticAbilities();
++        f.game.getAction().setHoldCheckingStaticAbilities(false);
++        expect(held, "a hold that was on before the effect was turned off by it");
++    }
++
++    private static void torporOrb() throws Exception {
++        disabledTriggers("Torpor Orb");
++    }
++
++    private static void hushbringer() throws Exception {
++        disabledTriggers("Hushbringer");
++    }
++
++    private static void disabledTriggers(final String stopper) throws Exception {
++        final Fixture f = new Fixture();
++        f.add("Soul Warden", f.white);
++        f.add(stopper, f.blue);
++        f.settle();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(20, "w_1_1_soldier", "");
++        expect(TokenEffectBase.getTokensBatched() - b0 == 19, "batched " + (TokenEffectBase.getTokensBatched() - b0) + " of 19");
++        final int warden = triggersOf(f, "Soul Warden");
++        expect(warden == 0, "under " + stopper + " Soul Warden triggered " + warden + " times for 20 tokens");
++    }
++
++    private static void notBatchedInsideAHold() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.game.getAction().setHoldCheckingStaticAbilities(true);
++        try {
++            f.make(10, "w_1_1_soldier", "");
++        } finally {
++            f.game.getAction().setHoldCheckingStaticAbilities(false);
++        }
++        expect(TokenEffectBase.getTokensBatched() == b0 && tokens(f.white).size() == 10, (TokenEffectBase.getTokensBatched() - b0) + " batched inside a hold, " + tokens(f.white).size() + " made");
++    }
++
++    private static void humility() {
++        final Fixture f = new Fixture();
++        f.add("Humility", f.blue);
++        f.settle();
++        final long b0 = TokenEffectBase.getTokensBatched();
++        f.make(20, "w_2_2_knight_vigilance", "");
++        expect(TokenEffectBase.getTokensBatched() - b0 == 19, "batched " + (TokenEffectBase.getTokensBatched() - b0) + " of 19");
++        for (final Card c : tokens(f.white)) {
++            expect(c.getNetPower() == 1 && c.getNetToughness() == 1 && !c.hasKeyword(Keyword.VIGILANCE),
++                    "under Humility a 2/2 vigilance Knight token is " + c.getNetPower() + "/" + c.getNetToughness() + " vigilance " + c.hasKeyword(Keyword.VIGILANCE));
++        }
++    }
++
++    private static void timingSanity() {
++        final Fixture f = new Fixture();
++        f.anthems();
++        final long t0 = System.nanoTime();
++        f.make(400, "w_1_1_soldier", "");
++        final double s = (System.nanoTime() - t0) / 1e9;
++        expect(tokens(f.white).size() == 400 && s < 15, "400 tokens took " + s + " s");
++    }
++
++    private static final class Fixture {
++        final Game game;
++        final Player white;
++        final Player blue;
++
++        Fixture() {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("White", null)));
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("Blue", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            game = new Game(players, rules, new Match(rules, players, "TokenBatchTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0), 3);
++            game.getPhaseHandler().onStackResolved();
++            white = game.getPlayers().get(0);
++            blue = game.getPlayers().get(1);
++            for (int i = 0; i < 10; i++) {
++                add("Plains", white);
++                add("Grizzly Bears", blue);
++            }
++            settle();
++        }
++
++        void anthems() {
++            for (final String name : new String[] {"Glorious Anthem", "Intangible Virtue", "Honor of the Pure", "Field Marshal"}) {
++                add(name, white);
++            }
++            settle();
++        }
++
++        Card add(final String name, final Player p) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            if (paper == null) {
++                throw new AssertionError("no card named " + name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            p.getZone(ZoneType.Battlefield).add(card);
++            return card;
++        }
++
++        void settle() {
++            game.getAction().checkStaticAbilities();
++            game.getAction().checkStateEffects(true);
++        }
++
++        void make(final int amount, final String script, final String extra) {
++            final Card host = white.getCardsIn(ZoneType.Battlefield).getFirst();
++            final SpellAbility sa = AbilityFactory.getAbility("AB$ Token | Cost$ 0 | TokenAmount$ " + amount + " | TokenScript$ " + script + " | TokenOwner$ You" + extra, host);
++            sa.setActivatingPlayer(white);
++            AbilityUtils.resolve(sa);
++        }
++
++        long passesFor(final int amount) {
++            final long p0 = game.getAction().getStaticPasses();
++            make(amount, "w_1_1_soldier", "");
++            return game.getAction().getStaticPasses() - p0;
++        }
++
++        @SuppressWarnings("unchecked")
++        List<SpellAbility> pending() throws Exception {
++            final Field field = MagicStack.class.getDeclaredField("simultaneousStackEntryList");
++            field.setAccessible(true);
++            return new ArrayList<>((List<SpellAbility>) field.get(game.getStack()));
++        }
 +    }
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/TurnCounterRewindTest.java b/forge-harness/src/test/java/forge/harness/host/TurnCounterRewindTest.java

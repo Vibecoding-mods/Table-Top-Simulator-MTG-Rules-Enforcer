@@ -8883,10 +8883,11 @@ function entityWords(options, gv) {
     const kind = types.includes("Planeswalker") ? "planeswalker" : types.includes("Battle") ? "battle" : types.includes("Creature") ? "creature" : "permanent";
     return `${name} (${nameOf(these[0].controllerId)}'s ${kind})`;
   });
-  if (!cards || words.includes(null)) return null;
+  // (players only, Black Vise's "choose an opponent": whom, by their table names)
+  if (words.includes(null) || (!cards && !players)) return null;
   const nth = {};
   const labels = words.map((w) => (words.filter((x) => x === w).length > 1 ? `${w} #${(nth[w] = (nth[w] || 0) + 1)}` : w));
-  return { labels, players, walkers, defenders, onField };
+  return { labels, players, walkers: walkers && cards > 0, defenders: defenders && cards > 0, onField: onField && cards > 0, onlyPlayers: !cards };
 }
 
 // The creature such a list chooses a defender for (CR 506.3b, a creature put onto the battlefield attacking: Forge's
@@ -10723,7 +10724,12 @@ function onPrompt(seat, prompt) {
       if (otherwise) {
         // ("Pay {X}?" with X's value: "Pay {1}?", the text saying why)
         const xv = /\{X\}/.test(title) ? xNow(prompt.sourceAbilityText || srcCardText, prompt.sourceCard, byId) : null;
-        const ask = title.replace(/\?\s*$/, "").replace(/\{X\}/g, xv ? `{${xv.n}}` : "{X}");
+        const asked = title.replace(/\?\s*$/, "").replace(/\{X\}/g, xv ? `{${xv.n}}` : "{X}");
+        // (a cost that isn't mana is asked as itself: Remorseless Punishment's "pay Discard two cards?" read
+        // "Pay Discard two cards" on its button, prompt-shapes probe 2026-11-17)
+        const costWords = asked.match(/^Pay ((?:Put|Remove|Sacrifice|Exile|Discard|Tap|Untap|Return)\b.*)$/);
+        const ask = costWords ? costWords[1] : asked;
+        const askTitle = costWords ? costWords[1][0].toLowerCase() + costWords[1].slice(1) : asked;
         // the gesture that means No: a chosen card onto your library, or the permanent into your graveyard (onIntent)
         const otherwiseDo = /on top of your library/i.test(otherwise) && u ? "library" : /^sacrifice\b/i.test(otherwise) ? "sacrifice" : null;
         const aboutCards = u ? [...u.ids] : otherwiseDo === "sacrifice" && prompt.sourceCard?.id ? [prompt.sourceCard.id] : null;
@@ -10742,7 +10748,7 @@ function onPrompt(seat, prompt) {
         // and Pay read "return ... to its owner's hand. Exile ...", hp-22 #8 2026-10-28)
         const ifNot = abilityText.match(/(?:If you (?:didn't|don't|do not|did not)\b[^,]*|\bOtherwise),\s*([^.]+)/i);
         const paysFor = !u && /\byou may pay\b[^.]*\.\s*If you do\b/i.test(abilityText);
-        ui = { title: `${src ? `${src}: ` : ""}${ask}?${u && u.k <= u.n ? ` (${u.k} of ${u.n})` : ""}`, mode: "single",
+        ui = { title: `${src ? `${src}: ` : ""}${askTitle}?${u && u.k <= u.n ? ` (${u.k} of ${u.n})` : ""}`, mode: "single",
           options: paysFor ? [{ id: "yes", label: `${ask}: ${otherwise.split(/\.\s+/)[0]}` }, { id: "no", label: ifNot ? `No: ${ifNot[1].trim()}` : "No" }]
             : [{ id: "yes", label: ask }, { id: "no", label: `No: ${otherwise}` }],
           ...(aboutCards ? { aboutCards, otherwiseDo } : {}),
@@ -11263,6 +11269,16 @@ function onPrompt(seat, prompt) {
       // puts creatures onto the battlefield attacking: "attacking" alone, as in "target attacking creature", is no
       // defender's choice)
       const words = input.options.length > 1 && entityWords(input.options, gv);
+      // a choice of players only (not a defender's): the engine's own "Choose an opponent", else which opponent, or which
+      // player when the chooser is one of them (Black Vise read "choose one", prompt-shapes probe 2026-11-17)
+      if (words?.onlyPlayers && !/\b(?:create|put|return)s?\b[^.]*\battacking\b/i.test(String(prompt.sourceAbilityText || srcCardText))) {
+        const desc = String(input.presentation?.description || "").trim();
+        const said = /^Choose an? (?:opponent|player)$/i.test(desc) ? desc[0].toLowerCase() + desc.slice(1) : `choose which ${words.labels.includes(nameOf(seat.slot)) ? "player" : "opponent"}?`;
+        ui = { title: `${src ? `${src}: ` : ""}${said}`, mode: "multi", min: input.minTotal ?? 1, max: input.maxTotal ?? 1,
+          options: opts(words.labels.map((label, i) => ({ id: i, label }))) };
+        toOutput = (a) => ({ type: "selectionDecision", chosenIndices: a.map(Number) });
+        break;
+      }
       if (words) {
         const rules = String(prompt.sourceAbilityText || srcCardText);
         const what = `${words.players ? "player or " : ""}${words.walkers ? "planeswalker" : words.onField ? "permanent" : "card"}`;
@@ -11285,7 +11301,7 @@ function onPrompt(seat, prompt) {
       }
       // (and "Choose a Protection" over colours: Bathe in Light's radiance, hp-21)
       const t = title === "Choose a Choose keyword to grant" ? "Choose a keyword to give" : title === "Choose a Creature" ? "Choose a creature type"
-        : title === "Choose a Protection" ? "protection from which color?" : title;
+        : title === "Choose a Protection" ? "protection from which color?" : title === "Name a card" ? "name a card" : title;
       ui = { title: counters ? `${src || t}: choose a kind of counter` : (t === src || t === "Choose") && src ? `${src}: choose ${how}` : t,
         mode: "multi", min: input.minTotal, max: input.maxTotal, options: opts(input.options.map((o, i) => ({ id: i, label: labels[i] }))) };
       // venturing (or the initiative's Undercity): Forge asks "Name a card" for the dungeon and the card's "choose one"

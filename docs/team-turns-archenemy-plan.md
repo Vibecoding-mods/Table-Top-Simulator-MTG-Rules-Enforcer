@@ -202,11 +202,33 @@ Alternative engine path: set `GameType.Archenemy` in `variants` and pass `player
 - **Card scripts that need choices** (target a player, choose a creature, reveal cards). Each is an engine prompt the
   bridge and table already handle for other cards, but some scheme effects are unusual (set another scheme in
   motion, abandon, rolling dice, draw from another player's deck). A spike must play many schemes.
-- **Rules not checked by me.** I did not have the Comprehensive Rules file open for rule 904. These are from memory and
-  must be read before building: the Archenemy's starting life (40), who goes first, whether the Archenemy skips their
-  first draw, how the opposing team takes turns (Forge's own lobby uses own turns), what happens when the scheme deck
-  empties, and the scheme deck size and copy limits. The spec's way of working is to read the CR file first (spec §0).
-  Rule 904 was not in the spec's "rules used" list (spec "Sources").
+- **Rules checked (2026-11-17, `cloud/archenemy-audit`)** against the Comprehensive Rules of November 6, 2026
+  (media.wizards.com, `MagicCompRules 20261106.txt`): 904, 314, 701.32, 701.33, 103.1b and 103.8.
+  `docs/handoff/archenemy-audit-report.md` has each rule beside what the bridge, engine and table do.
+  - **As the rules say:**
+    - the archenemy alone on one team, everyone else on the other (904.2a-b);
+    - attacking several players (904.2);
+    - the scheme deck at least 20, at most 2 of a name (904.3), and the random 20 distinct;
+    - schemes in the command zone (904.4, 314.2);
+    - the archenemy goes first (904.6, 103.1b);
+    - the first draw skipped only in a two-player game (103.8a, c);
+    - set in motion right after each of the archenemy's precombat main phases begins, with no stack (904.9);
+    - set one at a time (701.32c);
+    - an ongoing scheme stays until abandoned (904.11, 701.33);
+    - the team wins or loses together (808).
+  - **Fixed:** 904.10 / 314.6. A non-ongoing scheme goes back only once no triggered ability of any scheme is on the
+    stack or waiting to be put on it. Forge looked only at the scheme's own abilities, so with two schemes' triggers
+    stacked, the first to resolve went under the deck too early.
+  - **House rules (the owner's, §2.7):**
+    - Life is double the format's (40 / 20 in Standard, which is 904.5; 80 / 40 each in Commander).
+    - The rules' Archenemy Commander option (904.13) is 60 against a shared 60, with a scheme deck of at least 10, all
+      different. It isn't used: the Commander game here is the 904 game with Commander decks and the owner's life, and
+      the 904.3 deck rule.
+  - **Not as the rules say, open:** 904.2 uses the shared team turns option (805): the opposing team takes one turn
+    together. Here each of them has their own turn (the bridge says so in its setup words). The engine's shared turns
+    exist only with shared life and equal teams (Two-Headed Giant), so it needs engine work and an owner's decision
+    (section 2.7's "rule 904 as written" was about the turn order).
+  - **Not offered:** Supervillain Rumble (904.12).
 - **Win and loss.** With `teams`, a team wins when the others have lost. Check the 904 text for "the archenemy's
   teammates" and for the Archenemy conceding.
 - **AI quality.** An AI Archenemy is fine for turn-based set-in-motion. An AI opponent facing ongoing schemes is not
@@ -258,6 +280,7 @@ are the table, about 25 hours.
 3. **Life: house rule, double the format's life:** 80 in Commander, 40 in Standard (40 is also the rules' number there). The others play at the format's life.
 4. **Rewind: off in scheme games at first.** Undo says it is not available in Archenemy games until the scheme zones are rewind-safe.
 5-8. **Not asked; defaults taken:** a separate mode from Juggernaut; an AI may be the Archenemy (a spike checks it first); scheme images from the same source as the rest; rule 904 as written (turn order, the Archenemy goes first).
+   (Audit 2026-11-17: 904.2's shared team turns for the opposing team is not built; each player has their own turn. See §2.4's rules checked.)
 
 ### 2.8 Engine plumbing done (2026-11-16, branch `cloud/archenemy-engine`, not built into an image)
 
