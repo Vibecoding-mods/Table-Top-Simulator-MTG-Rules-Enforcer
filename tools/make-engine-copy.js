@@ -666,6 +666,8 @@ function engineChat(message, pl)
   elseif cmd == "tie" then
     -- the tie offer when a player can't lose (the Tie / Keep playing pop-up): mtg tie yes / mtg tie no
     if rest == "yes" or rest == "no" then engineSend("tieVote", { color = pl.color, accept = rest == "yes", steam = engineSteamOf ~= nil and engineSteamOf(pl.color) or "" })
+    -- (and alone, the open offer's words again: its strip may be closed, engineTieDraw)
+    elseif rest == "" and ENGINE_TIE_LAST ~= nil and engineTieWords ~= nil then pl.broadcast("[MTG] " .. engineTieWords(ENGINE_TIE_LAST, false))
     else pl.broadcast("[MTG] Use:  mtg tie yes  (accept the tie)  or  mtg tie no  (keep playing)") end
   elseif cmd == "accomplishments" then
     engineSend("accomplishments", { color = pl.color, steam = engineSteamOf ~= nil and engineSteamOf(pl.color) or "" })
