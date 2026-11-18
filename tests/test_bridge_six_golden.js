@@ -126,10 +126,13 @@ async function archenemyGame(stream, unpack) {
     SIX.map((c) => [c, c === "Purple" ? 80 : 40, c === "Purple"]));
   ok("archenemy board: Purple's scheme deck counted (20 at the start)", firstRows.Purple?.schemeDeck === 20 && SIX.filter((c) => c !== "Purple").every((c) => firstRows[c]?.schemeDeck == null), JSON.stringify(SIX.map((c) => firstRows[c]?.schemeDeck)));
   const teamsAt = tables.find((t) => t.teams)?.teams;
-  same("archenemy board: the teams, the five against Purple", teamsAt && { mode: teamsAt.mode, archenemy: teamsAt.archenemy, sides: teamsAt.sides }, { mode: "archenemy", archenemy: "Purple", sides: [["White", "Red", "Yellow", "Green", "Blue"], ["Purple"]] });
+  same("archenemy board: the teams, the five against Purple, their turns shared (CR 904.2)", teamsAt && { mode: teamsAt.mode, archenemy: teamsAt.archenemy, sides: teamsAt.sides, turns: teamsAt.turns },
+    { mode: "archenemy", archenemy: "Purple", sides: [["White", "Red", "Yellow", "Green", "Blue"], ["Purple"]], turns: "shared" });
   const turns = [];
-  for (const t of tables) if (t.turn >= 1 && t.active && (!turns.length || turns.at(-1).turn !== t.turn)) turns.push({ turn: t.turn, active: t.active });
-  same("archenemy turns: Purple first, then round the six in order", turns.slice(0, 7).map((t) => t.active), ["Purple", "White", "Red", "Yellow", "Green", "Blue", "Purple"]);
+  for (const t of tables) if (t.turn >= 1 && t.active && (!turns.length || turns.at(-1).turn !== t.turn)) turns.push({ turn: t.turn, active: t.active, team: t.activeTeam || null });
+  // (CR 904.2 and 805.4: the five take one turn together, White, their first seat after Purple, the active player)
+  same("archenemy turns: Purple first, then the five together, in turn", turns.slice(0, 7).map((t) => t.team ? t.team.join("+") : t.active),
+    ["Purple", "White+Red+Yellow+Green+Blue", "Purple", "White+Red+Yellow+Green+Blue", "Purple", "White+Red+Yellow+Green+Blue", "Purple"]);
   const now = tables.find((t) => t.schemeNow && t.schemeNow.seq >= 1);
   ok("archenemy schemes: a scheme set in motion on Purple's first turn (schemeNow, its card)", now && now.turn === 1 && now.schemeNow.card && now.schemeNow.card.id, JSON.stringify(now?.schemeNow));
   ok("archenemy schemes: while it is face up, it is in the board's schemes", tables.some((t) => (t.schemes || []).some((c) => c.id === now?.schemeNow?.card?.id)), "no board had it in schemes");

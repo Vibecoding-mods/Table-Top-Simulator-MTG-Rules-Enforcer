@@ -7,10 +7,13 @@
 // for --stall seconds is "stuck priority" with the priority player and step. Ends at game over or after --turns turns.
 // --record <file>: every state the host sees (its view) and every question, in order, for the bridge (tools/m6-stream.js).
 //   node tools/headless-six.js <engine tree with its harness jar> [--games 2] [--turns 15] [--seed 1] [--stall 120]
-//     [--record tmp/six-game.json] [--log tmp/headless-six.json] [--archenemy]
+//     [--record tmp/six-game.json] [--log tmp/headless-six.json] [--archenemy] [--seats 4]
 // --archenemy: an Archenemy game (cloud/archenemy-six): Purple, an AI seat, the archenemy at double the format's life
 // (80), first, with the first 20 schemes of bridge/forge-schemes.json (ARCH_SCHEMES); the other five one team at 40.
 // The same game the bridge asks for (tools/m6-stream.js --archenemy), so its recording drives the bridge's golden.
+// The archenemy's opponents take one turn together (teamRules "teamTurns", CR 904.2 and 805; cloud/archenemy-team-turns):
+// the turn order check then wants the archenemy, the team (its first seat the active player), the archenemy, ...
+// --seats 4: the four-seat table (White, Red, Yellow, Blue; with --archenemy, Blue the archenemy against three).
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -31,7 +34,9 @@ const DECK_DIRS = [path.join(ROOT, "decks"), path.join(TREE, "public", "preset_d
 // the host's deck and the five AI decks: the built-in Commander decks (engine-test.js's, and two more for six seats)
 const DECKS = ["neheb_minotaur_commander", "ashling_limitless_commander", "ramses_commander", "real_teval_commander",
   "hearthhull_world_shaper_commander", "ironsmith_commander_elven_empire"];
-const NAMES = ["White", "Red", "Yellow", "Green", "Blue", "Purple"]; // the six-seat table's seats, clockwise (spec §2.1)
+const SEATS = Number(arg("seats", 6));
+// the six-seat table's seats, clockwise (spec §2.1), or the four-seat table's
+const NAMES = SEATS === 4 ? ["White", "Red", "Yellow", "Blue"] : ["White", "Red", "Yellow", "Green", "Blue", "Purple"];
 
 const rng = (seed) => () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
 
@@ -45,14 +50,14 @@ function deckOf(id) {
 }
 
 const ARCH = process.argv.includes("--archenemy");
-const ARCH_SEAT = NAMES.indexOf("Purple");
+const ARCH_SEAT = NAMES.length - 1;
 const ARCH_SCHEMES = (() => { const j = require(path.join(ROOT, "bridge", "forge-schemes.json")); return [...j.schemes, ...(j.ongoing || [])].slice(0, 20); })();
 function request(game) {
   const players = NAMES.map((name, i) => ({ name, ...deckOf(DECKS[i]), ai: i > 0, bot: i > 0,
     ...(ARCH ? (i === ARCH_SEAT ? { team: 1, startingLife: 80, goesFirst: true, schemes: ARCH_SCHEMES.map((n) => ({ name: n })) } : { team: 2 }) : {}) }));
   return {
-    gameId: `headless-six-${game}`, variant: "Commander", startingLife: 40, seed: SEED + game, snapshotRecording: false,
-    ...(ARCH ? { archenemy: true, teamRules: "teams" } : {}), players,
+    gameId: `headless-${SEATS}-${game}`, variant: "Commander", startingLife: 40, seed: SEED + game, snapshotRecording: false,
+    ...(ARCH ? { archenemy: true, teamRules: "teamTurns" } : {}), players,
   };
 }
 
@@ -138,10 +143,17 @@ function answerOf(prompt, st) {
 }
 
 // The turn order check: the active player of each new turn should be the next seat after the last one, in the players'
-// order, skipping players who have lost (an extra turn is the same player again, and is said so, not counted wrong)
-function nextSeat(order, from, lost) {
+// order, skipping players who have lost (an extra turn is the same player again, and is said so, not counted wrong).
+// team: id -> the engine's teamNumber in a shared-turn game ("teamTurns", "sharedTurns"), else null: the next turn is then
+// the next team's, its first seat after the last turn's team the active player
+function nextSeat(order, from, lost, team = null) {
   const i = order.indexOf(from);
-  for (let k = 1; k <= order.length; k++) { const id = order[(i + k) % order.length]; if (!lost.has(id)) return id; }
+  const mine = team ? team.get(from) : null;
+  for (let k = 1; k <= order.length; k++) {
+    const id = order[(i + k) % order.length];
+    if (lost.has(id) || (mine != null && team.get(id) === mine)) continue;
+    return id;
+  }
   return null;
 }
 
@@ -172,8 +184,16 @@ async function playGame(s, game) {
         if (view.turn && view.turn !== lastTurn) {
           const active = view.activePlayerId;
           // (only from the turn just before: the view is read every half second, and a quick turn can pass unseen)
-          const want = lastActive && view.turn === lastTurn + 1 ? nextSeat(order, lastActive, lost) : null;
+          const shared = ["teamTurns", "sharedTurns"].includes(view.teamRules?.rule);
+          const team = shared ? new Map(players.map((p) => [p.id, p.teamNumber ?? null])) : null;
+          const want = lastActive && view.turn === lastTurn + 1 ? nextSeat(order, lastActive, lost, team) : null;
           const turn = { turn: view.turn, active: NAMES[order.indexOf(active)] || active, life: players.map((p) => p.life) };
+          // (a shared-turn game: the whole team whose turn it is, the active player first)
+          if (shared) {
+            const mine = team.get(active);
+            turn.team = mine == null ? [turn.active] : order.filter((id) => team.get(id) === mine && !lost.has(id)).map((id) => NAMES[order.indexOf(id)] || id);
+            turn.team = [turn.active, ...turn.team.filter((n) => n !== turn.active)];
+          }
           if (lastActive && view.turn !== lastTurn + 1) turn.after = `turn ${lastTurn} (turns between unseen)`;
           if (want && active !== want) {
             if (active === lastActive) turn.extra = true;
@@ -239,7 +259,7 @@ async function playGame(s, game) {
     console.log(`game ${g}: ${out.turns.length} turns, ${out.prompts} host answers, ${(out.ms / 1000).toFixed(0)} s, end ${JSON.stringify(out.end)}`);
     console.log(`  host mulligans ${out.mulligans}; permanents at the end ${JSON.stringify(out.permanents)}; life ${JSON.stringify(out.turns.at(-1)?.life)}`);
     console.log(`  players at the end ${JSON.stringify(out.status)}`);
-    console.log(`  turn order: ${out.turns.map((t) => `${t.turn}:${t.active}${t.extra ? "(extra)" : ""}`).join(" ")}`);
+    console.log(`  turn order: ${out.turns.map((t) => `${t.turn}:${t.team ? t.team.join("+") : t.active}${t.extra ? "(extra)" : ""}`).join(" ")}`);
     for (const pr of out.problems) console.log(`  PROBLEM ${pr}`);
   }
   s.quit();

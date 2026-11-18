@@ -224,10 +224,10 @@ Alternative engine path: set `GameType.Archenemy` in `variants` and pass `player
     - The rules' Archenemy Commander option (904.13) is 60 against a shared 60, with a scheme deck of at least 10, all
       different. It isn't used: the Commander game here is the 904 game with Commander decks and the owner's life, and
       the 904.3 deck rule.
-  - **Not as the rules say, open:** 904.2 uses the shared team turns option (805): the opposing team takes one turn
-    together. Here each of them has their own turn (the bridge says so in its setup words). The engine's shared turns
-    exist only with shared life and equal teams (Two-Headed Giant), so it needs engine work and an owner's decision
-    (section 2.7's "rule 904 as written" was about the turn order).
+  - **904.2's shared team turns, built (2026-11-18, `cloud/archenemy-team-turns`):** the opposing team takes one turn
+    together, each player with their own life. The engine's `teamRules` "teamTurns" is Forge's shared team turns (805)
+    without shared life, the same machinery as Two-Headed Giant Level 2; the bridge asks for it in every Archenemy game
+    and its shared-turn pieces read it as they read "sharedTurns" (`docs/handoff/archenemy-team-turns-report.md`).
   - **Not offered:** Supervillain Rumble (904.12).
 - **Win and loss.** With `teams`, a team wins when the others have lost. Check the 904 text for "the archenemy's
   teammates" and for the Archenemy conceding.
@@ -280,7 +280,7 @@ are the table, about 25 hours.
 3. **Life: house rule, double the format's life:** 80 in Commander, 40 in Standard (40 is also the rules' number there). The others play at the format's life.
 4. **Rewind: off in scheme games at first.** Undo says it is not available in Archenemy games until the scheme zones are rewind-safe.
 5-8. **Not asked; defaults taken:** a separate mode from Juggernaut; an AI may be the Archenemy (a spike checks it first); scheme images from the same source as the rest; rule 904 as written (turn order, the Archenemy goes first).
-   (Audit 2026-11-17: 904.2's shared team turns for the opposing team is not built; each player has their own turn. See §2.4's rules checked.)
+   (Audit 2026-11-17: 904.2's shared team turns for the opposing team was not built. Built 2026-11-18: the opposing team takes one turn together, teamRules "teamTurns"; see §2.4.)
 
 ### 2.8 Engine plumbing done (2026-11-16, branch `cloud/archenemy-engine`, not built into an image)
 
