@@ -63474,7 +63474,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Mirri's Guile: click the card to put on top\": Keep this order: Venomous Changeling 1/3, Pestilence, Vraska's Fall | Venomous Changeling 1/3 | Pestilence | Vraska's Fall\n"
+    "text": "[time] Blue   is asked #900 \"Mirri's Guile: click the card to put on top\": Keep this order: Vraska's Fall, Pestilence, Venomous Changeling 1/3 | Vraska's Fall | Pestilence | Venomous Changeling 1/3\n"
    },
    {
     "tts": {
@@ -63513,19 +63513,19 @@
      "options": [
       {
        "id": "__keep",
-       "label": "Keep this order: Venomous Changeling 1/3, Pestilence, Vraska's Fall"
+       "label": "Keep this order: Vraska's Fall, Pestilence, Venomous Changeling 1/3"
       },
       {
-       "id": "r3",
-       "label": "Venomous Changeling 1/3"
+       "id": "r1",
+       "label": "Vraska's Fall"
       },
       {
        "id": "r2",
        "label": "Pestilence"
       },
       {
-       "id": "r1",
-       "label": "Vraska's Fall"
+       "id": "r3",
+       "label": "Venomous Changeling 1/3"
       }
      ],
      "min": 1,
@@ -64521,7 +64521,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Mirri's Guile: click the card to put next (number 2 from the top)\": Keep this order: Pestilence, Vraska's Fall | Pestilence | Vraska's Fall\n"
+    "text": "[time] Blue   is asked #900 \"Mirri's Guile: click the card to put next (number 2 from the top)\": Keep this order: Vraska's Fall, Pestilence | Vraska's Fall | Pestilence\n"
    },
    {
     "tts": {
@@ -64536,15 +64536,15 @@
      "options": [
       {
        "id": "__keep",
-       "label": "Keep this order: Pestilence, Vraska's Fall"
-      },
-      {
-       "id": "r2",
-       "label": "Pestilence"
+       "label": "Keep this order: Vraska's Fall, Pestilence"
       },
       {
        "id": "r1",
        "label": "Vraska's Fall"
+      },
+      {
+       "id": "r2",
+       "label": "Pestilence"
       }
      ],
      "min": 1,
@@ -65780,7 +65780,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Mirri's Guile: click the card to put on top\": Keep this order: Venomous Changeling 1/3, Pestilence, Vraska's Fall | Venomous Changeling 1/3 | Pestilence | Vraska's Fall\n"
+    "text": "[time] Blue   is asked #900 \"Mirri's Guile: click the card to put on top\": Keep this order: Vraska's Fall, Pestilence, Venomous Changeling 1/3 | Vraska's Fall | Pestilence | Venomous Changeling 1/3\n"
    },
    {
     "tts": {
@@ -65819,19 +65819,19 @@
      "options": [
       {
        "id": "__keep",
-       "label": "Keep this order: Venomous Changeling 1/3, Pestilence, Vraska's Fall"
+       "label": "Keep this order: Vraska's Fall, Pestilence, Venomous Changeling 1/3"
       },
       {
-       "id": "r3",
-       "label": "Venomous Changeling 1/3"
+       "id": "r1",
+       "label": "Vraska's Fall"
       },
       {
        "id": "r2",
        "label": "Pestilence"
       },
       {
-       "id": "r1",
-       "label": "Vraska's Fall"
+       "id": "r3",
+       "label": "Venomous Changeling 1/3"
       }
      ],
      "min": 1,
@@ -66823,7 +66823,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   answers #900 \"Mirri's Guile: click the card to put on top\": Keep this order: Venomous Changeling 1/3, Pestilence, Vraska's Fall\n"
+    "text": "[time] Blue   answers #900 \"Mirri's Guile: click the card to put on top\": Keep this order: Vraska's Fall, Pestilence, Venomous Changeling 1/3\n"
    },
    {
     "relay": {
@@ -66837,9 +66837,9 @@
        "output": {
         "type": "reorderDecision",
         "orderedIds": [
-         "r1",
+         "r3",
          "r2",
-         "r3"
+         "r1"
         ]
        }
       }
@@ -630437,7 +630437,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Ponder: click the card to put on top\": Keep this order: Exotic Orchard, Forest, Command Tower | Exotic Orchard | Forest | Command Tower\n"
+    "text": "[time] Blue   is asked #900 \"Ponder: click the card to put on top\": Keep this order: Command Tower, Forest, Exotic Orchard | Command Tower | Forest | Exotic Orchard\n"
    },
    {
     "tts": {
@@ -630476,19 +630476,19 @@
      "options": [
       {
        "id": "__keep",
-       "label": "Keep this order: Exotic Orchard, Forest, Command Tower"
+       "label": "Keep this order: Command Tower, Forest, Exotic Orchard"
       },
       {
-       "id": "engine-card-35",
-       "label": "Exotic Orchard"
+       "id": "engine-card-9",
+       "label": "Command Tower"
       },
       {
        "id": "engine-card-19",
        "label": "Forest"
       },
       {
-       "id": "engine-card-9",
-       "label": "Command Tower"
+       "id": "engine-card-35",
+       "label": "Exotic Orchard"
       }
      ],
      "min": 1,
@@ -631515,7 +631515,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   answers #900 \"Ponder: click the card to put on top\": Keep this order: Exotic Orchard, Forest, Command Tower\n"
+    "text": "[time] Blue   answers #900 \"Ponder: click the card to put on top\": Keep this order: Command Tower, Forest, Exotic Orchard\n"
    },
    {
     "relay": {
@@ -631529,9 +631529,9 @@
        "output": {
         "type": "reorderDecision",
         "orderedIds": [
-         "engine-card-9",
+         "engine-card-35",
          "engine-card-19",
-         "engine-card-35"
+         "engine-card-9"
         ]
        }
       }
@@ -631564,7 +631564,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Animist's Awakening: click the card to put on top\": Keep this order: Island Fish Jasconius, Exotic Orchard, Forest, Command Tower | Island Fish Jasconius | Exotic Orchard | Forest | Command Tower\n"
+    "text": "[time] Blue   is asked #900 \"Animist's Awakening: click the card to put on top\": Keep this order: Command Tower, Forest, Exotic Orchard, Island Fish Jasconius | Command Tower | Forest | Exotic Orchard | Island Fish Jasconius\n"
    },
    {
     "fetch": "https://api.scryfall.com/cards/collection",
@@ -631598,23 +631598,23 @@
      "options": [
       {
        "id": "__keep",
-       "label": "Keep this order: Island Fish Jasconius, Exotic Orchard, Forest, Command Tower"
+       "label": "Keep this order: Command Tower, Forest, Exotic Orchard, Island Fish Jasconius"
       },
       {
-       "id": "engine-card-36",
-       "label": "Island Fish Jasconius"
-      },
-      {
-       "id": "engine-card-35",
-       "label": "Exotic Orchard"
+       "id": "engine-card-9",
+       "label": "Command Tower"
       },
       {
        "id": "engine-card-19",
        "label": "Forest"
       },
       {
-       "id": "engine-card-9",
-       "label": "Command Tower"
+       "id": "engine-card-35",
+       "label": "Exotic Orchard"
+      },
+      {
+       "id": "engine-card-36",
+       "label": "Island Fish Jasconius"
       }
      ],
      "min": 1,
@@ -632641,7 +632641,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   answers #900 \"Animist's Awakening: click the card to put on top\": Keep this order: Island Fish Jasconius, Exotic Orchard, Forest, Command Tower\n"
+    "text": "[time] Blue   answers #900 \"Animist's Awakening: click the card to put on top\": Keep this order: Command Tower, Forest, Exotic Orchard, Island Fish Jasconius\n"
    },
    {
     "relay": {
@@ -632655,10 +632655,10 @@
        "output": {
         "type": "reorderDecision",
         "orderedIds": [
-         "engine-card-9",
-         "engine-card-19",
+         "engine-card-36",
          "engine-card-35",
-         "engine-card-36"
+         "engine-card-19",
+         "engine-card-9"
         ]
        }
       }
@@ -657541,7 +657541,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Surging Dementia: click the card to put on top\": Keep this order: Pestilence, Vraska's Fall | Pestilence | Vraska's Fall\n"
+    "text": "[time] Blue   is asked #900 \"Surging Dementia: click the card to put on top\": Keep this order: Vraska's Fall, Pestilence | Vraska's Fall | Pestilence\n"
    },
    {
     "tts": {
@@ -657577,15 +657577,15 @@
      "options": [
       {
        "id": "__keep",
-       "label": "Keep this order: Pestilence, Vraska's Fall"
-      },
-      {
-       "id": "r2",
-       "label": "Pestilence"
+       "label": "Keep this order: Vraska's Fall, Pestilence"
       },
       {
        "id": "r1",
        "label": "Vraska's Fall"
+      },
+      {
+       "id": "r2",
+       "label": "Pestilence"
       }
      ],
      "min": 1,
@@ -658591,7 +658591,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   answers #900 \"Surging Dementia: click the card to put on top\": Keep this order: Pestilence, Vraska's Fall\n"
+    "text": "[time] Blue   answers #900 \"Surging Dementia: click the card to put on top\": Keep this order: Vraska's Fall, Pestilence\n"
    },
    {
     "relay": {
@@ -658605,8 +658605,8 @@
        "output": {
         "type": "reorderDecision",
         "orderedIds": [
-         "r1",
-         "r2"
+         "r2",
+         "r1"
         ]
        }
       }
@@ -806670,7 +806670,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Ponder: click the card to put on top\": Keep this order: Pestilence, Hurloon Minotaur 2/3, Vraska's Fall | Pestilence | Hurloon Minotaur 2/3 | Vraska's Fall\n"
+    "text": "[time] Blue   is asked #900 \"Ponder: click the card to put on top\": Keep this order: Vraska's Fall, Hurloon Minotaur 2/3, Pestilence | Vraska's Fall | Hurloon Minotaur 2/3 | Pestilence\n"
    },
    {
     "tts": {
@@ -806709,19 +806709,19 @@
      "options": [
       {
        "id": "__keep",
-       "label": "Keep this order: Pestilence, Hurloon Minotaur 2/3, Vraska's Fall"
+       "label": "Keep this order: Vraska's Fall, Hurloon Minotaur 2/3, Pestilence"
       },
       {
-       "id": "engine-card-77",
-       "label": "Pestilence"
+       "id": "engine-card-43",
+       "label": "Vraska's Fall"
       },
       {
        "id": "engine-card-75",
        "label": "Hurloon Minotaur 2/3"
       },
       {
-       "id": "engine-card-43",
-       "label": "Vraska's Fall"
+       "id": "engine-card-77",
+       "label": "Pestilence"
       }
      ],
      "min": 1,
@@ -807718,7 +807718,7 @@
    },
    {
     "appendFile": "table-log.log",
-    "text": "[time] Blue   is asked #900 \"Ponder: click the card to put next (number 2 from the top)\": Keep this order: Pestilence, Vraska's Fall | Pestilence | Vraska's Fall\n"
+    "text": "[time] Blue   is asked #900 \"Ponder: click the card to put next (number 2 from the top)\": Keep this order: Vraska's Fall, Pestilence | Vraska's Fall | Pestilence\n"
    },
    {
     "tts": {
@@ -807733,15 +807733,15 @@
      "options": [
       {
        "id": "__keep",
-       "label": "Keep this order: Pestilence, Vraska's Fall"
-      },
-      {
-       "id": "engine-card-77",
-       "label": "Pestilence"
+       "label": "Keep this order: Vraska's Fall, Pestilence"
       },
       {
        "id": "engine-card-43",
        "label": "Vraska's Fall"
+      },
+      {
+       "id": "engine-card-77",
+       "label": "Pestilence"
       }
      ],
      "min": 1,
