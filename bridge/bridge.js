@@ -1658,10 +1658,11 @@ class Seat {
   // - a repeated yes/no's "×N" still answering (offerRepeat): repeatAnswer;
   // - a loop's "Repeat ×N": the one under way, this turn's answers it repeats, the pass offered (loopStep): loop,
   //   loopLog, loopOffer; another seat's loop passed on (loopQuietOn): loopQuiet;
-  // - copies' "Keep targets for all ×N" still answering (offerKeepTargets): keepTargets.
+  // - copies' "Keep targets for all ×N" still answering (offerKeepTargets): keepTargets;
+  // - a "Sacrifice X" run's sources still to sacrifice (sacRunStep): sacRun.
   static FOLLOW_UPS = ["endTurnAt", "resolveStack", "queuedPlay", "attachTo", "targetPicks", "cardsDone", "unless", "autoPayCard",
     "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack", "attackData", "attackRefused", "lastAttack", "repeatAnswer",
-    "loop", "loopLog", "loopOffer", "loopQuiet", "keepTargets"];
+    "loop", "loopLog", "loopOffer", "loopQuiet", "keepTargets", "sacRun"];
   // resume: { username, slot, roomId } of a seat saved before the bridge stopped (resumeGame): it logs in again under
   // the same name as a reconnect (AuthResult below), so the relay hands back its seat and RequestResync the game
   constructor(color, deckId, resume = null) {
@@ -9349,6 +9350,168 @@ function smartPayTap(owed, acts, hand, cards) {
   return taps[0] || null;
 }
 
+// ── Sacrifice X for mana (the user 2026-11-18: "For things that can be sacrificed for mana like creatures or treasures
+// that repeat do sac x for mana"). Two or more alike sources whose mana ability sacrifices the source itself (five
+// Treasures, three Eldrazi Spawn) get one option, while paying ("Sacrifice X Treasure Token for mana (1 to 3)") and at
+// priority ("Mana: sacrifice X Treasure Token (1 to 5)"): the colour asked once when they make more than one, then how
+// many, and the bridge activates them one after another (sacRunStep), each its own mana ability in Forge, whose
+// "Sacrifice Treasure Token?" is answered as for one tapped by hand (CONFIRMS, by the manaTap respond notes). The log
+// still joins them, "Treasure Token ×3 are sacrificed for mana" (updateLog's manaSac).
+const SACX = "__sacx:";
+const SACX_BUTTONS = 6; // (up to this many: a button each; more: 1 to 5, all, and "How many…")
+// A mana action whose cost sacrifices its own card, by Forge's simple cost text: "{T}, Sacrifice this token" (Treasure,
+// tests/golden/fixtures/scenario-checks.json), "Sacrifice this creature" (Eldrazi Spawn), "Sacrifice CARDNAME", or the
+// card's own name. Another card sacrificed (Ashnod's Altar's "Sacrifice a creature") is not.
+function sacrificesItself(a, name) {
+  return String(a.cost || "").split(/,\s*/).some((p) => /^Sacrifice (?:this [a-z]+|CARDNAME)$/i.test(p) || (!!name && p === `Sacrifice ${name}`));
+}
+// Each battlefield card's position on the board (card id -> n), the order the table stacks alike tokens in (its stack
+// is led by the first, engine-renderer.lua groupTokens), so a group's option sits on the first of them, normally the
+// card leading the table's stack (the table also splits a stack by damage, counters and keywords, which this doesn't)
+function boardOrder(gv) {
+  const order = {};
+  let i = 0;
+  for (const z of gv.zones || []) if (z.zone === "battlefield") for (const c of z.cards || []) order[c.id] ??= i++;
+  return order;
+}
+// The colours one mana action makes, as one key ("B"; "" when Forge names none)
+const sacColour = (a) => [...producedColours(a)].sort().join("");
+// The groups of alike self-sacrificing sources among acts (a payment's actions or the priority's mana abilities): the
+// same name, cost, ability and rules text, and the same colours offered. [{ name, cards (ids, board order), colours,
+// amount (mana each makes), act(cardId, colour) }], only groups of two or more. order: card id -> board position.
+function sacGroups(acts, byId, order) {
+  const groups = new Map();
+  for (const a of acts) {
+    const name = byId[a.cardId]?.identity?.name;
+    if (!a.cardId || !name || !(a.isManaAbility || a.type === "activateManaAbility") || !sacrificesItself(a, name)) continue;
+    // (a payment's description is the card's name and its abilityIndex the card's own; a priority's index is the
+    // question's position, so there the ability's words tell it)
+    const key = [name, a.cost, a.type, a.type === "activateManaAbility" ? a.abilityIndex : a.description, byId[a.cardId].text || ""].join("|");
+    const g = groups.get(key) || { name, acts: new Map() };
+    groups.set(key, g);
+    const own = g.acts.get(a.cardId) || new Map();
+    g.acts.set(a.cardId, own);
+    if (!own.has(sacColour(a))) own.set(sacColour(a), a);
+  }
+  const out = [];
+  for (const g of groups.values()) {
+    const bySig = new Map();
+    for (const [cid, own] of g.acts) {
+      const sig = [...own.keys()].join(",");
+      if (!bySig.has(sig)) bySig.set(sig, []);
+      bySig.get(sig).push(cid);
+    }
+    for (const [sig, cards] of bySig) {
+      if (cards.length < 2) continue;
+      cards.sort((x, y) => (order[x] ?? 1e9) - (order[y] ?? 1e9));
+      const first = g.acts.get(cards[0]).values().next().value;
+      out.push({ name: g.name, cards, colours: sig.split(","), amount: Math.max(1, (first.producedMana || []).reduce((n, m) => n + (Number(m.amount) || 1), 0)),
+        act: (cid, col) => g.acts.get(cid)?.get(col) || null });
+    }
+  }
+  return out;
+}
+// How much of a cost a colour can pay (generic counts its number; a symbol whose halves don't take that colour counts
+// nothing); every symbol when the cost has one the rank doesn't read (snow) or the colour is unknown
+function sacUseful(owed, col, plain) {
+  let n = 0;
+  for (const [, sym] of String(owed || "").matchAll(/\{([^}]+)\}/g)) {
+    const parts = sym.toUpperCase().split("/");
+    if (/^\d+$/.test(sym)) n += Number(sym);
+    else if (!plain || col.length !== 1 || parts.some((x) => x === col || x === "X" || /^\d+$/.test(x))) n += 1;
+  }
+  return n;
+}
+// "Sacrifice X" pressed: which mana (when the group makes more than one), then how many, as questions under the one the
+// option was on (Back returns to it). caps: colour -> the most worth sacrificing (all of them at priority; while paying,
+// no more than the cost still takes); need: the colours the cost asks for; ctx: { kind "pay" | "prio", card (the card paid
+// for), owed (the cost still owed, said) }
+function sacPicker(seat, g, caps, need, ctx) {
+  const sym = (c) => (c ? [...c].map((x) => `{${x}}`).join("") : "mana");
+  const cols = g.colours.filter((c) => caps[c] > 0);
+  const still = ctx.owed ? `${ctx.owed} still to pay. ` : "";
+  const back = { id: "__back", label: "Back" };
+  const count = (c, under) => {
+    const cap = caps[c];
+    if (cap <= 1) return sacStart(seat, g, c, 1, ctx);
+    const ns = cap <= SACX_BUTTONS ? Array.from({ length: cap }, (_, i) => i + 1) : [1, 2, 3, 4, 5, cap];
+    const ui = { title: `${g.name}: sacrifice how many for ${sym(c)}?`, mode: "single", kind: "choice",
+      text: `${still}Each one is sacrificed for ${sym(c)}, one after another.`,
+      options: [...ns.map((n) => ({ id: `${SACX}${n}`, label: n === g.cards.length ? `×${n} (all)` : `×${n}` })), ...(cap > SACX_BUTTONS ? [{ id: `${SACX}some`, label: "How many…" }] : [])] };
+    const pick = (b) => {
+      if (b[0] === "__back") return backUnder(seat);
+      if (b[0] !== `${SACX}some`) return sacStart(seat, g, c, Number(String(b[0]).slice(SACX.length)), ctx);
+      return next({ title: `${g.name}: sacrifice how many for ${sym(c)}? (1 to ${cap})`, mode: "number", kind: "number", min: 1, max: cap, default: cap,
+        text: `${still}Each one is sacrificed for ${sym(c)}, one after another.` }, (v) => sacStart(seat, g, c, Math.max(1, Math.min(cap, Math.floor(Number(v[0])) || 1)), ctx));
+    };
+    if (under) return next({ ...ui, options: [...ui.options, back] }, pick);
+    return askUnder(seat, ui, pick, { back: "Back" });
+  };
+  if (cols.length === 1) return count(cols[0], false);
+  const named = (c) => c.length === 1 && need.has(COLOR_NAMES[c]);
+  const sorted = [...cols].sort((x, y) => (named(y) ? 1 : 0) - (named(x) ? 1 : 0));
+  return askUnder(seat, { title: `${g.name}: sacrifice them for which mana?`, mode: "single", kind: "choice", text: `${still}The same mana from each one.`,
+    options: sorted.map((c) => ({ id: `${SACX}c:${c}`, label: `${sym(c)}${named(c) ? " (needed)" : ""}` })) },
+  (b) => count(String(b[0]).slice(SACX.length + 2), true), { back: "Back" });
+}
+// The first of n sacrificed now (the answer to the question the option was on), the rest kept for sacRunStep
+function sacStart(seat, g, col, n, ctx) {
+  const cards = g.cards.slice(0, Math.max(1, n));
+  const gv = seat.board?.state?.gameView || {};
+  seat.sacRun = { kind: ctx.kind, card: ctx.card ?? null, colour: col, name: g.name, left: cards.slice(1), last: cards[0], confirmed: false, turn: gv.turn, at: Date.now() };
+  if (ctx.kind === "pay") seat.tappedFor = ctx.card; // (the cost covered by the last one is paid from the pool, as after a tap by hand)
+  return { type: "act", actionId: g.act(cards[0], col).id };
+}
+// A run ended early, said once: how many of the player's X were not sacrificed (nothing said when none are); false
+function sacStop(seat, run, n, why) {
+  if (n > 0) chat(`[MTG] ${run.name}: ${why ? `${why}; ` : ""}${n} more couldn't be sacrificed for mana; the rest is yours to pay.`, seat.color);
+  seat.sacRun = null;
+  return false;
+}
+// The next of a "Sacrifice X" run, answered unseen: the payment for the same card (until the pool covers it) or the
+// priority question that follows a mana ability, by the next card's action of the chosen colour. The card just used:
+// its one "Sacrifice ...?" answered yes (by its source card, or its name in the title when Forge sends none), its
+// "choose a color" by the run's colour. Any other question (a yes/no or colour question the run doesn't answer goes to
+// the player, whose No leaves that one unsacrificed), a card that can't be used any more, or the card just used still
+// offered (the engine didn't take that activation, review of 58e810e) ends it, said once; true when it answered.
+function sacRunStep(seat, prompt, type, input, gv) {
+  const run = seat.sacRun;
+  if (!run) return false;
+  if (type === "chooseBoolean" || type === "chooseColor") {
+    const title = String(input.presentation?.title || "");
+    const mine = prompt.sourceCard?.id ? prompt.sourceCard.id === run.last : title.toLowerCase().includes(run.name.toLowerCase());
+    if (type === "chooseBoolean" && mine && !run.confirmed && /^Sacrifice\b/i.test(title)) {
+      run.confirmed = true;
+      seat.forget("manaTap"); // (answered here: CONFIRMS must not take a second one as this tap's too)
+      seat.respond(prompt.promptId, type, { type: "decision", value: true });
+      return true;
+    }
+    const colour = run.colour.length === 1 ? COLOR_NAMES[run.colour] : null;
+    if (type === "chooseColor" && mine && colour && (input.validColors || []).includes(colour)) {
+      seat.respond(prompt.promptId, type, { type: "colorDecision", chosenColors: { [colour]: input.amount } });
+      return true;
+    }
+    return sacStop(seat, run, run.left.length, "another question came first");
+  }
+  const same = Date.now() - run.at < 60000 && (run.kind === "pay" ? type === "payManaCost" && input.cardId === run.card : type === "chooseAction" && gv.turn === run.turn);
+  const usable = (a, id) => a.cardId === id && (a.isManaAbility || a.type === "activateManaAbility") && sacColour(a) === run.colour;
+  // (a sacrificed card is never offered again: offered, its activation wasn't taken)
+  if (same && (input.actions || []).some((a) => usable(a, run.last))) return sacStop(seat, run, run.left.length + 1, "the engine didn't take the last one");
+  const fits = same && !(run.kind === "pay" && input.canConfirmFromPool);
+  const id = fits ? run.left[0] : null;
+  const name = id ? cardIndex(gv)[id]?.identity?.name : null;
+  const act = id ? (input.actions || []).find((a) => usable(a, id) && sacrificesItself(a, name)) : null;
+  // (the pool covering the cost ends it unsaid: what is left isn't needed)
+  if (!act) return sacStop(seat, run, same && !fits ? 0 : run.left.length, fits ? "" : "another question came first");
+  run.left.shift();
+  run.last = id;
+  run.confirmed = false;
+  run.at = Date.now();
+  if (run.kind === "pay") seat.tappedFor = run.card;
+  seat.respond(prompt.promptId, type, { type: "act", actionId: act.id });
+  return true;
+}
+
 // The colours a mana action makes: its producedMana's, else the colour its id ends in ("tap:engine-card-9:G"). keep:
 // which of producedMana's count (smartPayTap keeps WUBRGC only, so an "ANY" falls back to the id). One reading for the
 // three that need it (manaRank, the payment's rank, smartPayTap; it was written three times, suite review 2026-11-05).
@@ -10151,6 +10314,8 @@ function onPrompt(seat, prompt) {
   }
   if (debugPrompt(seat, type, prompt, gv)) return;
   if (handPrompt(seat, type, prompt, gv)) return;
+  // (a "Sacrifice X" run under way: its next source, unseen; anything else ends it)
+  if (sacRunStep(seat, prompt, type, input, gv)) return;
 
   switch (type) {
     case "mulligan":
@@ -10379,6 +10544,21 @@ function onPrompt(seat, prompt) {
         return askUnder(seat, { title: `${acts.every((m) => /\{T\}/.test(String(m.cost || "{T}"))) ? "Tap" : "Use"} ${cname(cid)} for which mana?`, mode: "single", kind: "choice",
           options: distinctLabels(acts, manaText).map((label, i) => ({ id: acts[i].id, label })) }, (b) => ({ type: "act", actionId: b[0] }), { back: "Back", returns: cid });
       };
+      // "Mana: sacrifice X Treasure Token (1 to 5)": alike sources that sacrifice themselves, one option before their
+      // own "Mana:" buttons (the card's panel reads its own mana line from the last of them, engine-renderer.lua
+      // engineAbList), on the first of them on the board (boardOrder); any number of them, the mana floats (sacPicker)
+      const sacPrio = sacGroups(manaButtons, byId, boardOrder(gv));
+      if (sacPrio.length) {
+        const at = ui.options.findIndex((o) => String(o.id).startsWith("__mana:"));
+        ui.options.splice(at < 0 ? ui.options.length : at, 0, ...sacPrio.map((g, k) => ({ id: `${SACX}g${k}`, cardId: g.cards[0], label: `Mana: sacrifice X ${g.name} (1 to ${g.cards.length})` })));
+        const base = toOutput;
+        toOutput = (a) => {
+          const k = String(a[0]).startsWith(`${SACX}g`) ? Number(String(a[0]).slice(SACX.length + 1)) : -1;
+          if (!sacPrio[k]) return base(a);
+          const g = sacPrio[k];
+          return sacPicker(seat, g, Object.fromEntries(g.colours.map((c) => [c, g.cards.length])), new Set(), { kind: "prio" });
+        };
+      }
       // (what a controlled player plays: its payment and targets that follow are that player's too, actingFor)
       if (forP) {
         const base = toOutput;
@@ -10490,6 +10670,23 @@ function onPrompt(seat, prompt) {
         { id: "__cancel", label: "Cancel" },
       ] };
       if (autoFailed && !input.canConfirmFromPool) ui.text = "Auto-pay couldn't finish this payment. Tap other sources, undo some taps, or Cancel.";
+      // "Sacrifice X Treasure Token for mana (1 to 3)": alike sources that sacrifice themselves, one option before the
+      // taps, as many as the cost still takes (sacPicker); not while the pool already pays it
+      const sacOffers = [];
+      if (input.cardId && owed !== "{0}" && !input.canConfirmFromPool) {
+        const order = boardOrder(gv);
+        for (const g of sacGroups(payActs.filter((a) => !useless(a)), byId, order)) {
+          const caps = {};
+          for (const c of g.colours) caps[c] = Math.min(g.cards.length, Math.ceil(sacUseful(owed, c, plainOwed) / g.amount));
+          const most = Math.max(0, ...Object.values(caps));
+          if (most < 2) continue;
+          const k = sacOffers.length;
+          sacOffers.push({ g, caps, opt: { id: `${SACX}g${k}`, cardId: g.cards[0], label: `Sacrifice X ${g.name} for mana (1 to ${most})`,
+            rank: Math.max(...g.colours.map((c) => (caps[c] > 0 ? rankOf(g.act(g.cards[0], c)) : 0))) } });
+        }
+        const at = ui.options.findIndex((o) => o.cardId);
+        ui.options.splice(at < 0 ? ui.options.length - 1 : at, 0, ...sacOffers.map((x) => x.opt));
+      }
       // an attack tax (Propaganda, Brainwash): Forge asks it per attacker once attackers are declared, as a plain
       // payment for the creature; said whose tax it is, and that Cancel leaves only that creature out (seen live as
       // "Pay {W/P} for Mother of Runes" with nothing naming Norn's Annex, 2026-11-10; docs/attack-reminder-spec.md part 2)
@@ -10526,6 +10723,14 @@ function onPrompt(seat, prompt) {
         return a[0] === "__auto" ? (seat.autoPayCard = input.cardId, { type: "pay", auto: true }) : a[0] === "__pool" ? { type: "pay", auto: false }
           : a[0] === "__cancel" ? { type: "cancel" } : { type: "act", actionId: a[0] };
       };
+      if (sacOffers.length) {
+        const base = toOutput;
+        const need = colorsNeeded(owed);
+        toOutput = (a) => {
+          const x = sacOffers.find((s) => s.opt.id === a[0]);
+          return x ? sacPicker(seat, x.g, x.caps, need, { kind: "pay", card: input.cardId, owed }) : base(a);
+        };
+      }
       break;
     case "chooseBoardTargets": {
       // (the creature an equipment was dropped onto: see the "attach" intent)
