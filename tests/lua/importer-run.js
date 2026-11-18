@@ -24,11 +24,18 @@ function runImporter(script, message, answers = {}) {
   if (r0.error) throw new Error(`tts-sim: ${r0.error}`);
   setString("__answers", JSON.stringify(answers));
   run(`__sim.seated.White = true __sim.host = "White"
+    -- (real TTS hands the callback a WebRequest USERDATA, not a table: type(wr) == "userdata"; a check for "table" read
+    -- every DeckCheck answer as no connection, live 2026-11-18. The answers here say so too.)
+    __ud = setmetatable({}, { __mode = "k" })
+    local __rawtype = type
+    type = function(v) if __ud[v] then return "userdata" end return __rawtype(v) end
     __answers = JSON.decode(__answers) __requests = {}
     WebRequest.custom = function(url, method, download, body, headers, cb)
       __requests[#__requests + 1] = url
       local a = __answers[url]
-      Wait.frames(function() cb(a or { is_error = true, error = "Cannot connect to destination host", text = "" }) end, 2)
+      local w = a or { is_error = true, error = "Cannot connect to destination host", text = "" }
+      __ud[w] = true
+      Wait.frames(function() cb(w) end, 2)
       return {}
     end`, "=web");
   const loaded = run(script, "=importer");
