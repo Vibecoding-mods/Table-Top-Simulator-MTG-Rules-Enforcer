@@ -638,10 +638,86 @@ index 972f4ae..a38c33c 100644
  
      private static List<Integer> mergeAlternativeManaAbility(
 diff --git a/forge-harness/src/main/java/forge/harness/common/AutoPay.java b/forge-harness/src/main/java/forge/harness/common/AutoPay.java
-index 4edefb1..eb1e7a1 100644
+index 4edefb1..41d2c6a 100644
 --- a/forge-harness/src/main/java/forge/harness/common/AutoPay.java
 +++ b/forge-harness/src/main/java/forge/harness/common/AutoPay.java
-@@ -390,10 +390,28 @@ public final class AutoPay {
+@@ -49,7 +49,43 @@ public final class AutoPay {
+         this.useManaCostManaAbilities = useManaCostManaAbilities;
+     }
+ 
++    public static boolean payBudget = true;
++    private static long holds;
++
++    public static long getHolds() {
++        return holds;
++    }
++
++    private final class Budget {
++        final long deadline = System.currentTimeMillis() + payer.getGame().getAIPayTimeoutMs();
++        boolean held;
++
++        void beforeActivation() {
++            if (payBudget && !held && System.currentTimeMillis() >= deadline && !payer.getGame().getAction().isHoldingStaticAbilities()) {
++                payer.getGame().getAction().setHoldCheckingStaticAbilities(true);
++                held = true;
++                holds++;
++            }
++        }
++
++        void end() {
++            if (held) {
++                payer.getGame().getAction().setHoldCheckingStaticAbilities(false);
++                payer.getGame().getAction().checkStaticAbilities();
++            }
++        }
++    }
++
+     public PayManaCostResult payManaCostWithTrace(final ManaCost toPay, final SpellAbility saBeingPaid, final boolean effect) {
++        final Budget budget = new Budget();
++        try {
++            return payManaCostWithTrace(toPay, saBeingPaid, effect, budget);
++        } finally {
++            budget.end();
++        }
++    }
++
++    private PayManaCostResult payManaCostWithTrace(final ManaCost toPay, final SpellAbility saBeingPaid, final boolean effect, final Budget budget) {
+         final ManaCostBeingPaid unpaid = new ManaCostBeingPaid(toPay);
+         final ManaPool pool = payer.getManaPool();
+         final List<Mana> manaSpentToPay = saBeingPaid.getPayingMana();
+@@ -80,6 +116,7 @@ public final class AutoPay {
+ 
+             steps.add(chosen.describeStep());
+ 
++            budget.beforeActivation();
+             payer.getGame().getStack().addAndUnfreeze(chosen.spellAbility);
+ 
+             pool.payManaFromAbility(saBeingPaid, unpaid, chosen.spellAbility);
+@@ -136,6 +173,15 @@ public final class AutoPay {
+     }
+ 
+     public List<Card> floatManaForCost(final ManaCost toPay, final SpellAbility saBeingPaid, final boolean effect) {
++        final Budget budget = new Budget();
++        try {
++            return floatManaForCost(toPay, saBeingPaid, effect, budget);
++        } finally {
++            budget.end();
++        }
++    }
++
++    private List<Card> floatManaForCost(final ManaCost toPay, final SpellAbility saBeingPaid, final boolean effect, final Budget budget) {
+         final ManaPool pool = payer.getManaPool();
+         final List<Card> tapped = new ArrayList<>();
+ 
+@@ -158,6 +204,7 @@ public final class AutoPay {
+                 break;
+             }
+ 
++            budget.beforeActivation();
+             if (!floatManaFromSource(chosen.spellAbility, effect)) {
+                 break;
+             }
+@@ -390,10 +437,28 @@ public final class AutoPay {
                  out.add(new ManaAbilityCandidate(manaAbility, sourceOrder++));
              }
          }
@@ -930,7 +1006,7 @@ index aa1a47c..14c82b4 100644
              return Integer.MAX_VALUE;
 diff --git a/forge-harness/src/main/java/forge/harness/host/Archenemy.java b/forge-harness/src/main/java/forge/harness/host/Archenemy.java
 new file mode 100644
-index 0000000..397af63
+index 0000000..40a5672
 --- /dev/null
 +++ b/forge-harness/src/main/java/forge/harness/host/Archenemy.java
 @@ -0,0 +1,156 @@
@@ -993,7 +1069,7 @@ index 0000000..397af63
 +                    + " each brought a scheme deck");
 +        }
 +        if (!archenemies.isEmpty() && ManaBrewEngineAdapter.isSharedLife(request.getTeamRules())) {
-+            throw new IllegalArgumentException("Archenemy plays with each player's own life and turns, not "
++            throw new IllegalArgumentException("Archenemy plays with each player's own life, not "
 +                    + request.getTeamRules());
 +        }
 +        for (int i = 0; i < decks.size(); i++) {
@@ -2169,7 +2245,7 @@ index 0000000..9d713d1
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..21900f7 100644
+index 713e1ef..f727eb0 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 @@ -26,27 +26,37 @@ import forge.card.MagicColor;
@@ -2212,11 +2288,13 @@ index 713e1ef..21900f7 100644
  import java.util.LinkedHashMap;
  import java.util.List;
  import java.util.Map;
-@@ -96,7 +106,52 @@ public final class InteractiveSnapshotExtractor {
+@@ -96,7 +106,75 @@ public final class InteractiveSnapshotExtractor {
  
      }
  
+-    private static final Gson GSON = new GsonBuilder().create();
 +    static final class SnapshotRound {
++        private final Map<Card, String[]> cards = new IdentityHashMap<>();
 +        private final Map<Player, FCollectionView<GameEntity>> defenders = new HashMap<>();
 +        private final Map<Card, CombatFlags> flags = new IdentityHashMap<>();
 +        private CombatStatics statics;
@@ -2258,14 +2336,36 @@ index 713e1ef..21900f7 100644
 +        private static final CombatFlags NONE = new CombatFlags(false, false, false);
 +    }
 +
-     private static final Gson GSON = new GsonBuilder().create();
++    static boolean shareCards = true;
++    private static long sharedBuilds;
++
++    static long sharedBuilds() {
++        return sharedBuilds;
++    }
++
++    private record RawJson(String json) {
++    }
++
++    private static final Gson GSON = new GsonBuilder()
++            .registerTypeAdapter(RawJson.class, new com.google.gson.TypeAdapter<RawJson>() {
++                @Override
++                public void write(final com.google.gson.stream.JsonWriter out, final RawJson value) throws java.io.IOException {
++                    out.jsonValue(value.json());
++                }
++
++                @Override
++                public RawJson read(final com.google.gson.stream.JsonReader in) {
++                    throw new UnsupportedOperationException();
++                }
++            })
++            .create();
 +    private static final ThreadLocal<CardCollectionView> PLAYABLE_OUTSIDE_HAND = new ThreadLocal<>();
 +    private static final ThreadLocal<SnapshotRound> ROUND = new ThreadLocal<>();
 +    private static final String DOESNT_UNTAP_NEXT_UNTAP_STEP = "This card doesn't untap during your next untap step.";
  
      public static String snapshotJson(
              final Game game,
-@@ -106,18 +161,80 @@ public final class InteractiveSnapshotExtractor {
+@@ -106,18 +184,80 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
@@ -2348,7 +2448,7 @@ index 713e1ef..21900f7 100644
      private static Map<String, Object> buildGameView(
              final Game game,
              final SpellAbility castingAbility,
-@@ -126,7 +243,9 @@ public final class InteractiveSnapshotExtractor {
+@@ -126,7 +266,9 @@ public final class InteractiveSnapshotExtractor {
              final SecretChoiceVisibility secretChoiceVisibility,
              final List<Map<String, Object>> checkpoints,
              final Map<String, Object> restoreVote,
@@ -2359,7 +2459,7 @@ index 713e1ef..21900f7 100644
      ) {
          final Map<String, Object> base = SnapshotExtractor.extractSnapshot(game);
  
-@@ -139,12 +258,12 @@ public final class InteractiveSnapshotExtractor {
+@@ -139,12 +281,12 @@ public final class InteractiveSnapshotExtractor {
              players.add(toPlayer(game, player, index, viewer));
              zones.add(zoneWithVisibility("hand", ownerId, game,
                      player.getCardsIn(ZoneType.Hand), index, true, viewerPlayer, false,
@@ -2374,16 +2474,42 @@ index 713e1ef..21900f7 100644
              final List<Card> commandZone = new ArrayList<>();
              for (final Card card : player.getCardsIn(ZoneType.Command)) {
                  if (!card.isImmutable()) {
-@@ -171,7 +290,7 @@ public final class InteractiveSnapshotExtractor {
-         final Map<String, List<JsonObject>> battlefieldByController = new LinkedHashMap<>();
+@@ -168,12 +310,23 @@ public final class InteractiveSnapshotExtractor {
+             zones.add(visibleZone("junkyard", ownerId, game, player.getCardsIn(ZoneType.Junkyard),
+                     index, false, viewerPlayer, secretChoiceVisibility));
+         }
+-        final Map<String, List<JsonObject>> battlefieldByController = new LinkedHashMap<>();
++        final Map<String, List<Object>> battlefieldByController = new LinkedHashMap<>();
++        final SnapshotRound round = shareCards ? ROUND.get() : null;
          for (final Player player : game.getRegisteredPlayers()) {
              final int ownerIndex = SnapshotExtractor.playerIndex(game, player);
 -            for (final Card card : player.getCardsIn(ZoneType.Battlefield)) {
 +            for (final Card card : player.getCardsIn(ZoneType.Battlefield, false)) {
                  final String controllerId =
                          "player-" + SnapshotExtractor.playerIndex(game, card.getController());
++                if (round != null) {
++                    final RawJson shared = sharedCard(round, game, card, ownerIndex, viewerPlayer, secretChoiceVisibility);
++                    if (shared != null) {
++                        battlefieldByController
++                                .computeIfAbsent(controllerId, key -> new ArrayList<>())
++                                .add(shared);
++                        continue;
++                    }
++                }
++                sharedBuilds++;
                  final CardDto dto = toCard(
-@@ -224,17 +343,44 @@ public final class InteractiveSnapshotExtractor {
+                         game, card, ownerIndex, false, viewerPlayer, secretChoiceVisibility);
+                 if (card.isFaceDown() && !faceShownTo(card, viewerPlayer)) {
+@@ -203,7 +356,7 @@ public final class InteractiveSnapshotExtractor {
+         }
+         for (final Player player : game.getRegisteredPlayers()) {
+             final String controllerId = "player-" + SnapshotExtractor.playerIndex(game, player);
+-            final List<JsonObject> cards =
++            final List<Object> cards =
+                     battlefieldByController.getOrDefault(controllerId, new ArrayList<>());
+             zones.add(zoneEntry("battlefield", controllerId, cards, cards.size()));
+         }
+@@ -224,17 +377,44 @@ public final class InteractiveSnapshotExtractor {
          view.put("dayTime", dayTime(game));
          view.put("checkpoints", checkpoints);
          view.put("snapshotRecording", snapshotRecording);
@@ -2428,7 +2554,7 @@ index 713e1ef..21900f7 100644
          final Player monarch = game.getMonarch();
          if (monarch != null) {
              view.put("monarchId", "player-" + SnapshotExtractor.playerIndex(game, monarch));
-@@ -285,7 +431,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -285,7 +465,7 @@ public final class InteractiveSnapshotExtractor {
          out.put("cardsDrawnThisTurn", player.getNumDrawnThisTurn());
          out.put("damagePrevention", player.getPreventNextDamageTotalShields());
          out.put("isExtraTurn", player.isExtraTurn());
@@ -2437,7 +2563,7 @@ index 713e1ef..21900f7 100644
          final Player controller = player.getControllingPlayer();
          if (controller != null && controller != player) {
              out.put("controlledBy", "player-" + SnapshotExtractor.playerIndex(game, controller));
-@@ -299,18 +445,34 @@ public final class InteractiveSnapshotExtractor {
+@@ -299,18 +479,34 @@ public final class InteractiveSnapshotExtractor {
          out.put("ringLevel", player.getNumRingTemptedYou());
          out.put("speed", player.getSpeed());
          out.put("hasEnduringStory", player.hasEnduringStory());
@@ -2473,7 +2599,7 @@ index 713e1ef..21900f7 100644
          return out;
      }
  
-@@ -325,19 +487,6 @@ public final class InteractiveSnapshotExtractor {
+@@ -325,19 +521,6 @@ public final class InteractiveSnapshotExtractor {
          return names;
      }
  
@@ -2493,7 +2619,7 @@ index 713e1ef..21900f7 100644
      private static List<String> activeSchemeNames(final Player player) {
          final List<String> names = new ArrayList<>();
          for (final Card card : player.getCardsIn(ZoneType.Command)) {
-@@ -348,6 +497,26 @@ public final class InteractiveSnapshotExtractor {
+@@ -348,6 +531,27 @@ public final class InteractiveSnapshotExtractor {
          return names;
      }
  
@@ -2509,7 +2635,8 @@ index 713e1ef..21900f7 100644
 +            return null;
 +        }
 +        final Map<String, Object> out = new LinkedHashMap<>();
-+        out.put("rule", rules.hasSharedTeamTurns() ? "sharedTurns" : rules.hasSharedTeamLife() ? "sharedLife" : "teams");
++        out.put("rule", rules.hasSharedTeamTurns() ? rules.hasSharedTeamLife() ? "sharedTurns" : "teamTurns"
++                : rules.hasSharedTeamLife() ? "sharedLife" : "teams");
 +        out.put("poisonToLose", rules.getPoisonCountersToLose());
 +        if (rules.hasAppliedVariant(GameType.Commander)) {
 +            out.put("commanderDamageToLose", rules.getCommanderDamageToLose());
@@ -2520,7 +2647,7 @@ index 713e1ef..21900f7 100644
      private static Integer teamNumber(final Game game, final Player player) {
          for (final Player other : game.getRegisteredPlayers()) {
              if (other != player && other.getTeam() == player.getTeam()) {
-@@ -367,7 +536,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -367,7 +571,7 @@ public final class InteractiveSnapshotExtractor {
          return counters;
      }
  
@@ -2529,7 +2656,49 @@ index 713e1ef..21900f7 100644
          if (value > 0) {
              map.put(key, value);
          }
-@@ -444,13 +613,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -411,7 +615,7 @@ public final class InteractiveSnapshotExtractor {
+     private static Map<String, Object> zoneEntry(
+             final String zone,
+             final String ownerId,
+-            final List<JsonObject> cards,
++            final List<?> cards,
+             final int count
+     ) {
+         final Map<String, Object> out = new LinkedHashMap<>();
+@@ -422,6 +626,32 @@ public final class InteractiveSnapshotExtractor {
+         return out;
+     }
+ 
++    private static RawJson sharedCard(
++            final SnapshotRound round,
++            final Game game,
++            final Card card,
++            final int ownerIndex,
++            final Player viewerPlayer,
++            final SecretChoiceVisibility secretChoiceVisibility
++    ) {
++        if (card.isFaceDown() || card.hasMergedCard()) {
++            return null;
++        }
++        final CardCollectionView playableOutsideHand = PLAYABLE_OUTSIDE_HAND.get();
++        if (playableOutsideHand != null && playableOutsideHand.contains(card)) {
++            return null;
++        }
++        final String choices = GSON.toJson(choices(game, card, viewerPlayer, secretChoiceVisibility));
++        String[] known = round.cards.get(card);
++        if (known == null || !known[0].equals(choices)) {
++            sharedBuilds++;
++            known = new String[] {choices, GSON.toJson(visibleCard(toCard(
++                    game, card, ownerIndex, false, viewerPlayer, secretChoiceVisibility)))};
++            round.cards.put(card, known);
++        }
++        return new RawJson(known[1]);
++    }
++
+     private static JsonObject visibleCard(final CardDto dto) {
+         final JsonObject obj = GSON.toJsonTree(dto).getAsJsonObject();
+         obj.addProperty("visibility", "visible");
+@@ -444,13 +674,14 @@ public final class InteractiveSnapshotExtractor {
              final boolean castable,
              final Player viewerPlayer,
              final boolean keepHiddenEntries,
@@ -2546,7 +2715,7 @@ index 713e1ef..21900f7 100644
                  views.add(visibleCard(toCard(
                          game, card, ownerIndex, castable, viewerPlayer, secretChoiceVisibility)));
              } else if (keepHiddenEntries) {
-@@ -499,6 +669,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -499,6 +730,7 @@ public final class InteractiveSnapshotExtractor {
          dto.effectiveManaCost = null;
          dto.commanderTax = null;
          dto.madnessCost = null;
@@ -2554,7 +2723,7 @@ index 713e1ef..21900f7 100644
      }
  
      private static Player playerForIndex(final Game game, final int viewer) {
-@@ -685,6 +856,22 @@ public final class InteractiveSnapshotExtractor {
+@@ -685,6 +917,22 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -2577,7 +2746,7 @@ index 713e1ef..21900f7 100644
      private static CardDto toCard(
              final Game game,
              final Card card,
-@@ -714,6 +901,11 @@ public final class InteractiveSnapshotExtractor {
+@@ -714,6 +962,11 @@ public final class InteractiveSnapshotExtractor {
              dto.toughness = String.valueOf(card.getNetToughness());
              dto.basePower = card.getBasePower();
              dto.baseToughness = card.getBaseToughness();
@@ -2589,7 +2758,7 @@ index 713e1ef..21900f7 100644
          }
          if (card.isInPlay()) {
              if (card.getType().hasSubtype("Saga") && card.hasChapter()) {
-@@ -746,17 +938,65 @@ public final class InteractiveSnapshotExtractor {
+@@ -746,17 +999,65 @@ public final class InteractiveSnapshotExtractor {
          dto.isFaceDown = card.isFaceDown();
          dto.isBestowed = card.isBestowed();
          dto.phasedOut = card.isPhasedOut();
@@ -2656,7 +2825,7 @@ index 713e1ef..21900f7 100644
          }
          final List<String> attachmentIds = new ArrayList<>();
          for (final Card attachment : card.getAttachedCards()) {
-@@ -798,10 +1038,78 @@ public final class InteractiveSnapshotExtractor {
+@@ -798,10 +1099,78 @@ public final class InteractiveSnapshotExtractor {
          }
          if (castable) {
              dto.effectiveManaCost = effectiveManaCost(card);
@@ -2735,7 +2904,7 @@ index 713e1ef..21900f7 100644
      private static String normalizedOracle(final Card card) {
          return card.getOracleText().replace("\\n", "\n");
      }
-@@ -941,7 +1249,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -941,7 +1310,7 @@ public final class InteractiveSnapshotExtractor {
      // casts (which would flip the card), run on a copied cost, and swallow any
      // failure back to the printed cost. null = no reduction (UI keeps printed).
      private static String effectiveManaCost(final Card card) {
@@ -2744,7 +2913,7 @@ index 713e1ef..21900f7 100644
              return null;
          }
          final SpellAbility sa = card.getFirstSpellAbility();
-@@ -953,13 +1261,16 @@ public final class InteractiveSnapshotExtractor {
+@@ -953,13 +1322,16 @@ public final class InteractiveSnapshotExtractor {
              if (sa.getActivatingPlayer() == null) {
                  sa.setActivatingPlayer(card.getController());
              }
@@ -2765,7 +2934,7 @@ index 713e1ef..21900f7 100644
          } catch (final RuntimeException error) {
              return null;
          } finally {
-@@ -1078,12 +1389,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -1078,12 +1450,14 @@ public final class InteractiveSnapshotExtractor {
              stackItem.put("identity", stackIdentity(name, source));
              stackItem.put("text", item.getStackDescription());
              putIfNotBlank(stackItem, "sourceAbilityText", sourceAbilityText(sa));
@@ -2780,7 +2949,7 @@ index 713e1ef..21900f7 100644
              out.add(stackItem);
              index++;
          }
-@@ -1131,6 +1444,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -1131,6 +1505,7 @@ public final class InteractiveSnapshotExtractor {
          stackItem.put("isDoubleFaced", source.isDoubleFaced() || source.isModal());
          stackItem.put("faceIndex", stackFaceIndex(source, castingAbility));
          stackItem.put("targets", stackTargets(game, castingAbility));
@@ -2788,7 +2957,7 @@ index 713e1ef..21900f7 100644
          return stackItem;
      }
  
-@@ -1163,6 +1477,25 @@ public final class InteractiveSnapshotExtractor {
+@@ -1163,6 +1538,25 @@ public final class InteractiveSnapshotExtractor {
          }
      }
  
@@ -2815,10 +2984,10 @@ index 713e1ef..21900f7 100644
          if (source == null) {
              return 0;
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
-index c69b549..04bd107 100644
+index c69b549..cb5c59a 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
-@@ -47,6 +47,11 @@ import java.util.concurrent.ConcurrentHashMap;
+@@ -47,6 +47,13 @@ import java.util.concurrent.ConcurrentHashMap;
   */
  public final class ManaBrewEngineAdapter {
      private static final Gson GSON = new Gson();
@@ -2826,11 +2995,13 @@ index c69b549..04bd107 100644
 +    static final String TEAM_RULES_TEAMS = "teams";
 +    static final String TEAM_RULES_SHARED_LIFE = "sharedLife";
 +    static final String TEAM_RULES_SHARED_TURNS = "sharedTurns";
-+    private static final Set<String> TEAM_RULES = Set.of(TEAM_RULES_NONE, TEAM_RULES_TEAMS, TEAM_RULES_SHARED_LIFE, TEAM_RULES_SHARED_TURNS);
++    static final String TEAM_RULES_TEAM_TURNS = "teamTurns";
++    private static final Set<String> TEAM_RULES = Set.of(TEAM_RULES_NONE, TEAM_RULES_TEAMS, TEAM_RULES_SHARED_LIFE, TEAM_RULES_SHARED_TURNS,
++            TEAM_RULES_TEAM_TURNS);
      private final Map<String, ManaBrewInteractiveSession> sessions = new ConcurrentHashMap<>();
      private volatile boolean initialized;
  
-@@ -69,11 +74,6 @@ public final class ManaBrewEngineAdapter {
+@@ -69,11 +76,6 @@ public final class ManaBrewEngineAdapter {
              prefs.setPref(ForgePreferences.FPref.PERFORMANCE_MODE, true);
              return null;
          });
@@ -2842,7 +3013,7 @@ index c69b549..04bd107 100644
          initialized = true;
      }
  
-@@ -85,7 +85,14 @@ public final class ManaBrewEngineAdapter {
+@@ -85,7 +87,14 @@ public final class ManaBrewEngineAdapter {
  
          final int playerCount = request.getPlayers().size();
          final GameType gameType = resolveGameType(request);
@@ -2858,7 +3029,7 @@ index c69b549..04bd107 100644
          final GameRules rules = new GameRules(gameType);
          rules.setAppliedVariants(variants);
          rules.setSimTimeout(120);
-@@ -95,6 +102,7 @@ public final class ManaBrewEngineAdapter {
+@@ -95,6 +104,7 @@ public final class ManaBrewEngineAdapter {
          // those filters the whole battlefield, which on a four-player board is
          // a quarter of the engine's time.
          rules.setRenderAbilityText(false);
@@ -2866,7 +3037,7 @@ index c69b549..04bd107 100644
  
          // Resetting global counters under a live session would collide its ids;
          // multiplexed processes only reset between idle periods.
-@@ -112,10 +120,15 @@ public final class ManaBrewEngineAdapter {
+@@ -112,10 +122,15 @@ public final class ManaBrewEngineAdapter {
                  botSeats.add(registeredPlayers.size());
              }
              Deck deck = buildDeck(playerConfig);
@@ -2885,7 +3056,7 @@ index c69b549..04bd107 100644
              } else {
                  registeredPlayer.setPlayer(new ManaBrewInteractiveLobbyPlayer(
                          playerConfig.getName(), session));
-@@ -125,6 +138,7 @@ public final class ManaBrewEngineAdapter {
+@@ -125,6 +140,7 @@ public final class ManaBrewEngineAdapter {
  
          final Match match = new Match(rules, registeredPlayers, "ManaBrew");
          final Game game = match.createGame();
@@ -2893,7 +3064,7 @@ index c69b549..04bd107 100644
          session.attach(match, game, botSeats, request.isSnapshotRecording());
          if (request.checkpointMetrics) {
              session.enableCheckpointMetrics();
-@@ -357,6 +371,145 @@ public final class ManaBrewEngineAdapter {
+@@ -357,6 +373,157 @@ public final class ManaBrewEngineAdapter {
          }
      }
  
@@ -2909,6 +3080,13 @@ index c69b549..04bd107 100644
 +        if (sizes.keySet().stream().anyMatch(team -> team < 0) || sizes.size() < 2) {
 +            throw new IllegalArgumentException(teamRules + " needs every player on one of two or more teams");
 +        }
++        if (TEAM_RULES_TEAM_TURNS.equals(teamRules)) {
++            if (!teamsSitTogether(request, sizes)) {
++                throw new IllegalArgumentException("teamTurns needs each team's players next to each other in seat order");
++            }
++            rules.setSharedTeamTurns(true);
++            return;
++        }
 +        if (!isSharedLife(teamRules)) {
 +            return;
 +        }
@@ -2916,13 +3094,7 @@ index c69b549..04bd107 100644
 +            throw new IllegalArgumentException("sharedLife needs teams of equal size: " + sizes);
 +        }
 +        final List<PlayerConfig> seats = request.getPlayers();
-+        int teamChanges = 0;
-+        for (int i = 0; i < seats.size(); i++) {
-+            if (seats.get(i).getTeam() != seats.get((i + 1) % seats.size()).getTeam()) {
-+                teamChanges++;
-+            }
-+        }
-+        if (teamChanges != sizes.size()) {
++        if (!teamsSitTogether(request, sizes)) {
 +            throw new IllegalArgumentException("sharedLife needs each team's players next to each other in seat order");
 +        }
 +        final Map<Integer, Set<Integer>> lifeByTeam = new HashMap<>();
@@ -3024,6 +3196,17 @@ index c69b549..04bd107 100644
 +        registeredPlayer.setOpeningCards(playerConfig.getOpeningCards());
 +    }
 +
++    static boolean teamsSitTogether(final StartGameRequest request, final Map<Integer, Integer> sizes) {
++        final List<PlayerConfig> seats = request.getPlayers();
++        int teamChanges = 0;
++        for (int i = 0; i < seats.size(); i++) {
++            if (seats.get(i).getTeam() != seats.get((i + 1) % seats.size()).getTeam()) {
++                teamChanges++;
++            }
++        }
++        return teamChanges == sizes.size();
++    }
++
 +    static boolean isSharedLife(final String teamRules) {
 +        return TEAM_RULES_SHARED_LIFE.equals(teamRules) || TEAM_RULES_SHARED_TURNS.equals(teamRules);
 +    }
@@ -3039,7 +3222,7 @@ index c69b549..04bd107 100644
      private static GameType resolveGameType(final StartGameRequest request) {
          final String variant = request.getVariant();
          if (variant != null && !variant.isBlank()) {
-@@ -380,7 +533,7 @@ public final class ManaBrewEngineAdapter {
+@@ -380,7 +547,7 @@ public final class ManaBrewEngineAdapter {
          return commanderGame ? GameType.Commander : GameType.Constructed;
      }
  
@@ -3048,7 +3231,7 @@ index c69b549..04bd107 100644
          JsonObject root = JsonParser.parseString(requestJson).getAsJsonObject();
          String gameId = requiredString(root, "gameId");
          String variant = optionalString(root, "variant");
-@@ -426,11 +579,35 @@ public final class ManaBrewEngineAdapter {
+@@ -426,11 +593,35 @@ public final class ManaBrewEngineAdapter {
              boolean bot = playerObject.has("bot")
                      && !playerObject.get("bot").isJsonNull()
                      && playerObject.get("bot").getAsBoolean();
@@ -3085,7 +3268,7 @@ index c69b549..04bd107 100644
          return request;
      }
  
-@@ -455,6 +632,25 @@ public final class ManaBrewEngineAdapter {
+@@ -455,6 +646,25 @@ public final class ManaBrewEngineAdapter {
          return value;
      }
  
@@ -3111,7 +3294,7 @@ index c69b549..04bd107 100644
      private static String optionalString(final JsonObject object, final String key) {
          if (!object.has(key) || object.get(key).isJsonNull()) {
              return null;
-@@ -470,6 +666,11 @@ public final class ManaBrewEngineAdapter {
+@@ -470,6 +680,11 @@ public final class ManaBrewEngineAdapter {
          private final boolean snapshotRecording;
          private boolean checkpointMetrics;
          private final List<PlayerConfig> players;
@@ -3123,7 +3306,7 @@ index c69b549..04bd107 100644
  
          public StartGameRequest(
                  final String gameId,
-@@ -516,6 +717,47 @@ public final class ManaBrewEngineAdapter {
+@@ -516,6 +731,47 @@ public final class ManaBrewEngineAdapter {
          public List<PlayerConfig> getPlayers() {
              return players;
          }
@@ -3171,7 +3354,7 @@ index c69b549..04bd107 100644
      }
  
      public static final class PlayerConfig {
-@@ -526,6 +768,15 @@ public final class ManaBrewEngineAdapter {
+@@ -526,6 +782,15 @@ public final class ManaBrewEngineAdapter {
          private final List<String> commanderNames;
          private final boolean ai;
          private final boolean bot;
@@ -3187,7 +3370,7 @@ index c69b549..04bd107 100644
  
          public PlayerConfig(
                  final String name,
-@@ -535,6 +786,19 @@ public final class ManaBrewEngineAdapter {
+@@ -535,6 +800,19 @@ public final class ManaBrewEngineAdapter {
                  final List<String> commanderNames,
                  final boolean ai,
                  final boolean bot
@@ -3207,7 +3390,7 @@ index c69b549..04bd107 100644
          ) {
              if (name == null || name.isBlank()) {
                  throw new IllegalArgumentException("player name is required");
-@@ -549,6 +813,20 @@ public final class ManaBrewEngineAdapter {
+@@ -549,6 +827,20 @@ public final class ManaBrewEngineAdapter {
              this.commanderNames = commanderNames == null ? List.of() : List.copyOf(commanderNames);
              this.ai = ai;
              this.bot = bot;
@@ -3228,7 +3411,7 @@ index c69b549..04bd107 100644
          }
  
          public String getName() {
-@@ -578,6 +856,54 @@ public final class ManaBrewEngineAdapter {
+@@ -578,6 +870,54 @@ public final class ManaBrewEngineAdapter {
          public boolean isBot() {
              return bot;
          }
@@ -3715,7 +3898,7 @@ index fb82e6d..8ada6fb 100644
              return null;
          }
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..8addcfb 100644
+index 643e5de..51d7805 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,33 +6,50 @@ import forge.harness.common.ParityCardMap;
@@ -4457,25 +4640,33 @@ index 643e5de..8addcfb 100644
              if ("set_snapshot_recording".equals(kind)) {
                  if (action.get("player").getAsInt() == InteractiveBridge.HOST_SEAT) {
                      setSnapshotRecording(action.get("enabled").getAsBoolean());
-@@ -1987,6 +2337,17 @@ public final class ManaBrewInteractiveSession {
+@@ -1987,6 +2337,25 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
 +    private JsonObject pollAction() throws InterruptedException {
-+        snapshotRound = new InteractiveSnapshotExtractor.SnapshotRound();
++        beginSnapshotRound();
 +        gameLock.unlock();
 +        try {
 +            return actions.poll(1, java.util.concurrent.TimeUnit.SECONDS);
 +        } finally {
 +            gameLock.lock();
-+            snapshotRound = null;
++            endSnapshotRound();
 +        }
++    }
++
++    void beginSnapshotRound() {
++        snapshotRound = new InteractiveSnapshotExtractor.SnapshotRound();
++    }
++
++    void endSnapshotRound() {
++        snapshotRound = null;
 +    }
 +
      private static JsonObject syntheticPass() {
          final JsonObject pass = new JsonObject();
          pass.addProperty("kind", "pass");
-@@ -2010,6 +2371,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2010,6 +2379,8 @@ public final class ManaBrewInteractiveSession {
          if (!restoreApproved()) {
              return false;
          }
@@ -4484,7 +4675,7 @@ index 643e5de..8addcfb 100644
          final RestoreVote vote = restoreVote;
          if (!checkpoints.contains(vote.checkpoint)) {
              vote.status = RestoreVoteStatus.UNAVAILABLE;
-@@ -2037,6 +2400,12 @@ public final class ManaBrewInteractiveSession {
+@@ -2037,6 +2408,12 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4497,7 +4688,7 @@ index 643e5de..8addcfb 100644
      private static boolean isRestoreDirective(final JsonObject action) {
          final String kind = action.has("kind") ? action.get("kind").getAsString() : "";
          return "request_restore".equals(kind) || "restore_vote".equals(kind);
-@@ -2067,30 +2436,243 @@ public final class ManaBrewInteractiveSession {
+@@ -2067,30 +2444,243 @@ public final class ManaBrewInteractiveSession {
          if (handler.getTurn() == checkpointTurn && handler.getPhase() == checkpointPhase) {
              return;
          }
@@ -4749,7 +4940,7 @@ index 643e5de..8addcfb 100644
      private void publishCheckpointViews() {
          final List<Map<String, Object>> views = new ArrayList<>();
          for (final Checkpoint checkpoint : checkpoints) {
-@@ -2124,6 +2706,10 @@ public final class ManaBrewInteractiveSession {
+@@ -2124,6 +2714,10 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
@@ -4760,7 +4951,7 @@ index 643e5de..8addcfb 100644
          if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
                  || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
              return;
-@@ -2157,11 +2743,10 @@ public final class ManaBrewInteractiveSession {
+@@ -2157,11 +2751,10 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void restore(final Checkpoint target) {
@@ -4776,7 +4967,7 @@ index 643e5de..8addcfb 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2760,431 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2768,431 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -5208,7 +5399,7 @@ index 643e5de..8addcfb 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +3217,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +3225,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -5225,7 +5416,7 @@ index 643e5de..8addcfb 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +3261,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +3269,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -5234,7 +5425,7 @@ index 643e5de..8addcfb 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +3304,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +3312,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -5257,7 +5448,7 @@ index 643e5de..8addcfb 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +3348,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +3356,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -5288,7 +5479,7 @@ index 643e5de..8addcfb 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,24 +3612,176 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,24 +3620,176 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -5323,7 +5514,8 @@ index 643e5de..8addcfb 100644
 -                    defenderId(defender), defender.getName(),
 -                    enumFromWire(defenderKind(defender), AttackTargetKind.class)));
 +            attackTargets.add(attackTarget(defender, commanders));
-+        }
+         }
+-        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets));
 +        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets,
 +                attackRefusals(combat, availableAttackers), attackLimits(combat)));
 +    }
@@ -5422,8 +5614,7 @@ index 643e5de..8addcfb 100644
 +        }
 +        if (attacker.hasKeyword("CARDNAME can't attack.") || attacker.hasKeyword("CARDNAME can't attack or block.")) {
 +            return new AttackRefusalDto(cardId, defenderId, "keyword", null, null);
-         }
--        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets));
++        }
 +        if (attacker.isDetained()) {
 +            return new AttackRefusalDto(cardId, defenderId, "detained", null, null);
 +        }
@@ -5471,7 +5662,7 @@ index 643e5de..8addcfb 100644
      }
  
      private void publishBlockersPrompt(
-@@ -2604,7 +3789,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2604,7 +3797,8 @@ public final class ManaBrewInteractiveSession {
              final List<Card> attackers,
              final List<Card> availableBlockers,
              final Map<Card, List<Card>> validBlockersByAttacker,
@@ -5481,7 +5672,7 @@ index 643e5de..8addcfb 100644
      ) {
          final Player defendingPlayer = game.getRegisteredPlayers().get(playerId);
          final List<BlockableAttackerDto> attackerOptions = new java.util.ArrayList<>();
-@@ -2627,7 +3813,17 @@ public final class ManaBrewInteractiveSession {
+@@ -2627,7 +3821,17 @@ public final class ManaBrewInteractiveSession {
              availableBlockerIds.add(SnapshotExtractor.javaCardId(blocker));
          }
          publishAgentPrompt("player-" + playerId, null,
@@ -5500,7 +5691,7 @@ index 643e5de..8addcfb 100644
      }
  
      private void publishDamageAssignmentOrderPrompt(
-@@ -2918,7 +4114,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2918,7 +4122,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -5510,7 +5701,7 @@ index 643e5de..8addcfb 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +4125,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +4133,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -5536,7 +5727,7 @@ index 643e5de..8addcfb 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +4157,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +4165,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -5547,7 +5738,7 @@ index 643e5de..8addcfb 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +4185,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +4193,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -7584,12 +7775,15 @@ index 0000000..a62cb8d
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ArchenemyTest.java b/forge-harness/src/test/java/forge/harness/host/ArchenemyTest.java
 new file mode 100644
-index 0000000..6f98d93
+index 0000000..f73e0e0
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/ArchenemyTest.java
-@@ -0,0 +1,503 @@
+@@ -0,0 +1,708 @@
 +package forge.harness.host;
 +
++import forge.StaticData;
++import forge.ai.AiAttackController;
++import forge.ai.AiBlockController;
 +import forge.ai.LobbyPlayerAi;
 +import forge.deck.Deck;
 +import forge.game.Game;
@@ -7601,6 +7795,8 @@ index 0000000..6f98d93
 +import forge.game.ability.AbilityFactory;
 +import forge.game.ability.AbilityUtils;
 +import forge.game.card.Card;
++import forge.game.combat.Combat;
++import forge.game.combat.CombatUtil;
 +import forge.game.phase.PhaseHandler;
 +import forge.game.phase.PhaseType;
 +import forge.game.player.Player;
@@ -7609,6 +7805,7 @@ index 0000000..6f98d93
 +import forge.game.zone.ZoneType;
 +import forge.gui.GuiBase;
 +import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
 +import forge.item.PaperCard;
 +import forge.localinstance.properties.ForgePreferences.FPref;
 +import forge.model.FModel;
@@ -7651,9 +7848,22 @@ index 0000000..6f98d93
 +        check("archenemyWithSharedLifeIsRefused", ArchenemyTest::archenemyWithSharedLifeIsRefused);
 +        check("theArchenemyStartsAtDoubleTheFormatsLife", ArchenemyTest::theArchenemyStartsAtDoubleTheFormatsLife);
 +        check("theArchenemyPlaysAloneAgainstOneTeam", ArchenemyTest::theArchenemyPlaysAloneAgainstOneTeam);
++        check("sixSeats theArchenemyFacesFiveAsOneTeam", ArchenemyTest::theArchenemyFacesFiveAsOneTeam);
 +        check("theArchenemyWinsAlone", ArchenemyTest::theArchenemyWinsAlone);
 +        check("theOtherPlayersWinAsOneTeam", ArchenemyTest::theOtherPlayersWinAsOneTeam);
 +        check("aSchemeGameTakesNoRestorePoints", ArchenemyTest::aSchemeGameTakesNoRestorePoints);
++        check("cr904_2 theOpponentsTakeOneTurnTogether", ArchenemyTest::theOpponentsTakeOneTurnTogether);
++        check("cr904_2 sixSeats theFiveTakeOneTurnTogether", ArchenemyTest::theFiveTakeOneTurnTogether);
++        check("cr904_2 eachOpponentKeepsTheirOwnLife", ArchenemyTest::eachOpponentKeepsTheirOwnLife);
++        check("cr904_2 aPlayerOutLeavesTheRestOfTheTeamItsTurn", ArchenemyTest::aPlayerOutLeavesTheRestOfTheTeamItsTurn);
++        check("cr904_2 theSchemeIsSetInMotionOnlyOnTheArchenemysTurn", ArchenemyTest::theSchemeIsSetInMotionOnlyOnTheArchenemysTurn);
++        check("cr904_2 eachOpponentDrawsOnTheTeamsDrawStep", ArchenemyTest::eachOpponentDrawsOnTheTeamsDrawStep);
++        check("cr805_10d aDefenderMayBlockForATeammate", ArchenemyTest::aDefenderMayBlockForATeammate);
++        check("cr805_10d theAiBlocksForATeammate", ArchenemyTest::theAiBlocksForATeammate);
++        check("cr805_10d theAiCountsATeammatesBlockers", ArchenemyTest::theAiCountsATeammatesBlockers);
++        check("teamTurns aTeamThatDoesNotSitTogetherIsRefused", ArchenemyTest::aTeamThatDoesNotSitTogetherIsRefused);
++        check("teamTurns theBoardSaysTeamTurns", ArchenemyTest::theBoardSaysTeamTurns);
++        check("teamTurns archenemyWithSharedTurnsIsRefused", ArchenemyTest::archenemyWithSharedTurnsIsRefused);
 +        System.out.println(failed == 0 ? "PASS ArchenemyTest" : "FAIL ArchenemyTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
 +    }
@@ -7797,7 +8007,7 @@ index 0000000..6f98d93
 +    }
 +
 +    private static void archenemyWithSharedLifeIsRefused() {
-+        expectRefused(Setup.of().schemes(0, deck()).teamRules("sharedLife"), "Archenemy plays with each player's own life and turns, not sharedLife");
++        expectRefused(Setup.of().schemes(0, deck()).teamRules("sharedLife"), "Archenemy plays with each player's own life, not sharedLife");
 +    }
 +
 +    private static void theArchenemyStartsAtDoubleTheFormatsLife() {
@@ -7816,6 +8026,26 @@ index 0000000..6f98d93
 +        final Player red = f.game.getPlayers().get(2);
 +        expect(f.white.isOpponentOf(f.blue) && f.white.isOpponentOf(red), "the archenemy is not every other player's opponent");
 +        expect(!f.blue.isOpponentOf(red), "Blue and Red, the archenemy's opponents, are not one team");
++    }
++
++    private static void theArchenemyFacesFiveAsOneTeam() throws Exception {
++        final Fixture f = new Fixture(Setup.of().players(6).schemes(0, deck(SKYWARD)));
++        expect(f.game.getPlayers().size() == 6, "the game has " + f.game.getPlayers().size() + " players, not 6");
++        expect(lives(f).equals(List.of(40, 20, 20, 20, 20, 20)), "six-seat Standard starting life " + lives(f) + ", not the archenemy at 40 and five at 20");
++        final Fixture cmd = new Fixture(Setup.of().players(6).commander().schemes(0, deck(SKYWARD)));
++        expect(lives(cmd).equals(List.of(80, 40, 40, 40, 40, 40)), "six-seat Commander starting life " + lives(cmd) + ", not the archenemy at 80 and five at 40");
++        for (int i = 1; i < 6; i++) {
++            final Player p = f.game.getPlayers().get(i);
++            expect(f.white.isOpponentOf(p), p.getName() + " is not the archenemy's opponent");
++            for (int k = 1; k < 6; k++) {
++                expect(k == i || !p.isOpponentOf(f.game.getPlayers().get(k)), p.getName() + " and " + f.game.getPlayers().get(k).getName() + " are not one team");
++            }
++        }
++        expect(f.white.isArchenemy() && f.game.getPlayers().stream().filter(Player::isArchenemy).count() == 1, "not exactly one archenemy among six");
++        f.order(SKYWARD);
++        f.game.getPhaseHandler().devModeSet(PhaseType.DRAW, f.white, 1);
++        f.stepTo(PhaseType.MAIN1);
++        expect(f.commandScheme(SKYWARD) != null, "the archenemy's first main phase on six seats set no scheme in motion: " + names(f.white.getCardsIn(ZoneType.Command)));
 +    }
 +
 +    private static void theArchenemyWinsAlone() {
@@ -7843,6 +8073,171 @@ index 0000000..6f98d93
 +        final Fixture plain = new Fixture(Setup.of());
 +        plain.recordCheckpoint();
 +        expect(plain.checkpoints() == 1, "a game without schemes took no restore point");
++    }
++
++    private static Setup teamGame(final int players, final String rules) {
++        return Setup.of().players(players).schemes(0, deck(SKYWARD)).teamRules(rules);
++    }
++
++    private static void theOpponentsTakeOneTurnTogether() throws Exception {
++        final Fixture f = new Fixture(teamGame(4, "teamTurns"));
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        final List<Player> others = f.game.getPlayers().subList(1, 4);
++        ph.devModeSet(PhaseType.CLEANUP, f.white, 1);
++        f.stepTo(PhaseType.UNTAP);
++        expect(ph.getTurn() == 2 && ph.getActiveTeam().equals(others),
++                "after the archenemy's turn 1 came turn " + ph.getTurn() + " for " + ph.getActiveTeam() + ", not Blue, Red and Yellow together");
++        for (final Player p : others) {
++            expect(ph.isPlayerTurn(p), p.getName() + " is not active on the team's turn");
++        }
++        expect(!ph.isPlayerTurn(f.white), "the archenemy is active on the team's turn");
++        ph.devModeSet(PhaseType.CLEANUP, ph.getPlayerTurn(), 2);
++        f.stepTo(PhaseType.UNTAP);
++        expect(ph.getTurn() == 3 && ph.getActiveTeam().equals(List.of(f.white)),
++                "after the team's turn 2 came turn " + ph.getTurn() + " for " + ph.getActiveTeam() + ", not the archenemy");
++        final Fixture own = new Fixture(teamGame(4, "teams"));
++        own.game.getPhaseHandler().devModeSet(PhaseType.CLEANUP, own.white, 1);
++        own.stepTo(PhaseType.UNTAP);
++        expect(own.game.getPhaseHandler().getActiveTeam().equals(List.of(own.blue)) && !own.game.getPhaseHandler().isPlayerTurn(own.game.getPlayers().get(2)),
++                "with each player's own turns, after the archenemy came " + own.game.getPhaseHandler().getActiveTeam() + ", not Blue alone");
++    }
++
++    private static void theFiveTakeOneTurnTogether() throws Exception {
++        final Fixture f = new Fixture(teamGame(6, "teamTurns"));
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        ph.devModeSet(PhaseType.CLEANUP, f.white, 1);
++        f.stepTo(PhaseType.UNTAP);
++        expect(ph.getTurn() == 2 && ph.getActiveTeam().equals(f.game.getPlayers().subList(1, 6)),
++                "on six seats, after the archenemy came turn " + ph.getTurn() + " for " + ph.getActiveTeam() + ", not the five together");
++        ph.devModeSet(PhaseType.CLEANUP, ph.getPlayerTurn(), 2);
++        f.stepTo(PhaseType.UNTAP);
++        expect(ph.getTurn() == 3 && ph.getPlayerTurn() == f.white, "on six seats, after the five's turn came " + ph.getPlayerTurn() + "'s turn " + ph.getTurn());
++    }
++
++    private static void eachOpponentKeepsTheirOwnLife() {
++        final Fixture f = new Fixture(teamGame(4, "teamTurns"));
++        final Player red = f.game.getPlayers().get(2);
++        expect(f.game.getRules().hasSharedTeamTurns() && !f.game.getRules().hasSharedTeamLife(), "teamTurns did not set shared team turns with each player's own life");
++        f.blue.loseLife(5, false, false, null);
++        expect(f.blue.getLife() == 15 && red.getLife() == 20 && f.white.getLife() == 40,
++                "Blue lost 5: Blue " + f.blue.getLife() + ", Red " + red.getLife() + ", White " + f.white.getLife() + ", not 15, 20 and 40");
++    }
++
++    private static void aPlayerOutLeavesTheRestOfTheTeamItsTurn() throws Exception {
++        final Fixture f = new Fixture(teamGame(4, "teamTurns"));
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        final Player red = f.game.getPlayers().get(2);
++        final Player yellow = f.game.getPlayers().get(3);
++        f.lose(f.blue);
++        expect(!f.game.isGameOver() && red.isInGame() && yellow.isInGame(), "Blue's loss took the team out: game over " + f.game.isGameOver());
++        ph.devModeSet(PhaseType.CLEANUP, f.white, 1);
++        f.stepTo(PhaseType.UNTAP);
++        expect(ph.getActiveTeam().equals(List.of(red, yellow)), "with Blue out, the team's turn went to " + ph.getActiveTeam() + ", not Red and Yellow");
++    }
++
++    private static void theSchemeIsSetInMotionOnlyOnTheArchenemysTurn() throws Exception {
++        final Fixture f = new Fixture(teamGame(4, "teamTurns"));
++        f.order(SKYWARD);
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        ph.devModeSet(PhaseType.CLEANUP, f.white, 1);
++        f.stepTo(PhaseType.MAIN1);
++        expect(ph.getActiveTeam().size() == 3 && f.commandScheme(SKYWARD) == null,
++                "a scheme was set in motion on the team's turn: " + names(f.white.getCardsIn(ZoneType.Command)));
++        ph.devModeSet(PhaseType.CLEANUP, ph.getPlayerTurn(), 2);
++        f.stepTo(PhaseType.MAIN1);
++        expect(ph.getPlayerTurn() == f.white && f.commandScheme(SKYWARD) != null,
++                "the archenemy's main phase after the team's turn set no scheme in motion: " + names(f.white.getCardsIn(ZoneType.Command)));
++    }
++
++    private static void eachOpponentDrawsOnTheTeamsDrawStep() throws Exception {
++        final Fixture f = new Fixture(teamGame(4, "teamTurns"));
++        final List<Player> others = f.game.getPlayers().subList(1, 4);
++        final List<Integer> before = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            for (int i = 0; i < 3; i++) {
++                put("Island", p, ZoneType.Library);
++            }
++            before.add(p.getCardsIn(ZoneType.Hand).size());
++        }
++        f.game.getPhaseHandler().devModeSet(PhaseType.CLEANUP, f.white, 1);
++        f.stepTo(PhaseType.MAIN1);
++        final List<Integer> drawn = new ArrayList<>();
++        for (int i = 0; i < 4; i++) {
++            drawn.add(f.game.getPlayers().get(i).getCardsIn(ZoneType.Hand).size() - before.get(i));
++        }
++        expect(drawn.equals(List.of(0, 1, 1, 1)), "the team's draw step drew " + drawn + " for White, Blue, Red, Yellow, not one for each of " + others);
++    }
++
++    private static void aDefenderMayBlockForATeammate() {
++        final Fixture f = new Fixture(teamGame(4, "teamTurns"));
++        final Player red = f.game.getPlayers().get(2);
++        final Card bears = creature("Grizzly Bears", f.white);
++        creature("Hill Giant", red);
++        final Combat combat = new Combat(f.white);
++        combat.addAttacker(bears, f.blue);
++        expect(CombatUtil.canBeBlocked(bears, combat, red), "Red may not block the archenemy's Grizzly Bears attacking Blue, her teammate");
++        final Fixture own = new Fixture(teamGame(4, "teams"));
++        final Player ownRed = own.game.getPlayers().get(2);
++        final Card ownBears = creature("Grizzly Bears", own.white);
++        final Combat ownCombat = new Combat(own.white);
++        ownCombat.addAttacker(ownBears, own.blue);
++        expect(!CombatUtil.canBeBlocked(ownBears, ownCombat, ownRed), "with each player's own turns, Red may block a creature attacking Blue");
++    }
++
++    private static void theAiBlocksForATeammate() {
++        final Fixture f = new Fixture(teamGame(4, "teamTurns"));
++        final Player red = f.game.getPlayers().get(2);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card giant = creature("Hill Giant", red);
++        final Combat combat = new Combat(f.white);
++        combat.addAttacker(bears, f.blue);
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_BLOCKERS, f.white, 1);
++        new AiBlockController(red, false).assignBlockersForCombat(combat);
++        expect(combat.getBlockers(bears).contains(giant), "Red's AI left the archenemy's Grizzly Bears attacking Blue unblocked with a Hill Giant: blockers " + combat.getBlockers(bears));
++    }
++
++    private static void theAiCountsATeammatesBlockers() {
++        final Fixture f = new Fixture(teamGame(4, "teamTurns"));
++        final Card giant = creature("Hill Giant", f.game.getPlayers().get(2));
++        expect(AiAttackController.getOpponentCreatures(f.blue).contains(giant), "the AI attacking Blue does not count Red's Hill Giant, which may block for her teammate");
++        final Fixture own = new Fixture(teamGame(4, "teams"));
++        final Card ownGiant = creature("Hill Giant", own.game.getPlayers().get(2));
++        expect(!AiAttackController.getOpponentCreatures(own.blue).contains(ownGiant), "with each player's own turns, the AI attacking Blue counts Red's Hill Giant");
++    }
++
++    private static void aTeamThatDoesNotSitTogetherIsRefused() {
++        expectRefused(Setup.of().players(4).teamRules("teamTurns"), "teamTurns needs each team's players next to each other in seat order");
++        new Fixture(Setup.of().players(2).teamRules("teamTurns"));
++    }
++
++    private static void theBoardSaysTeamTurns() {
++        final Fixture f = new Fixture(teamGame(4, "teamTurns"));
++        expect("teamTurns".equals(InteractiveSnapshotExtractor.teamRules(f.game).get("rule")),
++                "the board's team rule is " + InteractiveSnapshotExtractor.teamRules(f.game) + ", not teamTurns");
++        final Fixture own = new Fixture(teamGame(4, "teams"));
++        expect("teams".equals(InteractiveSnapshotExtractor.teamRules(own.game).get("rule")), "with own turns the board's team rule is " + InteractiveSnapshotExtractor.teamRules(own.game));
++    }
++
++    private static void archenemyWithSharedTurnsIsRefused() {
++        expectRefused(teamGame(4, "sharedTurns"), "Archenemy plays with each player's own life, not sharedTurns");
++    }
++
++    private static Card creature(final String name, final Player p) {
++        final Card card = put(name, p, ZoneType.Battlefield);
++        card.setSickness(false);
++        return card;
++    }
++
++    private static Card put(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
 +    }
 +
 +    private static List<Integer> lives(final Fixture f) {
@@ -7932,7 +8327,7 @@ index 0000000..6f98d93
 +        }
 +
 +        String json() {
-+            final String[] seats = {"White", "Blue", "Red", "Yellow"};
++            final String[] seats = {"White", "Blue", "Red", "Yellow", "Green", "Purple"};
 +            final StringBuilder out = new StringBuilder("{\"gameId\":\"archenemy-test\",\"variant\":\"")
 +                    .append(commander ? "Commander" : "Constructed").append("\"");
 +            if (archenemy) {
@@ -7945,7 +8340,7 @@ index 0000000..6f98d93
 +            for (int i = 0; i < players; i++) {
 +                out.append(i == 0 ? "" : ",").append("{\"name\":\"").append(seats[i]).append("\",\"deck\":[{\"name\":\"Plains\"}]");
 +                if (teamRules != null) {
-+                    out.append(",\"team\":").append(i % 2 + 1);
++                    out.append(",\"team\":").append(schemes.isEmpty() ? i % 2 + 1 : schemes.containsKey(i) ? 1 : 2);
 +                }
 +                if (startingLife.containsKey(i)) {
 +                    out.append(",\"startingLife\":").append(startingLife.get(i));
@@ -8006,6 +8401,7 @@ index 0000000..6f98d93
 +            }
 +            final GameRules played = new GameRules(GameType.Constructed);
 +            played.setAppliedVariants(playedVariants);
++            ManaBrewEngineAdapter.configureTeamRules(played, request, gameType);
 +            game = new Game(registered, played, new Match(played, registered, "ArchenemyTest"));
 +            for (int i = 0; i < registered.size(); i++) {
 +                game.getPlayers().get(i).initVariantsZones(registered.get(i));
@@ -9014,6 +9410,338 @@ index 0000000..db530a4
 +            }
 +            expect(!thread.isAlive(), "declaring attackers did not finish");
 +            return paymentsFor;
++        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/AutoPayBudgetTest.java b/forge-harness/src/test/java/forge/harness/host/AutoPayBudgetTest.java
+new file mode 100644
+index 0000000..a28855f
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/AutoPayBudgetTest.java
+@@ -0,0 +1,326 @@
++package forge.harness.host;
++
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.AutoPay;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++import java.util.concurrent.locks.ReentrantLock;
++
++public final class AutoPayBudgetTest {
++    private AutoPayBudgetTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        CHECKS.put("held: past the budget the Auto payment holds the static checks, then one pass", AutoPayBudgetTest::heldPastBudget);
++        CHECKS.put("held: within the budget each mana ability runs its static pass, as before", AutoPayBudgetTest::passesWithinBudget);
++        CHECKS.put("held: the static checks are not left held after the payment", AutoPayBudgetTest::notLeftHeld);
++        CHECKS.put("held: the payment without a prompt (AutoPay.payManaCost) holds past the budget too, then one pass", AutoPayBudgetTest::directPayHeld);
++        CHECKS.put("same: {8} from mixed lands taps the same cards both ways", AutoPayBudgetTest::sameGeneric);
++        CHECKS.put("same: {3}{W}{W} and {G}{U} from duals, Gates and basics tap the same cards both ways", AutoPayBudgetTest::sameColoured);
++        CHECKS.put("same: the board after the payment is the same both ways (an anthem, a land-count creature)", AutoPayBudgetTest::sameBoardAfter);
++        CHECKS.put("same: a payment that can't be made is cancelled both ways, nothing tapped", AutoPayBudgetTest::cancelledBothWays);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            check(e.getKey(), e.getValue());
++        }
++        System.out.println(failed == 0 ? "PASS AutoPayBudgetTest" : "FAIL AutoPayBudgetTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private interface Board {
++        void lay(Fixture f);
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void expect(final boolean ok, final String why) {
++        if (!ok) {
++            throw new AssertionError(why);
++        }
++    }
++
++    private static void plains(final Fixture f) {
++        for (int i = 0; i < 8; i++) {
++            f.add("Plains", f.me);
++        }
++    }
++
++    private static void mixed(final Fixture f) {
++        for (final String land : new String[] {"Plains", "Island", "Forest", "Tundra", "Savannah", "Tropical Island", "Azorius Guildgate",
++            "Selesnya Guildgate", "Simic Guildgate", "Command Tower", "Plains", "Forest", "Island"}) {
++            f.add(land, f.me);
++        }
++        f.add("Llanowar Elves", f.me);
++        f.add("Birds of Paradise", f.me);
++    }
++
++    private static void heldPastBudget() throws Exception {
++        final Fixture f = new Fixture();
++        plains(f);
++        f.game.AI_TIMEOUT = -1;
++        final long h0 = AutoPay.getHolds();
++        final Result r = f.pay("Ulamog's Crusher");
++        expect(r.paid && r.tapped.size() == 8, "paid " + r.paid + ", tapped " + r.tapped);
++        expect(r.passes == 1, "static passes during the Auto payment " + r.passes + ", want the one after it");
++        expect(AutoPay.getHolds() - h0 == 1, "the payment held the static checks " + (AutoPay.getHolds() - h0) + " times, want once");
++    }
++
++    private static void passesWithinBudget() throws Exception {
++        final Fixture f = new Fixture();
++        plains(f);
++        final long h0 = AutoPay.getHolds();
++        final Result r = f.pay("Ulamog's Crusher");
++        expect(r.paid && r.tapped.size() == 8, "paid " + r.paid + ", tapped " + r.tapped);
++        expect(r.passes >= 8, "static passes during the Auto payment " + r.passes + ", want one per mana ability");
++        expect(AutoPay.getHolds() == h0, "the payment within the budget held the static checks");
++    }
++
++    private static void notLeftHeld() throws Exception {
++        final Fixture f = new Fixture();
++        plains(f);
++        f.game.AI_TIMEOUT = -1;
++        f.pay("Ulamog's Crusher");
++        expect(!f.game.getAction().isHoldingStaticAbilities(), "the static checks are still held after the payment");
++    }
++
++    private static void directPayHeld() throws Exception {
++        final Fixture f = new Fixture();
++        plains(f);
++        f.game.AI_TIMEOUT = -1;
++        f.game.getAction().checkStaticAbilities();
++        final Card crusher = Card.fromPaperCard(FModel.getMagicDb().getCommonCards().getCard("Ulamog's Crusher"), f.me);
++        f.me.getZone(ZoneType.Hand).add(crusher);
++        final SpellAbility sa = crusher.getFirstSpellAbility();
++        sa.setActivatingPlayer(f.me);
++        final Field field = ManaBrewInteractiveController.class.getDeclaredField("autoPay");
++        field.setAccessible(true);
++        final AutoPay autoPay = (AutoPay) field.get(f.me.getController());
++        final long h0 = AutoPay.getHolds();
++        final long p0 = f.game.getAction().getStaticPasses();
++        final boolean paid;
++        f.lock.lock();
++        try {
++            paid = autoPay.payManaCost(sa.getPayCosts().getTotalMana(), sa, false);
++        } finally {
++            f.lock.unlock();
++        }
++        final long passes = f.game.getAction().getStaticPasses() - p0;
++        expect(paid && passes == 1 && AutoPay.getHolds() - h0 == 1 && !f.game.getAction().isHoldingStaticAbilities(),
++                "paid " + paid + ", static passes " + passes + ", holds " + (AutoPay.getHolds() - h0) + ", still held " + f.game.getAction().isHoldingStaticAbilities());
++    }
++
++    private static Result payBothWays(final Board board, final String spell, final List<String> out) throws Exception {
++        Result last = null;
++        for (final boolean held : new boolean[] {false, true}) {
++            final Fixture f = new Fixture();
++            board.lay(f);
++            if (held) {
++                f.game.AI_TIMEOUT = -1;
++            }
++            final Result r = f.pay(spell);
++            out.add((held ? "held: " : "full: ") + r.paid + " " + r.tapped + " | " + f.describe());
++            last = r;
++        }
++        return last;
++    }
++
++    private static void same(final Board board, final String spell, final String what) throws Exception {
++        final List<String> out = new ArrayList<>();
++        final Result r = payBothWays(board, spell, out);
++        expect(out.get(0).substring(6).equals(out.get(1).substring(6)), what + ":\n  " + out.get(0) + "\n  " + out.get(1));
++        expect(r.paid, what + ": not paid: " + out.get(1));
++    }
++
++    private static void sameGeneric() throws Exception {
++        same(AutoPayBudgetTest::mixed, "Ulamog's Crusher", "{8} from mixed lands");
++    }
++
++    private static void sameColoured() throws Exception {
++        same(AutoPayBudgetTest::mixed, "Serra Angel", "{3}{W}{W} from mixed lands");
++        same(AutoPayBudgetTest::mixed, "Coiling Oracle", "{G}{U} from mixed lands");
++    }
++
++    private static void sameBoardAfter() throws Exception {
++        same((f) -> {
++            mixed(f);
++            f.add("Glorious Anthem", f.me);
++            f.add("Gaea's Liege", f.me);
++            f.add("Krosan Tusker", f.ai);
++        }, "Serra Angel", "with an anthem and Gaea's Liege");
++    }
++
++    private static void cancelledBothWays() throws Exception {
++        final List<String> out = new ArrayList<>();
++        final Result r = payBothWays((f) -> {
++            f.add("Plains", f.me);
++            f.add("Island", f.me);
++        }, "Ulamog's Crusher", out);
++        expect(out.get(0).substring(6).equals(out.get(1).substring(6)), "cancelled:\n  " + out.get(0) + "\n  " + out.get(1));
++        expect(!r.paid && r.tapped.isEmpty(), "{8} from two lands: paid " + r.paid + ", tapped " + r.tapped);
++    }
++
++    private record Result(boolean paid, List<String> tapped, long passes) {
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("autopay-budget");
++        final Game game;
++        final Player me;
++        final Player ai;
++        final ReentrantLock lock;
++
++        Fixture() throws Exception {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new ManaBrewInteractiveLobbyPlayer("White", session)));
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("AI 1", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setRenderAbilityText(false);
++            game = new Game(players, rules, new Match(rules, players, "AutoPayBudgetTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0), 3);
++            game.getPhaseHandler().onStackResolved();
++            me = game.getPlayers().get(0);
++            ai = game.getPlayers().get(1);
++            session.attach(game.getMatch(), game, Set.of(), false);
++            final Field field = ManaBrewInteractiveSession.class.getDeclaredField("gameLock");
++            field.setAccessible(true);
++            lock = (ReentrantLock) field.get(session);
++        }
++
++        Card add(final String name, final Player p) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            if (paper == null) {
++                throw new AssertionError("no card named " + name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            p.getZone(ZoneType.Battlefield).add(card);
++            card.setSickness(false);
++            return card;
++        }
++
++        Result pay(final String spell) throws Exception {
++            game.getAction().checkStaticAbilities();
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(spell);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(spell);
++                paper = FModel.getMagicDb().getCommonCards().getCard(spell);
++            }
++            final Card card = Card.fromPaperCard(paper, me);
++            me.getZone(ZoneType.Hand).add(card);
++            final SpellAbility sa = card.getFirstSpellAbility();
++            sa.setActivatingPlayer(me);
++            final String cardId = SnapshotExtractor.javaCardId(card);
++            final boolean[] paid = new boolean[1];
++            final Throwable[] failure = new Throwable[1];
++            final String before = session.getLatestPromptJson();
++            long seen = before == null ? -1 : JsonParser.parseString(before).getAsJsonObject().get("promptId").getAsLong();
++            final long p0 = game.getAction().getStaticPasses();
++            final Thread payer = new Thread(() -> {
++                lock.lock();
++                try {
++                    paid[0] = ((ManaBrewInteractiveController) me.getController()).payManaCost(
++                            sa.getPayCosts().getTotalMana(), sa.getPayCosts().getCostMana(), sa, "pay", null, false);
++                } catch (final Throwable thrown) {
++                    failure[0] = thrown;
++                } finally {
++                    lock.unlock();
++                }
++            }, "autopay-test");
++            payer.setDaemon(true);
++            payer.start();
++            int asked = 0;
++            final long stop = System.currentTimeMillis() + 120_000;
++            while (payer.isAlive() && System.currentTimeMillis() < stop) {
++                final String json = session.getLatestPromptJson();
++                final JsonObject prompt = json == null ? null : JsonParser.parseString(json).getAsJsonObject();
++                if (prompt == null || prompt.get("promptId").getAsLong() == seen) {
++                    Thread.sleep(2);
++                    continue;
++                }
++                seen = prompt.get("promptId").getAsLong();
++                final JsonObject input = prompt.getAsJsonObject("input");
++                if (!"payManaCost".equals(input.get("type").getAsString())) {
++                    session.submitAction("{\"type\":\"" + input.get("type").getAsString() + "\",\"output\":{\"type\":\"pass\"}}");
++                    continue;
++                }
++                final boolean confirm = input.has("canConfirmFromPool") && input.get("canConfirmFromPool").getAsBoolean();
++                final String output = asked++ > 2 ? "{\"type\":\"cancel\"}" : confirm ? "{\"type\":\"pay\",\"auto\":false}" : "{\"type\":\"pay\",\"auto\":true}";
++                session.submitAction("{\"type\":\"payManaCost\",\"output\":" + output + "}");
++            }
++            payer.join(5_000);
++            if (failure[0] != null) {
++                throw new AssertionError("the payment failed", failure[0]);
++            }
++            expect(!payer.isAlive(), "the payment of " + cardId + " didn't finish");
++            final List<String> tapped = new ArrayList<>();
++            int i = 0;
++            for (final Card c : me.getCardsIn(ZoneType.Battlefield)) {
++                if (c.isTapped()) {
++                    tapped.add(c.getName() + "#" + i);
++                }
++                i++;
++            }
++            return new Result(paid[0], tapped, game.getAction().getStaticPasses() - p0);
++        }
++
++        String describe() {
++            final List<String> out = new ArrayList<>();
++            for (final Player p : game.getPlayers()) {
++                for (final Card c : p.getCardsIn(ZoneType.Battlefield)) {
++                    out.add(c.getName() + (c.isCreature() ? " " + c.getNetPower() + "/" + c.getNetToughness() : "") + (c.isTapped() ? " tapped" : ""));
++                }
++            }
++            return String.join(", ", out) + " | pool " + me.getManaPool().totalMana();
 +        }
 +    }
 +}
@@ -10796,6 +11524,331 @@ index 0000000..2cdfc8a
 +        card.setGameTimestamp(p.getGame().getNextTimestamp());
 +        p.getZone(zone).add(card);
 +        return card;
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/BlockBudgetTest.java b/forge-harness/src/test/java/forge/harness/host/BlockBudgetTest.java
+new file mode 100644
+index 0000000..7468065
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/BlockBudgetTest.java
+@@ -0,0 +1,319 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.AiBlockController;
++import forge.ai.ComputerUtilCombat;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.combat.Combat;
++import forge.game.combat.CombatUtil;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++import forge.util.MyRandom;
++
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Random;
++import java.util.Set;
++
++public final class BlockBudgetTest {
++    private BlockBudgetTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        CHECKS.put("pump costs: in one declaration each pump ability's cost is checked once for a player", BlockBudgetTest::pumpCostsOnce);
++        CHECKS.put("pump costs: outside a declaration nothing is kept", BlockBudgetTest::nothingKeptOutside);
++        CHECKS.put("same blocks: pumpers at 6 life, with and without the memo", BlockBudgetTest::samePumpersLow);
++        CHECKS.put("same blocks: pumpers at 20 life, with and without the memo", BlockBudgetTest::samePumpersHigh);
++        CHECKS.put("same blocks: flyers, first strike, trample and deathtouch, with and without the memo", BlockBudgetTest::sameKeywords);
++        CHECKS.put("lethal: past the deadline 40 attackers at 6 life leave no blocker free that could save the AI", BlockBudgetTest::lethalPastDeadline);
++        CHECKS.put("lethal: past the deadline an attack that isn't lethal gets no forced blocks", BlockBudgetTest::safePastDeadline);
++        CHECKS.put("chump pass: each attacker's damage and each blocker's value worked out once", BlockBudgetTest::chumpValuesOnce);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            check(e.getKey(), e.getValue());
++        }
++        System.out.println(failed == 0 ? "PASS BlockBudgetTest" : "FAIL BlockBudgetTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private interface Board {
++        void lay(Fixture f);
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void expect(final boolean ok, final String why) {
++        if (!ok) {
++            throw new AssertionError(why);
++        }
++    }
++
++    private static void pumpers(final Fixture f) {
++        for (int i = 0; i < 4; i++) {
++            f.add("Shivan Dragon", f.white);
++            f.add("Frozen Shade", f.white);
++            f.add("Hill Giant", f.white);
++            f.add("Mountain", f.white);
++            f.add("Swamp", f.white);
++            f.add("Wall of Fire", f.blue);
++            f.add("Llanowar Elves", f.blue);
++            f.add("Grizzly Bears", f.blue);
++            f.add("Mountain", f.blue);
++        }
++        f.add("Craw Wurm", f.blue);
++    }
++
++    private static void keywords(final Fixture f) {
++        for (int i = 0; i < 3; i++) {
++            f.add("Serra Angel", f.white);
++            f.add("Craw Wurm", f.white);
++            f.add("Elvish Warrior", f.white);
++            f.add("Wall of Wood", f.blue);
++            f.add("Giant Spider", f.blue);
++            f.add("Typhoid Rats", f.blue);
++            f.add("Youthful Knight", f.blue);
++        }
++        f.add("Trained Armodon", f.white);
++    }
++
++    private static String blocks(final Board board, final int life, final boolean memo) {
++        final boolean was = ComputerUtilCombat.pumpCostMemo;
++        final Random rng = MyRandom.getRandom();
++        ComputerUtilCombat.pumpCostMemo = memo;
++        MyRandom.setRandom(new Random(1125));
++        try {
++            final Fixture f = new Fixture();
++            board.lay(f);
++            final Combat combat = f.attackWithAll(life);
++            f.game.AI_TIMEOUT = 600;
++            f.blue.getController().declareBlockers(f.blue, combat);
++            return f.describe(combat);
++        } finally {
++            ComputerUtilCombat.pumpCostMemo = was;
++            MyRandom.setRandom(rng);
++        }
++    }
++
++    private static void same(final Board board, final int life, final String what) {
++        final String before = blocks(board, life, false);
++        final String after = blocks(board, life, true);
++        expect(before.equals(after), what + ": without the memo\n  " + before + "\nwith it\n  " + after);
++        expect(before.contains("<-"), what + ": nothing was blocked, so the boards compare nothing: " + before);
++    }
++
++    private static void pumpCostsOnce() {
++        final long[] checks = new long[2];
++        for (final boolean memo : new boolean[] {false, true}) {
++            final boolean was = ComputerUtilCombat.pumpCostMemo;
++            ComputerUtilCombat.pumpCostMemo = memo;
++            try {
++                final Fixture f = new Fixture();
++                pumpers(f);
++                final Combat combat = f.attackWithAll(6);
++                f.game.AI_TIMEOUT = 600;
++                final long c0 = ComputerUtilCombat.getPumpCostChecks();
++                f.blue.getController().declareBlockers(f.blue, combat);
++                checks[memo ? 1 : 0] = ComputerUtilCombat.getPumpCostChecks() - c0;
++            } finally {
++                ComputerUtilCombat.pumpCostMemo = was;
++            }
++        }
++        expect(checks[1] > 0 && checks[1] <= 24 && checks[0] >= checks[1] * 5,
++                "pump cost checks in one declaration: " + checks[0] + " without the memo, " + checks[1] + " with it (12 pumpers, two players)");
++    }
++
++    private static void nothingKeptOutside() {
++        final Fixture f = new Fixture();
++        pumpers(f);
++        final Combat combat = f.attackWithAll(6);
++        final Card dragon = combat.getAttackers().stream().filter(c -> c.getName().equals("Shivan Dragon")).findFirst().orElseThrow();
++        final Card wall = f.blue.getCreaturesInPlay().stream().filter(c -> c.getName().equals("Wall of Fire")).findFirst().orElseThrow();
++        final long c0 = ComputerUtilCombat.getPumpCostChecks();
++        ComputerUtilCombat.canDestroyBlocker(f.blue, wall, dragon, combat, false);
++        final long first = ComputerUtilCombat.getPumpCostChecks() - c0;
++        ComputerUtilCombat.canDestroyBlocker(f.blue, wall, dragon, combat, false);
++        final long second = ComputerUtilCombat.getPumpCostChecks() - c0 - first;
++        expect(first > 0 && second == first, "outside a declaration the pump costs were checked " + first + " then " + second + " times");
++    }
++
++    private static void samePumpersLow() {
++        same(BlockBudgetTest::pumpers, 6, "pumpers at 6 life");
++    }
++
++    private static void samePumpersHigh() {
++        same(BlockBudgetTest::pumpers, 20, "pumpers at 20 life");
++    }
++
++    private static void sameKeywords() {
++        same(BlockBudgetTest::keywords, 7, "keywords at 7 life");
++    }
++
++    private static Combat bigAttack(final Fixture f, final int life) {
++        for (int i = 0; i < 40; i++) {
++            f.add("Hill Giant", f.white);
++        }
++        for (int i = 0; i < 25; i++) {
++            f.add(i % 5 == 0 ? "Giant Spider" : "Llanowar Elves", f.blue);
++        }
++        return f.attackWithAll(life);
++    }
++
++    private static int unblockedDamage(final Combat combat) {
++        int n = 0;
++        for (final Card a : combat.getAttackers()) {
++            if (combat.getBlockers(a).isEmpty()) {
++                n += a.getNetCombatDamage();
++            }
++        }
++        return n;
++    }
++
++    private static void lethalPastDeadline() {
++        final Fixture f = new Fixture();
++        final Combat combat = bigAttack(f, 6);
++        f.game.AI_TIMEOUT = -1;
++        f.blue.getController().declareBlockers(f.blue, combat);
++        final int left = unblockedDamage(combat);
++        int couldStillBlock = 0;
++        for (final Card b : f.blue.getCreaturesInPlay()) {
++            if (combat.isBlocking(b)) {
++                continue;
++            }
++            for (final Card a : combat.getAttackers()) {
++                if (combat.getBlockers(a).isEmpty() && CombatUtil.canBlock(a, b, combat)) {
++                    couldStillBlock++;
++                    break;
++                }
++            }
++        }
++        expect(left < 6 || couldStillBlock == 0, "life 6, unblocked damage " + left + ", " + couldStillBlock + " free blockers could still block, "
++                + combat.getAllBlockers().size() + " blocking");
++        expect(combat.getAllBlockers().size() == 25, "40 Hill Giants at 6 life against 25 blockers: " + combat.getAllBlockers().size() + " block, want all 25");
++    }
++
++    private static void safePastDeadline() {
++        final Fixture f = new Fixture();
++        for (int i = 0; i < 3; i++) {
++            f.add("Hill Giant", f.white);
++            f.add("Llanowar Elves", f.blue);
++        }
++        final Combat combat = f.attackWithAll(20);
++        f.game.AI_TIMEOUT = -1;
++        f.blue.getController().declareBlockers(f.blue, combat);
++        expect(combat.getAllBlockers().isEmpty(), "9 damage against 20 life past the deadline: " + combat.getAllBlockers().size() + " forced blocks");
++    }
++
++    private static void chumpValuesOnce() {
++        final Fixture f = new Fixture();
++        final Combat combat = bigAttack(f, 6);
++        f.game.AI_TIMEOUT = -1;
++        final long e0 = AiBlockController.getChumpEvaluations();
++        f.blue.getController().declareBlockers(f.blue, combat);
++        final long n = AiBlockController.getChumpEvaluations() - e0;
++        expect(n > 0 && n <= 40 + 25, "the chump pass worked out " + n + " values for 40 attackers and 25 blockers, want each once");
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("block-budget");
++        final Game game;
++        final Player white;
++        final Player blue;
++
++        Fixture() {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("White", null)));
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("Blue", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setRenderAbilityText(false);
++            game = new Game(players, rules, new Match(rules, players, "BlockBudgetTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0), 3);
++            game.getPhaseHandler().onStackResolved();
++            white = game.getPlayers().get(0);
++            blue = game.getPlayers().get(1);
++            session.attach(game.getMatch(), game, Set.of(), false);
++        }
++
++        Card add(final String name, final Player p) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            if (paper == null) {
++                throw new AssertionError("no card named " + name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            p.getZone(ZoneType.Battlefield).add(card);
++            card.setSickness(false);
++            return card;
++        }
++
++        Combat attackWithAll(final int life) {
++            blue.setLife(life, null);
++            game.getAction().checkStaticAbilities();
++            game.getAction().checkStateEffects(true);
++            game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, white, 3);
++            final Combat combat = new Combat(white);
++            game.getPhaseHandler().setCombat(combat);
++            for (final Card c : white.getCreaturesInPlay()) {
++                if (CombatUtil.canAttack(c, blue)) {
++                    combat.addAttacker(c, blue);
++                }
++            }
++            expect(!combat.getAttackers().isEmpty(), "precondition: nothing attacks");
++            return combat;
++        }
++
++        String describe(final Combat combat) {
++            final List<Card> mine = new ArrayList<>(blue.getCreaturesInPlay());
++            final List<Card> theirs = new ArrayList<>(combat.getAttackers());
++            final List<String> out = new ArrayList<>();
++            for (int i = 0; i < theirs.size(); i++) {
++                final Card a = theirs.get(i);
++                final List<String> by = new ArrayList<>();
++                for (final Card b : combat.getBlockers(a)) {
++                    by.add(b.getName() + "#" + mine.indexOf(b));
++                }
++                out.add(a.getName() + "#" + i + (by.isEmpty() ? "" : " <- " + String.join(" + ", by)));
++            }
++            return String.join(", ", out);
++        }
 +    }
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/CardStateFlagsTest.java b/forge-harness/src/test/java/forge/harness/host/CardStateFlagsTest.java
@@ -21413,6 +22466,392 @@ index 0000000..12aacb7
 +        return card != null && card.has(name) && card.get(name).getAsBoolean();
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/SnapshotViewersTest.java b/forge-harness/src/test/java/forge/harness/host/SnapshotViewersTest.java
+new file mode 100644
+index 0000000..2bc20d6
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/SnapshotViewersTest.java
+@@ -0,0 +1,380 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.card.GamePieceType;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.combat.Combat;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++
++public final class SnapshotViewersTest {
++    private SnapshotViewersTest() {}
++
++    private static final int[] VIEWERS = {0, 1, 2, -1, 0, 2};
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        CHECKS.put("bytes: a mixed board, each viewer and a spectator in one round, the same as building each alone", SnapshotViewersTest::mixedBoardBytes);
++        CHECKS.put("bytes: in combat, attackers and blockers, each viewer the same", SnapshotViewersTest::combatBytes);
++        CHECKS.put("bytes: 2,000 tokens, each viewer the same", SnapshotViewersTest::manyTokensBytes);
++        CHECKS.put("bytes: a face-down creature redacted for the others, shown to its controller", SnapshotViewersTest::faceDownBytes);
++        CHECKS.put("bytes: a secret type shown to one viewer only", SnapshotViewersTest::secretTypeBytes);
++        CHECKS.put("bytes: a mutate pile, its member riding the top card", SnapshotViewersTest::mergedBytes);
++        CHECKS.put("bytes: the board changes between rounds, the next round sees the change", SnapshotViewersTest::nextRoundBytes);
++        CHECKS.put("shared: in one round each battlefield card is built once, not once per viewer", SnapshotViewersTest::builtOncePerRound);
++        CHECKS.put("shared: outside a round nothing is kept", SnapshotViewersTest::nothingKeptOutsideARound);
++        CHECKS.put("timing: 10,000 tokens, the viewers after the first at least 3x faster than building each alone", SnapshotViewersTest::tenThousandTiming);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            check(e.getKey(), e.getValue());
++        }
++        System.out.println(failed == 0 ? "PASS SnapshotViewersTest" : "FAIL SnapshotViewersTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void expect(final boolean ok, final String why) {
++        if (!ok) {
++            throw new AssertionError(why);
++        }
++    }
++
++    private static List<String> alone(final Fixture f) {
++        final boolean was = InteractiveSnapshotExtractor.shareCards;
++        InteractiveSnapshotExtractor.shareCards = false;
++        try {
++            final List<String> out = new ArrayList<>();
++            for (final int viewer : VIEWERS) {
++                out.add(f.session.getSnapshotJson(viewer));
++            }
++            return out;
++        } finally {
++            InteractiveSnapshotExtractor.shareCards = was;
++        }
++    }
++
++    private static List<String> inRound(final Fixture f) {
++        final boolean was = InteractiveSnapshotExtractor.shareCards;
++        InteractiveSnapshotExtractor.shareCards = true;
++        f.session.beginSnapshotRound();
++        try {
++            final List<String> out = new ArrayList<>();
++            for (final int viewer : VIEWERS) {
++                out.add(f.session.getSnapshotJson(viewer));
++            }
++            return out;
++        } finally {
++            f.session.endSnapshotRound();
++            InteractiveSnapshotExtractor.shareCards = was;
++        }
++    }
++
++    private static void sameBytes(final Fixture f, final String what) {
++        final List<String> want = alone(f);
++        final List<String> got = inRound(f);
++        for (int i = 0; i < VIEWERS.length; i++) {
++            final String a = want.get(i);
++            final String b = got.get(i);
++            int at = 0;
++            while (at < Math.min(a.length(), b.length()) && a.charAt(at) == b.charAt(at)) {
++                at++;
++            }
++            expect(a.equals(b), what + ", viewer " + VIEWERS[i] + ": " + a.length() + " bytes alone, " + b.length()
++                    + " in the round, first difference at " + at + ": alone ..." + a.substring(Math.max(0, at - 80), Math.min(a.length(), at + 80))
++                    + "... round ..." + b.substring(Math.max(0, at - 80), Math.min(b.length(), at + 80)) + "...");
++        }
++        expect(!want.get(0).equals(want.get(1)) || f.allPublic, what + ": viewers 0 and 1 got the same snapshot, so nothing on the board is per viewer");
++    }
++
++    private static void mixedBoardBytes() {
++        final Fixture f = new Fixture();
++        f.tokens(30);
++        f.add("Serra Angel", f.p0);
++        f.add("Llanowar Elves", f.p1).setChosenColors(List.of("red"));
++        final Card bears = f.add("Grizzly Bears", f.p2);
++        f.attach("Pacifism", f.p0, bears);
++        f.add("Wall of Wood", f.p2).tap(true, null, null);
++        f.add("Island", f.p1);
++        f.hand(f.p0, 3);
++        f.hand(f.p1, 2);
++        f.grave("Think Twice", f.p0);
++        f.grave("Grizzly Bears", f.p2);
++        sameBytes(f, "a mixed board");
++    }
++
++    private static void combatBytes() {
++        final Fixture f = new Fixture();
++        final Card angel = f.add("Serra Angel", f.p0);
++        final Card bear = f.add("Grizzly Bears", f.p0);
++        final Card wall = f.add("Wall of Wood", f.p1);
++        f.tokens(12);
++        f.hand(f.p1, 2);
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_BLOCKERS, f.p0);
++        final Combat combat = new Combat(f.p0);
++        combat.addAttacker(angel, f.p1);
++        combat.addAttacker(bear, f.p2);
++        combat.addBlocker(angel, wall);
++        f.game.getPhaseHandler().setCombat(combat);
++        f.settle();
++        sameBytes(f, "in combat");
++        expect(f.session.getSnapshotJson(1).contains("\"isAttacking\":true"), "no attacker in the snapshot");
++    }
++
++    private static void manyTokensBytes() {
++        final Fixture f = new Fixture();
++        f.tokens(2000);
++        f.hand(f.p0, 2);
++        sameBytes(f, "2,000 tokens");
++    }
++
++    private static void faceDownBytes() {
++        final Fixture f = new Fixture();
++        final Card hidden = f.add("Hill Giant", f.p0);
++        hidden.turnFaceDown(true);
++        f.settle();
++        f.tokens(6);
++        f.hand(f.p1, 1);
++        sameBytes(f, "a face-down creature");
++        final List<String> got = inRound(f);
++        expect(got.get(0).contains("Hill Giant") && !got.get(1).contains("Hill Giant") && !got.get(3).contains("Hill Giant"),
++                "the face-down Hill Giant isn't shown to its controller only");
++    }
++
++    private static void secretTypeBytes() {
++        final Fixture f = new Fixture();
++        final Card cavern = f.add("Grizzly Bears", f.p1);
++        cavern.setSecretChosenType("Elf");
++        f.session.rememberSecretTypeViewer(SnapshotExtractor.javaCardId(cavern), f.p1);
++        f.tokens(6);
++        f.hand(f.p2, 1);
++        sameBytes(f, "a secret type");
++        final List<String> got = inRound(f);
++        expect(got.get(1).contains("\"Elf\"") && !got.get(0).contains("\"Elf\"") && !got.get(2).contains("\"Elf\"") && !got.get(3).contains("\"Elf\""),
++                "the secret type Elf isn't shown to its chooser only");
++    }
++
++    private static void mergedBytes() {
++        final Fixture f = new Fixture();
++        final Card top = f.add("Grizzly Bears", f.p0);
++        final Card under = f.card("Hill Giant", f.p0);
++        top.addMergedCard(top);
++        top.addMergedCard(under);
++        under.setMergedToCard(top);
++        f.tokens(6);
++        f.hand(f.p1, 1);
++        sameBytes(f, "a mutate pile");
++        final String got = inRound(f).get(1);
++        expect(got.contains("Hill Giant") && got.contains("\"attachedTo\":\"" + SnapshotExtractor.javaCardId(top) + "\""),
++                "the mutate pile's Hill Giant doesn't ride the top card in the round");
++    }
++
++    private static void nextRoundBytes() {
++        final Fixture f = new Fixture();
++        f.tokens(20);
++        f.hand(f.p0, 1);
++        sameBytes(f, "before the change");
++        final Card first = f.game.getCardsIn(ZoneType.Battlefield).getFirst();
++        first.tap(true, null, null);
++        first.setDamage(1);
++        f.add("Glorious Anthem", f.p0);
++        sameBytes(f, "after the change");
++        final List<String> got = inRound(f);
++        expect(got.get(0).contains("\"tapped\":true"), "the next round doesn't see the tapped token");
++    }
++
++    private static void builtOncePerRound() {
++        final Fixture f = new Fixture();
++        f.tokens(300);
++        f.hand(f.p0, 1);
++        final int battlefield = f.game.getCardsIn(ZoneType.Battlefield).size();
++        final boolean was = InteractiveSnapshotExtractor.shareCards;
++        InteractiveSnapshotExtractor.shareCards = true;
++        f.session.beginSnapshotRound();
++        try {
++            final long b0 = InteractiveSnapshotExtractor.sharedBuilds();
++            f.session.getSnapshotJson(0);
++            final long first = InteractiveSnapshotExtractor.sharedBuilds() - b0;
++            f.session.getSnapshotJson(1);
++            f.session.getSnapshotJson(2);
++            f.session.getSnapshotJson(-1);
++            final long rest = InteractiveSnapshotExtractor.sharedBuilds() - b0 - first;
++            expect(first == battlefield && rest == 0, "the first viewer built " + first + " of " + battlefield + " battlefield cards, the next three " + rest);
++        } finally {
++            f.session.endSnapshotRound();
++            InteractiveSnapshotExtractor.shareCards = was;
++        }
++    }
++
++    private static void nothingKeptOutsideARound() {
++        final Fixture f = new Fixture();
++        f.tokens(50);
++        final int battlefield = f.game.getCardsIn(ZoneType.Battlefield).size();
++        final long b0 = InteractiveSnapshotExtractor.sharedBuilds();
++        f.session.getSnapshotJson(0);
++        f.session.getSnapshotJson(1);
++        final long built = InteractiveSnapshotExtractor.sharedBuilds() - b0;
++        expect(built == 2L * battlefield, "outside a round two viewers built " + built + " cards, not " + 2 * battlefield);
++    }
++
++    private static void tenThousandTiming() {
++        final Fixture f = new Fixture();
++        f.tokens(10000);
++        f.hand(f.p0, 3);
++        for (int warm = 0; warm < 2; warm++) {
++            alone(f);
++            inRound(f);
++        }
++        long aloneBest = Long.MAX_VALUE;
++        long firstBest = Long.MAX_VALUE;
++        long restBest = Long.MAX_VALUE;
++        for (int run = 0; run < 3; run++) {
++            final boolean was = InteractiveSnapshotExtractor.shareCards;
++            InteractiveSnapshotExtractor.shareCards = false;
++            long t = System.nanoTime();
++            for (int v = 0; v < 3; v++) {
++                f.session.getSnapshotJson(v);
++            }
++            aloneBest = Math.min(aloneBest, (System.nanoTime() - t) / 3);
++            InteractiveSnapshotExtractor.shareCards = true;
++            f.session.beginSnapshotRound();
++            try {
++                t = System.nanoTime();
++                f.session.getSnapshotJson(0);
++                firstBest = Math.min(firstBest, System.nanoTime() - t);
++                t = System.nanoTime();
++                f.session.getSnapshotJson(1);
++                f.session.getSnapshotJson(2);
++                restBest = Math.min(restBest, (System.nanoTime() - t) / 2);
++            } finally {
++                f.session.endSnapshotRound();
++                InteractiveSnapshotExtractor.shareCards = was;
++            }
++        }
++        System.out.println("timing: 10,000 tokens, one viewer's snapshot built alone " + aloneBest / 1_000_000 + " ms; in a round the first "
++                + firstBest / 1_000_000 + " ms, each next " + restBest / 1_000_000 + " ms");
++        expect(restBest * 3 <= aloneBest, "each next viewer took " + restBest / 1_000_000 + " ms against " + aloneBest / 1_000_000 + " ms alone");
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("snapshot-viewers-test");
++        final Game game = newGame();
++        final Player p0 = game.getPlayers().get(0);
++        final Player p1 = game.getPlayers().get(1);
++        final Player p2 = game.getPlayers().get(2);
++        boolean allPublic;
++
++        Fixture() {
++            session.attach(game.getMatch(), game, Set.of(), false);
++        }
++
++        Card add(final String name, final Player p) {
++            final Card card = card(name, p);
++            p.getZone(ZoneType.Battlefield).add(card);
++            card.setSickness(false);
++            settle();
++            return card;
++        }
++
++        void attach(final String name, final Player p, final Card to) {
++            final Card aura = add(name, p);
++            aura.attachToEntity(to, null, true);
++            settle();
++        }
++
++        void grave(final String name, final Player p) {
++            p.getZone(ZoneType.Graveyard).add(card(name, p));
++            settle();
++        }
++
++        void hand(final Player p, final int cards) {
++            for (int i = 0; i < cards; i++) {
++                p.getZone(ZoneType.Hand).add(card(i % 2 == 0 ? "Forest" : "Lightning Bolt", p));
++            }
++            settle();
++        }
++
++        void tokens(final int n) {
++            final Player[] owners = {p0, p1, p2};
++            for (int i = 0; i < n; i++) {
++                final Card token = card("Grizzly Bears", owners[i % 3]);
++                token.setGamePieceType(GamePieceType.TOKEN);
++                owners[i % 3].getZone(ZoneType.Battlefield).add(token);
++            }
++            settle();
++        }
++
++        Card card(final String name, final Player p) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            if (paper == null) {
++                throw new AssertionError("no card named " + name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            return card;
++        }
++
++        void settle() {
++            game.getAction().checkStaticAbilities();
++        }
++
++        private Game newGame() {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final Deck deck = new Deck();
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("White", null)));
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Blue", null)));
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Red", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setRenderAbilityText(false);
++            final Game created = new Game(players, rules, new Match(rules, players, "SnapshotViewersTest"));
++            created.setAge(GameStage.Play);
++            created.getPhaseHandler().devModeSet(PhaseType.MAIN1, created.getPlayers().get(0));
++            created.getPhaseHandler().onStackResolved();
++            return created;
++        }
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/StaticPassTest.java b/forge-harness/src/test/java/forge/harness/host/StaticPassTest.java
 new file mode 100644
 index 0000000..da25a25
@@ -23078,10 +24517,10 @@ index 0000000..a5d3088
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ThreeHeadedGiantTest.java b/forge-harness/src/test/java/forge/harness/host/ThreeHeadedGiantTest.java
 new file mode 100644
-index 0000000..bc18d03
+index 0000000..4736f0d
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/ThreeHeadedGiantTest.java
-@@ -0,0 +1,333 @@
+@@ -0,0 +1,462 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -23137,6 +24576,11 @@ index 0000000..bc18d03
 +        CHECKS.put("cr810.8b aConcessionConcedesForAllThree", ThreeHeadedGiantTest::aConcessionConcedesForAllThree);
 +        CHECKS.put("cr805.10d theDefendingTeamOfThreeBlocksAsOneDecision", ThreeHeadedGiantTest::theDefendingTeamOfThreeBlocksAsOneDecision);
 +        CHECKS.put("cr805.10d aRevisePromptNamesThePartnerWhoChanged", ThreeHeadedGiantTest::aRevisePromptNamesThePartnerWhoChanged);
++        CHECKS.put("cr805.10d threes aMiddlePartnersChangeReasksOnlyWhoAnswered", ThreeHeadedGiantTest::aMiddlePartnersChangeReasksOnlyWhoAnswered);
++        CHECKS.put("cr805.10d threes aChangeInAReviseRoundReasksTheOtherTwoInTurnOrder", ThreeHeadedGiantTest::aChangeInAReviseRoundReasksTheOtherTwoInTurnOrder);
++        CHECKS.put("cr805.10d threes theCapAfterFourReasksLetsThePrimaryDecide", ThreeHeadedGiantTest::theCapAfterFourReasksLetsThePrimaryDecide);
++        CHECKS.put("cr805.10d threes aFirstAnswerTellsNobody", ThreeHeadedGiantTest::aFirstAnswerTellsNobody);
++        CHECKS.put("cr805.10d threes reasksAfterTwoChangesGoInTurnOrder", ThreeHeadedGiantTest::reasksAfterTwoChangesGoInTurnOrder);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
 +            check(e.getKey(), e.getValue());
 +        }
@@ -23258,6 +24702,130 @@ index 0000000..bc18d03
 +        final String first = f.session.getLatestPromptJson();
 +        expect(first.contains("\"title\":\"Block with Green and Purple\""), "the round 1 prompt doesn't name both partners: " + first);
 +        combat.setTeamBlockRound(-1);
++    }
++
++    private static void aMiddlePartnersChangeReasksOnlyWhoAnswered() throws Exception {
++        final Fixture f = new Fixture();
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        final Card giant = creature("Hill Giant", f.p(0));
++        final Card wall = creature("Wall of Wood", f.p(3));
++        final Card courser = creature("Centaur Courser", f.p(4));
++        creature("Trained Armodon", f.p(5));
++        final Combat combat = combatOf(f, f.p(0));
++        combat.addAttacker(bears, f.p(3));
++        combat.addAttacker(giant, f.p(3));
++        final Told told = scriptTold(f, Map.of(f.p(3), List.of(Map.of(wall, bears)), f.p(4), List.of(Map.of(courser, giant)), f.p(5), List.of(Map.of())));
++        declareBlockers(f);
++        expect(told.asked.equals(List.of("Green", "Blue", "Purple", "Green after Blue")),
++                "the team of three was asked " + told.asked + ", not Green, Blue, Purple, then only Green (who had answered) after Blue's change");
++        expect(new ArrayList<>(combat.getBlockers(bears)).equals(List.of(wall)) && new ArrayList<>(combat.getBlockers(giant)).equals(List.of(courser)),
++                "the team's block is " + combat.getBlockers(bears) + " / " + combat.getBlockers(giant));
++    }
++
++    private static void aChangeInAReviseRoundReasksTheOtherTwoInTurnOrder() throws Exception {
++        final Fixture f = new Fixture();
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        final Card giant = creature("Hill Giant", f.p(0));
++        final Card wall = creature("Wall of Wood", f.p(3));
++        creature("Centaur Courser", f.p(4));
++        final Card ox = creature("Trained Armodon", f.p(5));
++        final Combat combat = combatOf(f, f.p(0));
++        combat.addAttacker(bears, f.p(3));
++        combat.addAttacker(giant, f.p(3));
++        final Told told = scriptTold(f, Map.of(f.p(3), List.of(Map.of(), Map.of(wall, bears)), f.p(4), List.of(Map.of()), f.p(5), List.of(Map.of(ox, giant))));
++        declareBlockers(f);
++        expect(told.asked.equals(List.of("Green", "Blue", "Purple", "Green after Purple", "Blue after Green", "Purple after Green")),
++                "the team of three was asked " + told.asked + ", not round 1, Green after Purple, then Blue and Purple in turn order after Green's change");
++        expect(new ArrayList<>(combat.getBlockers(bears)).equals(List.of(wall)) && new ArrayList<>(combat.getBlockers(giant)).equals(List.of(ox)),
++                "the team's block is " + combat.getBlockers(bears) + " / " + combat.getBlockers(giant));
++    }
++
++    private static void theCapAfterFourReasksLetsThePrimaryDecide() throws Exception {
++        final Fixture f = new Fixture();
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        final Card giant = creature("Hill Giant", f.p(0));
++        final Card wall = creature("Wall of Wood", f.p(3));
++        creature("Centaur Courser", f.p(4));
++        final Card ox = creature("Trained Armodon", f.p(5));
++        final Combat combat = combatOf(f, f.p(0));
++        combat.addAttacker(bears, f.p(3));
++        combat.addAttacker(giant, f.p(3));
++        final Told told = scriptTold(f, Map.of(f.p(3), List.of(Map.of(wall, bears), Map.of()), f.p(4), List.of(Map.of()), f.p(5), List.of(Map.of(ox, giant), Map.of())));
++        declareBlockers(f);
++        expect(told.asked.equals(List.of("Green", "Blue", "Purple", "Green after Purple", "Blue after Green", "Purple after Green", "Green after Purple")),
++                "the team of three was asked " + told.asked + ", not round 1 then four re-asks before the cap");
++        expect(new ArrayList<>(combat.getBlockers(bears)).equals(List.of(wall)) && combat.getBlockers(giant).isEmpty(),
++                "at the cap the block is " + combat.getBlockers(bears) + " / " + combat.getBlockers(giant) + ", not the primary Green's latest (Wall of Wood on the Bears) with the partners' latest (none)");
++        expect(told.notices.stream().filter(n -> n.contains("Green") && (n.contains("settles") || n.contains("decides"))).count() == 3,
++                "the three defenders were not each told the primary decides: " + told.notices);
++    }
++
++    private static void aFirstAnswerTellsNobody() throws Exception {
++        final Fixture f = new Fixture();
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        final Card wall = creature("Wall of Wood", f.p(3));
++        creature("Centaur Courser", f.p(4));
++        creature("Trained Armodon", f.p(5));
++        final Combat combat = combatOf(f, f.p(0));
++        combat.addAttacker(bears, f.p(3));
++        final Told told = scriptTold(f, Map.of(f.p(3), List.of(Map.of(wall, bears))));
++        declareBlockers(f);
++        expect(told.asked.equals(List.of("Green", "Blue", "Purple")), "the team of three was asked " + told.asked + ", not once each");
++        expect(told.notices.isEmpty(), "a first answer, with no partner answered yet, told " + told.notices);
++    }
++
++    private static void reasksAfterTwoChangesGoInTurnOrder() throws Exception {
++        final Fixture f = new Fixture();
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        final Card giant = creature("Hill Giant", f.p(0));
++        final Card wall = creature("Wall of Wood", f.p(3));
++        final Card courser = creature("Centaur Courser", f.p(4));
++        final Card ox = creature("Trained Armodon", f.p(5));
++        final Combat combat = combatOf(f, f.p(0));
++        combat.addAttacker(bears, f.p(3));
++        combat.addAttacker(giant, f.p(3));
++        final Told told = scriptTold(f, Map.of(f.p(3), List.of(Map.of(), Map.of(wall, bears), Map.of(wall, bears)),
++                f.p(4), List.of(Map.of(), Map.of(courser, giant)), f.p(5), List.of(Map.of(ox, giant))));
++        declareBlockers(f);
++        expect(told.asked.equals(List.of("Green", "Blue", "Purple", "Green after Purple", "Blue after Green", "Green after Blue", "Purple after Blue")),
++                "the team of three was asked " + told.asked + ", not Green before Purple once Blue's change left both to ask again (turn order, not the order they were left)");
++        expect(new ArrayList<>(combat.getBlockers(bears)).equals(List.of(wall)) && combat.getBlockers(giant).containsAll(List.of(courser, ox)),
++                "the team's block is " + combat.getBlockers(bears) + " / " + combat.getBlockers(giant));
++    }
++
++    private static final class Told {
++        final List<String> asked = new ArrayList<>();
++        final List<String> notices = new ArrayList<>();
++    }
++
++    private static Told scriptTold(final Fixture f, final Map<Player, List<Map<Card, Card>>> answers) {
++        final Told out = new Told();
++        for (final Player p : f.game.getPlayers()) {
++            final List<Map<Card, Card>> mine = answers.getOrDefault(p, List.of(Map.of()));
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                private int asks;
++
++                @Override
++                public void declareBlockers(final Player defender, final Combat combat) {
++                    final Player changer = combat.getTeamBlockChangedBy();
++                    out.asked.add(defender.getName() + (combat.getTeamBlockRound() > 0 ? " after " + (changer == null ? "nobody" : changer.getName()) : ""));
++                    for (final Card own : new ArrayList<>(combat.getAllBlockers())) {
++                        if (own.getController() == defender) {
++                            combat.undoBlockingAssignment(own);
++                        }
++                    }
++                    for (final Map.Entry<Card, Card> e : mine.get(asks++ % mine.size()).entrySet()) {
++                        combat.addBlocker(e.getValue(), e.getKey());
++                    }
++                }
++
++                @Override
++                public void notifyOfValue(final SpellAbility sa, final GameObject target, final String value) {
++                    out.notices.add(p.getName() + ": " + value);
++                }
++            });
++        }
++        return out;
 +    }
 +
 +    private static List<Integer> lives(final Fixture f) {
