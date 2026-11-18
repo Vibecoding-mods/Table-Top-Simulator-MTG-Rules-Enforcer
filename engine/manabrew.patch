@@ -118,7 +118,7 @@ index da0433a..78ed941 100644
                  FModel.initialize(null, null);
              }
 diff --git a/forge-harness/src/main/java/forge/harness/common/ActionSpace.java b/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
-index 972f4ae..a38c33c 100644
+index 972f4ae..18289b4 100644
 --- a/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
 +++ b/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
 @@ -1,6 +1,7 @@
@@ -129,7 +129,16 @@ index 972f4ae..a38c33c 100644
  import forge.card.MagicColor;
  import forge.card.mana.ManaAtom;
  import forge.card.mana.ManaCost;
-@@ -48,6 +49,43 @@ import java.util.Map;
+@@ -20,6 +21,8 @@ import forge.game.mana.ManaCostBeingPaid;
+ import forge.game.player.Player;
+ import forge.game.spellability.AbilityManaPart;
+ import forge.game.spellability.AlternativeCost;
++import forge.game.spellability.OptionalCost;
++import forge.game.spellability.OptionalCostValue;
+ import forge.game.spellability.SpellAbility;
+ import forge.game.spellability.SpellAbilityStackInstance;
+ import forge.game.spellability.TargetRestrictions;
+@@ -48,6 +51,43 @@ import java.util.Map;
  import java.util.Set;
  
  public final class ActionSpace {
@@ -173,7 +182,7 @@ index 972f4ae..a38c33c 100644
      private static final String SPEND_ONLY_COLORED_ON_X =
              "Spend only colored mana on X. No more than one mana of each color may be spent this way.";
  
-@@ -110,6 +148,15 @@ public final class ActionSpace {
+@@ -110,6 +150,15 @@ public final class ActionSpace {
              final Player player,
              final boolean includeManaAbilities,
              final boolean lifePaymentFallback
@@ -189,7 +198,7 @@ index 972f4ae..a38c33c 100644
      ) {
          final Game game = player.getGame();
          final Set<Card> candidates = new LinkedHashSet<>();
-@@ -139,10 +186,22 @@ public final class ActionSpace {
+@@ -139,10 +188,22 @@ public final class ActionSpace {
          final List<SpellAbility> actions = new ArrayList<>();
          final Map<Card, Card> spellHosts = new IdentityHashMap<>();
          boolean stackStatics = false;
@@ -213,7 +222,7 @@ index 972f4ae..a38c33c 100644
                  sa.setActivatingPlayer(player);
                  possible.add(sa);
                  spellHost(sa, game, spellHosts);
-@@ -152,6 +211,7 @@ public final class ActionSpace {
+@@ -152,6 +213,7 @@ public final class ActionSpace {
                  && game.getAction().hasStaticAbilityAffectingZone(ZoneType.Stack, StaticAbilityLayer.ABILITIES)) {
              stackStatics = true;
              applyStackStatics(game, spellHosts.values());
@@ -221,7 +230,7 @@ index 972f4ae..a38c33c 100644
          }
          for (final SpellAbility sa : possible) {
              final Cost payCosts = sa.getPayCosts();
-@@ -173,6 +233,19 @@ public final class ActionSpace {
+@@ -173,6 +235,19 @@ public final class ActionSpace {
              actions.add(sa);
          }
          } finally {
@@ -241,7 +250,7 @@ index 972f4ae..a38c33c 100644
              game.getAction().setHoldCheckingStaticAbilities(false);
              game.getAction().checkStaticAbilities(false);
              if (stackStatics) {
-@@ -201,13 +274,22 @@ public final class ActionSpace {
+@@ -201,13 +276,22 @@ public final class ActionSpace {
              if (!lifePaymentFallback) {
                  return false;
              }
@@ -268,7 +277,7 @@ index 972f4ae..a38c33c 100644
          } finally {
              if (probeHost != null) {
                  sa.setHostCard(host);
-@@ -269,21 +351,45 @@ public final class ActionSpace {
+@@ -269,21 +353,45 @@ public final class ActionSpace {
              return true;
          }
          final Card host = sa.getHostCard();
@@ -321,7 +330,7 @@ index 972f4ae..a38c33c 100644
      }
  
      private static boolean canPayManaWithTargets(
-@@ -385,7 +491,13 @@ public final class ActionSpace {
+@@ -385,7 +493,13 @@ public final class ActionSpace {
              if (stackSa == sa || stackSa.getId() == sa.getId()) {
                  continue;
              }
@@ -336,7 +345,7 @@ index 972f4ae..a38c33c 100644
                  continue;
              }
              final Card sourceCard = si.getSourceCard();
-@@ -417,6 +529,194 @@ public final class ActionSpace {
+@@ -417,6 +531,194 @@ public final class ActionSpace {
          return reserved;
      }
  
@@ -531,7 +540,7 @@ index 972f4ae..a38c33c 100644
      private static boolean canPayManaCostWithReservedSacrifices(
              final SpellAbility sa,
              final Player player,
-@@ -470,6 +770,22 @@ public final class ActionSpace {
+@@ -470,6 +772,22 @@ public final class ActionSpace {
  
      private static ManaCostBeingPaid probeManaCost(
              final Cost cost, final SpellAbility sa, final Player payer, final boolean effect) {
@@ -554,7 +563,7 @@ index 972f4ae..a38c33c 100644
          final Card host = sa.getHostCard();
          Zone castFromBackup = null;
          if (sa.isSpell() && !host.isInZone(ZoneType.Stack)) {
-@@ -642,13 +958,40 @@ public final class ActionSpace {
+@@ -642,13 +960,40 @@ public final class ActionSpace {
                  ? saBeingPaid.getHostCard()
                  : null;
  
@@ -599,7 +608,7 @@ index 972f4ae..a38c33c 100644
                  if (!manaAbility.isManaAbility()) {
                      continue;
                  }
-@@ -660,7 +1003,7 @@ public final class ActionSpace {
+@@ -660,7 +1005,7 @@ public final class ActionSpace {
                      continue;
                  }
                  final AbilityManaPart manaPart = manaAbility.getManaPart();
@@ -608,7 +617,7 @@ index 972f4ae..a38c33c 100644
                      continue;
                  }
                  if (manaAbility.getPayCosts() != null
-@@ -672,24 +1015,12 @@ public final class ActionSpace {
+@@ -672,24 +1017,12 @@ public final class ActionSpace {
                  )) {
                      continue;
                  }
@@ -637,6 +646,42 @@ index 972f4ae..a38c33c 100644
      }
  
      private static List<Integer> mergeAlternativeManaAbility(
+@@ -897,6 +1230,35 @@ public final class ActionSpace {
+     }
+ 
+     private static boolean hasValidTargets(final SpellAbility sa) {
++        return targetsFit(sa) || targetsFitWithGift(sa);
++    }
++
++    private static boolean targetsFitWithGift(final SpellAbility sa) {
++        final Card host = sa.getHostCard();
++        if (host == null || !sa.isSpell() || sa.isGiftPromised()) {
++            return false;
++        }
++        boolean gift = false;
++        for (final OptionalCostValue value : GameActionUtil.getOptionalCostValues(sa)) {
++            if (value.getType() == OptionalCost.PromiseGift) {
++                gift = true;
++            }
++        }
++        if (!gift) {
++            return false;
++        }
++        final SpellAbility promised = sa.copy();
++        promised.addOptionalCost(OptionalCost.PromiseGift);
++        final SpellAbility castSA = host.getCastSA();
++        host.setCastSA(promised);
++        try {
++            return targetsFit(promised);
++        } finally {
++            host.setCastSA(castSA);
++        }
++    }
++
++    private static boolean targetsFit(final SpellAbility sa) {
+         SpellAbility current = sa;
+         while (current != null) {
+             if (current.usesTargeting()) {
 diff --git a/forge-harness/src/main/java/forge/harness/common/AutoPay.java b/forge-harness/src/main/java/forge/harness/common/AutoPay.java
 index 4edefb1..41d2c6a 100644
 --- a/forge-harness/src/main/java/forge/harness/common/AutoPay.java
@@ -6950,6 +6995,259 @@ index 0000000..ea1a53b
 +            }
 +            return false;
 +        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/common/GiftTargetsTest.java b/forge-harness/src/test/java/forge/harness/common/GiftTargetsTest.java
+new file mode 100644
+index 0000000..e03f36c
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/common/GiftTargetsTest.java
+@@ -0,0 +1,247 @@
++package forge.harness.common;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameActionUtil;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.OptionalCost;
++import forge.game.spellability.OptionalCostValue;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++
++public final class GiftTargetsTest {
++    private GiftTargetsTest() {}
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    public static void main(final String[] args) {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        final Map<String, Check> checks = new LinkedHashMap<>();
++        checks.put("switch longRiversPullOfferedForANoncreatureSpell", GiftTargetsTest::longRiversPullOfferedForANoncreatureSpell);
++        checks.put("switch longRiversPullOfferedForACreatureSpell", GiftTargetsTest::longRiversPullOfferedForACreatureSpell);
++        checks.put("switch longRiversPullNotOfferedWithNoSpell", GiftTargetsTest::longRiversPullNotOfferedWithNoSpell);
++        checks.put("switch intoTheFloodMawOfferedForANoncreaturePermanent", GiftTargetsTest::intoTheFloodMawOfferedForANoncreaturePermanent);
++        checks.put("switch intoTheFloodMawNotOfferedWithNothingToReturn", GiftTargetsTest::intoTheFloodMawNotOfferedWithNothingToReturn);
++        checks.put("ask theOfferedSpellStillAsksTheGift", GiftTargetsTest::theOfferedSpellStillAsksTheGift);
++        checks.put("residue theCardsCastAbilityIsPutBack", GiftTargetsTest::theCardsCastAbilityIsPutBack);
++        checks.put("more wearDownOfferedWithOneTarget", GiftTargetsTest::wearDownOfferedWithOneTarget);
++        checks.put("more wearDownNotOfferedWithNone", GiftTargetsTest::wearDownNotOfferedWithNone);
++        checks.put("extra valleyRallyOfferedWithNoGiftTarget", GiftTargetsTest::valleyRallyOfferedWithNoGiftTarget);
++        checks.put("plain aSpellWithoutGiftIsNotOfferedWithoutTargets", GiftTargetsTest::aSpellWithoutGiftIsNotOfferedWithoutTargets);
++        for (final Map.Entry<String, Check> e : checks.entrySet()) {
++            try {
++                e.getValue().run();
++                System.out.println("ok " + e.getKey());
++            } catch (final Throwable thrown) {
++                failed++;
++                System.out.println("FAIL " + e.getKey() + ": " + thrown);
++            }
++        }
++        System.out.println(failed == 0 ? "PASS GiftTargetsTest" : "FAIL GiftTargetsTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private static void longRiversPullOfferedForANoncreatureSpell() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 2);
++        add("Long River's Pull", me, ZoneType.Hand);
++        castByOther(game, "Lightning Bolt");
++        expect(offered(me).contains("Long River's Pull"),
++                "Long River's Pull was not offered against a Lightning Bolt on the stack, which it counters with the gift promised");
++    }
++
++    private static void longRiversPullOfferedForACreatureSpell() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 2);
++        add("Long River's Pull", me, ZoneType.Hand);
++        castByOther(game, "Grizzly Bears");
++        expect(offered(me).contains("Long River's Pull"), "Long River's Pull was not offered against a creature spell");
++    }
++
++    private static void longRiversPullNotOfferedWithNoSpell() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 2);
++        add("Long River's Pull", me, ZoneType.Hand);
++        expect(!offered(me).contains("Long River's Pull"), "Long River's Pull was offered with nothing on the stack");
++    }
++
++    private static void intoTheFloodMawOfferedForANoncreaturePermanent() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 1);
++        add("Into the Flood Maw", me, ZoneType.Hand);
++        add("Sol Ring", game.getPlayers().get(0), ZoneType.Battlefield);
++        expect(offered(me).contains("Into the Flood Maw"),
++                "Into the Flood Maw was not offered with an opponent's Sol Ring, which it returns with the gift promised");
++    }
++
++    private static void intoTheFloodMawNotOfferedWithNothingToReturn() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 1);
++        add("Into the Flood Maw", me, ZoneType.Hand);
++        add("Island", game.getPlayers().get(0), ZoneType.Battlefield);
++        expect(!offered(me).contains("Into the Flood Maw"), "Into the Flood Maw was offered with only an opponent's land");
++    }
++
++    private static void theOfferedSpellStillAsksTheGift() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 2);
++        add("Long River's Pull", me, ZoneType.Hand);
++        castByOther(game, "Lightning Bolt");
++        SpellAbility pull = null;
++        for (final SpellAbility sa : ActionSpace.getPossibleActions(me, false, true)) {
++            if (sa.getHostCard().getName().equals("Long River's Pull")) {
++                pull = sa;
++            }
++        }
++        expect(pull != null, "Long River's Pull was not offered");
++        expect(!pull.isGiftPromised(), "the offered Long River's Pull already has the gift promised, so its cast won't ask");
++        boolean asks = false;
++        for (final OptionalCostValue value : GameActionUtil.getOptionalCostValues(pull)) {
++            if (value.getType() == OptionalCost.PromiseGift) {
++                asks = true;
++            }
++        }
++        expect(asks, "the offered Long River's Pull has no gift to choose at its cast");
++    }
++
++    private static void theCardsCastAbilityIsPutBack() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 2);
++        final Card pull = add("Long River's Pull", me, ZoneType.Hand);
++        castByOther(game, "Lightning Bolt");
++        final SpellAbility before = pull.getCastSA();
++        offered(me);
++        expect(pull.getCastSA() == before, "looking for actions left Long River's Pull's cast ability as " + pull.getCastSA() + ", not " + before);
++    }
++
++    private static void wearDownOfferedWithOneTarget() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        forests(me, 2);
++        add("Wear Down", me, ZoneType.Hand);
++        add("Sol Ring", game.getPlayers().get(0), ZoneType.Battlefield);
++        expect(offered(me).contains("Wear Down"), "Wear Down was not offered with one artifact (it needs two only with the gift)");
++    }
++
++    private static void wearDownNotOfferedWithNone() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        forests(me, 2);
++        add("Wear Down", me, ZoneType.Hand);
++        expect(!offered(me).contains("Wear Down"), "Wear Down was offered with no artifact or enchantment");
++    }
++
++    private static void valleyRallyOfferedWithNoGiftTarget() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        for (int i = 0; i < 3; i++) {
++            add("Mountain", me, ZoneType.Battlefield);
++        }
++        add("Valley Rally", me, ZoneType.Hand);
++        expect(offered(me).contains("Valley Rally"), "Valley Rally was not offered with no creature (its target comes only with the gift)");
++    }
++
++    private static void aSpellWithoutGiftIsNotOfferedWithoutTargets() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 2);
++        add("Essence Scatter", me, ZoneType.Hand);
++        castByOther(game, "Lightning Bolt");
++        expect(!offered(me).contains("Essence Scatter"), "Essence Scatter (no gift) was offered against a noncreature spell");
++    }
++
++    private static void islands(final Player p, final int n) {
++        for (int i = 0; i < n; i++) {
++            add("Island", p, ZoneType.Battlefield);
++        }
++    }
++
++    private static void forests(final Player p, final int n) {
++        for (int i = 0; i < n; i++) {
++            add("Forest", p, ZoneType.Battlefield);
++        }
++    }
++
++    private static void castByOther(final Game game, final String name) {
++        final Player other = game.getPlayers().get(0);
++        final Card card = add(name, other, ZoneType.Hand);
++        final SpellAbility cast = card.getFirstSpellAbility();
++        cast.setActivatingPlayer(other);
++        cast.setHostCard(game.getAction().moveToStack(card, cast));
++        game.getStack().add(cast);
++        game.getPhaseHandler().setPriority(game.getPlayers().get(1));
++    }
++
++    private static List<String> offered(final Player p) {
++        final List<String> names = new ArrayList<>();
++        for (final SpellAbility sa : ActionSpace.getPossibleActions(p, false, true)) {
++            names.add(sa.getHostCard().getName());
++        }
++        return names;
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static Game newGame() {
++        final List<RegisteredPlayer> players = new ArrayList<>();
++        final Deck deck = new Deck();
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("p2", null)));
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("p1", null)));
++        final GameRules rules = new GameRules(GameType.Constructed);
++        final Game game = new Game(players, rules, new Match(rules, players, "GiftTargetsTest"));
++        game.setAge(GameStage.Play);
++        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(1));
++        game.getPhaseHandler().onStackResolved();
++        return game;
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
 +    }
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ApplyStateCreateCardTest.java b/forge-harness/src/test/java/forge/harness/host/ApplyStateCreateCardTest.java
