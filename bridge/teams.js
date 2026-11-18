@@ -96,7 +96,9 @@ const TEAM_MODES = {
   "2hg": { rule: "sharedLife", name: "Two-Headed Giant", gameMode: "commander" },
   "2v2": { rule: "teams", name: "2v2", gameMode: "standard" },
   juggernaut: { rule: "teams", name: "Juggernaut", gameMode: "commander" },
-  archenemy: { rule: "teams", name: "Archenemy", gameMode: null }, // (either game mode, §2.7 answer 1)
+  // (either game mode, §2.7 answer 1; "teamTurns": the archenemy's opponents take one turn together, each with their
+  // own life, CR 904.2 and 805)
+  archenemy: { rule: "teamTurns", name: "Archenemy", gameMode: null },
   "3hg": { rule: "sharedLife", name: "Three-Headed Giant", gameMode: null, seats: 6 }, // (either game mode; the six-seat table)
 };
 const teamModeOf = (raw) => (Object.prototype.hasOwnProperty.call(TEAM_MODES, raw) ? raw : "2hg");
@@ -246,13 +248,19 @@ const teamKey = (p) => p.teamNumber ?? `alone:${p.id}`;
 // The engine's rules where partners share life, poison and losing: Level 1 ("sharedLife", each player's own turn) and
 // Level 2 ("sharedTurns": the team's one turn as well, CR 805 and 810.2). Every shared-life piece reads both.
 const sharesLife = (pub) => pub?.teamRules?.rule === "sharedLife" || pub?.teamRules?.rule === "sharedTurns";
-const sharesTurns = (pub) => pub?.teamRules?.rule === "sharedTurns";
+// The engine's rules where a team takes one turn (CR 805): Two-Headed Giant Level 2 ("sharedTurns", with shared life)
+// and Archenemy ("teamTurns", CR 904.2: the archenemy's opponents take one turn, each with their own life). Every
+// shared-turn piece (whose turn, the team's attack and block, triggers, the table's activeTeam) reads both.
+const sharesTurns = (pub) => pub?.teamRules?.rule === "sharedTurns" || pub?.teamRules?.rule === "teamTurns";
+// The rules where each player keeps their own life and the board's teams are the engine's sides as they are: 2v2,
+// Juggernaut ("teams") and Archenemy ("teamTurns")
+const ownLifeTeams = (rule) => rule === "teams" || rule === "teamTurns";
 function boardTeams(pub, slotColor) {
   const rules = pub?.teamRules;
-  if (!rules || (!sharesLife(pub) && rules.rule !== "teams")) return null;
+  if (!rules || (!sharesLife(pub) && !ownLifeTeams(rules.rule))) return null;
   const byTeam = new Map();
   for (const p of pub.players || []) {
-    if (p.teamNumber == null && rules.rule !== "teams") continue;
+    if (p.teamNumber == null && !ownLifeTeams(rules.rule)) continue;
     const key = teamKey(p);
     if (!byTeam.has(key)) byTeam.set(key, []);
     byTeam.get(key).push(slotColor[p.id] || p.id);
@@ -286,11 +294,11 @@ function teamsField(pub, slotColor, mode = null, archColor = null) {
   const t = boardTeams(pub, slotColor);
   if (!t) return mode === "archenemy" && archColor ? archTeamsField(pub, slotColor, archColor) : {};
   const winner = pub.winnerId && (pub.players || []).find((p) => p.id === pub.winnerId);
-  const won = winner && (winner.teamNumber != null || t.rule === "teams") ? t.byTeam.get(teamKey(winner)) || null : null;
+  const won = winner && (winner.teamNumber != null || ownLifeTeams(t.rule)) ? t.byTeam.get(teamKey(winner)) || null : null;
   const sideList = [...t.byTeam.values()];
-  if (t.rule === "teams") {
+  if (ownLifeTeams(t.rule)) {
     const lone = mode === "juggernaut" ? sideList.find((side) => side.length === 1) : null;
-    return { teams: { rule: "teams", ...(mode ? { mode } : {}), sides: sideList, ...(lone ? { juggernaut: lone[0] } : {}),
+    return { teams: { rule: "teams", ...(mode ? { mode } : {}), sides: sideList, ...(lone ? { juggernaut: lone[0] } : {}), ...(t.rule === "teamTurns" ? { turns: "shared" } : {}),
       ...(mode === "archenemy" && archColor ? { archenemy: archColor } : {}), ...(pub.gameOver && won ? { won } : {}) } };
   }
   return { teams: { poison: t.poison, ...(t.cmd != null ? { cmd: t.cmd } : {}), sides: sideList, ...(t.rule === "sharedTurns" ? { turns: "shared" } : {}),
@@ -332,7 +340,7 @@ function setupWords(mode, teams, jugg, std, turns = null, arch = null) {
   const s = sides(teams);
   if (mode === "archenemy" && arch) {
     const others = Object.keys(teams).filter((c) => c !== arch.color);
-    return `Archenemy: ${arch.color} (${archWords(arch, std)}) vs ${teamWords(others)} (${std ? 20 : 40} life each, their own turns). The archenemy sets a scheme in motion at each of their first main phases; the archenemy wins when all the others have lost, and they win together when the archenemy loses. Undo is off in Archenemy games.`;
+    return `Archenemy: ${arch.color} (${archWords(arch, std)}) vs ${teamWords(others)} (${std ? 20 : 40} life each, one turn together). The archenemy sets a scheme in motion at each of their first main phases; the archenemy wins when all the others have lost, and they win together when the archenemy loses. Undo is off in Archenemy games.`;
   }
   if (mode === "juggernaut") {
     return `Juggernaut: ${jugg.color} (${juggWords(jugg, std)}) vs ${teamWords(TEAM_COLORS.filter((c) => c !== jugg.color))} (${std ? 20 : 40} life each). The Juggernaut wins when all three have lost; the three win together when the Juggernaut loses.`;
