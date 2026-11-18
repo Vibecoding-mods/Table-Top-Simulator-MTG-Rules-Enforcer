@@ -17,7 +17,7 @@ const card = (n, name, types, ctl, extra = {}) => ({ id: `engine-card-${n}`, ide
 const put = (b, zone, c) => { const z = b.zones.find((x) => x.zone === zone && x.ownerId === c.ownerId); z.cards.push(c); z.count = z.cards.length; };
 
 // the table message's battlefield cards by id
-async function tableOf(fill) {
+async function tableOf(fill, gameExtra = {}) {
   const b = blank();
   fill(b);
   const h = harness.load();
@@ -27,7 +27,7 @@ async function tableOf(fill) {
     seat.board = { state: { gameView: b }, fingerprint: null };
     h.B._setGame({ seats: new Map([["White", seat]]), bots: 2, total: 3, playerOrder: ["tts-White-ab12", "bot-1", "bot-2"],
       slotNames: { "player-0": "White", "player-1": "AI 1", "player-2": "AI 2" }, slotColor: { "player-0": "White", "player-1": "Blue", "player-2": "Red" },
-      started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {}, eventSeq: 10 });
+      started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {}, eventSeq: 10, ...gameExtra });
     h.B.sendTable(); await h.flush();
     const t = h.effects.filter((e) => e.tts && e.tts.t === "table").map((e) => e.tts)[0] || { players: [] };
     return Object.fromEntries(t.players.flatMap((p) => p.battlefield || []).map((c) => [c.id, c]));
@@ -44,7 +44,7 @@ const goad = (c) => (c?.kw || []).filter((k) => /^Goaded/.test(k));
   const MOCK = "You may have Mocking Doppelganger enter as a copy of a creature an opponent controls, except it has \"Other creatures with the same name as this creature are goaded.\"";
   const cards = await tableOf((b) => {
     put(b, "battlefield", card(1, "Craw Wurm", ["Creature"], "player-1", { attachmentIds: ["engine-card-2"] }));
-    put(b, "battlefield", card(2, "Coercive Impetus", ["Enchantment"], "player-2", { attachedTo: "engine-card-1", text: IMPETUS }));
+    put(b, "battlefield", card(2, "Coercive Impetus", ["Enchantment"], "player-2", { attachedTo: "engine-card-1", text: IMPETUS, ownerId: "player-1" }));
     put(b, "battlefield", card(3, "Grizzly Bears", ["Creature"], "player-2", { attachmentIds: ["engine-card-4"] }));
     put(b, "battlefield", card(4, "Mark of the Rani", ["Enchantment"], "player-0", { attachedTo: "engine-card-3", text: RANI, identity: { name: "Mark of the Rani", isToken: true } }));
     put(b, "battlefield", card(5, "Serra Angel", ["Creature"], "player-0", { isCopy: true, text: "Flying, vigilance\nOther creatures with the same name as this creature are goaded." }));
@@ -54,8 +54,18 @@ const goad = (c) => (c?.kw || []).filter((k) => /^Goaded/.test(k));
     put(b, "battlefield", card(9, "Mocking Doppelganger", ["Creature"], "player-2", { text: MOCK }));
     put(b, "battlefield", card(10, "Llanowar Elves", ["Creature"], "player-2", { attachmentIds: ["engine-card-11"] }));
     put(b, "battlefield", card(11, "Pacifism", ["Enchantment"], "player-0", { attachedTo: "engine-card-10", text: "Enchant creature\nEnchanted creature can't attack or block." }));
-  });
-  ok("precondition 9: the board reached the table", Object.keys(cards).length === 11, Object.keys(cards).join(","));
+    // one creature, goaded by three auras (White's, and AI 2's twice) and by a resolved goad of AI 2's: each player once
+    put(b, "battlefield", card(14, "Craw Wurm", ["Creature"], "player-1", { attachmentIds: ["engine-card-15", "engine-card-16", "engine-card-17"] }));
+    put(b, "battlefield", card(15, "Coercive Impetus", ["Enchantment"], "player-0", { attachedTo: "engine-card-14", text: IMPETUS }));
+    put(b, "battlefield", card(16, "Coercive Impetus", ["Enchantment"], "player-2", { attachedTo: "engine-card-14", text: IMPETUS }));
+    put(b, "battlefield", card(17, "Coercive Impetus", ["Enchantment"], "player-2", { attachedTo: "engine-card-14", text: IMPETUS }));
+    // an aura that has phased out goads nothing
+    put(b, "battlefield", card(18, "Grizzly Bears", ["Creature"], "player-1", { attachmentIds: ["engine-card-19"] }));
+    put(b, "battlefield", card(19, "Coercive Impetus", ["Enchantment"], "player-2", { attachedTo: "engine-card-18", text: IMPETUS, phasedOut: true }));
+  }, { goaded: new Map([["engine-card-14", { by: "player-2", turn: 3 }]]) });
+  ok("precondition 9: the board reached the table", Object.keys(cards).length === 17, Object.keys(cards).join(","));
+  same("9 static goad: two players' goads on one creature are both named, each once", goad(cards["engine-card-14"]), ["Goaded by White and AI 2"]);
+  same("9 static goad: an aura that has phased out goads nothing", goad(cards["engine-card-18"]), []);
   same("9 static goad: an Impetus aura goads its creature by the aura's controller", goad(cards["engine-card-1"]), ["Goaded by AI 2"]);
   same("9 static goad: a Mark of the Rani token goads its creature by its controller", goad(cards["engine-card-3"]), ["Goaded by White"]);
   same("9 static goad: a Mocking Doppelganger copy goads the other creatures of its name", [goad(cards["engine-card-6"]), goad(cards["engine-card-7"])], [["Goaded by White"], ["Goaded by White"]]);
@@ -113,6 +123,27 @@ const goad = (c) => (c?.kw || []).filter((k) => /^Goaded/.test(k));
       put(b, "exile", caged(22, "engine-card-20"));
     });
     same("6 cage: with no Mairsil of its owner's it says nothing has them", [ex["engine-card-22"]?.ew, cageNote(ex["engine-card-22"])], ["engine-card-20", ["Caged: nothing on the battlefield has its activated abilities now"]]);
+  }
+
+  {
+    // a Mairsil face down (or hidden) has no abilities to give: nothing has them
+    const ex = await exileOf((b) => {
+      put(b, "battlefield", card(40, "Mairsil, the Pretender", ["Creature"], "player-0", { text: MAIRSIL, isFaceDown: true }));
+      put(b, "battlefield", card(41, "Mairsil, the Pretender", ["Creature"], "player-0", { text: MAIRSIL, visibility: "hidden" }));
+      put(b, "exile", caged(22, "engine-card-40"));
+    });
+    same("6 cage: a face-down or hidden Mairsil doesn't have its abilities", cageNote(ex["engine-card-22"]), ["Caged: nothing on the battlefield has its activated abilities now"]);
+  }
+
+  {
+    // no board drawn yet: who has a caged card's abilities isn't known, so no note says nobody does
+    const h = harness.load();
+    let nt;
+    try {
+      h.B._setGame({ seats: new Map(), bots: 2, total: 3, playerOrder: [], slotNames: { "player-0": "White" }, slotColor: { "player-0": "White" }, started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {}, eventSeq: 10 });
+      nt = h.B.tableCard(caged(22, "engine-card-20"), { zone: "exile" }).nt;
+    } finally { harness.restore(); }
+    same("6 cage: with no board drawn, no note says nothing has its abilities", (nt || []).filter((x) => /^Caged/.test(x)), []);
   }
 
   process.stdout.write(`${passed} passed, ${failed} failed\n`);

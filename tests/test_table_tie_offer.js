@@ -131,6 +131,12 @@ q(`engineTieUpdate(nil, false) return nil`);
 q('told = {} chat("tie", "", Player.White) return nil');
 ok("12 tie: mtg tie alone with no offer open says how to use it, not the last offer's words", /mtg tie yes/.test(q("return told[#told]") || "") && !/Rounds without progress/.test(q("return told[#told]") || ""), q("return told[#told]"));
 
+// a game over closes the offer too: "mtg tie" alone has no words then either
+q(`engineTieUpdate(${DECLINED(7, 1)}, true) return nil`);
+q('told = {} chat("tie", "", Player.White) return nil');
+ok("12 tie: mtg tie alone after the game is over says how to use it, not the old offer's words", /mtg tie yes/.test(q("return told[#told]") || "") && !/Rounds without progress/.test(q("return told[#told]") || ""), q("return told[#told]"));
+q(`engineTieUpdate(nil, false) return nil`);
+
 q('chat("tie", "yes", Player.White) return nil');
 same("mtg tie yes", q("return lastSent()"), "tieVote White true 76561190000000001");
 q('chat("tie", "no", Player.White) return nil');

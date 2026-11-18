@@ -68,21 +68,21 @@ const dist = (a, b) => (a && b ? Math.hypot(a[0] - b[0], a[1] - b[1]) : Infinity
   const cards = {
     "b-mairsil": { n: "Mairsil, the Pretender", ty: ["Creature"], p: 4, t: 4 },
     "x-kiki": { n: "Kiki-Jiki, Mirror Breaker", ty: ["Creature"] }, "x-red": { n: "Red Death, Shipwrecker", ty: ["Creature"] },
-    "x-lone": { n: "Pestermite", ty: ["Creature"] }, "x-pile": { n: "Grizzly Bears", ty: ["Creature"] },
+    "x-lone": { n: "Pestermite", ty: ["Creature"] }, "x-pile": { n: "Grizzly Bears", ty: ["Creature"] }, "x-fd": { n: "Hill Giant", ty: ["Creature"] },
   };
   const m = withBattlefields({ Blue: [{ id: "b-mairsil", s: 1 }] }, cards);
   const blue = m.players.find((p) => p.color === "Blue");
   blue.exile = [{ id: "x-kiki", s: 1, ew: "b-mairsil", ctr: { CAGE: 1 } }, { id: "x-red", s: 1, ew: "b-mairsil", ctr: { CAGE: 1 } },
-    { id: "x-lone", s: 1, ew: "gone-card", ctr: { CAGE: 1 } }, { id: "x-pile", s: 1 }];
+    { id: "x-lone", s: 1, ew: "gone-card", ctr: { CAGE: 1 } }, { id: "x-pile", s: 1 }, { id: "x-fd", s: 1, fd: true, ctr: { CAGE: 1 } }];
   blue.keep = (blue.keep || []).filter((z) => z !== "exile");
   const r = run([board(m, "board"), q(planned("b-mairsil"), "host"), q(planned("x-kiki"), "kiki"), q(planned("x-red"), "red"),
-    q('return tostring(engineSpecial["x-kiki"]) .. " " .. tostring(engineSpecial["x-lone"]) .. " " .. tostring(engineSpecial["x-pile"])', "special")]);
+    q('return tostring(engineSpecial["x-kiki"]) .. " " .. tostring(engineSpecial["x-lone"]) .. " " .. tostring(engineSpecial["x-pile"]) .. " " .. tostring(engineSpecial["x-fd"])', "special")]);
   ok("precondition 5: the board drew with no error", !r.errors.length, r.errors.join(" | "));
   const h = xz(valueOf(r, "host")), a = xz(valueOf(r, "kiki")), b = xz(valueOf(r, "red"));
   ok("5 linked: two tucked cards lie a half card's width apart", dist(a, b) >= 1.05, `${dist(a, b).toFixed(2)} apart (${valueOf(r, "kiki")} / ${valueOf(r, "red")})`);
   ok("5 linked: both still under their host", dist(a, h) < 2 && dist(b, h) < 2, `${dist(a, h).toFixed(2)}, ${dist(b, h).toFixed(2)} from it`);
   ok("5 linked: centred on the host", h && a && b && Math.abs(dist(a, h) - dist(b, h)) < 0.01, `${dist(a, h).toFixed(3)} vs ${dist(b, h).toFixed(3)}`);
-  same("6 caged: a caged card with no permanent over it lies beside the pile (a plain one stays in it)", valueOf(r, "special"), "linked suspended nil");
+  same("6 caged: a caged card with no permanent over it lies beside the pile (a plain one stays in it)", valueOf(r, "special"), "linked suspended nil nil");
 }
 
 // 1: a label on a card (its status box: Mairsil's "At end step: sacrifice Pestermite") takes the click from the card
@@ -156,7 +156,7 @@ const dist = (a, b) => (a && b ? Math.hypot(a[0] - b[0], a[1] - b[1]) : Infinity
 // 1: a label's click is the card's only for a card of the engine's: anything else (a life counter's marks) does nothing,
 // as does a click with no colour or from nobody seated
 {
-  const probe = (obj, color) => q(`local called = false local real = onPlayerAction onPlayerAction = function() called = true end
+  const probe = (obj, color) => q(`local called = false local real = onPlayerAction onPlayerAction = function(_, action) called = action == Player.Action.Select end
     local ok = pcall(engineNoop, ${obj}, ${color}) onPlayerAction = real return tostring(ok) .. " " .. tostring(called)`);
   const fake = (notes) => `{ getGMNotes = function() return "${notes}" end }`;
   const r = run([probe(fake("engine:b-card"), '"Blue"'), probe(fake("life:Blue"), '"Blue"'), probe(fake("engine:b-card"), "nil")].map((st, i) => ({ ...st, mark: "p" + i })));
