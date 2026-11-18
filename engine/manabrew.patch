@@ -15936,6 +15936,555 @@ index 0000000..49affd1
 +        return card;
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/host/LongTailTest.java b/forge-harness/src/test/java/forge/harness/host/LongTailTest.java
+new file mode 100644
+index 0000000..54a8a6e
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/LongTailTest.java
+@@ -0,0 +1,543 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.ai.PlayerControllerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.ability.AbilityUtils;
++import forge.game.card.Card;
++import forge.game.combat.Combat;
++import forge.game.phase.PhaseHandler;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.MagicStack;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.EnumSet;
++import java.util.HashSet;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++
++public final class LongTailTest {
++    private LongTailTest() {}
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++    private static final String[] NAMES = {"White", "Red", "Yellow", "Blue", "Green", "Purple"};
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        final Set<String> only = new HashSet<>(List.of(args));
++        CHECKS.put("cr805.4 untilYourNextTurnLastsUntilTheTeamsNextTurn", LongTailTest::untilYourNextTurnLastsUntilTheTeamsNextTurn);
++        CHECKS.put("cr805.4 aPartnersUntilYourNextTurnEndsWhenTheTeamsTurnBegins", LongTailTest::aPartnersUntilYourNextTurnEndsWhenTheTeamsTurnBegins);
++        CHECKS.put("cr800.4m aGonePartnersUntilYourNextTurnLastsToTheTeamsNextTurn", LongTailTest::aGonePartnersUntilYourNextTurnLastsToTheTeamsNextTurn);
++        CHECKS.put("cr800.4m aGoneDefendersUntilYourNextTurnEndsAtItsTeamsTurn", LongTailTest::aGoneDefendersUntilYourNextTurnEndsAtItsTeamsTurn);
++        CHECKS.put("cr805.4d theNextEndStepTriggersOnceForTheTeam", LongTailTest::theNextEndStepTriggersOnceForTheTeam);
++        CHECKS.put("cr805.4d yourNextUpkeepIsTheTeamsNextUpkeep", LongTailTest::yourNextUpkeepIsTheTeamsNextUpkeep);
++        CHECKS.put("cr805.4d theNextUpkeepTriggersOnceInTheOtherTeamsTurn", LongTailTest::theNextUpkeepTriggersOnceInTheOtherTeamsTurn);
++        CHECKS.put("cr805.8 aPartnersExtraCombatIsTheTeams", LongTailTest::aPartnersExtraCombatIsTheTeams);
++        CHECKS.put("cr800.4a theActiveTeamConcedingMidTurnPassesTheTurnOn", LongTailTest::theActiveTeamConcedingMidTurnPassesTheTurnOn);
++        CHECKS.put("cr800.4a aPartnerLeavingMidTurnLeavesTheTurnToTheOther", LongTailTest::aPartnerLeavingMidTurnLeavesTheTurnToTheOther);
++        CHECKS.put("cr800.4a theFirstSeatLeavingMidTurnLeavesTheTurnToThePartner", LongTailTest::theFirstSeatLeavingMidTurnLeavesTheTurnToThePartner);
++        CHECKS.put("threes cr805.4 aTeamOfThreeUntapsAndDrawsTogether", LongTailTest::aTeamOfThreeUntapsAndDrawsTogether);
++        CHECKS.put("threes cr805.4 theTurnAlternatesBetweenTeamsOfThree", LongTailTest::theTurnAlternatesBetweenTeamsOfThree);
++        CHECKS.put("threes cr805.4c eachOfThreeMayPlayALand", LongTailTest::eachOfThreeMayPlayALand);
++        CHECKS.put("threes cr805.5b priorityGoesRoundAllThreeBeforeTheOtherTeam", LongTailTest::priorityGoesRoundAllThreeBeforeTheOtherTeam);
++        CHECKS.put("threes cr805.10a allThreeDeclareAttacksInOneCombat", LongTailTest::allThreeDeclareAttacksInOneCombat);
++        CHECKS.put("cr805.4 threeTeamsOfTwoTakeTurnsInOrder", LongTailTest::threeTeamsOfTwoTakeTurnsInOrder);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            final String[] parts = e.getKey().split(" ");
++            if (only.isEmpty() || only.contains(e.getKey()) || only.contains(parts[parts.length - 1])) {
++                check(e.getKey(), e.getValue());
++            }
++        }
++        System.out.println(failed == 0 ? "PASS LongTailTest" : "FAIL LongTailTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static final String WEAKEN = "DB$ PumpAll | ValidCards$ Creature.OppCtrl | NumAtt$ -1 | Duration$ UntilYourNextTurn";
++
++    private static void untilYourNextTurnLastsUntilTheTeamsNextTurn() throws Exception {
++        final Fixture f = Fixture.twoHeaded(true);
++        final Card bears = creature("Grizzly Bears", f.p(2));
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        resolve(f, WEAKEN, f.p(1));
++        expect(bears.getNetPower() == 1, "Red's weakening did not apply: Yellow's Bears have power " + bears.getNetPower());
++        nextTurn(f);
++        expect(f.ph().getPlayerTurn() == f.p(2) && bears.getNetPower() == 1,
++                "Red's \"until your next turn\" ended in the other team's turn " + f.ph().getTurn() + ": power " + bears.getNetPower());
++        nextTurn(f);
++        expect(f.ph().isPlayerTurn(f.p(1)) && bears.getNetPower() == 2,
++                "Red's \"until your next turn\" did not end when her team's turn " + f.ph().getTurn() + " began: power " + bears.getNetPower());
++    }
++
++    private static void aPartnersUntilYourNextTurnEndsWhenTheTeamsTurnBegins() throws Exception {
++        final Fixture f = Fixture.twoHeaded(true);
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        resolve(f, WEAKEN, f.p(3));
++        expect(bears.getNetPower() == 1, "Blue's weakening did not apply: power " + bears.getNetPower());
++        nextTurn(f);
++        expect(f.ph().isPlayerTurn(f.p(3)) && bears.getNetPower() == 2,
++                "Blue's \"until your next turn\" did not end when Yellow and Blue's turn began: power " + bears.getNetPower() + " (rule 805.4)");
++    }
++
++    private static void aGonePartnersUntilYourNextTurnLastsToTheTeamsNextTurn() throws Exception {
++        final Fixture f = Fixture.teamTurns();
++        final Card bears = creature("Grizzly Bears", f.p(2));
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        resolve(f, WEAKEN, f.p(1));
++        leave(f, f.p(1));
++        expect(!f.game.isGameOver() && f.p(1).hasLost() && bears.getNetPower() == 1, "Red's leaving ended her weakening at once or ended the game");
++        nextTurn(f);
++        expect(f.ph().getPlayerTurn() == f.p(2) && bears.getNetPower() == 1,
++                "Red left, and her \"until your next turn\" ended in the other team's turn " + f.ph().getTurn() + ", not when her team's turn would have begun: power " + bears.getNetPower() + " (rule 800.4m)");
++        nextTurn(f);
++        expect(f.ph().getPlayerTurn() == f.p(0) && bears.getNetPower() == 2,
++                "Red's \"until your next turn\" did not end when her team's turn " + f.ph().getTurn() + " began: power " + bears.getNetPower() + " (rule 800.4m)");
++    }
++
++    private static void aGoneDefendersUntilYourNextTurnEndsAtItsTeamsTurn() throws Exception {
++        final Fixture f = Fixture.teamTurns();
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        resolve(f, WEAKEN, f.p(3));
++        leave(f, f.p(3));
++        expect(!f.game.isGameOver() && bears.getNetPower() == 1, "Blue's leaving ended her weakening at once or ended the game");
++        nextTurn(f);
++        expect(f.ph().getPlayerTurn() == f.p(2) && bears.getNetPower() == 2,
++                "Blue left, and her \"until your next turn\" lasted into Yellow's turn " + f.ph().getTurn() + ", her team's: power " + bears.getNetPower() + " (rule 800.4m)");
++    }
++
++    private static Card delayed(final Fixture f, final Player owner, final String trigger) {
++        final Card host = creature("Grizzly Bears", owner);
++        host.setSVar("TrigDraw", "DB$ Draw | Defined$ You | NumCards$ 1");
++        resolve(f, host, "DB$ DelayedTrigger | " + trigger + " | Execute$ TrigDraw | TriggerDescription$ draw a card.", owner);
++        return host;
++    }
++
++    private static void theNextEndStepTriggersOnceForTheTeam() throws Exception {
++        final Fixture f = Fixture.twoHeaded(true);
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        delayed(f, f.p(1), "Mode$ Phase | Phase$ End of Turn");
++        final Map<Player, Integer> before = handSizes(f);
++        stepTo(f, PhaseType.END_OF_TURN);
++        Map<Player, Integer> drawn = growth(f, before);
++        expect(drawn.get(f.p(1)) == 1, "\"at the beginning of the next end step\" drew Red " + drawn.get(f.p(1)) + " cards in her team's end step, not 1 (rule 805.4d)");
++        nextTurn(f);
++        stepTo(f, PhaseType.END_OF_TURN);
++        drawn = growth(f, before);
++        expect(drawn.get(f.p(1)) == 1, "the delayed trigger fired again in the next turn's end step: Red drew " + drawn.get(f.p(1)));
++    }
++
++    private static void yourNextUpkeepIsTheTeamsNextUpkeep() throws Exception {
++        final Fixture f = Fixture.twoHeaded(true);
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(2), 2);
++        delayed(f, f.p(1), "Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You");
++        delayed(f, f.p(0), "Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You");
++        final Map<Player, Integer> before = handSizes(f);
++        f.ph().devModeSet(PhaseType.CLEANUP, f.p(2), 2);
++        stepTo(f, PhaseType.UPKEEP);
++        final Map<Player, Integer> drawn = growth(f, before);
++        expect(f.ph().getTurn() == 3 && drawn.get(f.p(1)) == 1 && drawn.get(f.p(0)) == 1,
++                "in her team's upkeep of turn " + f.ph().getTurn() + " \"at the beginning of your next upkeep\" drew Red " + drawn.get(f.p(1))
++                        + " and White " + drawn.get(f.p(0)) + ", not one each (rule 805.4d)");
++    }
++
++    private static void theNextUpkeepTriggersOnceInTheOtherTeamsTurn() throws Exception {
++        final Fixture f = Fixture.twoHeaded(true);
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        delayed(f, f.p(0), "Mode$ Phase | Phase$ Upkeep");
++        final Map<Player, Integer> before = handSizes(f);
++        f.ph().devModeSet(PhaseType.CLEANUP, f.p(0), 1);
++        stepTo(f, PhaseType.UPKEEP);
++        expect(f.ph().getPlayerTurn() == f.p(2) && growth(f, before).get(f.p(0)) == 1,
++                "\"at the beginning of the next upkeep\" drew White " + growth(f, before).get(f.p(0)) + " in the other team's upkeep, not 1 (rule 805.4d)");
++    }
++
++    private static void aPartnersExtraCombatIsTheTeams() throws Exception {
++        final Fixture f = Fixture.twoHeaded(true);
++        creature("Grizzly Bears", f.p(0));
++        creature("Hill Giant", f.p(1));
++        final List<Player> asked = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public void declareAttackers(final Player attacker, final Combat combat) {
++                    asked.add(attacker);
++                }
++            });
++        }
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        final Card assault = add("Relentless Assault", f.p(1), ZoneType.Hand);
++        final SpellAbility sa = assault.getFirstSpellAbility();
++        sa.setActivatingPlayer(f.p(1));
++        withoutPrompts(f, "resolving Relentless Assault", () -> AbilityUtils.resolve(sa));
++        final List<PhaseType> seen = new ArrayList<>();
++        for (int i = 0; i < 30 && f.ph().getPhase() != PhaseType.END_OF_TURN; i++) {
++            step(f);
++            seen.add(f.ph().getPhase());
++        }
++        expect(seen.stream().filter(p -> p == PhaseType.COMBAT_BEGIN).count() == 2 && seen.stream().filter(p -> p == PhaseType.MAIN2).count() == 2,
++                "Red's Relentless Assault gave the team's turn the phases " + seen + ", not two combats and two second main phases (rule 805.8)");
++        expect(asked.equals(List.of(f.p(0), f.p(1), f.p(0), f.p(1))),
++                "the attacks were asked of " + asked + ", not White and Red in each combat (rule 805.10a)");
++    }
++
++    private static void theActiveTeamConcedingMidTurnPassesTheTurnOn() throws Exception {
++        final Fixture f = new Fixture(6, 2, true, true, 30);
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        leave(f, f.p(0));
++        expect(f.p(0).hasLost() && f.p(1).hasLost() && !f.game.isGameOver(),
++                "White's concession: White out " + f.p(0).hasLost() + ", Red out " + f.p(1).hasLost() + ", game over " + f.game.isGameOver());
++        stepTo(f, PhaseType.UNTAP);
++        expect(f.ph().getTurn() == 2 && f.ph().getPlayerTurn() == f.p(2) && f.ph().isPlayerTurn(f.p(3)),
++                "after the active team left mid-turn, turn " + f.ph().getTurn() + " went to " + f.ph().getActiveTeam() + ", not Yellow and Blue (rule 800.4a)");
++        nextTurn(f);
++        expect(f.ph().getTurn() == 3 && f.ph().getPlayerTurn() == f.p(4), "turn 3 went to " + f.ph().getActiveTeam() + ", not Green and Purple");
++        nextTurn(f);
++        expect(f.ph().getTurn() == 4 && f.ph().getPlayerTurn() == f.p(2), "turn 4 went to " + f.ph().getActiveTeam() + ", not Yellow and Blue");
++    }
++
++    private static void aPartnerLeavingMidTurnLeavesTheTurnToTheOther() throws Exception {
++        final Fixture f = Fixture.teamTurns();
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        leave(f, f.p(1));
++        expect(f.ph().isPlayerTurn(f.p(0)) && f.ph().getActiveTeam().equals(List.of(f.p(0))),
++                "with Red gone mid-turn the active team is " + f.ph().getActiveTeam() + ", not White alone");
++        final List<Player> passes = passesUntilResolved(f, f.p(0));
++        expect(passes.equals(List.of(f.p(0), f.p(2), f.p(3))), "with Red gone the passes went " + passes + ", not White, Yellow, Blue");
++        stepTo(f, PhaseType.UNTAP);
++        expect(f.ph().getPlayerTurn() == f.p(2), "after White's turn came " + f.ph().getActiveTeam());
++        nextTurn(f);
++        expect(f.ph().getPlayerTurn() == f.p(0) && f.ph().getActiveTeam().equals(List.of(f.p(0))), "turn 3 went to " + f.ph().getActiveTeam() + ", not White");
++    }
++
++    private static void theFirstSeatLeavingMidTurnLeavesTheTurnToThePartner() throws Exception {
++        final Fixture f = Fixture.teamTurns();
++        final Card land = add("Forest", f.p(1), ZoneType.Hand);
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        leave(f, f.p(0));
++        expect(!f.game.isGameOver() && f.ph().isPlayerTurn(f.p(1)) && f.ph().getActiveTeam().equals(List.of(f.p(1))),
++                "with White gone mid-turn the active team is " + f.ph().getActiveTeam() + ", not Red (rule 800.4a)");
++        expect(f.p(1).canPlayLand(land, false, land.getFirstSpellAbility()), "Red can't play a land in her team's turn after White left");
++        stepTo(f, PhaseType.UNTAP);
++        expect(f.ph().getTurn() == 2 && f.ph().getPlayerTurn() == f.p(2), "after White left her turn, turn " + f.ph().getTurn() + " went to " + f.ph().getActiveTeam());
++        nextTurn(f);
++        expect(f.ph().getTurn() == 3 && f.ph().getPlayerTurn() == f.p(1), "turn 3 went to " + f.ph().getActiveTeam() + ", not Red");
++    }
++
++    private static void aTeamOfThreeUntapsAndDrawsTogether() throws Exception {
++        final Fixture f = new Fixture(6, 3, true, true, 45);
++        final List<Card> lands = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            final Card land = add("Forest", p, ZoneType.Battlefield);
++            land.setTapped(true);
++            lands.add(land);
++        }
++        final Map<Player, Integer> before = handSizes(f);
++        f.ph().devModeSet(PhaseType.CLEANUP, f.p(3), 2);
++        stepTo(f, PhaseType.DRAW);
++        final Map<Player, Integer> drawn = growth(f, before);
++        for (int i = 0; i < 6; i++) {
++            final boolean active = i < 3;
++            expect(lands.get(i).isUntapped() == active, NAMES[i] + "'s land " + (active ? "stayed tapped" : "untapped") + " in the team of three's turn");
++            expect(drawn.get(f.p(i)) == (active ? 1 : 0), NAMES[i] + " drew " + drawn.get(f.p(i)) + " in the team of three's draw step");
++        }
++    }
++
++    private static void theTurnAlternatesBetweenTeamsOfThree() throws Exception {
++        final Fixture f = new Fixture(6, 3, true, true, 45);
++        f.ph().devModeSet(PhaseType.CLEANUP, f.p(0), 1);
++        stepTo(f, PhaseType.UNTAP);
++        expect(f.ph().getActiveTeam().equals(List.of(f.p(3), f.p(4), f.p(5))), "turn 2 went to " + f.ph().getActiveTeam());
++        nextTurn(f);
++        expect(f.ph().getActiveTeam().equals(List.of(f.p(0), f.p(1), f.p(2))) && f.ph().getTurn() == 3, "turn 3 went to " + f.ph().getActiveTeam());
++    }
++
++    private static void eachOfThreeMayPlayALand() {
++        final Fixture f = new Fixture(6, 3, true, true, 45);
++        for (int i = 0; i < 3; i++) {
++            final Card land = add("Forest", f.p(i), ZoneType.Hand);
++            expect(f.p(i).canPlayLand(land, false, land.getFirstSpellAbility()), NAMES[i] + " can't play a land after the partners before her did (rule 805.4c)");
++            f.p(i).addLandPlayedThisTurn();
++        }
++        final Card other = add("Forest", f.p(3), ZoneType.Hand);
++        expect(!f.p(3).canPlayLand(other, false, other.getFirstSpellAbility()), "Blue plays a land in the other team's turn");
++    }
++
++    private static void priorityGoesRoundAllThreeBeforeTheOtherTeam() throws Exception {
++        final Fixture f = new Fixture(6, 3, true, true, 45);
++        final List<Player> passes = passesUntilResolved(f, f.p(1));
++        expect(passes.size() == 6 && Set.copyOf(passes.subList(0, 3)).equals(Set.of(f.p(0), f.p(1), f.p(2))),
++                "after Red's ability the passes went " + passes + ": the team of three passes before the other team (rule 805.5b)");
++    }
++
++    private static void allThreeDeclareAttacksInOneCombat() throws Exception {
++        final Fixture f = new Fixture(6, 3, true, true, 45);
++        final List<Player> asked = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            creature("Grizzly Bears", p);
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public void declareAttackers(final Player attacker, final Combat combat) {
++                    asked.add(attacker);
++                }
++            });
++        }
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        stepTo(f, PhaseType.COMBAT_DECLARE_ATTACKERS);
++        expect(asked.equals(List.of(f.p(0), f.p(1), f.p(2))), "the team of three's attacks were asked of " + asked + " (rule 805.10a)");
++    }
++
++    private static void threeTeamsOfTwoTakeTurnsInOrder() throws Exception {
++        final Fixture f = new Fixture(6, 2, true, true, 30);
++        f.ph().devModeSet(PhaseType.CLEANUP, f.p(0), 1);
++        final List<List<Player>> teams = new ArrayList<>();
++        for (int i = 0; i < 3; i++) {
++            stepTo(f, PhaseType.UNTAP);
++            teams.add(new ArrayList<>(f.ph().getActiveTeam()));
++            f.ph().devModeSet(PhaseType.CLEANUP, f.ph().getPlayerTurn(), f.ph().getTurn());
++        }
++        expect(teams.equals(List.of(List.of(f.p(2), f.p(3)), List.of(f.p(4), f.p(5)), List.of(f.p(0), f.p(1)))),
++                "three teams of two took turns " + teams);
++    }
++
++    private static void nextTurn(final Fixture f) throws Exception {
++        f.ph().devModeSet(PhaseType.CLEANUP, f.ph().getPlayerTurn(), f.ph().getTurn());
++        stepTo(f, PhaseType.UNTAP);
++    }
++
++    private static void leave(final Fixture f, final Player p) throws Exception {
++        withoutPrompts(f, p.getName() + " leaving", () -> {
++            p.concede();
++            f.game.getAction().checkGameOverCondition();
++            f.game.getAction().checkStateEffects(true);
++        });
++    }
++
++    private static void step(final Fixture f) throws Exception {
++        final PhaseHandler ph = f.ph();
++        final Method end = PhaseHandler.class.getDeclaredMethod("onPhaseEnd");
++        final Method advance = PhaseHandler.class.getDeclaredMethod("advanceToNextPhase");
++        final Method begin = PhaseHandler.class.getDeclaredMethod("onPhaseBegin");
++        end.setAccessible(true);
++        advance.setAccessible(true);
++        begin.setAccessible(true);
++        withoutPrompts(f, "stepping from " + ph.getPhase(), () -> {
++            invoke(end, ph);
++            invoke(advance, ph);
++            invoke(begin, ph);
++            f.game.getStack().addAllTriggeredAbilitiesToStack();
++            for (int i = 0; i < 20 && !f.game.getStack().isEmpty(); i++) {
++                f.game.getStack().resolveStack();
++            }
++        });
++        final Field waiting = MagicStack.class.getDeclaredField("simultaneousStackEntryList");
++        waiting.setAccessible(true);
++        ((List<?>) waiting.get(f.game.getStack())).clear();
++        f.game.getStack().clear();
++    }
++
++    private static void stepTo(final Fixture f, final PhaseType target) throws Exception {
++        for (int i = 0; i < 30; i++) {
++            step(f);
++            if (f.ph().getPhase() == target) {
++                return;
++            }
++        }
++        throw new AssertionError("never reached " + target + ", at " + f.ph().getPhase());
++    }
++
++    private static List<Player> passesUntilResolved(final Fixture f, final Player activator) throws Exception {
++        final List<Player> passes = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public List<SpellAbility> chooseSpellAbilityToPlay() {
++                    passes.add(p);
++                    return null;
++                }
++            });
++        }
++        final Card host = add("Grizzly Bears", activator, ZoneType.Battlefield);
++        final SpellAbility gain = AbilityFactory.getAbility("AB$ GainLife | Cost$ 0 | LifeAmount$ 1 | Defined$ You", host);
++        gain.setActivatingPlayer(activator);
++        withoutPrompts(f, "adding the ability to the stack", () -> f.game.getStack().add(gain));
++        f.ph().setPriority(activator);
++        final Field give = PhaseHandler.class.getDeclaredField("givePriorityToPlayer");
++        give.setAccessible(true);
++        give.set(f.ph(), true);
++        for (int i = 0; i < 16 && !f.game.getStack().isEmpty(); i++) {
++            withoutPrompts(f, "a priority step", () -> f.ph().mainLoopStep());
++        }
++        expect(f.game.getStack().isEmpty(), "the ability never resolved; passes " + passes);
++        return passes;
++    }
++
++    private static void resolve(final Fixture f, final String script, final Player activator) {
++        resolve(f, creature("Grizzly Bears", activator), script, activator);
++    }
++
++    private static void resolve(final Fixture f, final Card host, final String script, final Player activator) {
++        final SpellAbility sa = AbilityFactory.getAbility(script, host);
++        sa.setActivatingPlayer(activator);
++        try {
++            withoutPrompts(f, "resolving " + script, () -> AbilityUtils.resolve(sa));
++        } catch (final Exception e) {
++            throw new AssertionError(e);
++        }
++    }
++
++    private static void withoutPrompts(final Fixture f, final String what, final Runnable step) throws Exception {
++        final Throwable[] failure = new Throwable[1];
++        final Thread runner = new Thread(() -> {
++            try {
++                step.run();
++            } catch (final Throwable thrown) {
++                failure[0] = thrown;
++            }
++        }, what);
++        runner.setDaemon(true);
++        runner.start();
++        runner.join(60_000);
++        if (runner.isAlive()) {
++            throw new AssertionError(what + " asked " + f.session.getLatestPromptJson());
++        }
++        if (failure[0] != null) {
++            throw new AssertionError(what + " failed: " + failure[0], failure[0]);
++        }
++    }
++
++    private static void invoke(final Method m, final Object target) {
++        try {
++            m.invoke(target);
++        } catch (final ReflectiveOperationException e) {
++            throw new RuntimeException(e.getCause() != null ? e.getCause() : e);
++        }
++    }
++
++    private static Map<Player, Integer> handSizes(final Fixture f) {
++        final Map<Player, Integer> out = new LinkedHashMap<>();
++        for (final Player p : f.game.getRegisteredPlayers()) {
++            out.put(p, p.getCardsIn(ZoneType.Hand).size());
++        }
++        return out;
++    }
++
++    private static Map<Player, Integer> growth(final Fixture f, final Map<Player, Integer> before) {
++        final Map<Player, Integer> out = new LinkedHashMap<>();
++        for (final Player p : f.game.getRegisteredPlayers()) {
++            out.put(p, p.getCardsIn(ZoneType.Hand).size() - before.get(p));
++        }
++        return out;
++    }
++
++    private static Card creature(final String name, final Player p) {
++        final Card c = add(name, p, ZoneType.Battlefield);
++        c.setSickness(false);
++        return c;
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("long-tail-test");
++        final Game game;
++        final List<Player> seats;
++
++        static Fixture twoHeaded(final boolean sharedTurns) {
++            return new Fixture(4, 2, true, sharedTurns, 30);
++        }
++
++        static Fixture teamTurns() {
++            return new Fixture(4, 2, false, true, 20);
++        }
++
++        Fixture(final int players, final int teamSize, final boolean sharedLife, final boolean sharedTurns, final int life) {
++            final List<RegisteredPlayer> registered = new ArrayList<>();
++            for (int i = 0; i < players; i++) {
++                final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(NAMES[i], null));
++                rp.setStartingLife(life);
++                rp.setTeamNumber(i / teamSize + 1);
++                registered.add(rp);
++            }
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setAppliedVariants(EnumSet.of(GameType.Constructed));
++            rules.setSharedTeamLife(sharedLife);
++            rules.setSharedTeamTurns(sharedTurns);
++            game = new Game(registered, rules, new Match(rules, registered, "LongTailTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++            game.getPhaseHandler().onStackResolved();
++            seats = new ArrayList<>(game.getPlayers());
++            for (final Player p : seats) {
++                for (int i = 0; i < 12; i++) {
++                    add("Plains", p, ZoneType.Library);
++                }
++            }
++            session.attach(game.getMatch(), game, Set.of(), false);
++        }
++
++        Player p(final int i) {
++            return seats.get(i);
++        }
++
++        PhaseHandler ph() {
++            return game.getPhaseHandler();
++        }
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ManaSourcesTest.java b/forge-harness/src/test/java/forge/harness/host/ManaSourcesTest.java
 new file mode 100644
 index 0000000..e8bb9db

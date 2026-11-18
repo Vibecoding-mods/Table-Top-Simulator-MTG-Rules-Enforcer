@@ -69,7 +69,7 @@ All of these are still open: nothing was seen in TTS. See (d), which adds the ne
 - ~~Team blocks: teams of three not tested for the re-ask order~~ (`cloud/team-block-2`, queued).
 - **Level 2 tests, still open:**
   - ~~805.9's "the active player" and 805.10e's "defending player" with no attacker named have no choice in Forge~~
-    (`cloud/l2-team-choices`, engine1127-teamchoices): the controller of the spell or ability chooses, as the rules
+    (`cloud/l2-team-choices`, engine1126): the controller of the spell or ability chooses, as the rules
     say (not the whole team); with no controller in the game, the active team's leader;
   - ~~805.10c's "attacking player" with no creature named goes to the active team's first seat~~ (same branch): the
     controller chooses there too. `TeamChoiceTest`, 18 checks;
