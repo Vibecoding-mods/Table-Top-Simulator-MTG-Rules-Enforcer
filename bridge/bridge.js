@@ -3082,6 +3082,10 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
     // (a playable row card from a graveyard says so on its face: it left the graveyard pile for the row, readability
     // audit B4)
     ...(row && zone === "graveyard" ? { og: "graveyard" } : {}),
+    // (and from exile, an adventure creature on its adventure or a card another let be played: "FROM EXILE", its hover
+    // why when known, live check 1; not a card face down to the others, a foretold one, as the cost badge below: the
+    // label is a button every player may see)
+    ...(row && zone === "exile" && !c.isFaceDown ? { og: "exile", ...(exileWhy(c) ? { ogw: exileWhy(c) } : {}) } : {}),
     // (what it costs now, when that isn't its printed cost: the table's cost badge; never on a card face down to the
     // others, whose badge buttons other players may see: a foretold card in its owner's row says it in its hover text,
     // cardNotes)
@@ -3331,6 +3335,15 @@ function playWindow(text) {
 }
 // A playable row card exiled by another card (impulse draw: Jeska's Will, Light Up the Stage, Prosper, Tibalt):
 // "Playable until end of turn — Jeska's Will" (Castable for a "may cast"), readability audit B1
+// Why a playable row card in exile may be cast from there, in a few words, when the board says it: the card that let it
+// be played (playNote), madness, warp; else null (an adventure: Forge's card view doesn't say it is on one)
+function exileWhy(c) {
+  const play = playNote(c);
+  if (play) return play.replace(" — ", ", by ");
+  if (c.isMadnessExiled) return "exiled for madness";
+  if (c.isWarpExiled) return "warped";
+  return null;
+}
 function playNote(c) {
   if (!c?.mayPlay || !c.exiledWith || c.exiledWith === c.id || game?.prepared?.has(c.id)) return null;
   const w = playWindow(boardText(c.exiledWith));
