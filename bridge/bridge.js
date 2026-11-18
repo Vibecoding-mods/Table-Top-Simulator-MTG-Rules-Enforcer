@@ -6282,6 +6282,7 @@ function logEvents(prev, cur, pub, facts = null) {
     if (!list.length || list.some((d) => !d.src || !fedName(d.src))) return null;
     return list.filter((d) => !own.has(fedName(d.src))).map((d) => ({ n: d.n, w: `${d.combat ? "combat damage" : "damage"} from ${fedName(d.src)}` }));
   };
+  const lifeRows = [];
   for (const [p, l] of Object.entries(cur.life)) {
     const before = prev.life[p];
     if (before == null || l === before) continue;
@@ -6292,8 +6293,29 @@ function logEvents(prev, cur, pub, facts = null) {
     const parts = [...(damage.gain[p] || []), ...[...dealt, ...pain.map((t) => ({ n: t.n, w: `damage from ${t.name}` })),
       ...paid.map((x) => ({ n: x.n, w: `paid for ${x.name}` }))].map((x) => ({ n: -x.n, w: x.w }))];
     parts.push(...lifeSources(p, l - before - parts.reduce((a, x) => a + x.n, 0), lifeFrom, Object.keys(cur.life), prev));
-    const why = parts.length && parts.reduce((a, x) => a + x.n, 0) === l - before ? `, ${lifeWords(parts)}` : "";
-    out.push(`${who(p)}: ${before} -> ${l} life (${l > before ? "+" : ""}${l - before}${why})${cmdNow(p).map((w) => `; ${w}`).join("")}`);
+    lifeRows.push({ p, before, l, parts });
+  }
+  // (with shared life, 2HG and 3HG, CR 810.4: every partner's row shows the team's one total, so a team that lost 6 read
+  // as two "-6" lines, 12 lost, live 2HG check 2026-11-18. The partners whose rows show the same change are one line,
+  // "White + AI 1: 80 -> 74 life (-6, Reanimate)", with the cause the partners' parts give together, or one partner's
+  // alone when it explains the whole change; every other game keeps a line a player)
+  const sumOf = (parts) => parts.reduce((a, x) => a + x.n, 0);
+  const lifeLine = (ids, before, l, parts) => {
+    const why = parts.length && sumOf(parts) === l - before ? `, ${lifeWords(parts)}` : "";
+    return `${ids.map(who).join(" + ")}: ${before} -> ${l} life (${l > before ? "+" : ""}${l - before}${why})${ids.flatMap(cmdNow).map((w) => `; ${w}`).join("")}`;
+  };
+  const playerOf = (id) => (pub?.players || []).find((q) => q.id === id);
+  const merged = new Set();
+  for (const row of lifeRows) {
+    if (merged.has(row.p)) continue;
+    const me = playerOf(row.p);
+    const mates = me ? teams2hg.teamOf(me, pub).map((q) => q.id) : [row.p];
+    const same = lifeRows.filter((r) => mates.includes(r.p) && r.before === row.before && r.l === row.l);
+    if (same.length < 2) { out.push(lifeLine([row.p], row.before, row.l, row.parts)); continue; }
+    for (const r of same) merged.add(r.p);
+    const all = same.flatMap((r) => r.parts);
+    const one = same.find((r) => r.parts.length && sumOf(r.parts) === row.l - row.before);
+    out.push(lifeLine(same.map((r) => r.p), row.before, row.l, all.length && sumOf(all) === row.l - row.before ? all : one ? one.parts : []));
   }
   out.push(...countedTriggers(triggered), ...afterResolved);
   // (each group's line made once and kept on it, for the moves after the cuts below to find)

@@ -7499,4 +7499,38 @@ add(promptCase("rebuilt #7: an opponent's reveal said once as theirs", D2.board,
   } });
 }
 
+// The life line in a shared-life game (live 2HG check 2026-11-18): one line for the team, its cause kept, in 2HG and
+// 3HG; a line a player where life isn't shared. Hand-built boards, a spell resolving between them.
+{
+  const LZ = ["library", "hand", "graveyard", "exile", "battlefield", "command"];
+  const LNAMES = ["White", "AI 1", "Yellow", "Blue", "Green", "Purple"];
+  const lifeBoard = (life, rule, size, fill) => {
+    const ids = life.map((_, i) => `player-${i}`);
+    const b = { turn: 3, step: "main1", activePlayerId: "player-1", priorityPlayerId: "player-1", stack: [],
+      players: ids.map((id, i) => ({ id, life: life[i], ...(rule ? { teamNumber: Math.floor(i / size) + 1 } : {}) })),
+      zones: ids.flatMap((ownerId) => LZ.map((zone) => ({ zone, ownerId, cards: [], count: 0 }))) };
+    if (rule) b.teamRules = { rule, poisonToLose: size === 3 ? 20 : 15 };
+    if (fill) fill(b);
+    return b;
+  };
+  const whisperOn = (b) => b.stack.push({ id: "engine-stack-206", sourceId: "engine-card-206", controllerId: "player-1", ownerId: "player-1",
+    identity: { name: "Night's Whisper" }, sourceAbilityText: "You draw two cards and you lose 2 life.", text: "Night's Whisper (206) - You draw two cards and you lose 2 life." });
+  const whisperDone = (b) => { const z = b.zones.find((x) => x.zone === "graveyard" && x.ownerId === "player-1");
+    z.cards.push({ id: "engine-card-206", identity: { name: "Night's Whisper" }, types: ["Sorcery"], controllerId: "player-1", ownerId: "player-1" }); z.count = 1; };
+  const lifeLog = (h, seats, before, after) => {
+    const slotNames = {}, slotColor = {};
+    for (let i = 0; i < seats; i++) { slotNames[`player-${i}`] = LNAMES[i]; slotColor[`player-${i}`] = ["White", "Red", "Yellow", "Blue", "Green", "Purple"][i]; }
+    h.B._setGame({ seats: new Map(), bots: 0, total: seats, playerOrder: [], slotNames, slotColor, started: true, closing: false, fromTable: true,
+      sentStatic: {}, sentZones: {}, eventSeq: 10 });
+    const facts = h.B.engineFacts([{ seq: 11, cardId: "engine-card-206", from: "Stack", to: "Graveyard", ownerId: "player-1" }]);
+    return { lines: h.B.logEvents(h.B.logSnapshot(before), h.B.logSnapshot(after), after, facts) };
+  };
+  add({ name: "life log: 2HG, a team's shared loss is one team line with its cause", run: async (h) =>
+    lifeLog(h, 4, lifeBoard([30, 30, 30, 30], "sharedLife", 2, whisperOn), lifeBoard([28, 28, 30, 30], "sharedLife", 2, whisperDone)) });
+  add({ name: "life log: 3HG, three partners' shared loss is one line with its cause", run: async (h) =>
+    lifeLog(h, 6, lifeBoard([45, 45, 45, 45, 45, 45], "sharedLife", 3, whisperOn), lifeBoard([43, 43, 43, 45, 45, 45], "sharedLife", 3, whisperDone)) });
+  add({ name: "life log: free-for-all keeps a line a player", run: async (h) =>
+    lifeLog(h, 4, lifeBoard([40, 40, 40, 40], null, 2, whisperOn), lifeBoard([40, 38, 40, 40], null, 2, whisperDone)) });
+}
+
 module.exports = cases;
