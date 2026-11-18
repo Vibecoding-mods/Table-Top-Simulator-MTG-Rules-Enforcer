@@ -72,11 +72,12 @@ const line = (start) => {
 const LUA = [
   line("ENGINE_SCHEME = {"), line("ENGINE_ARCH_SETUP = nil"), line("ENGINE_ARCH_SEATS = {"),
   ...["engineZoneScale", "engineExpandUrl", "engineStoreStatic", "engineFillStatic", "engineArchColor", "engineSchemeSpot", "engineSchemes", "engineSchemeDeckCard",
-    "engineSchemeDeckOf", "engineSchemeBanner", "engineArchLabel", "engineArchNext", "onMtgSetupArch", "engineArchNoted", "engineOnTexts", "engineTextInto"].map(fn),
+    "engineSchemeDeckOf", "engineSchemeBanner", "engineArchLabel", "engineSixSeats", "engineArchSeats", "engineArchNext", "onMtgSetupArch", "engineArchNoted", "engineOnTexts", "engineTextInto"].map(fn),
 ].join("\n");
 const STUBS = `
 ENGINE_BACK = "https://back"
 ATTACH_SCALE = 0.5
+ENGINE_TABLE_SEATS = nil
 engineStatic = {}
 local vmt = {}
 function Vector(x, y, z) return setmetatable({ x = x, y = y, z = z }, vmt) end
@@ -185,6 +186,22 @@ const banner = (m) => q("local json = ... takeBoard(json) engineSchemeBanner(las
   same("table: the archenemy from the row's arch", q('return engineArchColor({ players = { { color = "White" }, { color = "Blue", arch = true } } })'), "Blue");
   same("table: else from the board's teams", q('return engineArchColor({ players = { { color = "White" } }, teams = { archenemy = "White" } })'), "White");
   same("table: no archenemy, nothing drawn", q('return drawn({ players = { { color = "White" } }, schemes = { { id = "x", n = "y" } } })'), "");
+  // the six-seat table (White's playmat at x 27.3, z -14.9, the profile's; its life tracker at x 41.8): in front of
+  // White's own seat, the row toward the table's centre line, the deck on the outer side
+  const six = q(`ENGINE_TABLE_SEATS = { "White", "Red", "Yellow", "Green", "Blue", "Purple" }
+    local saved = GEO.White
+    GEO.White = { mat = Vector(27.333, 1, -14.87), right = Vector(1, 0, 0), rotY = 180 }
+    local out = drawn({ players = { { color = "White", arch = true, schemeDeck = 15 } }, schemeNow = { card = { id = "n", n = "Now" } },
+      schemes = { { id = "n", n = "Now" }, { id = "o1", n = "Ongoing 1" }, { id = "o2", n = "Ongoing 2" }, { id = "o3", n = "Ongoing 3" }, { id = "o4", n = "Ongoing 4" } } })
+    GEO.White = saved ENGINE_TABLE_SEATS = nil
+    return out`).split("\n");
+  same("six seats: the scheme set in motion in front of the archenemy's own seat (the mat's x), toward the middle strip", six[0], "schemenow|Now|White|27.33,2.40,-6.25|180|nil");
+  same("six seats: the ongoing row toward the table's centre line", six.slice(1, 5).map((l) => l.split("|")[3]), ["22.93,2.40,-6.25", "19.53,2.40,-6.25", "16.13,2.40,-6.25", "12.73,2.40,-6.25"]);
+  same("six seats: the deck on the outer side", six[5], "schemedeck|Scheme deck|White|31.93,2.40,-6.25|180|ARCHENEMY/15 SCHEMES");
+  const xs = six.map((l) => Number(l.split("|")[3].split(",")[0])), zs = six.map((l) => Number(l.split("|")[3].split(",")[2]));
+  const half = (1.4 * 2.25) / 2, deep = (1.4 * 3.15) / 2;
+  ok("six seats: every scheme clear of the corner's life tracker column (x 41.8)", Math.max(...xs) + half < 41.77 - 1.5, `to x ${Math.max(...xs) + half}`);
+  ok("six seats: clear of a plane at the centre and of the stack over the mat (z -14.9)", Math.min(...zs.map(Math.abs)) - deep > 1.5 * 2.25 / 2 + 0.5 && 14.87 - 3.1 / 2 - (Math.max(...zs.map(Math.abs)) + deep) > 0.5, zs.join(","));
   same("table: turned to read from the archenemy's seat", q('return drawn({ players = { { color = "White", arch = true, schemeDeck = 3 } } })'), "schemedeck|Scheme deck|White|-4.60,2.40,-8.40|180|ARCHENEMY/3 SCHEMES");
 
   same("table: a rules text that arrives after its board reaches the schemes", q('lastTable = { players = {}, schemes = { { id = "x", n = "S" } }, schemeNow = { card = { id = "y", n = "T" } } } engineOnTexts({ texts = { x = "one", y = "two" } }) return lastTable.schemes[1].tx .. "|" .. lastTable.schemeNow.card.tx'), "one|two");
@@ -212,8 +229,19 @@ const banner = (m) => q("local json = ... takeBoard(json) engineSchemeBanner(las
   same("button: a colour it doesn't know leaves it", q("return engineArchLabel()"), "Archenemy\nRed");
   q("engineArchNoted('off') return nil");
   same("button: off", q("return engineArchLabel()"), "Archenemy\nOff");
+  // the six-seat table: the button goes round its six seats in turn order (the profile's seats), then off
+  q('ENGINE_TABLE_SEATS = { "White", "Red", "Yellow", "Green", "Blue", "Purple" } ENGINE_ARCH_SETUP = nil chats = {} return nil');
+  const presses6 = [];
+  for (let i = 0; i < 7; i++) { q("onMtgSetupArch(nil, 'White') return nil"); presses6.push(q("local c = chats[#chats] engineArchNoted(c:sub(#'White: mtg archenemy ' + 1)) return c")); }
+  same("six seats: the button goes round the six seats, then off", presses6, ["White: mtg archenemy White", "White: mtg archenemy Red", "White: mtg archenemy Yellow", "White: mtg archenemy Green", "White: mtg archenemy Blue", "White: mtg archenemy Purple", "White: mtg archenemy off"]);
+  q("engineArchNoted('purple') return nil");
+  same("six seats: mtg archenemy purple sets its label", q("return engineArchLabel()"), "Archenemy\nPurple");
+  q('ENGINE_TABLE_SEATS = nil engineArchNoted("Purple") return nil');
+  same("four seats: Purple isn't a seat there, the label stays", q("return engineArchLabel()"), "Archenemy\nPurple");
+  q('ENGINE_ARCH_SETUP = nil engineArchNoted("Green") return nil');
+  same("four seats: Green isn't a seat there either", q("return engineArchLabel()"), "Archenemy\nOff");
   const setup = SRC.slice(SRC.indexOf("\nfunction engineSetupButtons("), SRC.indexOf("\nfunction engineScoopRedraw("));
-  ok("button: drawn on the setup tile beside Teams, the 4-player table only", /if engineArchLabel ~= nil and not engineSixSeats\(\) then\n\s+SETUP\.drawn\.arch = true\n\s+setupButton\(tile, "onMtgSetupArch", engineArchLabel\(\), SETUP\.color\.idle, ENGINE_ARCH_SPOT/.test(setup), "engineSetupButtons");
+  ok("button: drawn on the setup tile beside Teams, on either table", /if engineArchLabel ~= nil then\n\s+SETUP\.drawn\.arch = true\n\s+setupButton\(tile, "onMtgSetupArch", engineArchLabel\(\), SETUP\.color\.idle, ENGINE_ARCH_SPOT/.test(setup), "engineSetupButtons");
   ok("button: a change redraws the setup buttons", /engineArchLabel ~= nil and engineArchLabel\(\) or ""/.test(setup), "the setup signature");
   ok("button: counted when the tile is checked", /\(SETUP\.drawn\.arch and 1 or 0\)/.test(SRC), "engineSetupIntact");
   ok("chat: mtg archenemy sets the button too", /engineSend\("archenemy", \{ color = pl\.color, text = rest \}\)\n\s+if engineArchNoted ~= nil then engineArchNoted\(rest\) engineSetupButtons\(\) end/.test(COPY), "make-engine-copy.js");
