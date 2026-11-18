@@ -101,7 +101,7 @@ same("12 tie: an offer to answer keeps its full pop-up, nothing to close", [at("
 q('told = {} onMtgTie(Player.White, nil, "eng_tiehide") return nil');
 ok("12 tie: an offer to answer can't be closed", (at("eng_tie", "visibility") || "").split("|").includes("White") && q("return tostring(#told)") === "0", `${at("eng_tie", "visibility")} told ${q("return tostring(#told)")}`);
 q(`engineTieUpdate(${DECLINED(4, 1)}, false) return nil`);
-same("12 tie: after a no it is a one-line strip under the turn bar, with a close button", [at("eng_tie", "active"), at("eng_tie", "height"), at("eng_tie", "offsetXY"), at("eng_tietext", "fontSize"), at("eng_tiehide", "active")], ["true", "52", "0 -114", "13", "true"]);
+same("12 tie: after a no it is a one-line strip under the turn bar, with a close button", [at("eng_tie", "active"), at("eng_tie", "height"), at("eng_tie", "offsetXY"), at("eng_tietext", "fontSize"), at("eng_tiehide", "active")], ["true", "52", "0 -170", "13", "true"]);
 {
   // (clear of the centre question row's title: its panel's top edge, from its XML, below the strip's bottom edge; both
   // on TTS's 1920x1080 reference screen)
@@ -109,6 +109,11 @@ same("12 tie: after a no it is a one-line strip under the turn bar, with a close
   const rowTop = row ? 540 - Number(row[2]) - Number(row[1]) / 2 : NaN;
   const stripBottom = -Number(String(at("eng_tie", "offsetXY")).split(" ")[1]) + Number(at("eng_tie", "height"));
   ok("12 tie: the strip clears the centre question's title", stripBottom < rowTop, `strip ends at ${stripBottom} px, the row starts at ${rowTop} px`);
+  // (and below the Scoop button beside the name plate: on real TTS the first strip, at 114 px, covered both, 2026-11-18)
+  const scoop = /<Button id="eng_scoop_' \.\. c \.\. '"[^>]*height="(\d+)" rectAlignment="UpperCenter" offsetXY="-?\d+ (-?\d+)"/.exec(RENDERER);
+  const scoopBottom = scoop ? -Number(scoop[2]) + Number(scoop[1]) : NaN;
+  const stripTop = -Number(String(at("eng_tie", "offsetXY")).split(" ")[1]);
+  ok("12 tie: the strip starts below the Scoop button and the name plate", stripTop > scoopBottom, `strip starts at ${stripTop} px, Scoop ends at ${scoopBottom} px`);
 }
 q('told = {} onMtgTie(Player.White, nil, "eng_tiehide") return nil');
 const seen = () => (at("eng_tie", "visibility") || "").split("|");
