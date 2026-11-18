@@ -4696,8 +4696,9 @@ local function statusText()
   local n = m.activeTurnNo or 1
   local suffix = (n % 10 == 1 and n % 100 ~= 11) and "st" or (n % 10 == 2 and n % 100 ~= 12) and "nd"
     or (n % 10 == 3 and n % 100 ~= 13) and "rd" or "th"
+  -- (players by the names the top bar uses: "Red's 4th turn" while the top bar said "AI 1'S TURN", Mairsil hand test #23)
   local s = string.format("%s's %d%s turn (game turn %s) - %s - priority: %s",
-    tostring(m.active), n, suffix, tostring(m.turn), tostring(m.step), tostring(m.priority))
+    m.active and engineNameOf(m.active) or tostring(m.active), n, suffix, tostring(m.turn), tostring(m.step), m.priority and engineNameOf(m.priority) or tostring(m.priority))
   if m.stack and #m.stack > 0 then
     local names = {}
     -- (a run of one trigger once, counted: "Soul Warden ×18", the bridge's stackGroups)
@@ -7195,6 +7196,13 @@ function onPlayerAction(player, action, targets)
         engineFlipped[id] = not engineFlipped[id] or nil
         return true
       end
+      -- (another player's card the open question offers, clicked: the click answers it, and its pick-up half is refused
+      -- without a word; it printed "You can only touch your own cards." beside the answer, Mairsil hand test #3. One click
+      -- is a select then a pick-up: the select answered the question (cardClickAt, firstClick) and the pick-up arrives
+      -- with the question gone, so "offered" is the card still glowing or the one that click just acted on.)
+      local offered = not mine and action == Player.Action.PickUp and ((engineGlowing[player.color] ~= nil and engineGlowing[player.color][o] == true)
+        or (cardClickAt ~= nil and (cardClickAt[o.getGUID()] or -1) > os.clock() - 0.4))
+      if offered then return false end
       if action ~= Player.Action.PickUp or not movable then
         tell(player.color, mine and "The engine handles that (rotate, copy and delete are off; you can flip cards on your battlefield to look at them)."
           or "You can only touch your own cards.")

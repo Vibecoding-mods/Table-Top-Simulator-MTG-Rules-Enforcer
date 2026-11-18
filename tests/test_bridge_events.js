@@ -3429,7 +3429,7 @@ const id = (n) => `engine-card-${n}`;
       const after = (dead) => board((b) => { put(b, "battlefield", { ...KYKAR([]), damage: 2 }); for (let i = 0; i < 5; i++) put(b, "battlefield", { ...SPIRIT(320 + i), damage: 2 }); if (dead) put(b, "graveyard", BEAR()); put(b, "graveyard", card(277, "Pyroclasm", ["Sorcery"])); });
       same("re-test bug 3: Pyroclasm's survivors in one line, the same tokens counted, and the dead die",
         between(before(true), after(true), [ev(11, "Stack", "Graveyard", id(277)), ev(12, "Battlefield", "Graveyard", id(1))]),
-        ["Pyroclasm deals 2 damage to Kykar, Wind's Fury, Spirit token ×5", "Grizzly Bears dies"]);
+        ["Pyroclasm deals 2 damage to Kykar, Wind's Fury; Spirit token ×5", "Grizzly Bears dies"]);
       same("re-test bug 3: and every creature hit is 'each creature' with how many",
         between(before(false), after(false), [ev(11, "Stack", "Graveyard", id(277))]),
         ["Pyroclasm deals 2 damage to each creature (6)"]);
@@ -3437,7 +3437,7 @@ const id = (n) => `engine-card-${n}`;
       const kw = (k) => board((b) => { put(b, "battlefield", KYKAR(k)); for (let i = 0; i < 5; i++) put(b, "battlefield", { ...SPIRIT(320 + i), keywords: k }); if (!k.length) b.stack.push(AKROMA); else put(b, "graveyard", card(240, "Akroma's Will", ["Instant"])); });
       same("re-test bug 7: the creatures a spell gave keywords, the same names counted",
         between(kw([]), kw(["Vigilance"]), [ev(11, "Stack", "Graveyard", id(240))]),
-        ["Kykar, Wind's Fury, Spirit token ×5 gain vigilance (Akroma's Will)"]);
+        ["Kykar, Wind's Fury; Spirit token ×5 gain vigilance (Akroma's Will)"]);
     }
     // new bug 6: an Aura gone after its creature, by Forge's order, is said after it
     {

@@ -280558,13 +280558,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Eclipsed Flamekin, Ashling, the Limitless, Kird Ape, Typhoid Rats are goaded by Blue: they attack each combat, a player other than Blue if able, until Blue's next turn\n[time] Disrupt Decorum is put into Blue's graveyard\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Eclipsed Flamekin; Ashling, the Limitless; Kird Ape; Typhoid Rats are goaded by Blue: they attack each combat, a player other than Blue if able, until Blue's next turn\n[time] Disrupt Decorum is put into Blue's graveyard\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Eclipsed Flamekin, Ashling, the Limitless, Kird Ape, Typhoid Rats are goaded by Blue: they attack each combat, a player other than Blue if able, until Blue's next turn",
+      "Eclipsed Flamekin; Ashling, the Limitless; Kird Ape; Typhoid Rats are goaded by Blue: they attack each combat, a player other than Blue if able, until Blue's next turn",
       "Disrupt Decorum is put into Blue's graveyard"
      ]
     }
@@ -281127,7 +281127,7 @@
   ],
   "result": {
    "lines": [
-    "Eclipsed Flamekin, Ashling, the Limitless, Kird Ape, Typhoid Rats are goaded by Blue: they attack each combat, a player other than Blue if able, until Blue's next turn",
+    "Eclipsed Flamekin; Ashling, the Limitless; Kird Ape; Typhoid Rats are goaded by Blue: they attack each combat, a player other than Blue if able, until Blue's next turn",
     "Disrupt Decorum is put into Blue's graveyard",
     "--- Blue's turn 2 ---"
    ],
@@ -351130,13 +351130,13 @@
    },
    {
     "appendFile": "game-log.txt",
-    "text": "[time] === Game: Blue, AI 1 ===\n[time] Izoni, Thousand-Eyed, Moseo, Vein's New Dean, Wind Drake are exiled\n[time] Insect token ×2, Survivor token leave the battlefield\n"
+    "text": "[time] === Game: Blue, AI 1 ===\n[time] Izoni, Thousand-Eyed; Moseo, Vein's New Dean; Wind Drake are exiled\n[time] Insect token ×2, Survivor token leave the battlefield\n"
    },
    {
     "tts": {
      "t": "gamelog",
      "lines": [
-      "Izoni, Thousand-Eyed, Moseo, Vein's New Dean, Wind Drake are exiled",
+      "Izoni, Thousand-Eyed; Moseo, Vein's New Dean; Wind Drake are exiled",
       "Insect token ×2, Survivor token leave the battlefield"
      ]
     }
@@ -351344,7 +351344,7 @@
    }
   ],
   "result": [
-   "Izoni, Thousand-Eyed, Moseo, Vein's New Dean, Wind Drake are exiled",
+   "Izoni, Thousand-Eyed; Moseo, Vein's New Dean; Wind Drake are exiled",
    "Insect token ×2, Survivor token leave the battlefield"
   ]
  },
