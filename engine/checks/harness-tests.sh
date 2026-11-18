@@ -25,11 +25,13 @@ cd /build
   SharedTurnsDevTest SharedCombatTest SharedTurnsPlayTest ArchenemyTest ArchenemySchemeSweepTest ArchenemyViewTest \
   FirstPlayerTest CardStateRewindTest BigTurnsTest ThreeHeadedGiantTest ProtocolDefaultsTest AttackTaxLethalTest \
   SnapshotSpeedTest StressCapsTest ReplacementIndexTest TieOfferTest UnboundedTokensTest HeldPassResponseTest CostBadgeTest \
-  BigBoardFixesTest TeamChoiceTest LongTailTest
+  BigBoardFixesTest TeamChoiceTest LongTailTest common.GiftTargetsTest
 failed=""
 for c in "$@"; do
   echo "=== $c"
-  if timeout 900 java -cp "/tmp/test:/tmp/main:$jar" "forge.harness.host.$c" > "/tmp/$c.out" 2>&1; then
+  # (a name with a package, common.GiftTargetsTest, is under forge.harness; a plain one under forge.harness.host)
+  case "$c" in *.*) cls="forge.harness.$c" ;; *) cls="forge.harness.host.$c" ;; esac
+  if timeout 900 java -cp "/tmp/test:/tmp/main:$jar" "$cls" > "/tmp/$c.out" 2>&1; then
     echo "exit=0"
   else
     echo "exit=$?"
