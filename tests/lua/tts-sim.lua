@@ -709,7 +709,29 @@ function stringColorToRGB(c) return { r = 1, g = 1, b = 1 } end
 Color = setmetatable({ fromString = function(s) return { r = 1, g = 1, b = 1, a = 1 } end, new = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end },
   { __call = function(_, r, g, b, a) return { r = r, g = g, b = b, a = a or 1 } end })
 Physics = { cast = function(p) fx("Physics.cast") return {} end }
-Notes = { setNotes = function() end, getNotes = function() return "" end, getNotebookTabs = function() return {} end }
+-- (the Notebook's tabs as the TTS API describes them: { index, title, body, color }, index from 0 here, not yet
+-- checked on the real table; add / edit recorded)
+SIM.notebook = {}
+Notes = { setNotes = function() end, getNotes = function() return "" end,
+  getNotebookTabs = function()
+    local out = {}
+    for i, t in ipairs(SIM.notebook) do out[i] = { index = i - 1, title = t.title, body = t.body, color = t.color } end
+    return out
+  end,
+  addNotebookTab = function(p)
+    SIM.notebook[#SIM.notebook + 1] = { title = p.title or "", body = p.body or "", color = p.color or "Grey" }
+    fx("Notes.addNotebookTab", p.title)
+    return #SIM.notebook - 1
+  end,
+  editNotebookTab = function(p)
+    local t = SIM.notebook[(tonumber(p.index) or -1) + 1]
+    if t == nil then return false end
+    if p.title ~= nil then t.title = p.title end
+    if p.body ~= nil then t.body = p.body end
+    if p.color ~= nil then t.color = p.color end
+    fx("Notes.editNotebookTab", p.index, p.title)
+    return true
+  end }
 Lighting = { apply = function() end }
 Turns = { enable = true, turn_color = "White", pass_turns = true, getNextTurnColor = function() return "Red" end, getPreviousTurnColor = function() return "Blue" end, order = {} }
 Hands = { enable = true, disable_unused = false, hiding = 0 }

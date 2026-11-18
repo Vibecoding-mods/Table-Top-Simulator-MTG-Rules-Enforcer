@@ -794,7 +794,7 @@ function engineTeamModeRefusal(m)
   if want == nil or want == ENGINE_GAME_MODE then return nil end
   local function words(k) return k == "standard" and "Standard" or "Commander" end
   return ENGINE_TEAM_NAMES[m] .. " is played in " .. words(want) .. " only, and the game mode is " .. words(ENGINE_GAME_MODE)
-    .. ". Switch with  mtg mode " .. want .. "  first (or the Game mode button)."
+    .. ". Switch with  mtg mode " .. want .. "  first (or the Format button)."
 end
 function engineTeamsSent() return ENGINE_TEAMS end
 function engineTeamModeSent() return ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil end
@@ -8372,6 +8372,7 @@ function engineHello(again)
     m = { stamp = engineStamp(), keepRewind = true, tokenRuns = true, mode = engineModeSent ~= nil and engineModeSent() or nil }
   end
   if ENGINE_TABLE_SEATS ~= nil then m.tableSeats = ENGINE_TABLE_SEATS end
+  if engineRulesInto ~= nil then engineRulesInto(m) end -- (the format and its switches: nothing for Casual Commander)
   engineSend("hello", m)
 end
 
@@ -9876,7 +9877,7 @@ function engineSetupIntact()
   local want = SETUP.drawn.tile
   local have = tile ~= nil and (tile.getButtons() or {})[1] or nil
   if (want == nil) ~= (have == nil) or (have ~= nil and have.label ~= want) then return false end
-  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < (SETUP.drawn.mode and (SETUP.drawn.teams and 4 or 3) or 2) + (SETUP.drawn.arch and 1 or 0) then return false end
+  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < (SETUP.drawn.mode and (SETUP.drawn.teams and 4 or 3) or 2) + (SETUP.drawn.arch and 1 or 0) + (SETUP.drawn.fmt or 0) then return false end
   for c in pairs(SETUP.drawn.mats) do
     local mat = data[c] and data[c].playmat
     local any = false
@@ -9962,8 +9963,8 @@ end
 -- one button on `obj` at world position `at`, readable from the seat `facing` (nil: as the object lies). tileTurn:
 -- the button is on the middle tile, where real TTS draws a button's x mirrored and turned half a turn (2026-11-10: a
 -- button meant at x -48 showed at x +48, upside down from White), so x is negated and tileTurn is its rotation there
--- (180 reads from the White/Red side, 90 is that turned a quarter left, seen from White)
-local function setupButton(obj, click, label, color, at, facing, width, height, tileTurn)
+-- (180 reads from the White/Red side, 90 is that turned a quarter left, seen from White); font: its size (220)
+local function setupButton(obj, click, label, color, at, facing, width, height, tileTurn, font)
   local s = obj.getScale()
   local rotY = tileTurn or 0
   if facing ~= nil then
@@ -9978,7 +9979,7 @@ local function setupButton(obj, click, label, color, at, facing, width, height, 
   local sx, sz = s.x, s.z
   if tileTurn ~= nil and tileTurn % 180 == 90 then sx, sz = s.z, s.x end
   obj.createButton({ click_function = click, function_owner = Global, label = label, position = pos,
-    rotation = { 0, rotY, 0 }, scale = { SETUP.size / sx, 1 / s.y, SETUP.size / sz }, width = width or 1300, height = height or 420, font_size = 220,
+    rotation = { 0, rotY, 0 }, scale = { SETUP.size / sx, 1 / s.y, SETUP.size / sz }, width = width or 1300, height = height or 420, font_size = font or 220,
     color = color, font_color = { 1, 1, 1 }, tooltip = "" })
 end
 
@@ -10005,7 +10006,7 @@ function engineSetupButtons()
   for _, pl in ipairs((game and game.players) or {}) do if pl.status == "playing" then alive[#alive + 1] = tostring(pl.color) end end
   table.sort(alive)
   local sig = table.concat({ tostring(ENGINE_MODE), tostring(running), tostring(over), table.concat(seated, ","), tostring(ready), table.concat(alive, ","),
-    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly), tostring(ENGINE_GAME_MODE), engineTeamsLabel ~= nil and engineTeamsLabel() or "", engineArchLabel ~= nil and engineArchLabel() or "", dcKey }, "|")
+    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly), tostring(ENGINE_GAME_MODE), engineFormatSig(), engineTeamsLabel ~= nil and engineTeamsLabel() or "", engineArchLabel ~= nil and engineArchLabel() or "", dcKey }, "|")
   -- (unchanged, and the buttons are still there: TTS's own scripts or a reload can wipe an object's buttons, and after a
   -- game ended the READY buttons and the middle tile stayed gone or stale, "Engine: off" with engine mode on, playtest
   -- 2026-10-24; engineSetupHeal below looks every 2 s)
@@ -10085,9 +10086,16 @@ function engineSetupButtons()
     if not running and not over then
       SETUP.drawn.friendly = true
       setupButton(tile, "onMtgSetupFriendly", engineFriendlyLabel(), SETUP.color.wait, FRIENDLY_SPOT, nil, 1700, 620, 90)
-      -- (the game mode beside it, host only: docs/game-modes-spec.md §3.4 and §10)
+      -- (the format beside it, where Game mode was, host only: docs/format-banlist-spec.md §6.1; it names the game mode,
+      -- docs/game-modes-spec.md §3.4)
       SETUP.drawn.mode = true
-      setupButton(tile, "onMtgSetupMode", engineModeLabel(), SETUP.color.idle, MODE_SPOT, nil, 1700, 620, 90)
+      setupButton(tile, "onMtgSetupMode", engineFormatLabel(), SETUP.color.idle, MODE_SPOT, nil, 1700, 620, 90, engineFitFont(engineFormatLabel()))
+      -- (and on the east strip the format's two switches, yellow when the host has turned one off, and its Banned list)
+      SETUP.drawn.fmt = 0
+      for _, b in ipairs(engineFormatButtons()) do
+        SETUP.drawn.fmt = SETUP.drawn.fmt + 1
+        setupButton(tile, b.click, b.label, b.house and SETUP.color.wait or SETUP.color.idle, b.at, nil, 1700, 620, 90, engineFitFont(b.label))
+      end
       -- (and the team mode on its other side, host only: docs/game-modes-spec.md §4.1, §5.5, §6)
       if engineTeamsLabel ~= nil then
         SETUP.drawn.teams = true
@@ -10181,10 +10189,12 @@ function onMtgSetupFriendly(obj, playerColor)
 end
 
 -- Game modes (docs/game-modes-spec.md §3): Commander (the default) or Standard (60-card decks, 20 life, no commander;
--- 1v1, free-for-all or 2v2). The host's pick for the next games, "mtg mode standard|commander" or the mode button beside
--- Free mulligans; sent to the bridge with every deck check and start (and with "hello"), only when it is Standard (the
--- bridge reads no mode as Commander). A table reload is back on Commander, as Free mulligans is back on none. While a
--- game runs, the game's own mode (the bridge's "started") decides what the table shows (engineModeNow).
+-- 1v1, free-for-all or 2v2). Since the formats (docs/format-banlist-spec.md §3.2) the host picks a format, and the
+-- format names its game mode (engineFormatChanged calls engineSetGameMode); "mtg mode standard|commander" picks the
+-- Standard or Casual Commander format. The mode goes to the bridge with every deck check and start (and with "hello"),
+-- only when it is Standard (the bridge reads no mode as Commander). A table reload is back on Commander, as Free
+-- mulligans is back on none. While a game runs, the game's own mode (the bridge's "started") decides what the table
+-- shows (engineModeNow).
 ENGINE_GAME_MODE = "commander"
 engineRunningMode = nil -- the running game's mode, from "started"; nil between games
 MODE_SPOT = Vector(TABLE_PROFILE.spots.mode[1], TABLE_PROFILE.spots.mode[2], TABLE_PROFILE.spots.mode[3]) -- (the table's profile; on the 4-player table -47, 1.1, -2.5: left of Free mulligans on the same strip, 10 apart so the two never overlap, clear of the deck importer: live check 2026-11-14)
@@ -10194,24 +10204,13 @@ function engineModeNow()
 end
 -- the mode for a message to the bridge: "standard", or nil for Commander (left out of the message)
 function engineModeSent() return ENGINE_GAME_MODE == "standard" and "standard" or nil end
-function engineModeLabel() return "Game mode\n" .. (ENGINE_GAME_MODE == "standard" and "Standard" or "Commander") end
--- mode: "standard" | "commander"; pl: who set it (the host; checked in engineChat)
-function engineSetGameMode(mode, pl)
+-- mode: "standard" | "commander", the new format's game mode (engineFormatChanged says the change, sends it and
+-- clears READY): a team mode the game mode doesn't play back to none, the life counters at its starting life
+function engineSetGameMode(mode)
   if mode ~= "standard" and mode ~= "commander" then return end
+  if ENGINE_GAME_MODE == mode then return end
   local running = engineTable ~= nil and engineTable() ~= nil and not engineTable().gameOver
-  if ENGINE_GAME_MODE == mode then
-    if pl ~= nil then pl.broadcast("[MTG] The game mode is already " .. (mode == "standard" and "Standard" or "Commander") .. ".", { 1, 0.85, 0.4 }) end
-    return
-  end
   ENGINE_GAME_MODE = mode
-  -- (every deck was checked for the other mode: READY again; in a game the game's own READYs stay, and its end
-  -- clears them, engineClear)
-  if not running then for k in pairs(engineReadyState) do engineReadyState[k] = nil end end
-  local who = pl ~= nil and (pl.steam_name or pl.color) or "The host"
-  broadcastToAll("[MTG] " .. tostring(who) .. " set the game mode" .. (running and " for the next game" or "") .. ": "
-    .. (mode == "standard" and "Standard (decks of 60+ Standard cards, at most 4 of a card, no commander; 20 life; 1v1, free-for-all or 2v2)"
-      or "Commander (100-card decks with a commander, 40 life)") .. ". Everyone presses READY again" .. (running and " after this game." or "."), { 1, 0.85, 0.4 })
-  engineSend("mode", { color = pl and pl.color or nil, mode = mode })
   -- (a team mode the new game mode doesn't play goes back to none, said: 2v2 is Standard's, the others Commander's)
   -- (Three-Headed Giant plays in either game mode: kept through the switch)
   ENGINE_TEAM_GAME_MODE["3hg"] = ENGINE_TEAM_MODE == "3hg" and mode or nil
@@ -10225,6 +10224,329 @@ function engineSetGameMode(mode, pl)
   ENGINE_TEAM_GAME_MODE["3hg"] = nil
   if not running then engineModeLife(mode == "standard" and 20 or 40) end
   engineSetupButtons()
+end
+
+-- ───────── formats, ban lists and the two switches (docs/format-banlist-spec.md §6.1, §6.2) ─────────
+-- The Format button sits where Game mode was (MODE_SPOT, its click still onMtgSetupMode): left-click the next format,
+-- right-click (TTS's alt_click) the one before; typed "mtg format <name>" (host). Each format names its game mode
+-- (commander or standard: life, the commander pieces, the team modes) and, unless it is a Casual one, has a ban list
+-- the bridge keeps (Scryfall's, else Forge's). On the east strip: "Banned cards" (allowed or not, house rules) and
+-- "Restricted cards" (only for a format with a restricted list), host only, per format, both on (enforced) after a
+-- table reload; and "Banned list" (anyone): its count on the label, the names in the Notebook tab "Banned list",
+-- rewritten when the bridge sends a changed list (banlistNames). The bridge checks the decks (pieces A and B); the
+-- table only says the rules: "format" when they change, and format / banned / restricted with hello, decks and start
+-- (nothing for Casual Commander, the bridge's default, so an older bridge sees today's messages).
+-- key: the bridge's format key (Scryfall's legality key; the two Casual ones are ours); list: has a ban list;
+-- restricted: "copy" (1 copy each) or "commander" (Duel Commander: not as a commander); also: more typed names
+ENGINE_FORMATS = {
+  { key = "casualcommander", name = "Casual Commander", mode = "commander", also = { "casual", "edhcasual" } },
+  { key = "commander", name = "Commander", mode = "commander", list = true, also = { "edh" } },
+  { key = "duel", name = "Duel Commander", mode = "commander", list = true, restricted = "commander", note = "its own starting life isn't played yet: 40, as Commander" },
+  { key = "paupercommander", name = "Pauper Commander", mode = "commander", list = true, also = { "pdh" }, note = "its own starting life isn't played yet: 40, as Commander" },
+  { key = "predh", name = "PreDH", mode = "commander", list = true },
+  { key = "casual60", name = "Casual 60-card", mode = "standard", also = { "60card", "casual60card" } },
+  { key = "standard", name = "Standard", mode = "standard", list = true },
+  { key = "pioneer", name = "Pioneer", mode = "standard", list = true },
+  { key = "modern", name = "Modern", mode = "standard", list = true },
+  { key = "legacy", name = "Legacy", mode = "standard", list = true },
+  { key = "vintage", name = "Vintage", mode = "standard", list = true, restricted = "copy" },
+  { key = "pauper", name = "Pauper", mode = "standard", list = true },
+  { key = "premodern", name = "Premodern", mode = "standard", list = true },
+  { key = "oldschool", name = "Old School", mode = "standard", list = true, restricted = "copy" },
+  { key = "historic", name = "Historic", mode = "standard", list = true },
+  { key = "timeless", name = "Timeless", mode = "standard", list = true, restricted = "copy" },
+  { key = "alchemy", name = "Alchemy", mode = "standard", list = true },
+}
+ENGINE_FORMAT = "casualcommander"
+-- (ENGINE_GAME_MODE follows the format: engineFormatChanged is the one place that sets it, through engineSetGameMode)
+ENGINE_BAN_RULES = {} -- format key -> { banned = true, restricted = true }: true is enforced (engineBanRules)
+-- what the bridge said: lists = format key -> { source, date, banned, restricted } (counts); missing = format key ->
+-- true for a format the bridge has no list for (the Format button skips it); tab: what the Notebook tab holds
+-- (engineBanlistTabKey)
+ENGINE_BANLIST = { lists = {}, missing = {}, tab = nil }
+-- the east strip's spots: the table's profile (tools/table-profile.js spots.banned / restricted / banlist)
+ENGINE_FORMAT_SPOTS = {}
+for _, k in ipairs({ "banned", "restricted", "banlist" }) do
+  local p = TABLE_PROFILE.spots[k]
+  ENGINE_FORMAT_SPOTS[k] = Vector(p[1], p[2], p[3])
+end
+function engineFormatOf(key)
+  for _, f in ipairs(ENGINE_FORMATS) do if f.key == key then return f end end
+  return nil
+end
+function engineFormatNow() return engineFormatOf(ENGINE_FORMAT) or ENGINE_FORMATS[1] end
+function engineBanRules(key)
+  key = key or ENGINE_FORMAT
+  if ENGINE_BAN_RULES[key] == nil then ENGINE_BAN_RULES[key] = { banned = true, restricted = true } end
+  return ENGINE_BAN_RULES[key]
+end
+-- a typed name -> its letters and digits, lower case (plain finds: no patterns, docs/format-banlist-spec.md §6.4)
+function engineFormatWord(s)
+  local out, keep = {}, "abcdefghijklmnopqrstuvwxyz0123456789"
+  s = string.lower(tostring(s or ""))
+  for i = 1, #s do
+    local ch = s:sub(i, i)
+    if keep:find(ch, 1, true) then out[#out + 1] = ch end
+  end
+  return table.concat(out)
+end
+-- the format a typed name means (its key, its name or one of its other names, whole), or nil
+function engineFormatFind(text)
+  local w = engineFormatWord(text)
+  if w == "" then return nil end
+  for _, f in ipairs(ENGINE_FORMATS) do
+    if w == f.key or w == engineFormatWord(f.name) then return f end
+    for _, a in ipairs(f.also or {}) do if w == a then return f end end
+  end
+  return nil
+end
+-- the format `step` (1 or -1) from the current one, past the ones the bridge has no list for
+function engineFormatStep(step)
+  local n, at = #ENGINE_FORMATS, 1
+  for i, f in ipairs(ENGINE_FORMATS) do if f.key == ENGINE_FORMAT then at = i end end
+  for _ = 1, n do
+    at = (at - 1 + step) % n + 1
+    local f = ENGINE_FORMATS[at]
+    if not (f.list and ENGINE_BANLIST.missing[f.key]) then return f end
+  end
+  return engineFormatNow()
+end
+-- what the Notebook tab holds when it shows list L of format key (ENGINE_BANLIST.tab)
+function engineBanlistTabKey(key, L) return key .. "|" .. tostring(L.date) .. "|" .. tostring(L.banned) end
+-- "Scryfall, 2026-11-18" for a list the bridge described, or nil
+function engineBanSource(L)
+  if L == nil then return nil end
+  local src = tostring(L.source or "")
+  src = src:sub(1, 1):upper() .. src:sub(2)
+  return src .. (L.date ~= nil and (", " .. tostring(L.date)) or "")
+end
+-- the format's rules in words, for the change line and "mtg format"
+function engineFormatWords(f)
+  local r = engineBanRules(f.key)
+  local parts = { f.mode == "standard" and "60+ cards, at most 4 of a card, no commander; 20 life" or "100-card decks with a commander, 40 life" }
+  if not f.list then
+    parts[#parts + 1] = "no ban list: every card the engine knows"
+  else
+    parts[#parts + 1] = "banned cards " .. (r.banned and "not allowed" or "allowed (house rule)")
+    if f.restricted == "copy" then parts[#parts + 1] = "restricted cards " .. (r.restricted and "1 copy each" or "at the normal limit (house rule)")
+    elseif f.restricted == "commander" then parts[#parts + 1] = "restricted cards " .. (r.restricted and "not as a commander" or "allowed as a commander (house rule)") end
+    local src = engineBanSource(ENGINE_BANLIST.lists[f.key])
+    if src ~= nil then parts[#parts + 1] = "ban list " .. src end
+  end
+  if f.note ~= nil then parts[#parts + 1] = f.note end
+  return f.name .. " (" .. table.concat(parts, "; ") .. ")"
+end
+-- the rules into a message to the bridge (hello, decks, start): nothing for Casual Commander, the bridge's default
+function engineRulesInto(m)
+  if ENGINE_FORMAT ~= "casualcommander" then
+    local r = engineBanRules()
+    m.format, m.banned, m.restricted = ENGINE_FORMAT, r.banned, r.restricted
+  end
+  return m
+end
+-- a change of the format or a switch: READY again (every deck was checked under the other rules; in a game the
+-- game's own READYs stay, and its end clears them, engineClear), said to everyone, sent, the format's game mode
+function engineFormatChanged(pl)
+  local running = engineTable ~= nil and engineTable() ~= nil and not engineTable().gameOver
+  if not running then for k in pairs(engineReadyState) do engineReadyState[k] = nil end end
+  local f = engineFormatNow()
+  local r = engineBanRules()
+  local who = pl ~= nil and (pl.steam_name or pl.color) or "The host"
+  broadcastToAll("[MTG] " .. tostring(who) .. " set the format" .. (running and " for the next game" or "") .. ": " .. engineFormatWords(f)
+    .. ". Everyone presses READY again" .. (running and " after this game." or "."), { 1, 0.85, 0.4 })
+  engineSend("format", { color = pl and pl.color or nil, format = f.key, mode = f.mode, banned = r.banned, restricted = r.restricted })
+  engineSetGameMode(f.mode)
+  engineSetupButtons()
+end
+-- key: a format's key; pl: the host (checked in engineFormatChat)
+function engineSetFormat(key, pl)
+  local f = engineFormatOf(key)
+  if f == nil then return end
+  if ENGINE_FORMAT == key then
+    if pl ~= nil then pl.broadcast("[MTG] The format is already " .. f.name .. ".", { 1, 0.85, 0.4 }) end
+    return
+  end
+  if f.list and ENGINE_BANLIST.missing[key] then
+    if pl ~= nil then pl.broadcast("[MTG] " .. f.name .. " needs its ban list: the bridge hasn't downloaded it yet (mtg banlist refresh).", { 1, 0.65, 0.2 }) end
+    return
+  end
+  ENGINE_FORMAT = key
+  engineFormatChanged(pl)
+end
+-- "mtg mode standard|commander": the Standard or the Casual Commander format (already in that game mode: said)
+function engineSetModeFormat(mode, pl)
+  local f = engineFormatNow()
+  if f.mode == mode then
+    pl.broadcast("[MTG] The format is already " .. f.name .. " (" .. (mode == "standard" and "60-card" or "Commander") .. " games). Other formats:  mtg format", { 1, 0.85, 0.4 })
+    return
+  end
+  engineSetFormat(mode == "standard" and "standard" or "casualcommander", pl)
+end
+-- which: "banned" | "restricted"; on: enforced
+function engineSetBanRule(which, on, pl)
+  local f = engineFormatNow()
+  local r = engineBanRules()
+  if not f.list then pl.broadcast("[MTG] " .. f.name .. " has no ban list: every card the engine knows is allowed.", { 1, 0.85, 0.4 }) return end
+  if which == "restricted" and f.restricted == nil then pl.broadcast("[MTG] " .. f.name .. " has no restricted list.", { 1, 0.85, 0.4 }) return end
+  if r[which] == on then pl.broadcast("[MTG] Already so: " .. engineFormatWords(f) .. ".", { 1, 0.85, 0.4 }) return end
+  r[which] = on
+  engineFormatChanged(pl)
+end
+-- the buttons' labels
+function engineFormatLabel() return "Format\n" .. engineFormatNow().name end
+function engineBannedLabel() return "Banned cards\n" .. (engineBanRules().banned and "Not allowed" or "Allowed") end
+function engineRestrictedLabel()
+  local on = engineBanRules().restricted
+  if engineFormatNow().restricted == "commander" then return "Restricted\n" .. (on and "Not as commander" or "Allowed") end
+  return "Restricted\n" .. (on and "1 copy" or "Normal limit")
+end
+function engineBanlistLabel()
+  local f = engineFormatNow()
+  if not f.list then return "Banned list\nNone" end
+  local L = ENGINE_BANLIST.lists[f.key]
+  return "Banned list\n" .. f.name .. ": " .. (L ~= nil and tostring(L.banned or 0) or "?")
+end
+-- a smaller font for a line longer than 14 letters (the longest the 1700-wide buttons show at 220 today, "Free
+-- mulligans"; that the smaller ones fit is not yet seen on the real table)
+function engineFitFont(label)
+  local longest, rest = 0, tostring(label)
+  while true do
+    local at = rest:find("\n", 1, true)
+    local line = at and rest:sub(1, at - 1) or rest
+    if #line > longest then longest = #line end
+    if at == nil then break end
+    rest = rest:sub(at + 1)
+  end
+  return longest > 14 and math.max(140, math.floor(220 * 14 / longest)) or 220
+end
+-- the east strip's buttons for the current format: { click, label, at, color } (engineSetupButtons draws them)
+function engineFormatButtons()
+  local f = engineFormatNow()
+  local r = engineBanRules()
+  local out = {}
+  if f.list then
+    out[#out + 1] = { click = "onMtgSetupBanned", label = engineBannedLabel(), at = ENGINE_FORMAT_SPOTS.banned, house = not r.banned }
+    if f.restricted ~= nil then out[#out + 1] = { click = "onMtgSetupRestricted", label = engineRestrictedLabel(), at = ENGINE_FORMAT_SPOTS.restricted, house = not r.restricted } end
+  end
+  out[#out + 1] = { click = "onMtgSetupBanlist", label = engineBanlistLabel(), at = ENGINE_FORMAT_SPOTS.banlist }
+  return out
+end
+-- for engineSetupButtons' redraw signature: what the format buttons show
+function engineFormatSig()
+  local r = engineBanRules()
+  return ENGINE_FORMAT .. ":" .. tostring(r.banned) .. ":" .. tostring(r.restricted) .. ":" .. engineBanlistLabel()
+end
+-- the Banned list button and "mtg banlist": a line to the presser; the names are in the Notebook (asked of the bridge
+-- when the tab doesn't hold this format's list)
+function engineBanlistShow(color)
+  local f = engineFormatNow()
+  local L = ENGINE_BANLIST.lists[f.key]
+  local text
+  if not f.list then text = f.name .. " has no ban list: every card the engine knows is allowed. The host picks a format with the Format button."
+  elseif L == nil then text = f.name .. ": the bridge hasn't sent its ban list yet (is it running?)."
+  else
+    text = f.name .. ": " .. tostring(L.banned or 0) .. " banned" .. ((f.restricted ~= nil and (L.restricted or 0) > 0) and (", " .. tostring(L.restricted) .. " restricted") or "")
+      .. ". The full list is in the Notebook, tab 'Banned list' (" .. tostring(engineBanSource(L)) .. ")."
+  end
+  broadcastToColor("[MTG] " .. text, color, { 1, 0.85, 0.4 })
+  if f.list and (L == nil or ENGINE_BANLIST.tab ~= engineBanlistTabKey(f.key, L)) then engineSend("banlist", { color = color, format = f.key }) end
+end
+-- the bridge's "banlist": { format, source, date, counts = { banned, restricted }, missing = { keys } }
+function engineOnBanlist(m)
+  if type(m.missing) == "table" then
+    ENGINE_BANLIST.missing = {}
+    for _, k in ipairs(m.missing) do ENGINE_BANLIST.missing[tostring(k)] = true end
+  end
+  if m.format ~= nil then
+    local c = type(m.counts) == "table" and m.counts or {}
+    ENGINE_BANLIST.lists[tostring(m.format)] = { source = m.source, date = m.date, banned = tonumber(c.banned) or 0, restricted = tonumber(c.restricted) or 0 }
+  end
+  engineSetupButtons()
+end
+-- the bridge's "banlistNames": { format, source, date, banned = { names }, restricted = { names } }: the Notebook tab
+-- "Banned list" rewritten (found by its title; added the first time), for the current format only
+function engineOnBanlistNames(m)
+  local f = engineFormatOf(m.format)
+  if f == nil or f.key ~= ENGINE_FORMAT then return end
+  local banned, restricted = {}, {}
+  for _, n in ipairs(type(m.banned) == "table" and m.banned or {}) do banned[#banned + 1] = tostring(n) end
+  for _, n in ipairs(type(m.restricted) == "table" and m.restricted or {}) do restricted[#restricted + 1] = tostring(n) end
+  table.sort(banned)
+  table.sort(restricted)
+  local L = { source = m.source, date = m.date, banned = #banned, restricted = #restricted }
+  ENGINE_BANLIST.lists[f.key] = L
+  local lines = { f.name .. ": " .. #banned .. " banned" .. (#restricted > 0 and (", " .. #restricted .. " restricted") or "") .. " (" .. tostring(engineBanSource(L)) .. ").",
+    "Rewritten when the format or the list changes. The host picks the format with the Format button.", "", "Banned (" .. #banned .. "):" }
+  for _, n in ipairs(banned) do lines[#lines + 1] = n end
+  if #restricted > 0 then
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "Restricted (" .. #restricted .. (f.restricted == "commander" and ", not as a commander" or ", 1 copy each") .. "):"
+    for _, n in ipairs(restricted) do lines[#lines + 1] = n end
+  end
+  local tab = { title = "Banned list", body = table.concat(lines, "\n"), color = "Grey" }
+  local ok, err = pcall(function()
+    local found = nil
+    for _, t in ipairs(Notes.getNotebookTabs() or {}) do if t.title == tab.title and found == nil then found = t end end
+    if found ~= nil then
+      tab.index = found.index
+      Notes.editNotebookTab(tab)
+    else
+      Notes.addNotebookTab(tab)
+    end
+  end)
+  if not ok then print("[MTG] Banned list tab: " .. tostring(err)) return end
+  ENGINE_BANLIST.tab = engineBanlistTabKey(f.key, L)
+  engineSetupButtons()
+end
+-- "mtg format [name]", "mtg banned on|off", "mtg restricted on|off", "mtg banlist [refresh]" (engineChat,
+-- make-engine-copy.js): true when handled
+function engineFormatChat(cmd, rest, pl, isHost)
+  local f = engineFormatNow()
+  if cmd == "format" then
+    if rest == "" then
+      local names = {}
+      for _, g in ipairs(ENGINE_FORMATS) do names[#names + 1] = g.name .. ((g.list and ENGINE_BANLIST.missing[g.key]) and " (no list yet)" or "") end
+      pl.broadcast("[MTG] Format: " .. engineFormatWords(f) .. ". Formats: " .. table.concat(names, ", ") .. ". The host changes it:  mtg format <name>  (or the Format button; right-click goes back).", { 1, 0.85, 0.4 })
+      return true
+    end
+    if not isHost then pl.broadcast("[MTG] Only the host can change the format.", { 1, 0.65, 0.2 }) return true end
+    local g = engineFormatFind(rest)
+    if g == nil then pl.broadcast("[MTG] No format called '" .. rest .. "'. Type  mtg format  for the list.", { 1, 0.65, 0.2 }) return true end
+    engineSetFormat(g.key, pl)
+    return true
+  elseif cmd == "banned" or cmd == "restricted" then
+    if rest ~= "on" and rest ~= "off" then
+      pl.broadcast("[MTG] " .. engineFormatWords(f) .. ". The host changes it:  mtg banned off  (banned cards allowed) / on,  mtg restricted off  (the normal copy limit) / on  (or the buttons).", { 1, 0.85, 0.4 })
+      return true
+    end
+    if not isHost then pl.broadcast("[MTG] Only the host can change the format.", { 1, 0.65, 0.2 }) return true end
+    engineSetBanRule(cmd, rest == "on", pl)
+    return true
+  elseif cmd == "banlist" then
+    if rest == "refresh" then
+      if not isHost then pl.broadcast("[MTG] Only the host can refresh the ban lists.", { 1, 0.65, 0.2 }) return true end
+      engineSend("banlist", { color = pl.color, refresh = true })
+      pl.broadcast("[MTG] Asking the bridge to check the ban lists now...", { 0.8, 0.8, 0.8 })
+    else engineBanlistShow(pl.color) end
+    return true
+  end
+  return false
+end
+-- the bridge's two ban list messages, before the others (the GIF frames' way, below)
+engineBanlistPrevMsg = engineOnMessage
+function engineOnMessage(m)
+  if type(m) == "table" and (m.t == "banlist" or m.t == "banlistNames") then
+    local d = m
+    if type(m.json) == "string" then
+      local ok, x = pcall(engineJsonDecode, m.json)
+      if not ok or type(x) ~= "table" then ok, x = pcall(JSON.decode, m.json) end
+      if not ok or type(x) ~= "table" then return end
+      d = x
+    end
+    if m.t == "banlist" then return engineOnBanlist(d) end
+    return engineOnBanlistNames(d)
+  end
+  return engineBanlistPrevMsg(m)
 end
 -- every life counter to n (the next game's starting life), with no change line: only between games
 function engineModeLife(n)
@@ -10283,10 +10605,23 @@ function engineModePieces()
     end
   end
 end
--- the mode button: the other mode, as "mtg mode ..." typed (the host only, said there)
-function onMtgSetupMode(obj, playerColor)
+-- the Format button (onMtgSetupMode: the Game mode button's spot and name): the next format, the one before on a
+-- right-click (alt_click), as "mtg format ..." typed (the host only, said there)
+function onMtgSetupMode(obj, playerColor, alt)
   local pl = Player[playerColor]
-  if pl ~= nil then engineChat("mtg mode " .. (ENGINE_GAME_MODE == "standard" and "commander" or "standard"), pl) end
+  if pl ~= nil then engineChat("mtg format " .. engineFormatStep(alt and -1 or 1).key, pl) end
+end
+-- the two switches (the host only, as typed) and the Banned list button (anyone)
+function onMtgSetupBanned(obj, playerColor)
+  local pl = Player[playerColor]
+  if pl ~= nil then engineChat("mtg banned " .. (engineBanRules().banned and "off" or "on"), pl) end
+end
+function onMtgSetupRestricted(obj, playerColor)
+  local pl = Player[playerColor]
+  if pl ~= nil then engineChat("mtg restricted " .. (engineBanRules().restricted and "off" or "on"), pl) end
+end
+function onMtgSetupBanlist(obj, playerColor)
+  if Player[playerColor] ~= nil then engineBanlistShow(playerColor) end
 end
 
 function onMtgSetupStart(obj, playerColor)

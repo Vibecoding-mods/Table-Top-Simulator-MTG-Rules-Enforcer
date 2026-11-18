@@ -80,8 +80,10 @@ const made = (p6 && p6.cmdDamageMade) || [];
   }
   same("profile: cmdDamage is the made trackers, in the renderer's order", JSON.stringify(p6.cmdDamage), JSON.stringify(want));
   same("profile: the 6-player clutter boxes (the end columns from |x| 45)", p6.clutterBoxes, [{ x: [-56, -45], z: [-8.5, 33] }, { x: [45, 56], z: [-33, 8.5] }]);
-  same("profile: the 6-player west-strip spots", p6.spots, { mode: [-49, 1.1, -2.5], friendly: [-49, 1.1, 7.5], teams: [-49, 1.1, 17.5] });
-  same("profile: the 4-player table makes none and keeps its spots", [p4.cmdDamageMade, p4.spots], [null, { mode: [-47, 1.1, -2.5], friendly: [-47, 1.1, 7.5], teams: [-47, 1.1, 17.5] }]);
+  same("profile: the 6-player west-strip spots", p6.spots, { mode: [-49, 1.1, -2.5], friendly: [-49, 1.1, 7.5], teams: [-49, 1.1, 17.5],
+    banned: [49, 1.1, 2.5], restricted: [49, 1.1, -7.5], banlist: [49, 1.1, -17.5] });
+  same("profile: the 4-player table makes none and keeps its spots", [p4.cmdDamageMade, p4.spots], [null, { mode: [-47, 1.1, -2.5], friendly: [-47, 1.1, 7.5], teams: [-47, 1.1, 17.5],
+    banned: [47, 1.1, 2.5], restricted: [47, 1.1, -7.5], banlist: [47, 1.1, -17.5] }]);
   // a tracker that would lie nearer another seat's life tracker is an error, not a quiet re-assignment
   const near = tp.TABLES.find((t) => t.id === "2293586471");
   const keep = near.makeCmdDamage;
@@ -246,15 +248,33 @@ if (six) {
   const btn = Object.fromEntries(sp.slice(3).map((l) => l.split("=")));
   ok("sim: the three west-strip buttons on the tile, a quarter turned, 1700 x 620", ["onMtgSetupMode", "onMtgSetupFriendly", "onMtgSetupTeams"].every((k) => btn[k] === "1700x620@90"), JSON.stringify(btn));
   // (a quarter-turned button: its width runs along z, its height along x; world size = units x SETUP.size (2.5) / 480)
-  const boxes = p6 && Object.entries(p6.spots).map(([k, [x, , z]]) => ({ k, box: [x - (620 * 2.5) / 960, x + (620 * 2.5) / 960, z - (1700 * 2.5) / 960, z + (1700 * 2.5) / 960] }));
+  // (the format's switches and Banned list are on the east strip: docs/format-banlist-spec.md §6.1, checked below)
+  const EAST = ["banned", "restricted", "banlist"];
+  const boxOf = ([k, [x, , z]]) => ({ k, box: [x - (620 * 2.5) / 960, x + (620 * 2.5) / 960, z - (1700 * 2.5) / 960, z + (1700 * 2.5) / 960] });
+  const boxes = p6 && Object.entries(p6.spots).filter(([k]) => !EAST.includes(k)).map(boxOf);
   ok("sim: the west-strip buttons lie in the cleared west strip (x -56..-45)", boxes.every((b) => b.box[0] >= -56 && b.box[1] <= -45), JSON.stringify(boxes));
   const green = ["0c1b22", "206ce5", "2fa3e2", "c04462", "8fb941"].map((g) => six.ObjectStates.find((o) => o.GUID === g)).map((o) => ({ g: o.GUID, box: [o.Transform.posX - 1.6, o.Transform.posX + 1.6, o.Transform.posZ - 1.6, o.Transform.posZ + 1.6] }));
   const clash = boxes.flatMap((b) => [...icons, ...green].filter((c) => meets(b.box, c.box)).map((c) => `${b.k}/${c.g}`))
     .concat(boxes.flatMap((a, i) => boxes.slice(i + 1).filter((b) => meets(a.box, b.box)).map((b) => `${a.k}/${b.k}`)));
   ok("sim: the west-strip buttons clear Green's column, its tracker row and each other", clash.length === 0, clash.join(" "));
+  // the east strip: inside the strip the build clears (x 45..56, z -33..8.5), clear of every object left on the table
+  // (each taken as 3.2 square round its middle, as Green's column above) and of each other
+  const east = p6 && Object.entries(p6.spots).filter(([k]) => EAST.includes(k)).map(boxOf);
+  ok("sim: the east-strip format buttons lie in the cleared east strip (x 45..56, z -33..8.5)", east.length === 3 && east.every((b) => b.box[0] >= 45 && b.box[1] <= 56 && b.box[2] >= -33 && b.box[3] <= 8.5), JSON.stringify(east));
+  const left = six.ObjectStates.filter((o) => o.Transform && o.Transform.posY > 0).map((o) => ({ g: o.GUID, box: [o.Transform.posX - 1.6, o.Transform.posX + 1.6, o.Transform.posZ - 1.6, o.Transform.posZ + 1.6] }));
+  const eastClash = east.flatMap((b) => [...icons, ...left].filter((c) => meets(b.box, c.box)).map((c) => `${b.k}/${c.g}`))
+    .concat(east.flatMap((a, i) => east.slice(i + 1).filter((b) => meets(a.box, b.box)).map((b) => `${a.k}/${b.k}`)));
+  ok("sim: the east-strip format buttons clear every object on the table and each other", eastClash.length === 0, eastClash.join(" "));
 }
 if (four) {
-  ok("4p: TABLE_PROFILE keeps the west-strip spots at -47", four.LuaScript.includes("  spots = { mode = { -47, 1.1, -2.5 }, friendly = { -47, 1.1, 7.5 }, teams = { -47, 1.1, 17.5 } },\n"));
+  ok("4p: TABLE_PROFILE keeps the west-strip spots at -47", four.LuaScript.includes("  spots = { mode = { -47, 1.1, -2.5 }, friendly = { -47, 1.1, 7.5 }, teams = { -47, 1.1, 17.5 }, banned = { 47, 1.1, 2.5 }, restricted = { 47, 1.1, -7.5 }, banlist = { 47, 1.1, -17.5 } },\n"));
+  // the east strip on the 4-player table: inside its cleared strip (x 44..56, z -26..8.5), clear of every object left
+  const east4 = Object.entries(require("../tools/profiles/2296042369.json").spots).filter(([k]) => ["banned", "restricted", "banlist"].includes(k))
+    .map(([k, [x, , z]]) => ({ k, box: [x - (620 * 2.5) / 960, x + (620 * 2.5) / 960, z - (1700 * 2.5) / 960, z + (1700 * 2.5) / 960] }));
+  const left4 = four.ObjectStates.filter((o) => o.Transform && o.Transform.posY > 0).map((o) => ({ g: o.GUID, box: [o.Transform.posX - 1.6, o.Transform.posX + 1.6, o.Transform.posZ - 1.6, o.Transform.posZ + 1.6] }));
+  const hits4 = east4.flatMap((b) => left4.filter((c) => meets(b.box, c.box)).map((c) => `${b.k}/${c.g}`));
+  ok("4p: the east-strip format buttons lie in the cleared east strip, clear of every object on the table", east4.length === 3
+    && east4.every((b) => b.box[0] >= 44 && b.box[1] <= 56 && b.box[2] >= -26 && b.box[3] <= 8.5) && hits4.length === 0, `${JSON.stringify(east4)} ${hits4.join(" ")}`);
   ok("4p: the renderer reads them from TABLE_PROFILE", four.LuaScript.includes("\nMODE_SPOT = Vector(TABLE_PROFILE.spots.mode[1], TABLE_PROFILE.spots.mode[2], TABLE_PROFILE.spots.mode[3])"));
 }
 
