@@ -3890,6 +3890,12 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ui = await ask(s, [["engine-card-601", ["player-2", "player-3"]], ["engine-card-602", ["player-1", "player-2", "player-3"]]], ["player-1", "player-2", "player-3"]);
     ok("remind: a goaded creature can't attack the player who goaded it", ui.text === "Can't attack AI 1: Grizzly Bears (goaded by AI 1).", ui.text);
     harness.restore();
+    // (a static goad, an Impetus aura's: the board's own list, not a resolved goad's)
+    s = four([BEAR, ANGEL]);
+    s.h.B._getGame().staticGoad = new Map([["engine-card-601", ["player-1"]]]);
+    ui = await ask(s, [["engine-card-601", ["player-2", "player-3"]], ["engine-card-602", ["player-1", "player-2", "player-3"]]], ["player-1", "player-2", "player-3"]);
+    ok("remind: a static goad is named like a resolved one", ui.text === "Can't attack AI 1: Grizzly Bears (goaded by AI 1).", ui.text);
+    harness.restore();
     // (mutation pass: goaded by another player is no reason for this one)
     s = four([BEAR, ANGEL, ["player-0", "engine-card-610", "Hill Giant", ["Creature"], ""]]);
     s.h.B._getGame().goaded = new Map([["engine-card-601", { by: "player-1", turn: 1 }], ["engine-card-610", { by: "player-2", turn: 1 }]]);

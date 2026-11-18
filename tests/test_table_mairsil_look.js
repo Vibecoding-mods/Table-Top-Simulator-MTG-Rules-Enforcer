@@ -68,21 +68,21 @@ const dist = (a, b) => (a && b ? Math.hypot(a[0] - b[0], a[1] - b[1]) : Infinity
   const cards = {
     "b-mairsil": { n: "Mairsil, the Pretender", ty: ["Creature"], p: 4, t: 4 },
     "x-kiki": { n: "Kiki-Jiki, Mirror Breaker", ty: ["Creature"] }, "x-red": { n: "Red Death, Shipwrecker", ty: ["Creature"] },
-    "x-lone": { n: "Pestermite", ty: ["Creature"] }, "x-pile": { n: "Grizzly Bears", ty: ["Creature"] },
+    "x-lone": { n: "Pestermite", ty: ["Creature"] }, "x-pile": { n: "Grizzly Bears", ty: ["Creature"] }, "x-fd": { n: "Hill Giant", ty: ["Creature"] },
   };
   const m = withBattlefields({ Blue: [{ id: "b-mairsil", s: 1 }] }, cards);
   const blue = m.players.find((p) => p.color === "Blue");
   blue.exile = [{ id: "x-kiki", s: 1, ew: "b-mairsil", ctr: { CAGE: 1 } }, { id: "x-red", s: 1, ew: "b-mairsil", ctr: { CAGE: 1 } },
-    { id: "x-lone", s: 1, ew: "gone-card", ctr: { CAGE: 1 } }, { id: "x-pile", s: 1 }];
+    { id: "x-lone", s: 1, ew: "gone-card", ctr: { CAGE: 1 } }, { id: "x-pile", s: 1 }, { id: "x-fd", s: 1, fd: true, ctr: { CAGE: 1 } }];
   blue.keep = (blue.keep || []).filter((z) => z !== "exile");
   const r = run([board(m, "board"), q(planned("b-mairsil"), "host"), q(planned("x-kiki"), "kiki"), q(planned("x-red"), "red"),
-    q('return tostring(engineSpecial["x-kiki"]) .. " " .. tostring(engineSpecial["x-lone"]) .. " " .. tostring(engineSpecial["x-pile"])', "special")]);
+    q('return tostring(engineSpecial["x-kiki"]) .. " " .. tostring(engineSpecial["x-lone"]) .. " " .. tostring(engineSpecial["x-pile"]) .. " " .. tostring(engineSpecial["x-fd"])', "special")]);
   ok("precondition 5: the board drew with no error", !r.errors.length, r.errors.join(" | "));
   const h = xz(valueOf(r, "host")), a = xz(valueOf(r, "kiki")), b = xz(valueOf(r, "red"));
   ok("5 linked: two tucked cards lie a half card's width apart", dist(a, b) >= 1.05, `${dist(a, b).toFixed(2)} apart (${valueOf(r, "kiki")} / ${valueOf(r, "red")})`);
   ok("5 linked: both still under their host", dist(a, h) < 2 && dist(b, h) < 2, `${dist(a, h).toFixed(2)}, ${dist(b, h).toFixed(2)} from it`);
   ok("5 linked: centred on the host", h && a && b && Math.abs(dist(a, h) - dist(b, h)) < 0.01, `${dist(a, h).toFixed(3)} vs ${dist(b, h).toFixed(3)}`);
-  same("6 caged: a caged card with no permanent over it lies beside the pile (a plain one stays in it)", valueOf(r, "special"), "linked suspended nil");
+  same("6 caged: a caged card with no permanent over it lies beside the pile (a plain one stays in it)", valueOf(r, "special"), "linked suspended nil nil");
 }
 
 // 1: a label on a card (its status box: Mairsil's "At end step: sacrifice Pestermite") takes the click from the card
@@ -120,6 +120,62 @@ const dist = (a, b) => (a && b ? Math.hypot(a[0] - b[0], a[1] - b[1]) : Infinity
   ok("26 corner: past two lines it is cut at a word, the whole in the tooltip", lt === "Pay Reveal a Swamp or\nMountain card from your…" && ltip === "Pay Reveal a Swamp or Mountain card from your hand", JSON.stringify([lt, ltip]));
   const [, sbf, sbtip, , ssf] = String(valueOf(r, "short")).split("#");
   same("26 corner: a short label is one line at the usual fonts, no tooltip", [sbf, sbtip, ssf], ["26", "", "18"]);
+}
+
+// break-it additions (jr suite 2026-11-18): each of these passed with the code it watches broken
+// 5: three tucked cards lie side by side too, four go back to the diagonal fan
+{
+  const lay = (n) => {
+    const cards = { "b-mairsil": { n: "Mairsil, the Pretender", ty: ["Creature"], p: 4, t: 4 } };
+    const names = ["Kiki-Jiki, Mirror Breaker", "Red Death, Shipwrecker", "Pestermite", "Grizzly Bears"];
+    for (let i = 0; i < n; i++) cards["x-" + i] = { n: names[i], ty: ["Creature"] };
+    const m = withBattlefields({ Blue: [{ id: "b-mairsil", s: 1 }] }, cards);
+    const blue = m.players.find((p) => p.color === "Blue");
+    blue.exile = Array.from({ length: n }, (_, i) => ({ id: "x-" + i, s: 1, ew: "b-mairsil", ctr: { CAGE: 1 } }));
+    blue.keep = (blue.keep || []).filter((z) => z !== "exile");
+    const r = run([board(m, "board"), ...Array.from({ length: n }, (_, i) => q(planned("x-" + i), "c" + i))]);
+    return { r, at: Array.from({ length: n }, (_, i) => xz(valueOf(r, "c" + i))) };
+  };
+  const three = lay(3), four = lay(4);
+  ok("precondition 5: three and four tucked cards drew with no error", !three.r.errors.length && !four.r.errors.length, [...three.r.errors, ...four.r.errors].join(" | "));
+  ok("5 linked: three tucked cards are spread side by side", dist(three.at[0], three.at[1]) >= 0.6, dist(three.at[0], three.at[1]).toFixed(3));
+  ok("5 linked: four are the diagonal fan as before", dist(four.at[0], four.at[1]) < 0.55, dist(four.at[0], four.at[1]).toFixed(3));
+}
+// 6: a cage counter is a cage counter in any case; an aura whose host isn't on the table stays beside its own seat
+{
+  const cards = { "b-mairsil": { n: "Mairsil, the Pretender", ty: ["Creature"], p: 4, t: 4 }, "x-lower": { n: "Pestermite", ty: ["Creature"] }, "b-aura": { n: "Pacifism", ty: ["Enchantment"] } };
+  const m = withBattlefields({ Blue: [{ id: "b-mairsil", s: 1 }, { id: "b-aura", s: 1, att: "ghost-host" }] }, cards);
+  const blue = m.players.find((p) => p.color === "Blue");
+  blue.exile = [{ id: "x-lower", s: 1, ew: "gone-card", ctr: { Cage: 1 } }];
+  blue.keep = (blue.keep || []).filter((z) => z !== "exile");
+  const r = run([board(m, "board"), q('return tostring(engineSpecial["x-lower"])', "special"), q(planned("b-aura"), "aura"), q(planned("b-mairsil"), "host")]);
+  ok("precondition 6: the board drew with no error", !r.errors.length, r.errors.join(" | "));
+  same("6 caged: the cage counter's name is read in any case", valueOf(r, "special"), "suspended");
+  ok("25 aura: one whose host is on no battlefield is still drawn, by its own seat", xz(valueOf(r, "aura")) !== null, valueOf(r, "aura"));
+}
+// 1: a label's click is the card's only for a card of the engine's: anything else (a life counter's marks) does nothing,
+// as does a click with no colour or from nobody seated
+{
+  const probe = (obj, color) => q(`local called = false local real = onPlayerAction onPlayerAction = function(_, action) called = action == Player.Action.Select end
+    local ok = pcall(engineNoop, ${obj}, ${color}) onPlayerAction = real return tostring(ok) .. " " .. tostring(called)`);
+  const fake = (notes) => `{ getGMNotes = function() return "${notes}" end }`;
+  const r = run([probe(fake("engine:b-card"), '"Blue"'), probe(fake("life:Blue"), '"Blue"'), probe(fake("engine:b-card"), "nil")].map((st, i) => ({ ...st, mark: "p" + i })));
+  ok("1 label click: a card of the engine's forwards the click", valueOf(r, "p0") === "true true", valueOf(r, "p0"));
+  ok("1 label click: another object's does nothing", valueOf(r, "p1") === "true false", valueOf(r, "p1"));
+  ok("1 label click: with no colour it does nothing, and says nothing", valueOf(r, "p2") === "true false", valueOf(r, "p2"));
+}
+// 26: a label a few characters past one line's worth is the long kind too: the smaller font, the whole label in its tooltip
+{
+  const ask = (p) => ({ msg: { t: "prompt", json: JSON.stringify({ t: "prompt", color: "Blue", ...p }) } });
+  const corner = (mark) => q('return tostring(UI.getAttribute("eng_big_Blue", "text")) .. "#" .. tostring(UI.getAttribute("eng_big_Blue", "fontSize")) .. "#" .. tostring(UI.getAttribute("eng_big_Blue", "tooltip"))'
+    + ' .. "#" .. tostring(UI.getAttribute("eng_big2_Blue", "text")) .. "#" .. tostring(UI.getAttribute("eng_big2_Blue", "fontSize")) .. "#" .. tostring(UI.getAttribute("eng_big2_Blue", "tooltip"))', mark);
+  const r = run([ask({ promptId: 970, kind: "yesno", title: "Foreboding Ruins: reveal?", mode: "single", options: [{ id: "yes", label: "Sacrifice a nonland perm" }, { id: "no", label: "Enter tapped instead of revealing" }] }), corner("edge")]);
+  const [bt, bf, btip, st, sf, stip] = String(valueOf(r, "edge")).split("#");
+  same("26 corner: a big label just past 22 characters is one line at the smaller font, the whole in its tooltip", [bt, bf, btip], ["Sacrifice a nonland perm", "17", "Sacrifice a nonland perm"]);
+  same("26 corner: a small label just past 30 characters is one line at the smaller font, the whole in its tooltip", [st, sf, stip], ["Enter tapped instead of revealing", "14", "Enter tapped instead of revealing"]);
+  // a word longer than a line is cut where the line ends, the rest going on to the next
+  const r2 = run([ask({ promptId: 971, kind: "yesno", title: "Reveal?", mode: "single", options: [{ id: "yes", label: "Supercalifragilisticexpialidocious Mairsil" }, { id: "no", label: "No" }] }), corner("word")]);
+  same("26 corner: a word longer than a line is cut there, the rest on the next line", String(valueOf(r2, "word")).split("#")[0], "Supercalifragilisticexpial\nidocious Mairsil");
 }
 
 console.log(`${passed} passed, ${failed} failed`);
