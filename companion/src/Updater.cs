@@ -587,10 +587,10 @@ namespace MtgCompanion
         {
             Func<string, string> full = rel => Path.Combine(home, rel.Replace('/', '\\'));
             Func<string, string> saved = rel => Path.Combine(j.Backup, rel.Replace('/', '\\'));
-            j.Moved = j.Existed.Where(rel => File.Exists(saved(rel)) || Directory.Exists(saved(rel))).ToList();
+            Func<string, bool> there = p => File.Exists(p) || Directory.Exists(p);
+            j.Moved = j.Existed.Where(rel => there(saved(rel))).ToList();
             var u = Updates.Undo(j);
             var stuck = new List<string>();
-            Func<string, bool> there = p => File.Exists(p) || Directory.Exists(p);
             bool revert = j.Kind == "revert";
             foreach (var pair in u.ReturnToDownload)
                 try
@@ -627,7 +627,7 @@ namespace MtgCompanion
             if (stuck.Count == 0)
             {
                 try { if (Directory.Exists(j.Backup)) Directory.Delete(j.Backup, true); } catch { }
-                if (revert) try { var root = Path.GetDirectoryName(j.Backup); if (Directory.Exists(root) && !Directory.EnumerateFileSystemEntries(root).Any()) Directory.Delete(root); } catch { }
+                if (revert) DeleteIfEmpty(Path.GetDirectoryName(j.Backup));
                 try { File.Delete(JournalPath(home)); } catch { }
                 return null;
             }
@@ -710,6 +710,18 @@ namespace MtgCompanion
 
         string BackupRoot { get { return Path.Combine(L.Home, "backup"); } }
 
+        // whether dir holds that package path (a file or a folder)
+        static Func<string, bool> InDir(string dir)
+        {
+            return rel => { var p = Path.Combine(dir, rel.Replace('/', '\\')); return File.Exists(p) || Directory.Exists(p); };
+        }
+
+        // an empty folder goes (revert-undo\ after its last revert)
+        static void DeleteIfEmpty(string dir)
+        {
+            try { if (Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir); } catch { }
+        }
+
         // the newest backup (by its creation time, as Prune keeps them), and whether it can be put back now
         public RevertInfo FindRevert()
         {
@@ -722,22 +734,22 @@ namespace MtgCompanion
             catch { }
             if (newest == null) return Updates.PlanRevert(null, Local(), null, rel => false);
             var dir = newest.FullName;
-            return Updates.PlanRevert(dir, Local(), J.Parse(Probes.ReadText(Path.Combine(dir, "version.json"))),
-                rel => { var p = Path.Combine(dir, rel.Replace('/', '\\')); return File.Exists(p) || Directory.Exists(p); });
+            return Updates.PlanRevert(dir, Local(), J.Parse(Probes.ReadText(Path.Combine(dir, "version.json"))), InDir(dir));
         }
 
         public ApplyResult Revert(IUpdateEffects fx, string selfArgs)
         {
+            RevertInfo early = null;
             if (!File.Exists(JournalPath(L.Home)))
             {
-                var early = FindRevert();
+                early = FindRevert();
                 if (!early.Possible) { Remember("pendingRevert", null); return new ApplyResult { Text = early.Why }; } // (a wait for a game that can't go back any more ends here too)
             }
             if (fx.Locked())
             {
                 Log.Write("revert: deferred, a game is on");
                 Remember("pendingRevert", "yes");
-                var t = FindRevert();
+                var t = early ?? FindRevert();
                 return new ApplyResult { Deferred = true, Text = "Revert ready — goes back to " + (t.Target ?? "the earlier version") + " after this game." };
             }
             Remember("pendingRevert", null);
@@ -759,7 +771,7 @@ namespace MtgCompanion
         {
             var src = info.Backup;
             var current = Local();
-            var restore = Updates.RevertPaths(rel => File.Exists(Path.Combine(src, rel.Replace('/', '\\'))) || Directory.Exists(Path.Combine(src, rel.Replace('/', '\\'))));
+            var restore = Updates.RevertPaths(InDir(src));
             var replaced = restore.Replaced;
             string holdRoot = Path.Combine(L.Home, Updates.RevertHold), hold = Path.Combine(holdRoot, Updates.BackupName(current));
             for (int i = 2; Directory.Exists(hold); i++) hold = Path.Combine(holdRoot, Updates.BackupName(current) + "-" + i);
@@ -860,7 +872,7 @@ namespace MtgCompanion
         static void RevertCleanup(Journal j)
         {
             try { if (Directory.Exists(j.Backup)) Directory.Delete(j.Backup, true); } catch { }
-            try { var root = Path.GetDirectoryName(j.Backup); if (Directory.Exists(root) && !Directory.EnumerateFileSystemEntries(root).Any()) Directory.Delete(root); } catch { }
+            DeleteIfEmpty(Path.GetDirectoryName(j.Backup));
             try { if (j.Source != null && Directory.Exists(j.Source)) Directory.Delete(j.Source, true); } catch { }
         }
 
