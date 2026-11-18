@@ -75,8 +75,9 @@ building the JSON.
   - the bridge already printed the change notices and acknowledged them at once (since 5ed5043); the new test checks it
     for all three defenders.
 - **Level 2 tests (l2-tests):**
-  - 805.9's "the active team chooses which player" and 805.10e's choice (an effect naming a defending player without
-    an attacker) have no team choice in Forge and no check;
+  - ~~805.9's "the active player" and 805.10e's "defending player" (an effect naming a defending player without an
+    attacker) have no choice in Forge and no check~~: the controller of the spell or ability chooses (not the team),
+    `cloud/l2-team-choices`, with 805.10c's attacking player;
   - 805.3a's simultaneous mulligans are checked only for order.
 
 **Best of three (treachery-bo3), spec §3.6 later:**

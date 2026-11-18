@@ -118,7 +118,7 @@ index da0433a..78ed941 100644
                  FModel.initialize(null, null);
              }
 diff --git a/forge-harness/src/main/java/forge/harness/common/ActionSpace.java b/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
-index 972f4ae..a38c33c 100644
+index 972f4ae..18289b4 100644
 --- a/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
 +++ b/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
 @@ -1,6 +1,7 @@
@@ -129,7 +129,16 @@ index 972f4ae..a38c33c 100644
  import forge.card.MagicColor;
  import forge.card.mana.ManaAtom;
  import forge.card.mana.ManaCost;
-@@ -48,6 +49,43 @@ import java.util.Map;
+@@ -20,6 +21,8 @@ import forge.game.mana.ManaCostBeingPaid;
+ import forge.game.player.Player;
+ import forge.game.spellability.AbilityManaPart;
+ import forge.game.spellability.AlternativeCost;
++import forge.game.spellability.OptionalCost;
++import forge.game.spellability.OptionalCostValue;
+ import forge.game.spellability.SpellAbility;
+ import forge.game.spellability.SpellAbilityStackInstance;
+ import forge.game.spellability.TargetRestrictions;
+@@ -48,6 +51,43 @@ import java.util.Map;
  import java.util.Set;
  
  public final class ActionSpace {
@@ -173,7 +182,7 @@ index 972f4ae..a38c33c 100644
      private static final String SPEND_ONLY_COLORED_ON_X =
              "Spend only colored mana on X. No more than one mana of each color may be spent this way.";
  
-@@ -110,6 +148,15 @@ public final class ActionSpace {
+@@ -110,6 +150,15 @@ public final class ActionSpace {
              final Player player,
              final boolean includeManaAbilities,
              final boolean lifePaymentFallback
@@ -189,7 +198,7 @@ index 972f4ae..a38c33c 100644
      ) {
          final Game game = player.getGame();
          final Set<Card> candidates = new LinkedHashSet<>();
-@@ -139,10 +186,22 @@ public final class ActionSpace {
+@@ -139,10 +188,22 @@ public final class ActionSpace {
          final List<SpellAbility> actions = new ArrayList<>();
          final Map<Card, Card> spellHosts = new IdentityHashMap<>();
          boolean stackStatics = false;
@@ -213,7 +222,7 @@ index 972f4ae..a38c33c 100644
                  sa.setActivatingPlayer(player);
                  possible.add(sa);
                  spellHost(sa, game, spellHosts);
-@@ -152,6 +211,7 @@ public final class ActionSpace {
+@@ -152,6 +213,7 @@ public final class ActionSpace {
                  && game.getAction().hasStaticAbilityAffectingZone(ZoneType.Stack, StaticAbilityLayer.ABILITIES)) {
              stackStatics = true;
              applyStackStatics(game, spellHosts.values());
@@ -221,7 +230,7 @@ index 972f4ae..a38c33c 100644
          }
          for (final SpellAbility sa : possible) {
              final Cost payCosts = sa.getPayCosts();
-@@ -173,6 +233,19 @@ public final class ActionSpace {
+@@ -173,6 +235,19 @@ public final class ActionSpace {
              actions.add(sa);
          }
          } finally {
@@ -241,7 +250,7 @@ index 972f4ae..a38c33c 100644
              game.getAction().setHoldCheckingStaticAbilities(false);
              game.getAction().checkStaticAbilities(false);
              if (stackStatics) {
-@@ -201,13 +274,22 @@ public final class ActionSpace {
+@@ -201,13 +276,22 @@ public final class ActionSpace {
              if (!lifePaymentFallback) {
                  return false;
              }
@@ -268,7 +277,7 @@ index 972f4ae..a38c33c 100644
          } finally {
              if (probeHost != null) {
                  sa.setHostCard(host);
-@@ -269,21 +351,45 @@ public final class ActionSpace {
+@@ -269,21 +353,45 @@ public final class ActionSpace {
              return true;
          }
          final Card host = sa.getHostCard();
@@ -321,7 +330,7 @@ index 972f4ae..a38c33c 100644
      }
  
      private static boolean canPayManaWithTargets(
-@@ -385,7 +491,13 @@ public final class ActionSpace {
+@@ -385,7 +493,13 @@ public final class ActionSpace {
              if (stackSa == sa || stackSa.getId() == sa.getId()) {
                  continue;
              }
@@ -336,7 +345,7 @@ index 972f4ae..a38c33c 100644
                  continue;
              }
              final Card sourceCard = si.getSourceCard();
-@@ -417,6 +529,194 @@ public final class ActionSpace {
+@@ -417,6 +531,194 @@ public final class ActionSpace {
          return reserved;
      }
  
@@ -531,7 +540,7 @@ index 972f4ae..a38c33c 100644
      private static boolean canPayManaCostWithReservedSacrifices(
              final SpellAbility sa,
              final Player player,
-@@ -470,6 +770,22 @@ public final class ActionSpace {
+@@ -470,6 +772,22 @@ public final class ActionSpace {
  
      private static ManaCostBeingPaid probeManaCost(
              final Cost cost, final SpellAbility sa, final Player payer, final boolean effect) {
@@ -554,7 +563,7 @@ index 972f4ae..a38c33c 100644
          final Card host = sa.getHostCard();
          Zone castFromBackup = null;
          if (sa.isSpell() && !host.isInZone(ZoneType.Stack)) {
-@@ -642,13 +958,40 @@ public final class ActionSpace {
+@@ -642,13 +960,40 @@ public final class ActionSpace {
                  ? saBeingPaid.getHostCard()
                  : null;
  
@@ -599,7 +608,7 @@ index 972f4ae..a38c33c 100644
                  if (!manaAbility.isManaAbility()) {
                      continue;
                  }
-@@ -660,7 +1003,7 @@ public final class ActionSpace {
+@@ -660,7 +1005,7 @@ public final class ActionSpace {
                      continue;
                  }
                  final AbilityManaPart manaPart = manaAbility.getManaPart();
@@ -608,7 +617,7 @@ index 972f4ae..a38c33c 100644
                      continue;
                  }
                  if (manaAbility.getPayCosts() != null
-@@ -672,24 +1015,12 @@ public final class ActionSpace {
+@@ -672,24 +1017,12 @@ public final class ActionSpace {
                  )) {
                      continue;
                  }
@@ -637,6 +646,42 @@ index 972f4ae..a38c33c 100644
      }
  
      private static List<Integer> mergeAlternativeManaAbility(
+@@ -897,6 +1230,35 @@ public final class ActionSpace {
+     }
+ 
+     private static boolean hasValidTargets(final SpellAbility sa) {
++        return targetsFit(sa) || targetsFitWithGift(sa);
++    }
++
++    private static boolean targetsFitWithGift(final SpellAbility sa) {
++        final Card host = sa.getHostCard();
++        if (host == null || !sa.isSpell() || sa.isGiftPromised()) {
++            return false;
++        }
++        boolean gift = false;
++        for (final OptionalCostValue value : GameActionUtil.getOptionalCostValues(sa)) {
++            if (value.getType() == OptionalCost.PromiseGift) {
++                gift = true;
++            }
++        }
++        if (!gift) {
++            return false;
++        }
++        final SpellAbility promised = sa.copy();
++        promised.addOptionalCost(OptionalCost.PromiseGift);
++        final SpellAbility castSA = host.getCastSA();
++        host.setCastSA(promised);
++        try {
++            return targetsFit(promised);
++        } finally {
++            host.setCastSA(castSA);
++        }
++    }
++
++    private static boolean targetsFit(final SpellAbility sa) {
+         SpellAbility current = sa;
+         while (current != null) {
+             if (current.usesTargeting()) {
 diff --git a/forge-harness/src/main/java/forge/harness/common/AutoPay.java b/forge-harness/src/main/java/forge/harness/common/AutoPay.java
 index 4edefb1..41d2c6a 100644
 --- a/forge-harness/src/main/java/forge/harness/common/AutoPay.java
@@ -6952,6 +6997,259 @@ index 0000000..ea1a53b
 +        }
 +    }
 +}
+diff --git a/forge-harness/src/test/java/forge/harness/common/GiftTargetsTest.java b/forge-harness/src/test/java/forge/harness/common/GiftTargetsTest.java
+new file mode 100644
+index 0000000..e03f36c
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/common/GiftTargetsTest.java
+@@ -0,0 +1,247 @@
++package forge.harness.common;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameActionUtil;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.OptionalCost;
++import forge.game.spellability.OptionalCostValue;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++
++public final class GiftTargetsTest {
++    private GiftTargetsTest() {}
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    public static void main(final String[] args) {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        final Map<String, Check> checks = new LinkedHashMap<>();
++        checks.put("switch longRiversPullOfferedForANoncreatureSpell", GiftTargetsTest::longRiversPullOfferedForANoncreatureSpell);
++        checks.put("switch longRiversPullOfferedForACreatureSpell", GiftTargetsTest::longRiversPullOfferedForACreatureSpell);
++        checks.put("switch longRiversPullNotOfferedWithNoSpell", GiftTargetsTest::longRiversPullNotOfferedWithNoSpell);
++        checks.put("switch intoTheFloodMawOfferedForANoncreaturePermanent", GiftTargetsTest::intoTheFloodMawOfferedForANoncreaturePermanent);
++        checks.put("switch intoTheFloodMawNotOfferedWithNothingToReturn", GiftTargetsTest::intoTheFloodMawNotOfferedWithNothingToReturn);
++        checks.put("ask theOfferedSpellStillAsksTheGift", GiftTargetsTest::theOfferedSpellStillAsksTheGift);
++        checks.put("residue theCardsCastAbilityIsPutBack", GiftTargetsTest::theCardsCastAbilityIsPutBack);
++        checks.put("more wearDownOfferedWithOneTarget", GiftTargetsTest::wearDownOfferedWithOneTarget);
++        checks.put("more wearDownNotOfferedWithNone", GiftTargetsTest::wearDownNotOfferedWithNone);
++        checks.put("extra valleyRallyOfferedWithNoGiftTarget", GiftTargetsTest::valleyRallyOfferedWithNoGiftTarget);
++        checks.put("plain aSpellWithoutGiftIsNotOfferedWithoutTargets", GiftTargetsTest::aSpellWithoutGiftIsNotOfferedWithoutTargets);
++        for (final Map.Entry<String, Check> e : checks.entrySet()) {
++            try {
++                e.getValue().run();
++                System.out.println("ok " + e.getKey());
++            } catch (final Throwable thrown) {
++                failed++;
++                System.out.println("FAIL " + e.getKey() + ": " + thrown);
++            }
++        }
++        System.out.println(failed == 0 ? "PASS GiftTargetsTest" : "FAIL GiftTargetsTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private static void longRiversPullOfferedForANoncreatureSpell() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 2);
++        add("Long River's Pull", me, ZoneType.Hand);
++        castByOther(game, "Lightning Bolt");
++        expect(offered(me).contains("Long River's Pull"),
++                "Long River's Pull was not offered against a Lightning Bolt on the stack, which it counters with the gift promised");
++    }
++
++    private static void longRiversPullOfferedForACreatureSpell() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 2);
++        add("Long River's Pull", me, ZoneType.Hand);
++        castByOther(game, "Grizzly Bears");
++        expect(offered(me).contains("Long River's Pull"), "Long River's Pull was not offered against a creature spell");
++    }
++
++    private static void longRiversPullNotOfferedWithNoSpell() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 2);
++        add("Long River's Pull", me, ZoneType.Hand);
++        expect(!offered(me).contains("Long River's Pull"), "Long River's Pull was offered with nothing on the stack");
++    }
++
++    private static void intoTheFloodMawOfferedForANoncreaturePermanent() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 1);
++        add("Into the Flood Maw", me, ZoneType.Hand);
++        add("Sol Ring", game.getPlayers().get(0), ZoneType.Battlefield);
++        expect(offered(me).contains("Into the Flood Maw"),
++                "Into the Flood Maw was not offered with an opponent's Sol Ring, which it returns with the gift promised");
++    }
++
++    private static void intoTheFloodMawNotOfferedWithNothingToReturn() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 1);
++        add("Into the Flood Maw", me, ZoneType.Hand);
++        add("Island", game.getPlayers().get(0), ZoneType.Battlefield);
++        expect(!offered(me).contains("Into the Flood Maw"), "Into the Flood Maw was offered with only an opponent's land");
++    }
++
++    private static void theOfferedSpellStillAsksTheGift() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 2);
++        add("Long River's Pull", me, ZoneType.Hand);
++        castByOther(game, "Lightning Bolt");
++        SpellAbility pull = null;
++        for (final SpellAbility sa : ActionSpace.getPossibleActions(me, false, true)) {
++            if (sa.getHostCard().getName().equals("Long River's Pull")) {
++                pull = sa;
++            }
++        }
++        expect(pull != null, "Long River's Pull was not offered");
++        expect(!pull.isGiftPromised(), "the offered Long River's Pull already has the gift promised, so its cast won't ask");
++        boolean asks = false;
++        for (final OptionalCostValue value : GameActionUtil.getOptionalCostValues(pull)) {
++            if (value.getType() == OptionalCost.PromiseGift) {
++                asks = true;
++            }
++        }
++        expect(asks, "the offered Long River's Pull has no gift to choose at its cast");
++    }
++
++    private static void theCardsCastAbilityIsPutBack() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 2);
++        final Card pull = add("Long River's Pull", me, ZoneType.Hand);
++        castByOther(game, "Lightning Bolt");
++        final SpellAbility before = pull.getCastSA();
++        offered(me);
++        expect(pull.getCastSA() == before, "looking for actions left Long River's Pull's cast ability as " + pull.getCastSA() + ", not " + before);
++    }
++
++    private static void wearDownOfferedWithOneTarget() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        forests(me, 2);
++        add("Wear Down", me, ZoneType.Hand);
++        add("Sol Ring", game.getPlayers().get(0), ZoneType.Battlefield);
++        expect(offered(me).contains("Wear Down"), "Wear Down was not offered with one artifact (it needs two only with the gift)");
++    }
++
++    private static void wearDownNotOfferedWithNone() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        forests(me, 2);
++        add("Wear Down", me, ZoneType.Hand);
++        expect(!offered(me).contains("Wear Down"), "Wear Down was offered with no artifact or enchantment");
++    }
++
++    private static void valleyRallyOfferedWithNoGiftTarget() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        for (int i = 0; i < 3; i++) {
++            add("Mountain", me, ZoneType.Battlefield);
++        }
++        add("Valley Rally", me, ZoneType.Hand);
++        expect(offered(me).contains("Valley Rally"), "Valley Rally was not offered with no creature (its target comes only with the gift)");
++    }
++
++    private static void aSpellWithoutGiftIsNotOfferedWithoutTargets() {
++        final Game game = newGame();
++        final Player me = game.getPlayers().get(1);
++        islands(me, 2);
++        add("Essence Scatter", me, ZoneType.Hand);
++        castByOther(game, "Lightning Bolt");
++        expect(!offered(me).contains("Essence Scatter"), "Essence Scatter (no gift) was offered against a noncreature spell");
++    }
++
++    private static void islands(final Player p, final int n) {
++        for (int i = 0; i < n; i++) {
++            add("Island", p, ZoneType.Battlefield);
++        }
++    }
++
++    private static void forests(final Player p, final int n) {
++        for (int i = 0; i < n; i++) {
++            add("Forest", p, ZoneType.Battlefield);
++        }
++    }
++
++    private static void castByOther(final Game game, final String name) {
++        final Player other = game.getPlayers().get(0);
++        final Card card = add(name, other, ZoneType.Hand);
++        final SpellAbility cast = card.getFirstSpellAbility();
++        cast.setActivatingPlayer(other);
++        cast.setHostCard(game.getAction().moveToStack(card, cast));
++        game.getStack().add(cast);
++        game.getPhaseHandler().setPriority(game.getPlayers().get(1));
++    }
++
++    private static List<String> offered(final Player p) {
++        final List<String> names = new ArrayList<>();
++        for (final SpellAbility sa : ActionSpace.getPossibleActions(p, false, true)) {
++            names.add(sa.getHostCard().getName());
++        }
++        return names;
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static Game newGame() {
++        final List<RegisteredPlayer> players = new ArrayList<>();
++        final Deck deck = new Deck();
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("p2", null)));
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("p1", null)));
++        final GameRules rules = new GameRules(GameType.Constructed);
++        final Game game = new Game(players, rules, new Match(rules, players, "GiftTargetsTest"));
++        game.setAge(GameStage.Play);
++        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(1));
++        game.getPhaseHandler().onStackResolved();
++        return game;
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ApplyStateCreateCardTest.java b/forge-harness/src/test/java/forge/harness/host/ApplyStateCreateCardTest.java
 new file mode 100644
 index 0000000..75125c3
@@ -11528,10 +11826,10 @@ index 0000000..2cdfc8a
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/BlockBudgetTest.java b/forge-harness/src/test/java/forge/harness/host/BlockBudgetTest.java
 new file mode 100644
-index 0000000..7468065
+index 0000000..752d3a6
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/BlockBudgetTest.java
-@@ -0,0 +1,319 @@
+@@ -0,0 +1,435 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -11583,6 +11881,9 @@ index 0000000..7468065
 +        CHECKS.put("lethal: past the deadline 40 attackers at 6 life leave no blocker free that could save the AI", BlockBudgetTest::lethalPastDeadline);
 +        CHECKS.put("lethal: past the deadline an attack that isn't lethal gets no forced blocks", BlockBudgetTest::safePastDeadline);
 +        CHECKS.put("chump pass: each attacker's damage and each blocker's value worked out once", BlockBudgetTest::chumpValuesOnce);
++        CHECKS.put("team: past the deadline, lethal on the partner is chump-blocked (shared team life)", BlockBudgetTest::partnerLethalShared);
++        CHECKS.put("team: past the deadline, an attack on the partner that isn't lethal gets no forced blocks", BlockBudgetTest::partnerSafeShared);
++        CHECKS.put("team: past the deadline, lethal on the partner is chump-blocked (team turns, the partner's own life)", BlockBudgetTest::partnerLethalOwnLife);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
 +            check(e.getKey(), e.getValue());
 +        }
@@ -11780,6 +12081,119 @@ index 0000000..7468065
 +        f.blue.getController().declareBlockers(f.blue, combat);
 +        final long n = AiBlockController.getChumpEvaluations() - e0;
 +        expect(n > 0 && n <= 40 + 25, "the chump pass worked out " + n + " values for 40 attackers and 25 blockers, want each once");
++    }
++
++    private static Combat teamAttack(final TeamFixture f, final int attackers, final int life) {
++        for (int i = 0; i < attackers; i++) {
++            f.add("Hill Giant", f.white);
++        }
++        for (int i = 0; i < 4; i++) {
++            f.add("Llanowar Elves", f.yellow);
++        }
++        f.blue.setLife(life, null);
++        if (!f.game.getRules().hasSharedTeamLife()) {
++            f.yellow.setLife(20, null);
++        }
++        f.game.getAction().checkStaticAbilities();
++        f.game.getAction().checkStateEffects(true);
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, f.white, 3);
++        final Combat combat = new Combat(f.white);
++        f.game.getPhaseHandler().setCombat(combat);
++        for (final Card c : f.white.getCreaturesInPlay()) {
++            if (CombatUtil.canAttack(c, f.blue)) {
++                combat.addAttacker(c, f.blue);
++            }
++        }
++        expect(combat.getAttackersOf(f.blue).size() == attackers, "precondition: " + combat.getAttackersOf(f.blue).size() + " Hill Giants attack Blue, want " + attackers);
++        expect(combat.getAttackersOf(f.yellow).isEmpty(), "precondition: nothing attacks Yellow");
++        return combat;
++    }
++
++    private static int unblockedAt(final Combat combat, final Player p) {
++        int n = 0;
++        for (final Card a : combat.getAttackersOf(p)) {
++            if (combat.getBlockers(a).isEmpty()) {
++                n += a.getNetCombatDamage();
++            }
++        }
++        return n;
++    }
++
++    private static void partnerLethalShared() throws Exception {
++        final TeamFixture f = new TeamFixture(true, false);
++        final Combat combat = teamAttack(f, 4, 6);
++        expect(f.yellow.getLife() == 6, "precondition: the team's shared life is 6, Yellow reads " + f.yellow.getLife());
++        f.game.AI_TIMEOUT = -1;
++        f.yellow.getController().declareBlockers(f.yellow, combat);
++        expect(unblockedAt(combat, f.blue) < 6, "4 Hill Giants at Blue, the team at 6 life, Yellow's 4 Elves past the deadline: unblocked "
++                + unblockedAt(combat, f.blue) + ", blockers " + combat.getAllBlockers().size());
++    }
++
++    private static void partnerSafeShared() throws Exception {
++        final TeamFixture f = new TeamFixture(true, false);
++        final Combat combat = teamAttack(f, 2, 20);
++        f.game.AI_TIMEOUT = -1;
++        f.yellow.getController().declareBlockers(f.yellow, combat);
++        expect(combat.getAllBlockers().isEmpty(), "6 damage at Blue, the team at 20 life, past the deadline: " + combat.getAllBlockers().size() + " forced blocks");
++    }
++
++    private static void partnerLethalOwnLife() throws Exception {
++        final TeamFixture f = new TeamFixture(false, true);
++        expect(f.game.getRules().hasTeamBlocks() && !f.game.getRules().hasSharedTeamLife(), "precondition: team turns without shared life");
++        final Combat combat = teamAttack(f, 4, 6);
++        expect(f.yellow.getLife() == 20, "precondition: Yellow keeps its own 20 life, reads " + f.yellow.getLife());
++        f.game.AI_TIMEOUT = -1;
++        f.yellow.getController().declareBlockers(f.yellow, combat);
++        expect(unblockedAt(combat, f.blue) < 6, "4 Hill Giants at Blue (6 life), Yellow at 20 with 4 Elves, team turns, past the deadline: unblocked "
++                + unblockedAt(combat, f.blue) + ", blockers " + combat.getAllBlockers().size());
++    }
++
++    private static final class TeamFixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("block-budget-team");
++        final Game game;
++        final Player white;
++        final Player red;
++        final Player yellow;
++        final Player blue;
++
++        TeamFixture(final boolean sharedLife, final boolean teamTurns) {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final String[] names = {"White", "Red", "Yellow", "Blue"};
++            for (int i = 0; i < names.length; i++) {
++                final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(names[i], null));
++                rp.setTeamNumber(i < 2 ? 1 : 2);
++                players.add(rp);
++            }
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setRenderAbilityText(false);
++            rules.setSharedTeamLife(sharedLife);
++            rules.setSharedTeamTurns(teamTurns);
++            game = new Game(players, rules, new Match(rules, players, "BlockBudgetTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0), 3);
++            game.getPhaseHandler().onStackResolved();
++            white = game.getPlayers().get(0);
++            red = game.getPlayers().get(1);
++            yellow = game.getPlayers().get(2);
++            blue = game.getPlayers().get(3);
++            session.attach(game.getMatch(), game, Set.of(), false);
++        }
++
++        Card add(final String name, final Player p) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            if (paper == null) {
++                throw new AssertionError("no card named " + name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            p.getZone(ZoneType.Battlefield).add(card);
++            card.setSickness(false);
++            return card;
++        }
 +    }
 +
 +    private static final class Fixture {
@@ -15818,6 +16232,570 @@ index 0000000..49affd1
 +        card.setGameTimestamp(p.getGame().getNextTimestamp());
 +        p.getZone(zone).add(card);
 +        return card;
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/LongTailTest.java b/forge-harness/src/test/java/forge/harness/host/LongTailTest.java
+new file mode 100644
+index 0000000..d0ead3d
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/LongTailTest.java
+@@ -0,0 +1,558 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.ai.PlayerControllerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.ability.AbilityUtils;
++import forge.game.card.Card;
++import forge.game.combat.Combat;
++import forge.game.phase.PhaseHandler;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.MagicStack;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Method;
++import java.util.ArrayList;
++import java.util.EnumSet;
++import java.util.HashSet;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++
++public final class LongTailTest {
++    private LongTailTest() {}
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++    private static final String[] NAMES = {"White", "Red", "Yellow", "Blue", "Green", "Purple"};
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        final Set<String> only = new HashSet<>(List.of(args));
++        CHECKS.put("cr805.4 untilYourNextTurnLastsUntilTheTeamsNextTurn", LongTailTest::untilYourNextTurnLastsUntilTheTeamsNextTurn);
++        CHECKS.put("cr805.4 aPartnersUntilYourNextTurnEndsWhenTheTeamsTurnBegins", LongTailTest::aPartnersUntilYourNextTurnEndsWhenTheTeamsTurnBegins);
++        CHECKS.put("cr800.4m aGonePartnersUntilYourNextTurnLastsToTheTeamsNextTurn", LongTailTest::aGonePartnersUntilYourNextTurnLastsToTheTeamsNextTurn);
++        CHECKS.put("cr800.4m aGoneDefendersUntilYourNextTurnEndsAtItsTeamsTurn", LongTailTest::aGoneDefendersUntilYourNextTurnEndsAtItsTeamsTurn);
++        CHECKS.put("cr800.4m aGoneTeamsUntilYourNextTurnEndsAtItsSeat", LongTailTest::aGoneTeamsUntilYourNextTurnEndsAtItsSeat);
++        CHECKS.put("cr805.4d theNextEndStepTriggersOnceForTheTeam", LongTailTest::theNextEndStepTriggersOnceForTheTeam);
++        CHECKS.put("cr805.4d yourNextUpkeepIsTheTeamsNextUpkeep", LongTailTest::yourNextUpkeepIsTheTeamsNextUpkeep);
++        CHECKS.put("cr805.4d theNextUpkeepTriggersOnceInTheOtherTeamsTurn", LongTailTest::theNextUpkeepTriggersOnceInTheOtherTeamsTurn);
++        CHECKS.put("cr805.8 aPartnersExtraCombatIsTheTeams", LongTailTest::aPartnersExtraCombatIsTheTeams);
++        CHECKS.put("cr800.4a theActiveTeamConcedingMidTurnPassesTheTurnOn", LongTailTest::theActiveTeamConcedingMidTurnPassesTheTurnOn);
++        CHECKS.put("teamTurns aPartnerLeavingMidTurnLeavesTheTurnToTheOther", LongTailTest::aPartnerLeavingMidTurnLeavesTheTurnToTheOther);
++        CHECKS.put("teamTurns theFirstSeatLeavingMidTurnLeavesTheTurnToThePartner", LongTailTest::theFirstSeatLeavingMidTurnLeavesTheTurnToThePartner);
++        CHECKS.put("threes cr805.4 aTeamOfThreeUntapsAndDrawsTogether", LongTailTest::aTeamOfThreeUntapsAndDrawsTogether);
++        CHECKS.put("threes cr805.4 theTurnAlternatesBetweenTeamsOfThree", LongTailTest::theTurnAlternatesBetweenTeamsOfThree);
++        CHECKS.put("threes cr805.4c eachOfThreeMayPlayALand", LongTailTest::eachOfThreeMayPlayALand);
++        CHECKS.put("threes cr805.5b priorityGoesRoundAllThreeBeforeTheOtherTeam", LongTailTest::priorityGoesRoundAllThreeBeforeTheOtherTeam);
++        CHECKS.put("threes cr805.10a allThreeDeclareAttacksInOneCombat", LongTailTest::allThreeDeclareAttacksInOneCombat);
++        CHECKS.put("cr805.4 threeTeamsOfTwoTakeTurnsInOrder", LongTailTest::threeTeamsOfTwoTakeTurnsInOrder);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            final String[] parts = e.getKey().split(" ");
++            if (only.isEmpty() || only.contains(e.getKey()) || only.contains(parts[parts.length - 1])) {
++                check(e.getKey(), e.getValue());
++            }
++        }
++        System.out.println(failed == 0 ? "PASS LongTailTest" : "FAIL LongTailTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static final String WEAKEN = "DB$ PumpAll | ValidCards$ Creature.OppCtrl | NumAtt$ -1 | Duration$ UntilYourNextTurn";
++
++    private static void untilYourNextTurnLastsUntilTheTeamsNextTurn() throws Exception {
++        final Fixture f = Fixture.twoHeaded(true);
++        final Card bears = creature("Grizzly Bears", f.p(2));
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        resolve(f, WEAKEN, f.p(1));
++        expect(bears.getNetPower() == 1, "Red's weakening did not apply: Yellow's Bears have power " + bears.getNetPower());
++        nextTurn(f);
++        expect(f.ph().getPlayerTurn() == f.p(2) && bears.getNetPower() == 1,
++                "Red's \"until your next turn\" ended in the other team's turn " + f.ph().getTurn() + ": power " + bears.getNetPower());
++        nextTurn(f);
++        expect(f.ph().isPlayerTurn(f.p(1)) && bears.getNetPower() == 2,
++                "Red's \"until your next turn\" did not end when her team's turn " + f.ph().getTurn() + " began: power " + bears.getNetPower());
++    }
++
++    private static void aPartnersUntilYourNextTurnEndsWhenTheTeamsTurnBegins() throws Exception {
++        final Fixture f = Fixture.twoHeaded(true);
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        resolve(f, WEAKEN, f.p(3));
++        expect(bears.getNetPower() == 1, "Blue's weakening did not apply: power " + bears.getNetPower());
++        nextTurn(f);
++        expect(f.ph().isPlayerTurn(f.p(3)) && bears.getNetPower() == 2,
++                "Blue's \"until your next turn\" did not end when Yellow and Blue's turn began: power " + bears.getNetPower() + " (rule 805.4)");
++    }
++
++    private static void aGonePartnersUntilYourNextTurnLastsToTheTeamsNextTurn() throws Exception {
++        final Fixture f = Fixture.teamTurns();
++        final Card bears = creature("Grizzly Bears", f.p(2));
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        resolve(f, WEAKEN, f.p(1));
++        leave(f, f.p(1));
++        expect(!f.game.isGameOver() && f.p(1).hasLost() && bears.getNetPower() == 1, "Red's leaving ended her weakening at once or ended the game");
++        nextTurn(f);
++        expect(f.ph().getPlayerTurn() == f.p(2) && bears.getNetPower() == 1,
++                "Red left, and her \"until your next turn\" ended in the other team's turn " + f.ph().getTurn() + ", not when her team's turn would have begun: power " + bears.getNetPower() + " (rule 800.4m)");
++        nextTurn(f);
++        expect(f.ph().getPlayerTurn() == f.p(0) && bears.getNetPower() == 2,
++                "Red's \"until your next turn\" did not end when her team's turn " + f.ph().getTurn() + " began: power " + bears.getNetPower() + " (rule 800.4m)");
++    }
++
++    private static void aGoneDefendersUntilYourNextTurnEndsAtItsTeamsTurn() throws Exception {
++        final Fixture f = Fixture.teamTurns();
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        resolve(f, WEAKEN, f.p(3));
++        leave(f, f.p(3));
++        expect(!f.game.isGameOver() && bears.getNetPower() == 1, "Blue's leaving ended her weakening at once or ended the game");
++        nextTurn(f);
++        expect(f.ph().getPlayerTurn() == f.p(2) && bears.getNetPower() == 2,
++                "Blue left, and her \"until your next turn\" lasted into Yellow's turn " + f.ph().getTurn() + ", her team's: power " + bears.getNetPower() + " (rule 800.4m)");
++    }
++
++    private static void aGoneTeamsUntilYourNextTurnEndsAtItsSeat() throws Exception {
++        final Fixture f = new Fixture(6, 2, true, true, 30);
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        resolve(f, WEAKEN, f.p(3));
++        leave(f, f.p(3));
++        expect(f.p(2).hasLost() && f.p(3).hasLost() && !f.game.isGameOver() && bears.getNetPower() == 1,
++                "Yellow and Blue's leaving ended Blue's weakening at once, left a partner in or ended the game: power " + bears.getNetPower());
++        nextTurn(f);
++        expect(f.ph().getPlayerTurn() == f.p(4) && bears.getNetPower() == 2,
++                "with Yellow and Blue's whole team gone, Blue's \"until your next turn\" lasted past the point her seat's turn would have come (turn "
++                        + f.ph().getTurn() + ", power " + bears.getNetPower() + ", rule 800.4m)");
++    }
++
++    private static Card delayed(final Fixture f, final Player owner, final String trigger) {
++        final Card host = creature("Grizzly Bears", owner);
++        host.setSVar("TrigDraw", "DB$ Draw | Defined$ You | NumCards$ 1");
++        resolve(f, host, "DB$ DelayedTrigger | " + trigger + " | Execute$ TrigDraw | TriggerDescription$ draw a card.", owner);
++        return host;
++    }
++
++    private static void theNextEndStepTriggersOnceForTheTeam() throws Exception {
++        final Fixture f = Fixture.twoHeaded(true);
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        delayed(f, f.p(1), "Mode$ Phase | Phase$ End of Turn");
++        final Map<Player, Integer> before = handSizes(f);
++        stepTo(f, PhaseType.END_OF_TURN);
++        Map<Player, Integer> drawn = growth(f, before);
++        expect(drawn.get(f.p(1)) == 1, "\"at the beginning of the next end step\" drew Red " + drawn.get(f.p(1)) + " cards in her team's end step, not 1 (rule 805.4d)");
++        nextTurn(f);
++        stepTo(f, PhaseType.END_OF_TURN);
++        drawn = growth(f, before);
++        expect(drawn.get(f.p(1)) == 1, "the delayed trigger fired again in the next turn's end step: Red drew " + drawn.get(f.p(1)));
++    }
++
++    private static void yourNextUpkeepIsTheTeamsNextUpkeep() throws Exception {
++        final Fixture f = Fixture.twoHeaded(true);
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(2), 2);
++        delayed(f, f.p(1), "Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You");
++        delayed(f, f.p(0), "Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You");
++        final Map<Player, Integer> before = handSizes(f);
++        f.ph().devModeSet(PhaseType.CLEANUP, f.p(2), 2);
++        stepTo(f, PhaseType.UPKEEP);
++        final Map<Player, Integer> drawn = growth(f, before);
++        expect(f.ph().getTurn() == 3 && drawn.get(f.p(1)) == 1 && drawn.get(f.p(0)) == 1,
++                "in her team's upkeep of turn " + f.ph().getTurn() + " \"at the beginning of your next upkeep\" drew Red " + drawn.get(f.p(1))
++                        + " and White " + drawn.get(f.p(0)) + ", not one each (rule 805.4d)");
++    }
++
++    private static void theNextUpkeepTriggersOnceInTheOtherTeamsTurn() throws Exception {
++        final Fixture f = Fixture.twoHeaded(true);
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        delayed(f, f.p(0), "Mode$ Phase | Phase$ Upkeep");
++        final Map<Player, Integer> before = handSizes(f);
++        f.ph().devModeSet(PhaseType.CLEANUP, f.p(0), 1);
++        stepTo(f, PhaseType.UPKEEP);
++        expect(f.ph().getPlayerTurn() == f.p(2) && growth(f, before).get(f.p(0)) == 1,
++                "\"at the beginning of the next upkeep\" drew White " + growth(f, before).get(f.p(0)) + " in the other team's upkeep, not 1 (rule 805.4d)");
++    }
++
++    private static void aPartnersExtraCombatIsTheTeams() throws Exception {
++        final Fixture f = Fixture.twoHeaded(true);
++        creature("Grizzly Bears", f.p(0));
++        creature("Hill Giant", f.p(1));
++        final List<Player> asked = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public void declareAttackers(final Player attacker, final Combat combat) {
++                    asked.add(attacker);
++                }
++            });
++        }
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        final Card assault = add("Relentless Assault", f.p(1), ZoneType.Hand);
++        final SpellAbility sa = assault.getFirstSpellAbility();
++        sa.setActivatingPlayer(f.p(1));
++        withoutPrompts(f, "resolving Relentless Assault", () -> AbilityUtils.resolve(sa));
++        final List<PhaseType> seen = new ArrayList<>();
++        for (int i = 0; i < 30 && f.ph().getPhase() != PhaseType.END_OF_TURN; i++) {
++            step(f);
++            seen.add(f.ph().getPhase());
++        }
++        expect(seen.stream().filter(p -> p == PhaseType.COMBAT_BEGIN).count() == 2 && seen.stream().filter(p -> p == PhaseType.MAIN2).count() == 2,
++                "Red's Relentless Assault gave the team's turn the phases " + seen + ", not two combats and two second main phases (rule 805.8)");
++        expect(asked.equals(List.of(f.p(0), f.p(1), f.p(0), f.p(1))),
++                "the attacks were asked of " + asked + ", not White and Red in each combat (rule 805.10a)");
++    }
++
++    private static void theActiveTeamConcedingMidTurnPassesTheTurnOn() throws Exception {
++        final Fixture f = new Fixture(6, 2, true, true, 30);
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        leave(f, f.p(0));
++        expect(f.p(0).hasLost() && f.p(1).hasLost() && !f.game.isGameOver(),
++                "White's concession: White out " + f.p(0).hasLost() + ", Red out " + f.p(1).hasLost() + ", game over " + f.game.isGameOver());
++        stepTo(f, PhaseType.UNTAP);
++        expect(f.ph().getTurn() == 2 && f.ph().getPlayerTurn() == f.p(2) && f.ph().isPlayerTurn(f.p(3)),
++                "after the active team left mid-turn, turn " + f.ph().getTurn() + " went to " + f.ph().getActiveTeam() + ", not Yellow and Blue (rule 800.4a)");
++        nextTurn(f);
++        expect(f.ph().getTurn() == 3 && f.ph().getPlayerTurn() == f.p(4), "turn 3 went to " + f.ph().getActiveTeam() + ", not Green and Purple");
++        nextTurn(f);
++        expect(f.ph().getTurn() == 4 && f.ph().getPlayerTurn() == f.p(2), "turn 4 went to " + f.ph().getActiveTeam() + ", not Yellow and Blue");
++    }
++
++    private static void aPartnerLeavingMidTurnLeavesTheTurnToTheOther() throws Exception {
++        final Fixture f = Fixture.teamTurns();
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        leave(f, f.p(1));
++        expect(f.ph().isPlayerTurn(f.p(0)) && f.ph().getActiveTeam().equals(List.of(f.p(0))),
++                "with Red gone mid-turn the active team is " + f.ph().getActiveTeam() + ", not White alone");
++        final List<Player> passes = passesUntilResolved(f, f.p(0));
++        expect(passes.equals(List.of(f.p(0), f.p(2), f.p(3))), "with Red gone the passes went " + passes + ", not White, Yellow, Blue");
++        stepTo(f, PhaseType.UNTAP);
++        expect(f.ph().getPlayerTurn() == f.p(2), "after White's turn came " + f.ph().getActiveTeam());
++        nextTurn(f);
++        expect(f.ph().getPlayerTurn() == f.p(0) && f.ph().getActiveTeam().equals(List.of(f.p(0))), "turn 3 went to " + f.ph().getActiveTeam() + ", not White");
++    }
++
++    private static void theFirstSeatLeavingMidTurnLeavesTheTurnToThePartner() throws Exception {
++        final Fixture f = Fixture.teamTurns();
++        final Card land = add("Forest", f.p(1), ZoneType.Hand);
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        leave(f, f.p(0));
++        expect(!f.game.isGameOver() && f.ph().isPlayerTurn(f.p(1)) && f.ph().getActiveTeam().equals(List.of(f.p(1))),
++                "with White gone mid-turn the active team is " + f.ph().getActiveTeam() + ", not Red");
++        expect(f.p(1).canPlayLand(land, false, land.getFirstSpellAbility()), "Red can't play a land in her team's turn after White left");
++        stepTo(f, PhaseType.UNTAP);
++        expect(f.ph().getTurn() == 2 && f.ph().getPlayerTurn() == f.p(2), "after White left her turn, turn " + f.ph().getTurn() + " went to " + f.ph().getActiveTeam());
++        nextTurn(f);
++        expect(f.ph().getTurn() == 3 && f.ph().getPlayerTurn() == f.p(1), "turn 3 went to " + f.ph().getActiveTeam() + ", not Red");
++    }
++
++    private static void aTeamOfThreeUntapsAndDrawsTogether() throws Exception {
++        final Fixture f = new Fixture(6, 3, true, true, 45);
++        final List<Card> lands = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            final Card land = add("Forest", p, ZoneType.Battlefield);
++            land.setTapped(true);
++            lands.add(land);
++        }
++        final Map<Player, Integer> before = handSizes(f);
++        f.ph().devModeSet(PhaseType.CLEANUP, f.p(3), 2);
++        stepTo(f, PhaseType.DRAW);
++        final Map<Player, Integer> drawn = growth(f, before);
++        for (int i = 0; i < 6; i++) {
++            final boolean active = i < 3;
++            expect(lands.get(i).isUntapped() == active, NAMES[i] + "'s land " + (active ? "stayed tapped" : "untapped") + " in the team of three's turn");
++            expect(drawn.get(f.p(i)) == (active ? 1 : 0), NAMES[i] + " drew " + drawn.get(f.p(i)) + " in the team of three's draw step");
++        }
++    }
++
++    private static void theTurnAlternatesBetweenTeamsOfThree() throws Exception {
++        final Fixture f = new Fixture(6, 3, true, true, 45);
++        f.ph().devModeSet(PhaseType.CLEANUP, f.p(0), 1);
++        stepTo(f, PhaseType.UNTAP);
++        expect(f.ph().getActiveTeam().equals(List.of(f.p(3), f.p(4), f.p(5))), "turn 2 went to " + f.ph().getActiveTeam());
++        nextTurn(f);
++        expect(f.ph().getActiveTeam().equals(List.of(f.p(0), f.p(1), f.p(2))) && f.ph().getTurn() == 3, "turn 3 went to " + f.ph().getActiveTeam());
++    }
++
++    private static void eachOfThreeMayPlayALand() {
++        final Fixture f = new Fixture(6, 3, true, true, 45);
++        for (int i = 0; i < 3; i++) {
++            final Card land = add("Forest", f.p(i), ZoneType.Hand);
++            expect(f.p(i).canPlayLand(land, false, land.getFirstSpellAbility()), NAMES[i] + " can't play a land after the partners before her did (rule 805.4c)");
++            f.p(i).addLandPlayedThisTurn();
++        }
++        final Card other = add("Forest", f.p(3), ZoneType.Hand);
++        expect(!f.p(3).canPlayLand(other, false, other.getFirstSpellAbility()), "Blue plays a land in the other team's turn");
++    }
++
++    private static void priorityGoesRoundAllThreeBeforeTheOtherTeam() throws Exception {
++        final Fixture f = new Fixture(6, 3, true, true, 45);
++        final List<Player> passes = passesUntilResolved(f, f.p(1));
++        expect(passes.size() == 6 && Set.copyOf(passes.subList(0, 3)).equals(Set.of(f.p(0), f.p(1), f.p(2))),
++                "after Red's ability the passes went " + passes + ": the team of three passes before the other team (rule 805.5b)");
++    }
++
++    private static void allThreeDeclareAttacksInOneCombat() throws Exception {
++        final Fixture f = new Fixture(6, 3, true, true, 45);
++        final List<Player> asked = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            creature("Grizzly Bears", p);
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public void declareAttackers(final Player attacker, final Combat combat) {
++                    asked.add(attacker);
++                }
++            });
++        }
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        stepTo(f, PhaseType.COMBAT_DECLARE_ATTACKERS);
++        expect(asked.equals(List.of(f.p(0), f.p(1), f.p(2))), "the team of three's attacks were asked of " + asked + " (rule 805.10a)");
++    }
++
++    private static void threeTeamsOfTwoTakeTurnsInOrder() throws Exception {
++        final Fixture f = new Fixture(6, 2, true, true, 30);
++        f.ph().devModeSet(PhaseType.CLEANUP, f.p(0), 1);
++        final List<List<Player>> teams = new ArrayList<>();
++        for (int i = 0; i < 3; i++) {
++            stepTo(f, PhaseType.UNTAP);
++            teams.add(new ArrayList<>(f.ph().getActiveTeam()));
++            f.ph().devModeSet(PhaseType.CLEANUP, f.ph().getPlayerTurn(), f.ph().getTurn());
++        }
++        expect(teams.equals(List.of(List.of(f.p(2), f.p(3)), List.of(f.p(4), f.p(5)), List.of(f.p(0), f.p(1)))),
++                "three teams of two took turns " + teams);
++    }
++
++    private static void nextTurn(final Fixture f) throws Exception {
++        f.ph().devModeSet(PhaseType.CLEANUP, f.ph().getPlayerTurn(), f.ph().getTurn());
++        stepTo(f, PhaseType.UNTAP);
++    }
++
++    private static void leave(final Fixture f, final Player p) throws Exception {
++        withoutPrompts(f, p.getName() + " leaving", () -> {
++            p.concede();
++            f.game.getAction().checkGameOverCondition();
++            f.game.getAction().checkStateEffects(true);
++        });
++    }
++
++    private static void step(final Fixture f) throws Exception {
++        final PhaseHandler ph = f.ph();
++        final Method end = PhaseHandler.class.getDeclaredMethod("onPhaseEnd");
++        final Method advance = PhaseHandler.class.getDeclaredMethod("advanceToNextPhase");
++        final Method begin = PhaseHandler.class.getDeclaredMethod("onPhaseBegin");
++        end.setAccessible(true);
++        advance.setAccessible(true);
++        begin.setAccessible(true);
++        withoutPrompts(f, "stepping from " + ph.getPhase(), () -> {
++            invoke(end, ph);
++            invoke(advance, ph);
++            invoke(begin, ph);
++            f.game.getStack().addAllTriggeredAbilitiesToStack();
++            for (int i = 0; i < 20 && !f.game.getStack().isEmpty(); i++) {
++                f.game.getStack().resolveStack();
++            }
++        });
++        final Field waiting = MagicStack.class.getDeclaredField("simultaneousStackEntryList");
++        waiting.setAccessible(true);
++        ((List<?>) waiting.get(f.game.getStack())).clear();
++        f.game.getStack().clear();
++    }
++
++    private static void stepTo(final Fixture f, final PhaseType target) throws Exception {
++        for (int i = 0; i < 30; i++) {
++            step(f);
++            if (f.ph().getPhase() == target) {
++                return;
++            }
++        }
++        throw new AssertionError("never reached " + target + ", at " + f.ph().getPhase());
++    }
++
++    private static List<Player> passesUntilResolved(final Fixture f, final Player activator) throws Exception {
++        final List<Player> passes = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                @Override
++                public List<SpellAbility> chooseSpellAbilityToPlay() {
++                    passes.add(p);
++                    return null;
++                }
++            });
++        }
++        final Card host = add("Grizzly Bears", activator, ZoneType.Battlefield);
++        final SpellAbility gain = AbilityFactory.getAbility("AB$ GainLife | Cost$ 0 | LifeAmount$ 1 | Defined$ You", host);
++        gain.setActivatingPlayer(activator);
++        withoutPrompts(f, "adding the ability to the stack", () -> f.game.getStack().add(gain));
++        f.ph().setPriority(activator);
++        final Field give = PhaseHandler.class.getDeclaredField("givePriorityToPlayer");
++        give.setAccessible(true);
++        give.set(f.ph(), true);
++        for (int i = 0; i < 16 && !f.game.getStack().isEmpty(); i++) {
++            withoutPrompts(f, "a priority step", () -> f.ph().mainLoopStep());
++        }
++        expect(f.game.getStack().isEmpty(), "the ability never resolved; passes " + passes);
++        return passes;
++    }
++
++    private static void resolve(final Fixture f, final String script, final Player activator) {
++        resolve(f, creature("Grizzly Bears", activator), script, activator);
++    }
++
++    private static void resolve(final Fixture f, final Card host, final String script, final Player activator) {
++        final SpellAbility sa = AbilityFactory.getAbility(script, host);
++        sa.setActivatingPlayer(activator);
++        try {
++            withoutPrompts(f, "resolving " + script, () -> AbilityUtils.resolve(sa));
++        } catch (final Exception e) {
++            throw new AssertionError(e);
++        }
++    }
++
++    private static void withoutPrompts(final Fixture f, final String what, final Runnable step) throws Exception {
++        final Throwable[] failure = new Throwable[1];
++        final Thread runner = new Thread(() -> {
++            try {
++                step.run();
++            } catch (final Throwable thrown) {
++                failure[0] = thrown;
++            }
++        }, what);
++        runner.setDaemon(true);
++        runner.start();
++        runner.join(60_000);
++        if (runner.isAlive()) {
++            throw new AssertionError(what + " asked " + f.session.getLatestPromptJson());
++        }
++        if (failure[0] != null) {
++            throw new AssertionError(what + " failed: " + failure[0], failure[0]);
++        }
++    }
++
++    private static void invoke(final Method m, final Object target) {
++        try {
++            m.invoke(target);
++        } catch (final ReflectiveOperationException e) {
++            throw new RuntimeException(e.getCause() != null ? e.getCause() : e);
++        }
++    }
++
++    private static Map<Player, Integer> handSizes(final Fixture f) {
++        final Map<Player, Integer> out = new LinkedHashMap<>();
++        for (final Player p : f.game.getRegisteredPlayers()) {
++            out.put(p, p.getCardsIn(ZoneType.Hand).size());
++        }
++        return out;
++    }
++
++    private static Map<Player, Integer> growth(final Fixture f, final Map<Player, Integer> before) {
++        final Map<Player, Integer> out = new LinkedHashMap<>();
++        for (final Player p : f.game.getRegisteredPlayers()) {
++            out.put(p, p.getCardsIn(ZoneType.Hand).size() - before.get(p));
++        }
++        return out;
++    }
++
++    private static Card creature(final String name, final Player p) {
++        final Card c = add(name, p, ZoneType.Battlefield);
++        c.setSickness(false);
++        return c;
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("long-tail-test");
++        final Game game;
++        final List<Player> seats;
++
++        static Fixture twoHeaded(final boolean sharedTurns) {
++            return new Fixture(4, 2, true, sharedTurns, 30);
++        }
++
++        static Fixture teamTurns() {
++            return new Fixture(4, 2, false, true, 20);
++        }
++
++        Fixture(final int players, final int teamSize, final boolean sharedLife, final boolean sharedTurns, final int life) {
++            final List<RegisteredPlayer> registered = new ArrayList<>();
++            for (int i = 0; i < players; i++) {
++                final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(NAMES[i], null));
++                rp.setStartingLife(life);
++                rp.setTeamNumber(i / teamSize + 1);
++                registered.add(rp);
++            }
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setAppliedVariants(EnumSet.of(GameType.Constructed));
++            rules.setSharedTeamLife(sharedLife);
++            rules.setSharedTeamTurns(sharedTurns);
++            game = new Game(registered, rules, new Match(rules, registered, "LongTailTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++            game.getPhaseHandler().onStackResolved();
++            seats = new ArrayList<>(game.getPlayers());
++            for (final Player p : seats) {
++                for (int i = 0; i < 12; i++) {
++                    add("Plains", p, ZoneType.Library);
++                }
++            }
++            session.attach(game.getMatch(), game, Set.of(), false);
++        }
++
++        Player p(final int i) {
++            return seats.get(i);
++        }
++
++        PhaseHandler ph() {
++            return game.getPhaseHandler();
++        }
 +    }
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ManaSourcesTest.java b/forge-harness/src/test/java/forge/harness/host/ManaSourcesTest.java
@@ -23529,6 +24507,797 @@ index 0000000..9ebf250
 +            action.addProperty("type", "chooseNumber");
 +            action.add("output", output);
 +            session.submitAction(action.toString());
++        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/TeamChoiceTest.java b/forge-harness/src/test/java/forge/harness/host/TeamChoiceTest.java
+new file mode 100644
+index 0000000..a970156
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/TeamChoiceTest.java
+@@ -0,0 +1,785 @@
++package forge.harness.host;
++
++import com.google.gson.JsonElement;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.ai.PlayerControllerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameObject;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.ability.AbilityUtils;
++import forge.game.card.Card;
++import forge.game.combat.Combat;
++import forge.game.phase.PhaseHandler;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.staticability.StaticAbility;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.lang.reflect.Modifier;
++import java.util.IdentityHashMap;
++import java.util.ArrayList;
++import java.util.EnumSet;
++import java.util.HashSet;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++import java.util.concurrent.locks.ReentrantLock;
++
++public final class TeamChoiceTest {
++    private TeamChoiceTest() {}
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        final Set<String> only = new HashSet<>(List.of(args));
++        CHECKS.put("cr805.9 aNonactiveControllerChoosesTheActivePlayer", TeamChoiceTest::aNonactiveControllerChoosesTheActivePlayer);
++        CHECKS.put("cr805.9 anActiveControllerMayNameThePartner", TeamChoiceTest::anActiveControllerMayNameThePartner);
++        CHECKS.put("cr805.9 oneAskForEveryReferenceInTheEffect", TeamChoiceTest::oneAskForEveryReferenceInTheEffect);
++        CHECKS.put("cr805.9 aNewResolutionAsksAgain", TeamChoiceTest::aNewResolutionAsksAgain);
++        CHECKS.put("cr805.9 theTeamIsToldTheChoice", TeamChoiceTest::theTeamIsToldTheChoice);
++        CHECKS.put("cr805.9 nobodyIsAskedBeforeTheEffectIsApplied", TeamChoiceTest::nobodyIsAskedBeforeTheEffectIsApplied);
++        CHECKS.put("cr805.9 anAiControllerKeepsTheFirstSeat", TeamChoiceTest::anAiControllerKeepsTheFirstSeat);
++        CHECKS.put("cr805.9 aStepTriggerNamesItsOwnPlayer", TeamChoiceTest::aStepTriggerNamesItsOwnPlayer);
++        CHECKS.put("cr805.9 levelOneHasOneActivePlayer", TeamChoiceTest::levelOneHasOneActivePlayer);
++        CHECKS.put("cr805.10e aControllerChoosesTheDefendingPlayer", TeamChoiceTest::aControllerChoosesTheDefendingPlayer);
++        CHECKS.put("cr805.10e anAttackingCreatureNamesItsDefender", TeamChoiceTest::anAttackingCreatureNamesItsDefender);
++        CHECKS.put("cr805.10e anAiControllerKeepsTheDefendingLeader", TeamChoiceTest::anAiControllerKeepsTheDefendingLeader);
++        CHECKS.put("cr805.10e aLoneDefenderIsNotAsked", TeamChoiceTest::aLoneDefenderIsNotAsked);
++        CHECKS.put("cr805.10c aControllerChoosesTheAttackingPlayer", TeamChoiceTest::aControllerChoosesTheAttackingPlayer);
++        CHECKS.put("cr805.10c anAttackingCreatureNamesItsController", TeamChoiceTest::anAttackingCreatureNamesItsController);
++        CHECKS.put("cr805.10c anAiControllerKeepsTheAttackingFirstSeat", TeamChoiceTest::anAiControllerKeepsTheAttackingFirstSeat);
++        CHECKS.put("cr805.10c aLoneAttackerIsNotAsked", TeamChoiceTest::aLoneAttackerIsNotAsked);
++        CHECKS.put("cr805.2 withNoControllerTheTeamLeaderDecides", TeamChoiceTest::withNoControllerTheTeamLeaderDecides);
++        CHECKS.put("fix aDefendingReferenceWithNoCardIsNull", TeamChoiceTest::aDefendingReferenceWithNoCardIsNull);
++        CHECKS.put("fix teamChoicesIsTransient", TeamChoiceTest::teamChoicesIsTransient);
++        CHECKS.put("fix noTeamChoicesOutsideSharedTurns", TeamChoiceTest::noTeamChoicesOutsideSharedTurns);
++        CHECKS.put("fix aSubAbilityOpensNoChoicesOfItsOwn", TeamChoiceTest::aSubAbilityOpensNoChoicesOfItsOwn);
++        CHECKS.put("fix aFailedResolutionStillClosesItsChoices", TeamChoiceTest::aFailedResolutionStillClosesItsChoices);
++        CHECKS.put("fix aKeptChoiceNoLongerOfferedIsAskedAgain", TeamChoiceTest::aKeptChoiceNoLongerOfferedIsAskedAgain);
++        CHECKS.put("fix anAnswerOffTheListKeepsTheDefault", TeamChoiceTest::anAnswerOffTheListKeepsTheDefault);
++        CHECKS.put("fix aNullAnswerKeepsTheDefault", TeamChoiceTest::aNullAnswerKeepsTheDefault);
++        CHECKS.put("fix theActivePlayerIsTheActivatorsChoice", TeamChoiceTest::theActivePlayerIsTheActivatorsChoice);
++        CHECKS.put("fix domainActivePlayerIsTheActivatorsChoice", TeamChoiceTest::domainActivePlayerIsTheActivatorsChoice);
++        CHECKS.put("fix threeHg aTeamOfThreeIsOffered", TeamChoiceTest::aTeamOfThreeIsOffered);
++        CHECKS.put("fix aStaticCauseGetsTheDefaultSilently", TeamChoiceTest::aStaticCauseGetsTheDefaultSilently);
++        CHECKS.put("fix archenemy sharedTurnsOnlyWithTeamTurns", TeamChoiceTest::archenemySharedTurnsOnlyWithTeamTurns);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            if (only.isEmpty() || only.contains(e.getKey()) || only.contains(e.getKey().split(" ")[1])) {
++                check(e.getKey(), e.getValue());
++            }
++        }
++        System.out.println(failed == 0 ? "PASS TeamChoiceTest" : "FAIL TeamChoiceTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void aNonactiveControllerChoosesTheActivePlayer() throws Exception {
++        final Fixture f = new Fixture(true, "Yellow");
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        final Map<Player, Integer> before = handSizes(f);
++        final List<Ask> asks = resolveAnswering(f, ability("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1", host, f.yellow), "Red");
++        expect(asks.size() == 1, "Yellow was asked " + asks.size() + " times, not once: " + asks);
++        expect(asks.get(0).labels.equals(List.of("White", "Red")),
++                "Yellow was offered " + asks.get(0).labels + ", not the active team White and Red (rule 805.9)");
++        expect(asks.get(0).title.equals("Choose the active player for Obeka, Brute Chronologist (rule 805.9)"),
++                "the question read " + asks.get(0).title);
++        final Map<Player, Integer> drawn = growth(f, before);
++        expect(drawn.get(f.red) == 1 && drawn.get(f.white) == 0 && drawn.get(f.yellow) == 0 && drawn.get(f.blue) == 0,
++                "\"the active player draws\" with Red chosen drew " + drawn + ", not one card for Red (rule 805.9)");
++    }
++
++    private static void anActiveControllerMayNameThePartner() throws Exception {
++        final Fixture f = new Fixture(true, "White");
++        final Card host = add("Obeka, Brute Chronologist", f.white, ZoneType.Battlefield);
++        final Map<Player, Integer> before = handSizes(f);
++        final List<Ask> asks = resolveAnswering(f, ability("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1", host, f.white), "Red");
++        expect(asks.size() == 1, "White, an active player controlling it, was asked " + asks.size() + " times, not once (rule 805.9)");
++        final Map<Player, Integer> drawn = growth(f, before);
++        expect(drawn.get(f.red) == 1 && drawn.get(f.white) == 0,
++                "White chose Red as the active player but " + drawn + " drew (rule 805.9)");
++    }
++
++    private static void oneAskForEveryReferenceInTheEffect() throws Exception {
++        final Fixture f = new Fixture(true, "Yellow");
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        final SpellAbility sa = ability("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1 | SubAbility$ DBAgain", host, f.yellow);
++        host.setSVar("DBAgain", "DB$ Draw | Defined$ ActivePlayer | NumCards$ 1");
++        final SpellAbility again = AbilityFactory.getAbility(host.getSVar("DBAgain"), host);
++        again.setActivatingPlayer(f.yellow);
++        sa.setSubAbility((forge.game.spellability.AbilitySub) again);
++        final Map<Player, Integer> before = handSizes(f);
++        final List<Ask> asks = resolveAnswering(f, sa, "Red");
++        expect(asks.size() == 1, "an effect naming the active player twice asked " + asks.size() + " times, not once (rule 805.9)");
++        final Map<Player, Integer> drawn = growth(f, before);
++        expect(drawn.get(f.red) == 2 && drawn.get(f.white) == 0,
++                "both draws did not go to the one chosen active player Red: " + drawn + " (rule 805.9)");
++    }
++
++    private static void aNewResolutionAsksAgain() throws Exception {
++        final Fixture f = new Fixture(true, "Yellow");
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        final SpellAbility sa = ability("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1", host, f.yellow);
++        final Map<Player, Integer> before = handSizes(f);
++        final List<Ask> first = resolveAnswering(f, sa, "Red");
++        final List<Ask> second = resolveAnswering(f, sa, "White");
++        expect(first.size() == 1 && second.size() == 1,
++                "the same ability resolving twice asked " + first.size() + " then " + second.size() + " times, not once each");
++        final Map<Player, Integer> drawn = growth(f, before);
++        expect(drawn.get(f.red) == 1 && drawn.get(f.white) == 1,
++                "the second resolution kept the first choice: " + drawn + " (rule 805.9)");
++    }
++
++    private static void theTeamIsToldTheChoice() throws Exception {
++        final Fixture f = new Fixture(true, "Yellow");
++        final List<String> told = recordNotes(f);
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        resolveAnswering(f, ability("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1", host, f.yellow), "Red");
++        final String note = "Yellow chooses Red as the active player (rule 805.9)";
++        expect(told.contains("White: " + note) && told.contains("Red: " + note) && told.contains("Blue: " + note),
++                "the other players were not each told the choice: " + told);
++        expect(told.stream().noneMatch(t -> t.startsWith("Yellow:")), "the chooser was told their own choice: " + told);
++    }
++
++    private static void nobodyIsAskedBeforeTheEffectIsApplied() throws Exception {
++        final Fixture f = new Fixture(true, "Yellow");
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        final SpellAbility sa = ability("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1", host, f.yellow);
++        final List<Player>[] seen = new List[1];
++        withoutPrompts(f, "reading the active player outside resolution",
++                () -> seen[0] = new ArrayList<>(AbilityUtils.getDefinedPlayers(host, "ActivePlayer", sa)));
++        expect(seen[0].equals(List.of(f.white)), "outside resolution the active player read " + seen[0] + ", not the first seat White");
++    }
++
++    private static void anAiControllerKeepsTheFirstSeat() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        final Map<Player, Integer> before = handSizes(f);
++        withoutPrompts(f, "an AI's active player", () -> AbilityUtils.resolve(ability("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1", host, f.yellow)));
++        final Map<Player, Integer> drawn = growth(f, before);
++        expect(drawn.get(f.white) == 1 && drawn.get(f.red) == 0, "the AI's choice drew " + drawn + ", not White, the first seat");
++        final Fixture g = new Fixture(true);
++        final Card mine = add("Obeka, Brute Chronologist", g.red, ZoneType.Battlefield);
++        final Map<Player, Integer> gBefore = handSizes(g);
++        withoutPrompts(g, "an active AI's active player", () -> AbilityUtils.resolve(ability("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1", mine, g.red)));
++        expect(growth(g, gBefore).get(g.red) == 1, "an active AI controller did not name itself: " + growth(g, gBefore));
++    }
++
++    private static void aStepTriggerNamesItsOwnPlayer() throws Exception {
++        final Fixture f = new Fixture(true, "Yellow");
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        final SpellAbility sa = ability("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1", host, f.yellow);
++        final Field step = PhaseHandler.class.getDeclaredField("teamStepPlayer");
++        step.setAccessible(true);
++        step.set(f.game.getPhaseHandler(), f.red);
++        final Map<Player, Integer> before = handSizes(f);
++        try {
++            withoutPrompts(f, "a step's active player", () -> AbilityUtils.resolve(sa));
++        } finally {
++            step.set(f.game.getPhaseHandler(), null);
++        }
++        expect(growth(f, before).get(f.red) == 1, "the step's own player Red was not the active player: " + growth(f, before) + " (rule 805.4d)");
++    }
++
++    private static void levelOneHasOneActivePlayer() throws Exception {
++        final Fixture f = new Fixture(false, "Yellow");
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        final Map<Player, Integer> before = handSizes(f);
++        withoutPrompts(f, "level 1's active player", () -> AbilityUtils.resolve(ability("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1", host, f.yellow)));
++        expect(growth(f, before).get(f.white) == 1, "level 1: the active player was not White: " + growth(f, before));
++    }
++
++    private static void aControllerChoosesTheDefendingPlayer() throws Exception {
++        final Fixture f = new Fixture(true, "White");
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card host = add("Obeka, Brute Chronologist", f.white, ZoneType.Battlefield);
++        combatOf(f, f.white).addAttacker(bears, f.yellow);
++        final Map<Player, Integer> before = handSizes(f);
++        final List<Ask> asks = resolveAnswering(f, ability("DB$ Draw | Defined$ DefendingPlayer | NumCards$ 1", host, f.white), "Blue");
++        expect(asks.size() == 1 && asks.get(0).labels.equals(List.of("Yellow", "Blue")),
++                "White was asked " + asks + ", not once between the defending players Yellow and Blue (rule 805.10e)");
++        expect(asks.get(0).title.equals("Choose the defending player for Obeka, Brute Chronologist (rule 805.10e)"), "the question read " + asks.get(0).title);
++        final Map<Player, Integer> drawn = growth(f, before);
++        expect(drawn.get(f.blue) == 1 && drawn.get(f.yellow) == 0,
++                "\"defending player draws\" with Blue chosen drew " + drawn + " (rule 805.10e)");
++    }
++
++    private static void anAttackingCreatureNamesItsDefender() throws Exception {
++        final Fixture f = new Fixture(true, "White");
++        final Card bears = creature("Grizzly Bears", f.white);
++        combatOf(f, f.white).addAttacker(bears, f.blue);
++        final Map<Player, Integer> before = handSizes(f);
++        withoutPrompts(f, "an attacker's defending player", () -> AbilityUtils.resolve(ability("DB$ Draw | Defined$ DefendingPlayer | NumCards$ 1", bears, f.white)));
++        expect(growth(f, before).get(f.blue) == 1, "the Bears attacking Blue did not name Blue: " + growth(f, before) + " (rule 805.10e)");
++    }
++
++    private static void anAiControllerKeepsTheDefendingLeader() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.red);
++        final Card host = add("Obeka, Brute Chronologist", f.red, ZoneType.Battlefield);
++        combatOf(f, f.white).addAttacker(bears, f.blue);
++        final Map<Player, Integer> before = handSizes(f);
++        withoutPrompts(f, "an AI's defending player", () -> AbilityUtils.resolve(ability("DB$ Draw | Defined$ DefendingPlayer | NumCards$ 1", host, f.red)));
++        final Map<Player, Integer> drawn = growth(f, before);
++        expect(drawn.get(f.yellow) == 1 && drawn.get(f.blue) == 0,
++                "the AI's defending player drew " + drawn + ", not Yellow, the defending team's leader (rule 805.2)");
++    }
++
++    private static void aLoneDefenderIsNotAsked() throws Exception {
++        final Fixture f = new Fixture(true, "White");
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card host = add("Obeka, Brute Chronologist", f.white, ZoneType.Battlefield);
++        combatOf(f, f.white).addAttacker(bears, f.yellow);
++        f.lock.lock();
++        try {
++            f.blue.concede();
++        } finally {
++            f.lock.unlock();
++        }
++        final Map<Player, Integer> before = handSizes(f);
++        withoutPrompts(f, "a lone defender", () -> AbilityUtils.resolve(ability("DB$ Draw | Defined$ DefendingPlayer | NumCards$ 1", host, f.white)));
++        expect(growth(f, before).get(f.yellow) == 1, "with Blue gone the defending player was not Yellow: " + growth(f, before));
++    }
++
++    private static void aControllerChoosesTheAttackingPlayer() throws Exception {
++        final Fixture f = new Fixture(true, "Yellow");
++        final List<String> told = recordNotes(f);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        combatOf(f, f.white).addAttacker(bears, f.yellow);
++        final Map<Player, Integer> before = handSizes(f);
++        final List<Ask> asks = resolveAnswering(f, ability("DB$ Draw | Defined$ AttackingPlayer | NumCards$ 1", host, f.yellow), "Red");
++        expect(asks.size() == 1 && asks.get(0).labels.equals(List.of("White", "Red")),
++                "Yellow was asked " + asks + ", not once between the attacking players White and Red (rule 805.10c)");
++        expect(asks.get(0).title.equals("Choose the attacking player for Obeka, Brute Chronologist (rule 805.10c)"), "the question read " + asks.get(0).title);
++        final Map<Player, Integer> drawn = growth(f, before);
++        expect(drawn.get(f.red) == 1 && drawn.get(f.white) == 0,
++                "\"attacking player draws\" with Red chosen drew " + drawn + " (rule 805.10c)");
++        final String note = "Yellow chooses Red as the attacking player (rule 805.10c)";
++        expect(told.contains("White: " + note) && told.contains("Red: " + note) && told.contains("Blue: " + note),
++                "the other players were not each told the attacking choice: " + told);
++    }
++
++    private static void anAttackingCreatureNamesItsController() throws Exception {
++        final Fixture f = new Fixture(true, "Red");
++        final Card bears = creature("Grizzly Bears", f.red);
++        combatOf(f, f.white).addAttacker(bears, f.yellow);
++        final Map<Player, Integer> before = handSizes(f);
++        withoutPrompts(f, "an attacker's attacking player", () -> AbilityUtils.resolve(ability("DB$ Draw | Defined$ AttackingPlayer | NumCards$ 1", bears, f.red)));
++        expect(growth(f, before).get(f.red) == 1, "Red's attacking Bears did not name Red: " + growth(f, before) + " (rule 805.10c)");
++    }
++
++    private static void anAiControllerKeepsTheAttackingFirstSeat() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.red);
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        combatOf(f, f.white).addAttacker(bears, f.yellow);
++        final Map<Player, Integer> before = handSizes(f);
++        withoutPrompts(f, "an AI's attacking player", () -> AbilityUtils.resolve(ability("DB$ Draw | Defined$ AttackingPlayer | NumCards$ 1", host, f.yellow)));
++        final Map<Player, Integer> drawn = growth(f, before);
++        expect(drawn.get(f.white) == 1 && drawn.get(f.red) == 0, "the AI's attacking player drew " + drawn + ", not White, the first seat");
++    }
++
++    private static void aLoneAttackerIsNotAsked() throws Exception {
++        final Fixture f = new Fixture(true, "Yellow");
++        final Card bears = creature("Grizzly Bears", f.red);
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        combatOf(f, f.white).addAttacker(bears, f.yellow);
++        f.lock.lock();
++        try {
++            f.white.concede();
++        } finally {
++            f.lock.unlock();
++        }
++        final Map<Player, Integer> before = handSizes(f);
++        withoutPrompts(f, "a lone attacker", () -> AbilityUtils.resolve(ability("DB$ Draw | Defined$ AttackingPlayer | NumCards$ 1", host, f.yellow)));
++        expect(growth(f, before).get(f.red) == 1, "with White gone the attacking player was not Red: " + growth(f, before));
++    }
++
++    private static void withNoControllerTheTeamLeaderDecides() throws Exception {
++        final Fixture f = new Fixture(true, "White");
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        final SpellAbility sa = ability("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1", host, f.yellow);
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        final Player[] chosen = new Player[1];
++        final List<Ask> asks = answering(f, "Red", () -> {
++            ph.beginTeamChoices(sa);
++            try {
++                chosen[0] = ph.chooseTeamPlayer("active", sa, null, List.of(f.white, f.red), f.white, "Choose the active player (rule 805.9)");
++            } finally {
++                ph.endTeamChoices(sa);
++            }
++        });
++        expect(asks.size() == 1 && chosen[0] == f.red,
++                "with no controller the active team's leader White was asked " + asks.size() + " times and " + chosen[0] + " was chosen, not Red (rule 805.2)");
++    }
++
++    private static void aDefendingReferenceWithNoCardIsNull() throws Exception {
++        for (final boolean shared : new boolean[] {false, true}) {
++            final Fixture f = new Fixture(shared, "Yellow");
++            final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++            final Card bears = creature("Grizzly Bears", f.white);
++            final Combat combat = combatOf(f, f.white);
++            combat.addAttacker(bears, f.yellow);
++            final SpellAbility sa = ability("DB$ Draw | Defined$ DefendingPlayer | NumCards$ 1", host, f.yellow);
++            final java.lang.reflect.Method m = AbilityUtils.class.getDeclaredMethod("defendingPlayerFor", Combat.class, Card.class, forge.game.CardTraitBase.class, Player.class);
++            m.setAccessible(true);
++            final Object[] got = new Object[1];
++            final Throwable[] thrown = new Throwable[1];
++            withoutPrompts(f, "a defending reference with no card", () -> {
++                try {
++                    got[0] = m.invoke(null, combat, null, sa, f.yellow);
++                } catch (final java.lang.reflect.InvocationTargetException e) {
++                    thrown[0] = e.getCause();
++                } catch (final IllegalAccessException e) {
++                    thrown[0] = e;
++                }
++            });
++            expect(thrown[0] == null && got[0] == null, (shared ? "shared turns" : "own turns") + ": the defending player with no card gave "
++                    + (thrown[0] != null ? thrown[0] : got[0]) + ", not null (getDefendingPlayerRelatedTo(null) throws on its own)");
++        }
++    }
++
++    private static void teamChoicesIsTransient() throws Exception {
++        final Field field = PhaseHandler.class.getDeclaredField("teamChoices");
++        expect(Modifier.isTransient(field.getModifiers()), "PhaseHandler.teamChoices is not transient, beside pPlayerPriority and teamStepPlayer");
++    }
++
++    private static final class Opened extends IdentityHashMap<SpellAbility, Map<String, Player>> {
++        int opened;
++
++        @Override
++        public Map<String, Player> putIfAbsent(final SpellAbility key, final Map<String, Player> value) {
++            opened++;
++            return super.putIfAbsent(key, value);
++        }
++    }
++
++    private static Opened countOpened(final Fixture f) throws Exception {
++        final Field field = PhaseHandler.class.getDeclaredField("teamChoices");
++        field.setAccessible(true);
++        final Opened opened = new Opened();
++        field.set(f.game.getPhaseHandler(), opened);
++        return opened;
++    }
++
++    @SuppressWarnings("unchecked")
++    private static Map<SpellAbility, Map<String, Player>> openChoices(final Fixture f) throws Exception {
++        final Field field = PhaseHandler.class.getDeclaredField("teamChoices");
++        field.setAccessible(true);
++        return (Map<SpellAbility, Map<String, Player>>) field.get(f.game.getPhaseHandler());
++    }
++
++    private static void noTeamChoicesOutsideSharedTurns() throws Exception {
++        final Fixture own = new Fixture(false, "Yellow");
++        final Opened ownOpened = countOpened(own);
++        final Card host = add("Obeka, Brute Chronologist", own.yellow, ZoneType.Battlefield);
++        withoutPrompts(own, "a draw with own turns", () -> AbilityUtils.resolve(ability("DB$ Draw | Defined$ You | NumCards$ 1", host, own.yellow)));
++        expect(ownOpened.opened == 0, "a resolution with each player's own turns opened team choices " + ownOpened.opened + " times");
++        final Fixture shared = new Fixture(true, "Yellow");
++        final Opened sharedOpened = countOpened(shared);
++        final Card host2 = add("Obeka, Brute Chronologist", shared.yellow, ZoneType.Battlefield);
++        withoutPrompts(shared, "a draw with shared turns", () -> AbilityUtils.resolve(ability("DB$ Draw | Defined$ You | NumCards$ 1", host2, shared.yellow)));
++        expect(sharedOpened.opened == 1, "a resolution with shared team turns opened team choices " + sharedOpened.opened + " times, not once");
++    }
++
++    private static void aSubAbilityOpensNoChoicesOfItsOwn() throws Exception {
++        final Fixture f = new Fixture(true, "Yellow");
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        final SpellAbility sa = ability("DB$ Draw | Defined$ You | NumCards$ 1 | SubAbility$ DBAgain", host, f.yellow);
++        host.setSVar("DBAgain", "DB$ Draw | Defined$ You | NumCards$ 1");
++        final SpellAbility again = AbilityFactory.getAbility(host.getSVar("DBAgain"), host);
++        again.setActivatingPlayer(f.yellow);
++        sa.setSubAbility((forge.game.spellability.AbilitySub) again);
++        expect(again.getParent() == sa, "the sub-ability has no parent");
++        final Opened opened = countOpened(f);
++        withoutPrompts(f, "a sub-ability resolved alone", () -> AbilityUtils.resolve(again));
++        expect(opened.opened == 0, "a sub-ability resolved on its own opened its own team choices " + opened.opened + " times");
++    }
++
++    private static PlayerControllerAi person(final Fixture f, final Player p, final java.util.function.Function<List<Player>, Player> answer) {
++        final PlayerControllerAi c = new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++            @Override
++            public boolean isAI() {
++                return false;
++            }
++
++            @Override
++            @SuppressWarnings("unchecked")
++            public <T extends forge.game.GameEntity> T chooseSingleEntityForEffect(final forge.util.collect.FCollectionView<T> options,
++                    final forge.game.player.DelayedReveal delayedReveal, final SpellAbility sa, final String title, final boolean isOptional,
++                    final Player targetedPlayer, final Map<String, Object> params) {
++                final List<Player> list = new ArrayList<>();
++                for (final T o : options) {
++                    list.add((Player) o);
++                }
++                return (T) answer.apply(list);
++            }
++        };
++        p.dangerouslySetController(c);
++        return c;
++    }
++
++    private static void aFailedResolutionStillClosesItsChoices() throws Exception {
++        final Fixture f = new Fixture(true);
++        person(f, f.yellow, list -> { throw new IllegalStateException("no answer"); });
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        final SpellAbility sa = ability("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1", host, f.yellow);
++        boolean threw = false;
++        try {
++            AbilityUtils.resolve(sa);
++        } catch (final IllegalStateException expected) {
++            threw = true;
++        }
++        expect(threw, "the controller's failing answer did not fail the resolution");
++        expect(openChoices(f).isEmpty(), "a resolution that failed left its team choices open: " + openChoices(f).size());
++    }
++
++    private static void aKeptChoiceNoLongerOfferedIsAskedAgain() throws Exception {
++        final Fixture f = new Fixture(true, "Yellow");
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        final SpellAbility sa = ability("DB$ Draw | Defined$ You | NumCards$ 1", host, f.yellow);
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        final Player[] got = new Player[2];
++        final List<Ask> asks = answeringEach(f, List.of("Red", "Blue"), () -> {
++            ph.beginTeamChoices(sa);
++            try {
++                got[0] = ph.chooseTeamPlayer("active", sa, f.yellow, List.of(f.white, f.red), f.white, "first");
++                got[1] = ph.chooseTeamPlayer("active", sa, f.yellow, List.of(f.white, f.blue), f.white, "second");
++            } finally {
++                ph.endTeamChoices(sa);
++            }
++        });
++        expect(asks.size() == 2 && got[0] == f.red && got[1] == f.blue,
++                "a kept choice (Red) no longer among the candidates was kept: asked " + asks.size() + " times, got " + got[0] + " then " + got[1]);
++    }
++
++    private static Player answered(final Fixture f, final java.util.function.Function<List<Player>, Player> answer) {
++        person(f, f.yellow, answer);
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        final SpellAbility sa = ability("DB$ Draw | Defined$ You | NumCards$ 1", host, f.yellow);
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        ph.beginTeamChoices(sa);
++        try {
++            return ph.chooseTeamPlayer("active", sa, f.yellow, List.of(f.white, f.red), f.white, "t");
++        } finally {
++            ph.endTeamChoices(sa);
++        }
++    }
++
++    private static void anAnswerOffTheListKeepsTheDefault() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Player got = answered(f, list -> f.blue);
++        expect(got == f.white, "an answer off the list (Blue, not White or Red) was taken: " + got + ", not the default White");
++    }
++
++    private static void aNullAnswerKeepsTheDefault() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Player got = answered(f, list -> null);
++        expect(got == f.white, "no answer gave " + got + ", not the default White");
++    }
++
++    private static void theActivePlayerIsTheActivatorsChoice() throws Exception {
++        final Fixture f = new Fixture(true, "Yellow");
++        final Card host = add("Obeka, Brute Chronologist", f.blue, ZoneType.Battlefield);
++        final Map<Player, Integer> before = handSizes(f);
++        final List<Ask> asks = resolveAnswering(f, ability("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1", host, f.yellow), "Red");
++        expect(asks.size() == 1, "Yellow, who activated an ability of Blue's card, was asked " + asks.size() + " times, not once (rule 805.9: its controller chooses)");
++        expect(growth(f, before).get(f.red) == 1, "Yellow chose Red, but " + growth(f, before) + " drew");
++    }
++
++    private static void domainActivePlayerIsTheActivatorsChoice() throws Exception {
++        final Fixture f = new Fixture(true, "Yellow");
++        add("Island", f.red, ZoneType.Battlefield);
++        add("Mountain", f.red, ZoneType.Battlefield);
++        final Card host = add("Obeka, Brute Chronologist", f.blue, ZoneType.Battlefield);
++        host.setSVar("X", "Count$DomainActivePlayer");
++        final Map<Player, Integer> before = handSizes(f);
++        final List<Ask> asks = resolveAnswering(f, ability("DB$ Draw | Defined$ You | NumCards$ X", host, f.yellow), "Red");
++        expect(asks.size() == 1, "Yellow was asked " + asks.size() + " times for the domain of the active player, not once");
++        expect(growth(f, before).get(f.yellow) == 2, "the domain of Red, the active player Yellow chose (Island, Mountain), drew Yellow " + growth(f, before).get(f.yellow) + ", not 2");
++    }
++
++    private static void aTeamOfThreeIsOffered() throws Exception {
++        final Fixture f = new Fixture(true, 6, "Green");
++        final Player green = f.all.get(3);
++        final Card host = add("Obeka, Brute Chronologist", green, ZoneType.Battlefield);
++        final List<Ask> asks = resolveAnswering(f, ability("DB$ Draw | Defined$ ActivePlayer | NumCards$ 1", host, green), "Yellow");
++        expect(asks.size() == 1 && asks.get(0).labels.equals(List.of("White", "Red", "Yellow")),
++                "Green was offered " + asks + ", not the active team of three White, Red and Yellow (rule 805.9)");
++    }
++
++    private static void aStaticCauseGetsTheDefaultSilently() throws Exception {
++        final Fixture f = new Fixture(true, "Yellow");
++        final Card anthem = add("Glorious Anthem", f.yellow, ZoneType.Battlefield);
++        final StaticAbility st = anthem.getStaticAbilities().get(0);
++        final SpellAbility open = ability("DB$ Draw | Defined$ You | NumCards$ 1", anthem, f.yellow);
++        final PhaseHandler ph = f.game.getPhaseHandler();
++        final Player[] got = new Player[1];
++        withoutPrompts(f, "a static ability's active player", () -> {
++            ph.beginTeamChoices(open);
++            try {
++                got[0] = ph.getActivePlayerFor(st, f.yellow);
++            } finally {
++                ph.endTeamChoices(open);
++            }
++        });
++        expect(got[0] == f.white, "a static ability's active player was " + got[0] + ", not the default White, given silently");
++    }
++
++    private static void archenemySharedTurnsOnlyWithTeamTurns() throws Exception {
++        final String[] names = {"White", "Red", "Yellow", "Blue"};
++        for (final String teamRules : new String[] {"teamTurns", "teams"}) {
++            final StringBuilder json = new StringBuilder("{\"gameId\":\"team-choice-archenemy\",\"variant\":\"Commander\",\"archenemy\":true,\"teamRules\":\"")
++                    .append(teamRules).append("\",\"players\":[");
++            for (int i = 0; i < 4; i++) {
++                json.append(i == 0 ? "" : ",").append("{\"name\":\"").append(names[i]).append("\",\"deck\":[{\"name\":\"Plains\"}],\"team\":").append(i == 0 ? 1 : 2).append("}");
++            }
++            json.append("]}");
++            final ManaBrewEngineAdapter.StartGameRequest request = ManaBrewEngineAdapter.parseStartGameRequest(json.toString());
++            final GameRules rules = new GameRules(GameType.Commander);
++            ManaBrewEngineAdapter.configureTeamRules(rules, request, GameType.Commander);
++            final boolean want = "teamTurns".equals(teamRules);
++            expect(rules.hasSharedTeamTurns() == want && !rules.hasSharedTeamLife(),
++                    "Archenemy with " + teamRules + ": shared team turns " + rules.hasSharedTeamTurns() + ", shared life " + rules.hasSharedTeamLife()
++                            + " (904.2's team turns, each player's own life)");
++        }
++    }
++
++    private static final class Ask {
++        final String title;
++        final List<String> labels;
++
++        Ask(final String title, final List<String> labels) {
++            this.title = title;
++            this.labels = labels;
++        }
++
++        @Override
++        public String toString() {
++            return title + " " + labels;
++        }
++    }
++
++    private static List<Ask> resolveAnswering(final Fixture f, final SpellAbility sa, final String pick) throws Exception {
++        return answering(f, pick, () -> AbilityUtils.resolve(sa));
++    }
++
++    private static List<Ask> answering(final Fixture f, final String pick, final Runnable step) throws Exception {
++        return answeringEach(f, List.of(pick), step);
++    }
++
++    private static List<Ask> answeringEach(final Fixture f, final List<String> picks, final Runnable step) throws Exception {
++        final Throwable[] failure = new Throwable[1];
++        final Thread runner = new Thread(() -> {
++            f.lock.lock();
++            try {
++                step.run();
++            } catch (final Throwable thrown) {
++                failure[0] = thrown;
++            } finally {
++                f.lock.unlock();
++            }
++        }, "team-choice");
++        runner.setDaemon(true);
++        final String start = f.session.getLatestPromptJson();
++        long seen = start == null ? -1 : JsonParser.parseString(start).getAsJsonObject().get("promptId").getAsLong();
++        runner.start();
++        final List<Ask> asks = new ArrayList<>();
++        final long deadline = System.currentTimeMillis() + 60_000;
++        while (runner.isAlive() && System.currentTimeMillis() < deadline) {
++            final String json = f.session.getLatestPromptJson();
++            final JsonObject prompt = json == null ? null : JsonParser.parseString(json).getAsJsonObject();
++            if (prompt == null || prompt.get("promptId").getAsLong() == seen) {
++                Thread.sleep(20);
++                continue;
++            }
++            seen = prompt.get("promptId").getAsLong();
++            final JsonObject input = prompt.getAsJsonObject("input");
++            if (!"chooseFromSelection".equals(input.get("type").getAsString())) {
++                throw new AssertionError("expected the team choice, got " + input);
++            }
++            final JsonObject presentation = input.getAsJsonObject("presentation");
++            final List<String> labels = new ArrayList<>();
++            for (final JsonElement option : input.getAsJsonArray("options")) {
++                labels.add(option.getAsJsonObject().get("label").getAsString());
++            }
++            asks.add(new Ask(presentation.has("description") ? presentation.get("description").getAsString() : "", labels));
++            final String pick = picks.get(Math.min(asks.size() - 1, picks.size() - 1));
++            final int index = labels.indexOf(pick);
++            if (index < 0) {
++                throw new AssertionError(pick + " is not offered: " + labels);
++            }
++            f.session.submitAction("{\"type\":\"chooseFromSelection\",\"output\":{\"type\":\"selectionDecision\",\"chosenIndices\":[" + index + "]}}");
++        }
++        runner.join(5_000);
++        if (runner.isAlive()) {
++            throw new AssertionError("the team choice never finished");
++        }
++        if (failure[0] != null) {
++            throw new AssertionError("resolving failed: " + failure[0], failure[0]);
++        }
++        return asks;
++    }
++
++    private static void withoutPrompts(final Fixture f, final String what, final Runnable step) throws Exception {
++        final List<Ask> asks = answering(f, "", step);
++        if (!asks.isEmpty()) {
++            throw new AssertionError(what + " asked " + asks);
++        }
++    }
++
++    private static List<String> recordNotes(final Fixture f) {
++        final List<String> told = new ArrayList<>();
++        for (final Player p : f.game.getPlayers()) {
++            if (p.getController().isAI()) {
++                p.dangerouslySetController(new PlayerControllerAi(f.game, p, p.getLobbyPlayer()) {
++                    @Override
++                    public void notifyOfValue(final SpellAbility sa, final GameObject target, final String value) {
++                        told.add(p.getName() + ": " + value);
++                    }
++                });
++            }
++        }
++        return told;
++    }
++
++    private static SpellAbility ability(final String script, final Card host, final Player activator) {
++        final SpellAbility sa = AbilityFactory.getAbility(script, host);
++        sa.setActivatingPlayer(activator);
++        return sa;
++    }
++
++    private static Map<Player, Integer> handSizes(final Fixture f) {
++        final Map<Player, Integer> out = new LinkedHashMap<>();
++        for (final Player p : f.game.getPlayers()) {
++            out.put(p, p.getCardsIn(ZoneType.Hand).size());
++        }
++        return out;
++    }
++
++    private static Map<Player, Integer> growth(final Fixture f, final Map<Player, Integer> before) {
++        final Map<Player, Integer> out = new LinkedHashMap<>();
++        for (final Player p : f.game.getPlayers()) {
++            out.put(p, p.getCardsIn(ZoneType.Hand).size() - before.get(p));
++        }
++        return out;
++    }
++
++    private static Card creature(final String name, final Player p) {
++        final Card c = add(name, p, ZoneType.Battlefield);
++        c.setSickness(false);
++        return c;
++    }
++
++    private static Combat combatOf(final Fixture f, final Player active) {
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, active);
++        final Combat combat = new Combat(active);
++        f.game.getPhaseHandler().setCombat(combat);
++        return combat;
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("team-choice-test");
++        final Game game;
++        final Player white;
++        final Player red;
++        final Player yellow;
++        final Player blue;
++        final List<Player> all;
++        final ReentrantLock lock;
++
++        Fixture(final boolean sharedTurns, final String... humans) throws Exception {
++            this(sharedTurns, 4, humans);
++        }
++
++        Fixture(final boolean sharedTurns, final int seats, final String... humans) throws Exception {
++            final Set<String> human = new HashSet<>(List.of(humans));
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final String[] names = seats == 6 ? new String[] {"White", "Red", "Yellow", "Green", "Blue", "Purple"} : new String[] {"White", "Red", "Yellow", "Blue"};
++            for (int i = 0; i < seats; i++) {
++                final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(human.contains(names[i])
++                        ? new ManaBrewInteractiveLobbyPlayer(names[i], session) : new LobbyPlayerAi(names[i], null));
++                rp.setStartingLife(30);
++                rp.setTeamNumber(i < seats / 2 ? 1 : 2);
++                players.add(rp);
++            }
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setAppliedVariants(EnumSet.of(GameType.Constructed));
++            rules.setSharedTeamLife(true);
++            rules.setSharedTeamTurns(sharedTurns);
++            game = new Game(players, rules, new Match(rules, players, "TeamChoiceTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++            game.getPhaseHandler().onStackResolved();
++            white = game.getPlayers().get(0);
++            red = game.getPlayers().get(1);
++            yellow = game.getPlayers().get(2);
++            all = new ArrayList<>(game.getPlayers());
++            blue = all.stream().filter(p -> p.getName().equals("Blue")).findFirst().orElseThrow();
++            for (final Player p : game.getPlayers()) {
++                for (int i = 0; i < 12; i++) {
++                    add("Plains", p, ZoneType.Library);
++                }
++            }
++            session.attach(game.getMatch(), game, Set.of(), false);
++            final Field field = ManaBrewInteractiveSession.class.getDeclaredField("gameLock");
++            field.setAccessible(true);
++            lock = (ReentrantLock) field.get(session);
 +        }
 +    }
 +}
