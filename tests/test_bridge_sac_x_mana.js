@@ -14,6 +14,9 @@
 //    the run goes on through the priority questions that follow; more than six: ×1-×5, all, and How many…
 //  - Back returns to the question under it; a "choose a color" of the card just used takes the run's colour; a rewind
 //    forgets the run
+//  - (review of 58e810e) a yes/no or colour question the run doesn't answer, or a second "Sacrifice ...?" for the same
+//    card, goes to the player and ends the run, said once; the card just used offered again (the engine didn't take
+//    it) ends the run, said once, paying and at priority
 //   node tests/test_bridge_sac_x_mana.js
 const harness = require("./bridge-harness");
 
@@ -256,9 +259,6 @@ const opt = (p, id) => (p?.options || []).find((o) => o.id === id);
     await answer(h, 720, "__sacx:g0");
     await answer(h, 720, "__sacx:c:U");
     await answer(h, 720, "__sacx:2");
-    h.B.onPrompt(seat, { promptId: 719, decidingPlayerId: "player-0", sourceCard: { id: "engine-card-55", identity: { name: "Birds of Paradise" }, text: "" },
-      input: { type: "chooseColor", validColors: ["White", "Blue"], amount: 1, presentation: { title: "Choose a color" } } }); await h.flush();
-    ok("colour question: another card's is asked, the run stays on", calls.length === 1 && seat.prompt?.promptId === 719 && seat.sacRun?.left.length === 1, `${JSON.stringify(calls)} ${JSON.stringify(seat.sacRun)}`);
     h.B.onPrompt(seat, { promptId: 721, decidingPlayerId: "player-0", sourceCard: { id: "engine-card-91", identity: { name: "Treasure Token" }, text: TREASURE_TEXT },
       input: { type: "chooseColor", validColors: ["White", "Blue", "Black", "Red", "Green"], amount: 1, presentation: { title: "Choose a color" } } }); await h.flush();
     ok("colour question: the run's colour", calls.length === 2 && calls[1].promptId === 721 && JSON.stringify(calls[1].out) === JSON.stringify({ type: "colorDecision", chosenColors: { Blue: 1 } }), JSON.stringify(calls.slice(1)));
@@ -278,6 +278,73 @@ const opt = (p, id) => (p?.options || []).find((o) => o.id === id);
     await answer(h, 730, "__sacx:2");
     h.B.onPrompt(seat, { promptId: 731, decidingPlayerId: "player-0", input: { type: "chooseCards", cards: [], min: 0, max: 0, presentation: { title: "Choose" } } }); await h.flush();
     ok("other question: the run ends", seat.sacRun == null, JSON.stringify(seat.sacRun));
+    harness.restore();
+  }
+
+  // 11. (review of 58e810e) a yes/no or colour question the run doesn't answer goes to the player and ends the run, said
+  // once: the next payment is asked, nothing more sacrificed. Forge's "Sacrifice this token" with no source card and no
+  // name in it; another card's colour question; a second "Sacrifice ...?" for the same card
+  const startRun = async (h, seat, t) => {
+    h.B.onPrompt(seat, pay(740, "{3}", t.flatMap((c) => payActs(c)))); await h.flush();
+    await answer(h, 740, "__sacx:g0");
+    await answer(h, 740, "__sacx:c:R");
+    await answer(h, 740, "__sacx:3");
+  };
+  const unanswered = [
+    ["a nameless Sacrifice question", { promptId: 741, decidingPlayerId: "player-0", input: { type: "chooseBoolean", confirmLabel: "Accept", denyLabel: "Decline", presentation: { title: "Sacrifice this token" } } }],
+    ["another card's colour question", { promptId: 741, decidingPlayerId: "player-0", sourceCard: { id: "engine-card-55", identity: { name: "Birds of Paradise" }, text: "" },
+      input: { type: "chooseColor", validColors: ["White", "Blue", "Red"], amount: 1, presentation: { title: "Choose a color" } } }],
+  ];
+  for (const [what, ask] of unanswered) {
+    const h = harness.load();
+    const t = [treasure(91), treasure(92), treasure(93)];
+    const { seat, calls } = setup(h, t);
+    await startRun(h, seat, t);
+    const mark = h.effects.length;
+    h.B.onPrompt(seat, ask); await h.flush();
+    ok(`unanswered (${what}): it is the player's`, calls.length === 1 && seat.prompt?.promptId === 741, JSON.stringify(calls));
+    ok(`unanswered (${what}): the run ends, said once`, seat.sacRun == null
+      && JSON.stringify(chats(h, mark)) === JSON.stringify(["[MTG] Treasure Token: another question came first; 2 more couldn't be sacrificed for mana; the rest is yours to pay."]), `${JSON.stringify(seat.sacRun)} ${JSON.stringify(chats(h, mark))}`);
+    await answer(h, 741, ask.input.type === "chooseBoolean" ? "no" : "White");
+    seat.board.state.gameView.zones[0].cards = [t[1], t[2]];
+    h.B.onPrompt(seat, pay(742, "{3}", t.slice(1).flatMap((c) => payActs(c)))); await h.flush();
+    ok(`unanswered (${what}): after the player's answer the next payment is asked, nothing sacrificed`, calls.length === 2 && seat.prompt?.promptId === 742, JSON.stringify(calls));
+    harness.restore();
+  }
+  {
+    const h = harness.load();
+    const t = [treasure(91), treasure(92), treasure(93)];
+    const { seat, calls } = setup(h, t);
+    await startRun(h, seat, t);
+    h.B.onPrompt(seat, confirmSac(741, t[0])); await h.flush();
+    h.B.onPrompt(seat, confirmSac(742, t[0])); await h.flush();
+    ok("a second Sacrifice question for the same card is the player's, the run ends", calls.length === 2 && calls[1].promptId === 741 && seat.prompt?.promptId === 742 && seat.sacRun == null, `${JSON.stringify(calls)} ${JSON.stringify(seat.sacRun)}`);
+    harness.restore();
+  }
+  // 12. (review of 58e810e) the engine didn't take the first activation: the same payment back with that Treasure still
+  // offered ends the run, said once; nothing more is sacrificed
+  {
+    const h = harness.load();
+    const t = [treasure(91), treasure(92), treasure(93)];
+    const { seat, calls } = setup(h, t);
+    await startRun(h, seat, t);
+    const mark = h.effects.length;
+    h.B.onPrompt(seat, pay(743, "{3}", t.flatMap((c) => payActs(c)))); await h.flush();
+    ok("refused: the payment back with the first still offered is asked, nothing sacrificed", calls.length === 1 && seat.prompt?.promptId === 743, JSON.stringify(calls));
+    ok("refused: the run ends, said once", seat.sacRun == null
+      && JSON.stringify(chats(h, mark)) === JSON.stringify(["[MTG] Treasure Token: the engine didn't take the last one; 3 more couldn't be sacrificed for mana; the rest is yours to pay."]), `${JSON.stringify(seat.sacRun)} ${JSON.stringify(chats(h, mark))}`);
+    harness.restore();
+  }
+  {
+    const h = harness.load();
+    const t = [treasure(91), treasure(92), treasure(93)];
+    const { seat, calls } = setup(h, t);
+    h.B.onPrompt(seat, priority(750, prioActs(t))); await h.flush();
+    await answer(h, 750, "__sacx:g0");
+    await answer(h, 750, "__sacx:c:R");
+    await answer(h, 750, "__sacx:2");
+    h.B.onPrompt(seat, priority(751, prioActs(t, 1))); await h.flush();
+    ok("refused at priority: the priority back with the first still offered is asked", calls.length === 1 && seat.prompt?.promptId === 751 && seat.sacRun == null, `${JSON.stringify(calls)} ${JSON.stringify(seat.sacRun)}`);
     harness.restore();
   }
 
