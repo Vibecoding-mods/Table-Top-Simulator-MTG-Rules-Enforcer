@@ -10,6 +10,7 @@
 // { $del: 1 }), so turns 1 to 15 of a six-seat game take about half a megabyte instead of four.
 //   node tools/m6-stream.js <recording.json> [--turns 15] [--out tests/golden/fixtures/table-stream-6p.json]
 //     [--relay tests/golden/fixtures/six-seat-relay.json]   (the input, packed, for tests/test_bridge_six_golden.js)
+//     [--archenemy]   (the table starts an Archenemy game, ARCH_START: a recording of headless-six.js --archenemy)
 const fs = require("fs");
 const path = require("path");
 const harness = require("../tests/bridge-harness");
@@ -19,14 +20,18 @@ const REC = process.argv[2];
 const TURNS = Number(arg("turns", 15));
 const RELAY = arg("relay", path.join(__dirname, "..", "tests", "golden", "fixtures", "six-seat-relay.json"));
 const OUT = arg("out", path.join(__dirname, "..", "tests", "golden", "fixtures", "table-stream-6p.json"));
+// the Archenemy game's start from the table (as tools/headless-six.js --archenemy plays it): Purple the archenemy with
+// the first 20 schemes of bridge/forge-schemes.json
+const ARCH_START = (() => { const j = require(path.join(__dirname, "..", "bridge", "forge-schemes.json")); return { teamMode: "archenemy", archenemy: { color: "Purple", schemes: [...j.schemes, ...(j.ongoing || [])].slice(0, 20) } }; })();
 const SIX = ["White", "Red", "Yellow", "Green", "Blue", "Purple"];
 const KEEP = new Set(["started", "table", "prompt", "gamelog", "texts", "chat", "clear"]);
 
-async function stream(rec, turns) {
+// extra: more of the table's start message (an Archenemy game: { teamMode: "archenemy", archenemy: { color, schemes } })
+async function stream(rec, turns, extra = {}) {
   const h = harness.load();
   const frame = (ws, m) => ws.emit("message", JSON.stringify(m));
   h.B.onTTS({ t: "hello", json: JSON.stringify({ tableSeats: SIX }) });
-  h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["White"], bots: 5, fromTable: true }) });
+  h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["White"], bots: 5, fromTable: true, ...extra }) });
   await h.flush();
   const g = h.B._getGame();
   if (!g) throw new Error(`the bridge didn't start a game: ${JSON.stringify(h.effects.filter((e) => e.tts?.t === "chat").map((e) => e.tts.text))}`);
@@ -57,7 +62,9 @@ async function stream(rec, turns) {
     if (e.tts && KEEP.has(e.tts.t)) out.push({ at: at++, t: e.tts.t, json: JSON.stringify(e.tts) });
   }
   const errors = h.effects.filter((e) => e.log && /\bERROR\b|TypeError|ReferenceError|RangeError|threw/.test(e.log)).map((e) => e.log.slice(0, 200));
-  const result = { out, order: start.seat_order, colors: { ...g.slotColor }, names: { ...g.slotNames }, errors };
+  // (startChats: what the bridge said in chat before the game, the setup words; not part of the stream fixture)
+  const startChats = h.effects.slice(0, from).filter((e) => e.tts?.t === "chat").map((e) => String(e.tts.text || ""));
+  const result = { out, order: start.seat_order, colors: { ...g.slotColor }, names: { ...g.slotNames }, errors, startChats };
   harness.restore();
   return result;
 }
@@ -115,14 +122,14 @@ function unpack(fx) {
   return out;
 }
 
-module.exports = { stream, pack, unpack };
+module.exports = { stream, pack, unpack, ARCH_START };
 
 if (require.main === module) {
   (async () => {
     const packed = pack(JSON.parse(fs.readFileSync(REC, "utf8")), TURNS);
     fs.writeFileSync(RELAY, JSON.stringify(packed));
     // (the bridge is fed the unpacked fixture, as the test feeds it: the same input both times)
-    const r = await stream(unpack(packed), 99);
+    const r = await stream(unpack(packed), 99, process.argv.includes("--archenemy") ? ARCH_START : {});
     fs.writeFileSync(OUT, JSON.stringify(r.out));
     const count = {};
     for (const m of r.out) count[m.t] = (count[m.t] || 0) + 1;

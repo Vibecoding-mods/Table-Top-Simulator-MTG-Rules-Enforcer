@@ -363,6 +363,27 @@ through the session.
 - Events `how: "setInMotion"`, `"abandoned"` and `"returned"` mark the scheme moves.
 - Exact JSON: `docs/handoff/archenemy-view-report.md`.
 
+### 2.12 The six-seat table (2026-11-17, branch `cloud/archenemy-six`)
+
+- **Allowed on the six-seat table:** one archenemy against one to five others, the bridge's refusal removed.
+  - The teams cover the table's own seats: `setupOf(m, TABLE_COLORS)`, `archOf(raw, colors)` and `archTeams`.
+  - `mtg archenemy <colour>` takes the six seats.
+  - The setup words name the five others.
+  - Life is as on four seats: double the format's (80 against 40, or 40 against 20 in Standard).
+- **The table:**
+  - The setup button goes round the six seats in turn order (`engineArchSeats`, the profile's seats). It sits at the
+    Teams button's strip plus 10 (x -49, z 27.5, inside the six-seat west strip).
+  - On six seats the schemes keep the archenemy's mat x, in front of their own seat, toward the middle strip. The
+    ongoing row runs toward the table's centre line; the deck is on the outer side, clear of the corner seats' life
+    trackers.
+- **Headless:**
+  - `tools/headless-six.js --archenemy`: a real six-seat game, Purple the archenemy. Turn 1 Purple, then round the six.
+  - Replayed through the bridge (`tools/m6-stream.js --archenemy`) as the golden
+    `tests/golden/fixtures/table-stream-6p-archenemy.json` (`tests/test_bridge_six_golden.js`).
+  - `ArchenemyTest` `sixSeats theArchenemyFacesFiveAsOneTeam`.
+- **Not done:** the six-seat table golden (`test_table_golden_six`) needs the TTS save, so it wasn't extended or
+  recorded here. No real-table look.
+
 ## 3. Recommended order and why
 
 1. **Finish Level 2 first (about 40 hours).** The code exists. It is the larger risk because it is a default flip.

@@ -945,16 +945,20 @@ end
 function engineTeamId(color, id) return "team:" .. tostring(color) .. ":" .. tostring(id) end
 -- The Archenemy button beside it (docs/team-turns-archenemy-plan.md step 9, host only): off, then each seat in turn as
 -- the archenemy, then off, the same as  mtg archenemy <colour> / off  (the bridge keeps the setting and says it in
--- chat). ENGINE_ARCH_SETUP: the colour the table last asked for, nil for off. The 4-player table only (the bridge's
--- team colours). Its spot: the profile's spots.archenemy, else 10 past the Teams button on the same strip.
+-- chat). ENGINE_ARCH_SETUP: the colour the table last asked for, nil for off. On either table: the 4-player table's
+-- seats, or the six-seat table's six in turn order (engineArchSeats; the bridge takes the table's own colours). Its
+-- spot: the profile's spots.archenemy, else 10 past the Teams button on the same strip (on the six-seat table x -49,
+-- z 27.5: inside its cleared west strip, z -8.5 to 33).
 ENGINE_ARCH_SETUP = nil
 ENGINE_ARCH_SEATS = { "White", "Red", "Yellow", "Blue" }
 ENGINE_ARCH_SPOT = TABLE_PROFILE.spots.archenemy and Vector(TABLE_PROFILE.spots.archenemy[1], TABLE_PROFILE.spots.archenemy[2], TABLE_PROFILE.spots.archenemy[3])
   or Vector(TEAMS_SPOT.x, TEAMS_SPOT.y, TEAMS_SPOT.z + 10)
 function engineArchLabel() return "Archenemy\n" .. (ENGINE_ARCH_SETUP or "Off") end
+function engineArchSeats() return engineSixSeats() and ENGINE_TABLE_SEATS or ENGINE_ARCH_SEATS end
 function engineArchNext(cur)
-  if cur == nil then return ENGINE_ARCH_SEATS[1] end
-  for i, c in ipairs(ENGINE_ARCH_SEATS) do if c == cur then return ENGINE_ARCH_SEATS[i + 1] end end
+  local seats = engineArchSeats()
+  if cur == nil then return seats[1] end
+  for i, c in ipairs(seats) do if c == cur then return seats[i + 1] end end
   return nil
 end
 function onMtgSetupArch(obj, playerColor)
@@ -966,7 +970,7 @@ end
 function engineArchNoted(text)
   local t = string.lower(tostring(text or ""))
   if t == "off" then ENGINE_ARCH_SETUP = nil return end
-  for _, c in ipairs(ENGINE_ARCH_SEATS) do if string.lower(c) == t then ENGINE_ARCH_SETUP = c end end
+  for _, c in ipairs(engineArchSeats()) do if string.lower(c) == t then ENGINE_ARCH_SETUP = c end end
 end
 -- Treachery (PLAN.md M4.6): the Leader goes first. The identity cards' TTS names carry their role ("Identity — Leader",
 -- table-review/notes-variants.md), so the start message says who holds the Leader's card: in a seat's hand, else the
@@ -5092,10 +5096,16 @@ function engineArchColor(m)
   for _, pl in ipairs(m.players or {}) do if pl.arch and pl.color ~= nil then return pl.color end end
   return m.teams and m.teams.archenemy or nil
 end
--- where a scheme lies: k = 0 the scheme set in motion, 1, 2, ... the row, -1 the deck
+-- where a scheme lies: k = 0 the scheme set in motion, 1, 2, ... the row, -1 the deck. On the 4-player table the way
+-- from the seat's mat toward the table's centre. On the six-seat table every mat is on a long side (z about +-14.9), so
+-- the schemes keep the mat's x (in front of the archenemy's own seat, not between two seats) and come toward the middle
+-- strip in z; the row runs toward the table's centre line in x (the corner seats' life trackers are on the outer side,
+-- x about +-41.8) and the deck lies on the other side.
 function engineSchemeSpot(g, k)
-  local side = k == 0 and 0 or (k < 0 and ENGINE_SCHEME.deck or (ENGINE_SCHEME.rowStart + (k - 1) * ENGINE_SCHEME.row))
-  return Vector(g.mat.x * ENGINE_SCHEME.toward + g.right.x * side, ENGINE_SCHEME.y, g.mat.z * ENGINE_SCHEME.toward + g.right.z * side)
+  local six = engineSixSeats()
+  local way = (six and g.mat.x * g.right.x > 0) and -1 or 1
+  local side = k == 0 and 0 or (k < 0 and ENGINE_SCHEME.deck or (ENGINE_SCHEME.rowStart + (k - 1) * ENGINE_SCHEME.row)) * way
+  return Vector((six and g.mat.x or g.mat.x * ENGINE_SCHEME.toward) + g.right.x * side, ENGINE_SCHEME.y, g.mat.z * ENGINE_SCHEME.toward + g.right.z * side)
 end
 function engineSchemes(m, seen)
   local color = engineArchColor(m)
@@ -9919,8 +9929,8 @@ function engineSetupButtons()
         SETUP.drawn.teams = true
         setupButton(tile, "onMtgSetupTeams", engineTeamsLabel(), SETUP.color.idle, TEAMS_SPOT, nil, 1700, 620, 90)
       end
-      -- (and Archenemy past it, the 4-player table only: onMtgSetupArch)
-      if engineArchLabel ~= nil and not engineSixSeats() then
+      -- (and Archenemy past it, on either table: onMtgSetupArch)
+      if engineArchLabel ~= nil then
         SETUP.drawn.arch = true
         setupButton(tile, "onMtgSetupArch", engineArchLabel(), SETUP.color.idle, ENGINE_ARCH_SPOT, nil, 1700, 620, 90)
       end

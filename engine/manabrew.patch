@@ -7584,10 +7584,10 @@ index 0000000..a62cb8d
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ArchenemyTest.java b/forge-harness/src/test/java/forge/harness/host/ArchenemyTest.java
 new file mode 100644
-index 0000000..6f98d93
+index 0000000..80131aa
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/ArchenemyTest.java
-@@ -0,0 +1,503 @@
+@@ -0,0 +1,524 @@
 +package forge.harness.host;
 +
 +import forge.ai.LobbyPlayerAi;
@@ -7651,6 +7651,7 @@ index 0000000..6f98d93
 +        check("archenemyWithSharedLifeIsRefused", ArchenemyTest::archenemyWithSharedLifeIsRefused);
 +        check("theArchenemyStartsAtDoubleTheFormatsLife", ArchenemyTest::theArchenemyStartsAtDoubleTheFormatsLife);
 +        check("theArchenemyPlaysAloneAgainstOneTeam", ArchenemyTest::theArchenemyPlaysAloneAgainstOneTeam);
++        check("sixSeats theArchenemyFacesFiveAsOneTeam", ArchenemyTest::theArchenemyFacesFiveAsOneTeam);
 +        check("theArchenemyWinsAlone", ArchenemyTest::theArchenemyWinsAlone);
 +        check("theOtherPlayersWinAsOneTeam", ArchenemyTest::theOtherPlayersWinAsOneTeam);
 +        check("aSchemeGameTakesNoRestorePoints", ArchenemyTest::aSchemeGameTakesNoRestorePoints);
@@ -7818,6 +7819,26 @@ index 0000000..6f98d93
 +        expect(!f.blue.isOpponentOf(red), "Blue and Red, the archenemy's opponents, are not one team");
 +    }
 +
++    private static void theArchenemyFacesFiveAsOneTeam() throws Exception {
++        final Fixture f = new Fixture(Setup.of().players(6).schemes(0, deck(SKYWARD)));
++        expect(f.game.getPlayers().size() == 6, "the game has " + f.game.getPlayers().size() + " players, not 6");
++        expect(lives(f).equals(List.of(40, 20, 20, 20, 20, 20)), "six-seat Standard starting life " + lives(f) + ", not the archenemy at 40 and five at 20");
++        final Fixture cmd = new Fixture(Setup.of().players(6).commander().schemes(0, deck(SKYWARD)));
++        expect(lives(cmd).equals(List.of(80, 40, 40, 40, 40, 40)), "six-seat Commander starting life " + lives(cmd) + ", not the archenemy at 80 and five at 40");
++        for (int i = 1; i < 6; i++) {
++            final Player p = f.game.getPlayers().get(i);
++            expect(f.white.isOpponentOf(p), p.getName() + " is not the archenemy's opponent");
++            for (int k = 1; k < 6; k++) {
++                expect(k == i || !p.isOpponentOf(f.game.getPlayers().get(k)), p.getName() + " and " + f.game.getPlayers().get(k).getName() + " are not one team");
++            }
++        }
++        expect(f.white.isArchenemy() && f.game.getPlayers().stream().filter(Player::isArchenemy).count() == 1, "not exactly one archenemy among six");
++        f.order(SKYWARD);
++        f.game.getPhaseHandler().devModeSet(PhaseType.DRAW, f.white, 1);
++        f.stepTo(PhaseType.MAIN1);
++        expect(f.commandScheme(SKYWARD) != null, "the archenemy's first main phase on six seats set no scheme in motion: " + names(f.white.getCardsIn(ZoneType.Command)));
++    }
++
 +    private static void theArchenemyWinsAlone() {
 +        final Fixture f = new Fixture(Setup.of().players(3).schemes(0, deck()));
 +        final Player red = f.game.getPlayers().get(2);
@@ -7932,7 +7953,7 @@ index 0000000..6f98d93
 +        }
 +
 +        String json() {
-+            final String[] seats = {"White", "Blue", "Red", "Yellow"};
++            final String[] seats = {"White", "Blue", "Red", "Yellow", "Green", "Purple"};
 +            final StringBuilder out = new StringBuilder("{\"gameId\":\"archenemy-test\",\"variant\":\"")
 +                    .append(commander ? "Commander" : "Constructed").append("\"");
 +            if (archenemy) {

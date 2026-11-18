@@ -7,7 +7,10 @@
 // for --stall seconds is "stuck priority" with the priority player and step. Ends at game over or after --turns turns.
 // --record <file>: every state the host sees (its view) and every question, in order, for the bridge (tools/m6-stream.js).
 //   node tools/headless-six.js <engine tree with its harness jar> [--games 2] [--turns 15] [--seed 1] [--stall 120]
-//     [--record tmp/six-game.json] [--log tmp/headless-six.json]
+//     [--record tmp/six-game.json] [--log tmp/headless-six.json] [--archenemy]
+// --archenemy: an Archenemy game (cloud/archenemy-six): Purple, an AI seat, the archenemy at double the format's life
+// (80), first, with the first 20 schemes of bridge/forge-schemes.json (ARCH_SCHEMES); the other five one team at 40.
+// The same game the bridge asks for (tools/m6-stream.js --archenemy), so its recording drives the bridge's golden.
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -41,10 +44,15 @@ function deckOf(id) {
   return { deck, commanderNames: p.commander ? [p.commander] : [] };
 }
 
+const ARCH = process.argv.includes("--archenemy");
+const ARCH_SEAT = NAMES.indexOf("Purple");
+const ARCH_SCHEMES = (() => { const j = require(path.join(ROOT, "bridge", "forge-schemes.json")); return [...j.schemes, ...(j.ongoing || [])].slice(0, 20); })();
 function request(game) {
+  const players = NAMES.map((name, i) => ({ name, ...deckOf(DECKS[i]), ai: i > 0, bot: i > 0,
+    ...(ARCH ? (i === ARCH_SEAT ? { team: 1, startingLife: 80, goesFirst: true, schemes: ARCH_SCHEMES.map((n) => ({ name: n })) } : { team: 2 }) : {}) }));
   return {
     gameId: `headless-six-${game}`, variant: "Commander", startingLife: 40, seed: SEED + game, snapshotRecording: false,
-    players: NAMES.map((name, i) => ({ name, ...deckOf(DECKS[i]), ai: i > 0, bot: i > 0 })),
+    ...(ARCH ? { archenemy: true, teamRules: "teams" } : {}), players,
   };
 }
 
