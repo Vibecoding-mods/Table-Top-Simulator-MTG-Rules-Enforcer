@@ -150,3 +150,40 @@ Built 2026-11-15 (branch `deckcheck-tts`), gate `tests/test_table_deckcheck.js`:
   - that it goes at a game start and comes back after NEW GAME.
 - Deploying: `tools/patch-save.js` patches Global only. The importer is an object script, so it reaches the user's
   save only through a rebuild or `tools/tts-push-global.js --patched`, which wipes the table: never with decks on it.
+  (Since then `importerScripts` in `tools/patch-save.js` gives a top-level object of the save the built script when
+  that one has `function deckcheckId(` and the saved one doesn't: the Card Importer, and rikrassen's importer below.)
+
+### rikrassen's importer
+
+Added 2026-11-18, gate `tests/test_table_rik_deckcheck.js`. The table's second importer (rikrassen's MTG
+Deck/Draft/Cube Importer, GUID ddf5de: a "Deck site URL" box) POSTs the link to rikrassen's server, which refuses
+deckcheck.co ("unable to read cards from ..."). So the engine copy reads DeckCheck itself and hands the server a list:
+
+- `tools/make-engine-copy.js` (step 6, the Workshop file is only read):
+  - in `M.deck`, after the seat check, the POST becomes a local `post()`, and `deckcheckRikDeck(color, data, post)`
+    (`tools/deckcheck-rik.lua`) goes first;
+  - `tools/deckcheck.lua` and `tools/deckcheck-rik.lua` go into the script just before the luabundle's closing
+    `return __bundle_require("__root")` (nothing may follow a `return`);
+  - the Deck tab's list of sites names deckcheck.co.
+- `deckcheckRikDeck`: any other link (or none) is left to the server, unchanged. A `deckcheck.co/` link that isn't a
+  deck link gets the 400 message and no request. Otherwise ONE `WebRequest.get` of the `/deck` endpoint (no key),
+  then `deckcheckStatus` / `deckcheckError` (the same plain words as the Card Importer, said to the player in red),
+  `deckcheckEntries`, the 250-card cap (`deckcheckTooBig`), and `deckcheckDecklist`. Then `data.data` = the list,
+  `data.url` = '', and the usual POST to `/build`. On an error nothing is posted and the importer window stays open.
+  The answer is not kept.
+- The list (`deckcheckDecklist`, MTG Arena style, which the server reads: checked live 2026-11-18, a "Commander"
+  part spawns the commander as its own card, two as their own deck):
+
+  ```
+  Commander
+  1 Thrasios, Triton Hero (c16) 46
+
+  Deck
+  40 Plains (unf) 235
+  ```
+
+  - the printing (`setCode`, `collectorNumber`) is added only when both are plain codes (letters, digits, `_`, `-`,
+    up to 16); the server falls back to the name for a printing it doesn't know (checked live);
+  - no commander: the "Deck" part only; a line break in a name becomes a space, so a name can't add a line.
+- Live, 2026-11-18: a 100-card builder deck read from DeckCheck and posted as this list came back from the server as
+  a 99-card deck plus the commander card.
