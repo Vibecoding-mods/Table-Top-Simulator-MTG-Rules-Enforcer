@@ -341,30 +341,42 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
     partner changes the blocks you are asked again ("Yellow changed the blocks. Agree or change?"), and the chat says
     what changed ("Yellow: Wall of Wood now blocks Hill Giant."). After four rounds of changes the team leader's
     blocks stand, and the chat says "<leader> decides (team leader)". Running out of time counts as Agree.
+  - **The log:** a team shares one life total, so a change is one line for the team, "White + AI 1: 80 -> 74 life
+    (-6, Reanimate)", not a line each (which read as twice the loss). Partners whose totals differ keep a line each.
   - **One turn for each team:** `mtg 2hg turns shared` (host) makes it one turn for the team: both partners untap,
     draw, attack and block together, and the team leader orders the team's triggers. `mtg 2hg turns own` goes back
     (the default: each player takes their own turn, the team's back to back). Not yet tried with several people.
 - **Three-Headed Giant** (`mtg mode 3hg`, on the six-seat table): each side of the table is a team of three, White +
   Red + Yellow against Green + Blue + Purple. A team shares life (120 in Commander, 45 in Standard), poison (20 loses)
   and losing, blocks together and sees each other's hands; each player takes their own turn, the team's back to back.
-  Hover a life counter for "Team life: ...". On the six-seat table the Teams button also offers 3HG. The six-seat
+  Hover a life counter for "Team life: ...". The log gives a life change one line for the team, as in Two-Headed Giant
+  ("White + Red + Yellow: 120 -> 114 life (-6)"). On the six-seat table the Teams button also offers 3HG. The six-seat
   table save ("MTG 6 player table - ENGINE MODE", with its own commander-damage trackers) is coming; until then
   Three-Headed Giant can't start ("Three-Headed Giant is played on the six-seat table").
 
 ## Archenemy
 
 - The host types `mtg archenemy <colour>` (a player or an AI), or presses the **Archenemy** button on the setup tile
-  (Off, then each colour). `mtg archenemy off` ends it. The archenemy plays against everyone else as one team.
+  (Off, then each of the table's colours: four on the four-player table, six on the six-seat table). `mtg archenemy off`
+  ends it. The archenemy plays against everyone else as one team: one to three others on the four-player table, one to
+  five on the six-seat table.
 - **The scheme deck:** `mtg schemes random` (20 at random) or `mtg schemes <name>; <name>; ...` (20 or more, at most 2
   of each; "2 <name>" for two).
 - **The game:** the archenemy has 80 life in Commander (40 in Standard) and goes first; the others have their usual
-  life and their own turns. At each of the archenemy's first main phases the top scheme is set in motion: a banner on
+  life (each their own). **The others take one turn together**, as the rules' Archenemy does (rule 904.2): after the
+  archenemy's turn comes the team's, then the archenemy's again. On the team's turn every one of them untaps, draws,
+  plays a land and casts at sorcery speed, and they attack together. The bar at the top says "YOUR TEAM'S TURN" to
+  them (to the archenemy, "TEAM WHITE + RED + YELLOW'S TURN"). When the archenemy attacks, the team blocks together
+  (the rules' one combined block, as in Two-Headed Giant: see "Team games"), and each of them may block a creature
+  attacking any of them. The setup line says it: "(40 life each, one turn together)" (20 each in Standard).
+- **Schemes:** at each of the archenemy's first main phases the top scheme is set in motion: a banner on
   every screen ("SET IN MOTION: <scheme>"), the scheme face up beside the archenemy's mat, ongoing schemes in a row
   beside it, and the scheme deck face down ("ARCHENEMY, 20 SCHEMES"; hover it for how many are left). The bar at the top
   says "(ARCHENEMY)" on their turns. The archenemy wins when all the others have lost; they win together when the
   archenemy loses.
-- Undo is off in Archenemy games. For now Archenemy is played on the four-player table; Archenemy on the six-seat table
-  is coming.
+- **On the six-seat table** the schemes lie in front of the archenemy's own seat, and the setup button sits beside the
+  Teams button.
+- Undo is off in Archenemy games.
 
 ## Chat commands
 
@@ -409,7 +421,7 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 | `mtg planechase on\|off` | host: Planechase in the next games |
 | `mtg planes random [N]` / `mtg planes <name>; <name>` | host: the planar decks: N random planes and phenomena a player (10 unless given, 1 to 30), or the planes named |
 | `mtg mana 99` | (testing) a manual fix in one line: 99 of each mana until the end of the turn |
-| `mtg debug <scenario>` / `list` / `off` | (testing) a test board from `scenarios/<name>.json`: 20 lands out (the commander's colours, or the lands the file names) and the scenario's cards in hand, plus anything it puts in other zones for you or the opponents. Typed before a game, it is set up at your first priority on your own turn (your opening hand is kept by itself); during one, at the next moment with nothing on the stack. Other players vote as for any fix |
+| `mtg debug <scenario>` / `list` / `off` | (testing) a test board from `scenarios/<name>.json`: 20 lands out (the commander's colours, or the lands the file names) and the scenario's cards in hand, plus anything it puts in other zones for you or the opponents. Typed before a game, it is set up at your first priority on your own turn (your opening hand is kept by itself); during one, at the next moment with nothing on the stack. Other players vote as for any fix. Testers: `scenarios/LIVE-CHECKS.md` lists a scenario for each live check (rewind, Archenemy, art and effects, the runaway limit, the "also costs" hover, the hand-overflow card, No ×N, the 2HG team block), the commands to run it and what to look for on the table |
 | `mtg hand <card>, <card> ...` / `mtg hand off` / `mtg hand` | (testing, with the host's debug tools on, against the AI only) your next game's starting cards, up to 7, the rest dealt from your deck; also the companion's **Starting hand** (Table tools → Debug tools). The engine deals the opening hand itself, so the picked cards are swapped in at your first priority in turn 1 and the dealt hand is kept by itself. (Getting them at the keep-or-mulligan question is coming) |
 | `mtg gif <words>` / `mtg gif off` / `mtg gif help` | your GIF frame: the first match for the words / empty it / the GIF commands |
 | `mtg gifs hide` / `show` | every GIF frame hidden or shown on your screen only |
