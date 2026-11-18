@@ -215,7 +215,9 @@ namespace MtgCompanion
         Updater upd;
         volatile bool updateBusy;
         UpdateManifest pendingM; UpdatePlan pendingPlan; // (downloaded, waiting for the game to end; in updates.json as "pending")
-        bool pendingRevert; // (Revert pressed during a game: goes back after it; in updates.json as "pendingRevert")
+        // Revert pressed during a game: goes back after it (in updates.json as "pendingRevert"). The update state's
+        // RevertWaiting is the one place this is kept, so the page, the tray and the worker can't disagree.
+        bool PendingRevert { get { lock (updGate) return updState.RevertWaiting; } }
         DateTime? idleSince; // (no game since then: a waiting update installs 2 minutes after the game)
         public string Recovered; // (Updater.Recover's sentence at this start, or null)
         volatile bool applying;
@@ -254,7 +256,6 @@ namespace MtgCompanion
                     var r = Update.Revert;
                     if (r != null && r.Possible && pendingM == null)
                     {
-                        pendingRevert = true;
                         SetUpdate(s => { s.Status = "revert-ready"; s.RevertWaiting = true; s.Text = "Revert ready — goes back to " + r.Target + " after the game."; });
                     }
                     else upd.Remember("pendingRevert", null);
@@ -404,6 +405,7 @@ namespace MtgCompanion
             CheckResult r; lock (updGate) r = offer;
             if (upd == null) return CheckNow();
             if (UpdateBusy) return "An update is already being checked, downloaded or installed.";
+            if (PendingRevert) return Updates.RevertWaitsText; // (else the update installs after the game and the revert then undoes it)
             if (r == null || !r.Available) return "No update to install: check for updates first.";
             UpdateNow(r);
             return null;
@@ -414,7 +416,7 @@ namespace MtgCompanion
             if (upd == null) return Observe ? "Observe mode: no updates." : "Home mode: the repo updates with git, not here.";
             if (UpdateBusy) return "An update is already being checked, downloaded or installed.";
             if (pendingM != null) return "Update " + pendingM.Version + " is waiting for the game to end; revert after it is installed.";
-            if (pendingRevert) return "The revert is already waiting for the game to end.";
+            if (PendingRevert) return "The revert is already waiting for the game to end.";
             RefreshRevert();
             var r = Update.Revert;
             if (r == null || !r.Possible) return r != null && r.Why != null ? r.Why : Updates.NoBackup;
@@ -428,7 +430,6 @@ namespace MtgCompanion
         void DoRevert()
         {
             updateBusy = true;
-            pendingRevert = false;
             var was = Phase;
             var target = Update.Revert != null ? Update.Revert.Target : null;
             SetPhase("Going back to " + (target ?? "the earlier version"));
@@ -442,7 +443,7 @@ namespace MtgCompanion
             if (res.Ok) lock (updGate) offer = null; // (planned against the newer package)
             SetUpdate(s => s.Reverted(res));
             RefreshRevert();
-            if (res.Deferred) { pendingRevert = true; SetPhase(was); return; }
+            if (res.Deferred) { SetPhase(was); return; } // (Reverted set RevertWaiting: Tick goes back after the game)
             if (res.Swapping) { var h = ExitForUpdate; if (h != null) h(); return; }
             pendingFrom = 1; // (the lights again, from the package as it is now)
         }
@@ -1464,7 +1465,7 @@ namespace MtgCompanion
         {
             RefreshGame();
             if (pendingM != null && !Observe && Updates.InstallNow(IsLocked, idleSince, DateTime.UtcNow, true)) { ApplyUpdate(pendingM, pendingPlan); return; } // (2 minutes after the game: install the update)
-            if (pendingRevert && !Observe && !updateBusy && Updates.InstallNow(IsLocked, idleSince, DateTime.UtcNow, true)) { DoRevert(); return; } // (and a revert that waited)
+            if (PendingRevert && !Observe && !updateBusy && Updates.InstallNow(IsLocked, idleSince, DateTime.UtcNow, true)) { DoRevert(); return; } // (and a revert that waited)
             if (OnServer) MonitorServer(); else MonitorDocker();
             MonitorBridgeAndTts();
         }

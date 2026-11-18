@@ -17,7 +17,7 @@ const { spawnSync } = require("child_process");
 
 const ROOT = path.join(__dirname, "..");
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
-const U = "companion/src/Update.cs", R = "companion/src/Updater.cs", W = "companion/src/WebUi.cs", P = "companion/src/WebPage.cs";
+const U = "companion/src/Update.cs", R = "companion/src/Updater.cs", W = "companion/src/WebUi.cs", P = "companion/src/WebPage.cs", C = "companion/src/Controller.cs";
 const NL = "companion-node/logic.js", NW = "companion-node/web.js";
 // [label, file, from, to, the check that must fail]: `from` must occur exactly once
 const MUTATIONS = [
@@ -26,26 +26,44 @@ const MUTATIONS = [
   ["the check line without what changed", U, "\": changes \" + ChangesWords(Changes(p.Fetch.Select(x => x.Name))) + \" (\"", "\" (\"", "selftest: check line: names what changed (the table and the app), then the parts and the size"],
   ["the old repository name", U, "public const string Repo = \"Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer\";", "public const string Repo = \"Vibecoding-mods/Table-Top-Simulator-Mock-MTGA\";", "selftest: repo: the renamed repository (Table-Top-Simulator-MTG-Rules-Enforcer)"],
   // the skipped release
-  ["the automatic check offers the skipped release", U, "if (manual || r == null || skipped == null || !r.Available || r.Manifest.Version != skipped) return r;", "return r;", "selftest: skip: the automatic check doesn't offer the release reverted from"],
-  ["a newer release skipped too", U, "|| r.Manifest.Version != skipped) return r;", ") return r;", "selftest: skip: a newer release (another tag) is offered by the automatic check"],
+  ["the automatic check offers the skipped release", U, "if (manual || r == null || !r.Available || !IsSkipped(skipped, r.Manifest.Version)) return r;", "return r;", "selftest: skip: the automatic check doesn't offer the release reverted from"],
+  ["a newer release skipped too", U, "|| !IsSkipped(skipped, r.Manifest.Version)) return r;", ") return r;", "selftest: skip: a newer release (another tag) is offered by the automatic check"],
   ["a manual check keeps the skip", R, "            if (manual) Remember(\"skipped\", null);\n", "", "skipped: the manual check cleared it"],
-  ["a revert doesn't remember the skip", R, "            if (skip != null) Remember(\"skipped\", skip);\n", "", "selftest: disk: the release reverted from is remembered as skipped"],
-  ["a failed revert keeps the skip", R, "if (skip != null && undo == null) Remember(\"skipped\", null);", "", "selftest: failed: nothing skipped"],
+  ["a revert doesn't remember the skip", R, "            if (skip != null) Remember(\"skipped\", Updates.AddSkipped(skippedBefore, skip));\n", "", "selftest: disk: the release reverted from is remembered as skipped"],
+  ["a failed revert keeps the skip", R, "if (skip != null && undo == null) Remember(\"skipped\", skippedBefore);", "", "selftest: failed: nothing skipped (an earlier skip stays as it was)"],
+  ["a failed revert clears an earlier skip too", R, "Remember(\"skipped\", skippedBefore);", "Remember(\"skipped\", null);", "selftest: failed: nothing skipped (an earlier skip stays as it was)"],
+  ["a second revert replaces the first skip", U, "return string.IsNullOrEmpty(skipped) ? version : skipped + \",\" + version;", "return version;", "selftest: skip list: a second revert adds its release, the first one stays"],
+  ["a skip matched as part of a tag", U, "skipped.Split(',').Contains(version)", "skipped.Contains(version)", "selftest: skip list: a whole tag, never part of one"],
   // which backup, and the button
   ["no backup counted as possible", U, "if (backupDir == null) { r.Why = NoBackup; return r; }", "if (backupDir == null) { r.Why = NoBackup; r.Possible = true; return r; }", "selftest: plan: no backup: not possible, says no earlier version is kept"],
   ["a backup without the engine images put back", U, "if (!has(part == \"app\" ? \"bridge\" : Holds[part][0]))", "if (false)", "selftest: plan: the engine differs but the backup has no images: not possible, says why"],
   ["the old exe never swapped back", U, "&& has(BackupExe)) { r.Self = true;", "&& has(BackupExe)) { r.Self = false;", "selftest: plan: the app and the engine differ, both kept: possible, puts back the app and the engine, this app too"],
   ["the button enabled without a backup", W, "bool canRevert = rv != null && rv.Possible && !working", "bool canRevert = rv != null && !working", "selftest: button: no backup: disabled, its line says why, no question"],
-  ["the button enabled while an update waits for the game", W, " && u.Status != \"ready\" && u.Status != \"revert-ready\";", " && u.Status != \"revert-ready\";", "selftest: button: ready: disabled"],
+  ["the button enabled while an update waits for the game", W, " && !updateWaits && !revertWaits;", " && !revertWaits;", "selftest: button: ready: disabled"],
+  ["an update's wait read from the status only", W, "updateWaits = u.DeferredUntilGameEnds || u.Status == \"ready\"", "updateWaits = u.Status == \"ready\"", "selftest: button: an update waits under another status: Revert disabled"],
+  ["a revert's wait read from the status only", W, "revertWaits = u.RevertWaiting || u.Status == \"revert-ready\"", "revertWaits = u.Status == \"revert-ready\"", "selftest: button: a revert waits under another status: Revert disabled, says it waits"],
+  ["Update now enabled while a revert waits", W, "\"Update now\", !working && !revertWaits,", "\"Update now\", !working,", "selftest: button: a revert waits and a check found an update meanwhile: Update now disabled, says the revert waits"],
+  // the Controller's wait
+  ["Update now accepted while a revert waits", C, "            if (PendingRevert) return Updates.RevertWaitsText;", "            if (false) return Updates.RevertWaitsText;", "selftest: start: Update now is refused while the revert waits (it would be undone after the game)"],
+  ["a waiting revert not restored at the start", C, "s.Status = \"revert-ready\"; s.RevertWaiting = true;", "s.Status = \"revert-ready\"; s.RevertWaiting = false;", "selftest: start: a revert that waited still waits (revert-ready)"],
+  ["a wait without a backup kept at the start", C, "                    else upd.Remember(\"pendingRevert\", null);\n", "", "selftest: start without a backup: nothing waits, the wait dropped"],
+  ["a wait that can't go back any more kept", R, "if (!early.Possible) { Remember(\"pendingRevert\", null); return", "if (!early.Possible) { return", "selftest: no backup any more: refused, the wait cleared"],
   // the doing
   ["a revert during a game goes ahead", R, "            if (fx.Locked())\n            {\n                Log.Write(\"revert: deferred, a game is on\");", "            if (false)\n            {\n                Log.Write(\"revert: deferred, a game is on\");", "selftest: game on: deferred, says it goes back after the game"],
-  ["the earlier engine images not loaded", R, "if (restore.Restore.Contains(\"images\")) { imagesLoaded = true;", "if (false) { imagesLoaded = true;", "selftest: disk: bridge stopped, reloaded, the old images loaded, bridge started (no save: the table didn't change)"],
-  ["the earlier table not installed", R, "if (restore.Restore.Contains(\"table\") && !fx.InstallSave())", "if (false && !fx.InstallSave())", "table revert failing: undone, exit 1, says why"],
+  ["the earlier engine images not loaded", R, "PlacedThenEffects(j, fx, restore.Restore.Contains(\"images\"), ", "PlacedThenEffects(j, fx, false, ", "selftest: disk: bridge stopped, reloaded, the old images loaded, bridge started (no save: the table didn't change)"],
+  ["the earlier table not installed", R, "restore.Restore.Contains(\"table\"), info.Self, \"earlier\"", "false, info.Self, \"earlier\"", "table revert failing: undone, exit 1, says why"],
   ["a part's added paths kept", U, "holds.Where(h => !always.Contains(h)).Any(inBackup)) s.Replaced.AddRange(holds);", "holds.Where(h => !always.Contains(h)).Any(inBackup)) s.Replaced.AddRange(holds.Where(inBackup));", "selftest: paths: an app backup: every app path replaced (one the update added goes), only the kept ones put back"],
   ["a placed path not journaled", R, "                    j.Placed.Add(new[] { rel, from });\n", "", "revert killed at place: every file as after the update (the backup whole)"],
   ["the journal forgets it is a revert", U, "{ \"kind\", Kind }, ", "", "selftest: journal: a revert's kind and source read back"],
-  ["a finished revert leaves the newer files", R, "                    if (revert) RevertCleanup(j);\n", "", "selftest: killed placed: the old bridge stays, the newer files and the backup gone"],
-  ["version.json keeps the backup's app version", R, "if (v != null && Updates.LocalVersion(v, \"companion\") != mine)", "if (false)", "selftest: disk: version.json names this app's own version (no exe went back)"],
+  ["a finished revert leaves the newer files", R, "                        RevertCleanup(j);\n", "", "selftest: killed placed: the old bridge stays, the newer files and the backup gone"],
+  ["version.json keeps the backup's app version", R, "            try { KeepAppVersion(L.VersionFile, current); }", "            try { }", "selftest: disk: version.json names this app's own version (no exe went back)"],
+  ["a killed revert's version.json names the older app", R, "try { KeepAppVersion(Path.Combine(home, \"version.json\"),", "try { if (false) KeepAppVersion(Path.Combine(home, \"version.json\"),", "selftest: killed placed: version.json is v1's but names the app that still runs (c2: no older exe took over)"],
+  ["the newer images not loaded again after a failed step", R, "            if (imagesLoaded) fx.LoadImages();\n            fx.StartBridge();\n            return undo;", "            fx.StartBridge();\n            return undo;", "selftest: failed: the newer images loaded again, the bridge started again"],
+  ["the app being replaced starts the bridge", R, "restore.Restore.Contains(\"table\"), info.Self, \"earlier\"", "restore.Restore.Contains(\"table\"), false, \"earlier\"", "app revert: the bridge isn't started by the app being replaced (its loop would hold the exe)"],
+  ["the backup deleted before the old exe is copied", R, "            string next = null, copyError = info.Self ? CopyOldExe(info, out next) : null;", "            RevertCleanup(j);\n            string next = null, copyError = info.Self ? CopyOldExe(info, out next) : null;", "app revert: went back, the older app takes over"],
+  ["the journal deleted before the cleanup", R, "            Point(\"finishing\");", "            try { File.Delete(JournalPath(L.Home)); } catch { }\n            Point(\"finishing\");", "revert killed at finishing: died with a journal on disk"],
+  ["an undo's unmovable older path not kept", R, "                    if (revert) stuck.Add(pair[0]);\n", "", "selftest: undo blocked: the only copy of the older version stays (bridge, tar), never deleted"],
+  ["an undo deletes a path it couldn't move back", R, "                if (stuck.Contains(rel)) continue;\n                var p = full(rel);", "                var p = full(rel);", "selftest: undo blocked: the only copy of the older version stays (bridge, tar), never deleted"],
   ["the old exe not kept by an update", R, "            if (self) KeepExe(backup); // (so Revert can put this app back too)\n", "", "app revert: the old exe kept in backup\\v1\\companion"],
   // the page
   ["a disabled Revert says an update is busy", P, "upd && m.id !== 'update-revert' ? UPDATE_BUSY : lockText", "upd ? UPDATE_BUSY : lockText", "tip: a disabled Revert's 'right now' is its own reason, not 'an update is being checked'"],
