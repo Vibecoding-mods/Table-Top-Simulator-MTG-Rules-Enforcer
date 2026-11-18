@@ -11528,10 +11528,10 @@ index 0000000..2cdfc8a
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/BlockBudgetTest.java b/forge-harness/src/test/java/forge/harness/host/BlockBudgetTest.java
 new file mode 100644
-index 0000000..7468065
+index 0000000..752d3a6
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/BlockBudgetTest.java
-@@ -0,0 +1,319 @@
+@@ -0,0 +1,435 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -11583,6 +11583,9 @@ index 0000000..7468065
 +        CHECKS.put("lethal: past the deadline 40 attackers at 6 life leave no blocker free that could save the AI", BlockBudgetTest::lethalPastDeadline);
 +        CHECKS.put("lethal: past the deadline an attack that isn't lethal gets no forced blocks", BlockBudgetTest::safePastDeadline);
 +        CHECKS.put("chump pass: each attacker's damage and each blocker's value worked out once", BlockBudgetTest::chumpValuesOnce);
++        CHECKS.put("team: past the deadline, lethal on the partner is chump-blocked (shared team life)", BlockBudgetTest::partnerLethalShared);
++        CHECKS.put("team: past the deadline, an attack on the partner that isn't lethal gets no forced blocks", BlockBudgetTest::partnerSafeShared);
++        CHECKS.put("team: past the deadline, lethal on the partner is chump-blocked (team turns, the partner's own life)", BlockBudgetTest::partnerLethalOwnLife);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
 +            check(e.getKey(), e.getValue());
 +        }
@@ -11780,6 +11783,119 @@ index 0000000..7468065
 +        f.blue.getController().declareBlockers(f.blue, combat);
 +        final long n = AiBlockController.getChumpEvaluations() - e0;
 +        expect(n > 0 && n <= 40 + 25, "the chump pass worked out " + n + " values for 40 attackers and 25 blockers, want each once");
++    }
++
++    private static Combat teamAttack(final TeamFixture f, final int attackers, final int life) {
++        for (int i = 0; i < attackers; i++) {
++            f.add("Hill Giant", f.white);
++        }
++        for (int i = 0; i < 4; i++) {
++            f.add("Llanowar Elves", f.yellow);
++        }
++        f.blue.setLife(life, null);
++        if (!f.game.getRules().hasSharedTeamLife()) {
++            f.yellow.setLife(20, null);
++        }
++        f.game.getAction().checkStaticAbilities();
++        f.game.getAction().checkStateEffects(true);
++        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, f.white, 3);
++        final Combat combat = new Combat(f.white);
++        f.game.getPhaseHandler().setCombat(combat);
++        for (final Card c : f.white.getCreaturesInPlay()) {
++            if (CombatUtil.canAttack(c, f.blue)) {
++                combat.addAttacker(c, f.blue);
++            }
++        }
++        expect(combat.getAttackersOf(f.blue).size() == attackers, "precondition: " + combat.getAttackersOf(f.blue).size() + " Hill Giants attack Blue, want " + attackers);
++        expect(combat.getAttackersOf(f.yellow).isEmpty(), "precondition: nothing attacks Yellow");
++        return combat;
++    }
++
++    private static int unblockedAt(final Combat combat, final Player p) {
++        int n = 0;
++        for (final Card a : combat.getAttackersOf(p)) {
++            if (combat.getBlockers(a).isEmpty()) {
++                n += a.getNetCombatDamage();
++            }
++        }
++        return n;
++    }
++
++    private static void partnerLethalShared() throws Exception {
++        final TeamFixture f = new TeamFixture(true, false);
++        final Combat combat = teamAttack(f, 4, 6);
++        expect(f.yellow.getLife() == 6, "precondition: the team's shared life is 6, Yellow reads " + f.yellow.getLife());
++        f.game.AI_TIMEOUT = -1;
++        f.yellow.getController().declareBlockers(f.yellow, combat);
++        expect(unblockedAt(combat, f.blue) < 6, "4 Hill Giants at Blue, the team at 6 life, Yellow's 4 Elves past the deadline: unblocked "
++                + unblockedAt(combat, f.blue) + ", blockers " + combat.getAllBlockers().size());
++    }
++
++    private static void partnerSafeShared() throws Exception {
++        final TeamFixture f = new TeamFixture(true, false);
++        final Combat combat = teamAttack(f, 2, 20);
++        f.game.AI_TIMEOUT = -1;
++        f.yellow.getController().declareBlockers(f.yellow, combat);
++        expect(combat.getAllBlockers().isEmpty(), "6 damage at Blue, the team at 20 life, past the deadline: " + combat.getAllBlockers().size() + " forced blocks");
++    }
++
++    private static void partnerLethalOwnLife() throws Exception {
++        final TeamFixture f = new TeamFixture(false, true);
++        expect(f.game.getRules().hasTeamBlocks() && !f.game.getRules().hasSharedTeamLife(), "precondition: team turns without shared life");
++        final Combat combat = teamAttack(f, 4, 6);
++        expect(f.yellow.getLife() == 20, "precondition: Yellow keeps its own 20 life, reads " + f.yellow.getLife());
++        f.game.AI_TIMEOUT = -1;
++        f.yellow.getController().declareBlockers(f.yellow, combat);
++        expect(unblockedAt(combat, f.blue) < 6, "4 Hill Giants at Blue (6 life), Yellow at 20 with 4 Elves, team turns, past the deadline: unblocked "
++                + unblockedAt(combat, f.blue) + ", blockers " + combat.getAllBlockers().size());
++    }
++
++    private static final class TeamFixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("block-budget-team");
++        final Game game;
++        final Player white;
++        final Player red;
++        final Player yellow;
++        final Player blue;
++
++        TeamFixture(final boolean sharedLife, final boolean teamTurns) {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final String[] names = {"White", "Red", "Yellow", "Blue"};
++            for (int i = 0; i < names.length; i++) {
++                final RegisteredPlayer rp = new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(names[i], null));
++                rp.setTeamNumber(i < 2 ? 1 : 2);
++                players.add(rp);
++            }
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setRenderAbilityText(false);
++            rules.setSharedTeamLife(sharedLife);
++            rules.setSharedTeamTurns(teamTurns);
++            game = new Game(players, rules, new Match(rules, players, "BlockBudgetTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0), 3);
++            game.getPhaseHandler().onStackResolved();
++            white = game.getPlayers().get(0);
++            red = game.getPlayers().get(1);
++            yellow = game.getPlayers().get(2);
++            blue = game.getPlayers().get(3);
++            session.attach(game.getMatch(), game, Set.of(), false);
++        }
++
++        Card add(final String name, final Player p) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            if (paper == null) {
++                throw new AssertionError("no card named " + name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            p.getZone(ZoneType.Battlefield).add(card);
++            card.setSickness(false);
++            return card;
++        }
 +    }
 +
 +    private static final class Fixture {

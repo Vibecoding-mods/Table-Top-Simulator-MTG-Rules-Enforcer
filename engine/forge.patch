@@ -359,7 +359,7 @@ index c3b3b8ab..2bd45396 100644
                          remainingAttackers.remove(attacker);
                          blockedAttackers.add(attacker);
 diff --git a/forge-ai/src/main/java/forge/ai/AiBlockController.java b/forge-ai/src/main/java/forge/ai/AiBlockController.java
-index eb732342..d6cce209 100644
+index eb732342..9952f6df 100644
 --- a/forge-ai/src/main/java/forge/ai/AiBlockController.java
 +++ b/forge-ai/src/main/java/forge/ai/AiBlockController.java
 @@ -142,7 +142,9 @@ public class AiBlockController {
@@ -400,7 +400,7 @@ index eb732342..d6cce209 100644
          blockersLeft = new ArrayList<>(possibleBlockers); // keeps track of all unassigned blockers
          blockedButUnkilled = new ArrayList<>(); // keeps track of all blocked attackers that currently wouldn't be destroyed
      }
-@@ -1123,6 +1130,75 @@ public class AiBlockController {
+@@ -1123,6 +1130,84 @@ public class AiBlockController {
          attackers = sortPotentialAttackers(combat);
          assignBlockers(combat, possibleBlockers);
      }
@@ -432,20 +432,28 @@ index eb732342..d6cce209 100644
 +    // with the least valuable blockers left, the biggest attackers first, until it wouldn't. Its cost is the attackers
 +    // times the blockers, with no combat prediction.
 +    private void makeChumpBlocksPastDeadline(final Combat combat, final List<Card> possibleBlockers) {
++        // CR 805.10d: every attacker the team can block, each counted against the life it threatens: the team's one
++        // total with shared team life, else the attacked player's own (team turns without shared life)
++        final boolean sharedLife = ai.getGame().getRules().hasSharedTeamLife();
 +        final List<Card> unblocked = new ArrayList<>();
 +        final Map<Card, Integer> unblockedDamage = new HashMap<>();
-+        int damage = 0;
-+        for (final Card attacker : combat.getAttackersOf(ai)) {
-+            if (combat.getBlockers(attacker).isEmpty()) {
-+                unblocked.add(attacker);
-+                chumpEvaluations++;
-+                final int dealt = ComputerUtilCombat.damageIfUnblocked(attacker, ai, combat, false);
-+                unblockedDamage.put(attacker, dealt);
-+                damage += dealt;
++        final Map<Card, Player> lifeOf = new HashMap<>();
++        final Map<Player, Integer> damage = new HashMap<>();
++        for (final Card attacker : ComputerUtilCombat.attackersOfBlockingTeam(ai, combat)) {
++            final Player attacked = combat.getDefenderPlayerByAttacker(attacker);
++            if (attacked == null || !combat.getBlockers(attacker).isEmpty()) {
++                continue;
 +            }
-+        }
-+        if (ai.cantLoseForZeroOrLessLife()) {
-+            return;
++            final Player pool = sharedLife ? ai : attacked;
++            if (pool.cantLoseForZeroOrLessLife()) {
++                continue;
++            }
++            unblocked.add(attacker);
++            chumpEvaluations++;
++            final int dealt = ComputerUtilCombat.damageIfUnblocked(attacker, attacked, combat, false);
++            unblockedDamage.put(attacker, dealt);
++            lifeOf.put(attacker, pool);
++            damage.merge(pool, dealt, Integer::sum);
 +        }
 +        unblocked.sort((a, b) -> Integer.compare(unblockedDamage.get(b), unblockedDamage.get(a)));
 +        final List<Card> free = new ArrayList<>();
@@ -459,15 +467,16 @@ index eb732342..d6cce209 100644
 +        }
 +        free.sort((a, b) -> Integer.compare(value.get(a), value.get(b)));
 +        for (final Card attacker : unblocked) {
-+            if (damage < ai.getLife()) {
-+                break;
++            final Player pool = lifeOf.get(attacker);
++            if (damage.get(pool) < pool.getLife()) {
++                continue;
 +            }
 +            for (final Card blocker : free) {
 +                if (CombatUtil.canBlock(attacker, blocker, combat)) {
 +                    combat.addBlocker(attacker, blocker);
 +                    free.remove(blocker);
-+                    final int dealt = ComputerUtilCombat.damageIfUnblocked(attacker, ai, combat, false);
-+                    damage -= attacker.hasKeyword(Keyword.TRAMPLE) ? Math.min(dealt, Math.max(0, blocker.getNetToughness())) : dealt;
++                    final int dealt = ComputerUtilCombat.damageIfUnblocked(attacker, combat.getDefenderPlayerByAttacker(attacker), combat, false);
++                    damage.merge(pool, -(attacker.hasKeyword(Keyword.TRAMPLE) ? Math.min(dealt, Math.max(0, blocker.getNetToughness())) : dealt), Integer::sum);
 +                    break;
 +                }
 +            }
