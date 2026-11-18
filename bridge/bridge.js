@@ -895,10 +895,10 @@ function openingCardsConfig() {
 
 function onArchenemy(m) {
   const text = String(m.text || "").trim();
-  const color = teams2hg.TEAM_COLORS.find((c) => c.toLowerCase() === text.toLowerCase());
+  const color = TABLE_COLORS.find((c) => c.toLowerCase() === text.toLowerCase());
   if (text === "") return chat(`[MTG] Archenemy is ${archenemy.on ? `on: ${archenemy.color} is the archenemy, with ${schemeWords()}` : "off"}. The host sets it:  mtg archenemy <colour>  (the next games),  mtg archenemy off,  mtg schemes random  or  mtg schemes <name>; <name>; ...`, m.color);
   if (/^off$/i.test(text)) { archenemy.on = false; return chat("[MTG] Archenemy off for the next games."); }
-  if (!color) return chat(`[MTG] Use:  mtg archenemy <colour>  (${teams2hg.TEAM_COLORS.join(", ")}: a seated player, or an AI seat) or  mtg archenemy off`, m.color);
+  if (!color) return chat(`[MTG] Use:  mtg archenemy <colour>  (${TABLE_COLORS.join(", ")}: a seated player, or an AI seat) or  mtg archenemy off`, m.color);
   Object.assign(archenemy, { on: true, color });
   chat(`[MTG] Archenemy on for the next games: ${color} is the archenemy (${schemeWords()}; mtg schemes to choose), against everyone else as one team. Undo is off in Archenemy games.`);
 }
@@ -928,7 +928,7 @@ function onSchemes(m) {
 function withArchenemy(setup) {
   if (setup.mode === "archenemy") return { ...setup, arch: { ...setup.arch, schemes: setup.arch.schemes || archenemy.names } };
   if (!archenemy.on) return setup;
-  return { teams: teams2hg.juggTeams(archenemy.color), mode: "archenemy", jugg: null, turns: null, arch: { color: archenemy.color, schemes: archenemy.names, sticky: true } };
+  return { teams: teams2hg.archTeams(archenemy.color, TABLE_COLORS), mode: "archenemy", jugg: null, turns: null, arch: { color: archenemy.color, schemes: archenemy.names, sticky: true } };
 }
 // Undo in an Archenemy game: the engine takes no restore points there (the schemes in play aren't rewind-safe yet)
 const ARCH_NO_UNDO = "Undo isn't available in Archenemy games: the schemes in play can't be rewound yet.";
@@ -2284,14 +2284,13 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   let archGame = null;
   if (teams && teamMode === "archenemy") {
     const a = arch || teams2hg.archOf(null);
-    // (the team modes are the 4-player table's for now: teams.js TEAM_COLORS)
+    // (on either table: four seats, or the six-seat table's six; the archenemy against one to five others)
     const off = a.sticky ? ARCH_SWITCH_OFF : "";
-    if (TABLE_COLORS.length !== teams2hg.TEAM_COLORS.length) { chat(`[MTG] Not started: Archenemy is played on the 4-player table for now (this table has ${TABLE_COLORS.length} seats).${off}`); return; }
     // (the colours in this game: the seated ones, the AI seats', then the AI players' free seats in turn order, as
     // clockwiseOrder seats them)
     const aiFree = TABLE_COLORS.filter((c) => !seatList.includes(c) && !preset.includes(c)).slice(0, Math.max(0, bots - preset.length));
     if (![...seatList, ...preset, ...aiFree].includes(a.color)) {
-      chat(`[MTG] Not started: Archenemy: ${a.color} isn't in this game (seated: ${seatList.join(", ")}; AI players take the free seats in turn order). Seat ${a.color}, make it an AI seat (mtg ai ${a.color} forge), or fill all four seats.${off}`);
+      chat(`[MTG] Not started: Archenemy: ${a.color} isn't in this game (seated: ${seatList.join(", ")}; AI players take the free seats in turn order). Seat ${a.color}, make it an AI seat (mtg ai ${a.color} forge), or fill all ${({ 4: "four", 6: "six" })[TABLE_COLORS.length] || TABLE_COLORS.length} seats.${off}`);
       return;
     }
     const names = a.schemes || randomSchemes();
@@ -6863,8 +6862,10 @@ function sendTable() {
   const phaseNo = phaseNumber(pub);
   const tableMsg = {
     t: "table", turn: pub.turn, step: pub.step, active: game.slotColor[pub.activePlayerId] || null,
-    // (Two-Headed Giant Level 2: both partners' colours, the active player first; the table's whose-turn reads it)
-    ...(teams2hg.sharesTurns(pub) ? { activeTeam: teams2hg.turnPlayerIds(pub).map((id) => game.slotColor[id] || id) } : {}),
+    // (Two-Headed Giant Level 2: both partners' colours, the active player first; the table's whose-turn reads it.
+    // Archenemy's team turns, CR 904.2: the opponents' colours on their turn; on the archenemy's own, a team of one,
+    // none, so the table says "PURPLE'S TURN", not "TEAM PURPLE'S TURN")
+    ...(teams2hg.sharesTurns(pub) && teams2hg.turnPlayerIds(pub).length > 1 ? { activeTeam: teams2hg.turnPlayerIds(pub).map((id) => game.slotColor[id] || id) } : {}),
     activeTurnNo: game.turnsTaken?.[pub.activePlayerId] || 1,
     ...(phaseNo ? { phaseNo } : {}), // (an extra combat's or main phase's number, the phase bar's "COMBAT (2)": phaseNumber)
     priority: game.slotColor[pub.priorityPlayerId] || null, gameOver: !!pub.gameOver,
@@ -7187,8 +7188,8 @@ const playerCounter = (p, name) => (p.counters || {})[name.toUpperCase()] || (p.
 // story, marks) went once both halves were live (docs/core-moves-cleanup-plan.md "2. trackMarks" step 6).
 // A PLAYER_MARKS row with a `row` key is sent under that key too, its value as read, left out when it shows nothing:
 // `extraTurns`, the extra turns the player has coming, drawn beside the life counter rather than in the label ("EXTRA
-// TURN" for one, "EXTRA TURN nx" for n, engineExtraTurnBadge); left out at 0 and from an engine that doesn't send the
-// count.
+// TURN" for one, "EXTRA TURN nx" for n up to 99, "EXTRA TURNS 99+" past it, engineExtraTurnBadge); sent as the real
+// count, left out at 0 and from an engine that doesn't send the count.
 function playerMarks(p, pub) {
   // (updateLog has just read this board: game.logPrev is its log snapshot)
   const { values, labels, tips } = trackMarks(p, pub, { turnRun: game.logPrev?.turnRun?.[p.id] });
@@ -12781,7 +12782,7 @@ function onTTS(m) {
       warnIfOutOfStep();
       const go = () => {
         noteTableSeats(m, false); // (the table's seats, if it says them: a bridge started after its hello)
-        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m), ...(({ teams, mode, jugg, turns, arch }) => [teams, mode || "2hg", jugg, turns, arch || null])(withArchenemy(teams2hg.setupOf(m))));
+        startGame(asList(m.seats), Number(m.bots) || 0, !!m.requireReady, m.autoplay ? false : (m.fromTable ?? !!m.requireReady), asList(m.aiSeats), m.friendly, noteMode(m), ...(({ teams, mode, jugg, turns, arch }) => [teams, mode || "2hg", jugg, turns, arch || null])(withArchenemy(teams2hg.setupOf(m, TABLE_COLORS))));
         if (game && m.autoplay) game.autoplay = true;
         noteFirstPlayer(m); // (who goes first: the table's choice, Treachery's Leader)
         if (game) game.steam = steamIds(m.steam); // (the seated players' Steam IDs, for the accomplishments: noteSteam)

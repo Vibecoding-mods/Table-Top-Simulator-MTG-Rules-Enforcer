@@ -65,6 +65,7 @@ public final class BigBoardCheck {
         final String mode = args.length > 0 ? args[0] : "decisions";
         forge.game.replacement.ReplacementHandler.lookaheadPerRun = Boolean.parseBoolean(System.getProperty("bb.perRun", "true"));
         forge.game.GameAction.dependencyScanCache = Boolean.parseBoolean(System.getProperty("bb.depScans", "true"));
+        forge.harness.common.AutoPay.payBudget = Boolean.parseBoolean(System.getProperty("bb.autopayBudget", "true"));
         final Pool pool = pool();
         System.out.println("pool creatures=" + pool.creatures.size() + " lands=" + pool.lands.size() + " others=" + pool.others.size());
         if (mode.equals("decisions")) {
@@ -76,6 +77,10 @@ public final class BigBoardCheck {
             }
         } else if (mode.equals("sample")) {
             sample(pool, args.length > 1 ? args[1] : "actions", args.length > 2 ? Integer.parseInt(args[2]) : 60);
+        } else if (mode.equals("autopay")) {
+            for (final int perSeat : parse(args.length > 1 ? args[1] : "60,90,120")) {
+                autopay(pool, perSeat);
+            }
         } else if (mode.equals("checkpoints")) {
             final int seats = args.length > 1 ? Integer.parseInt(args[1]) : 4;
             final int perSeat = args.length > 2 ? Integer.parseInt(args[2]) : 125;
@@ -193,7 +198,8 @@ public final class BigBoardCheck {
             final List<RegisteredPlayer> regs = new ArrayList<>();
             final String[] names = {"White", "Red", "Yellow", "Green", "Blue", "Purple"};
             for (int i = 0; i < seats; i++) {
-                regs.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi(names[i], null)));
+                regs.add(new RegisteredPlayer(new Deck()).setPlayer(i == 0 && humanSeat
+                        ? new ManaBrewInteractiveLobbyPlayer(names[i], session) : new LobbyPlayerAi(names[i], null)));
             }
             final GameRules rules = new GameRules(GameType.Constructed);
             rules.setRenderAbilityText(Boolean.getBoolean("bb.render"));
@@ -236,6 +242,93 @@ public final class BigBoardCheck {
                 creatures += p.getCreaturesInPlay().size();
             }
             session.attach(game.getMatch(), game, Set.of(), recording);
+        }
+    }
+
+    static boolean humanSeat;
+
+    static void autopay(final Pool pool, final int perSeat) throws Exception {
+        humanSeat = true;
+        final Table t;
+        try {
+            t = new Table(pool, 6, perSeat, 0, false);
+        } finally {
+            humanSeat = false;
+        }
+        final Player me = t.players.get(0);
+        for (int i = 0; i < 10; i++) {
+            add("Plains", me, ZoneType.Battlefield);
+        }
+        t.game.getAction().checkStaticAbilities();
+        final Field field = ManaBrewInteractiveSession.class.getDeclaredField("gameLock");
+        field.setAccessible(true);
+        final java.util.concurrent.locks.ReentrantLock lock = (java.util.concurrent.locks.ReentrantLock) field.get(t.session);
+        for (final String[] spell : new String[][] {{"Bottle Gnomes", "{3}"}, {"Ulamog's Crusher", "{8}"}, {"Serra Angel", "{3}{W}{W}"}}) {
+            for (final Card c : me.getCardsIn(ZoneType.Battlefield)) {
+                c.setTapped(false);
+            }
+            me.getManaPool().resetPool();
+            t.game.getAction().checkStaticAbilities();
+            final SpellAbility sa = add(spell[0], me, ZoneType.Hand).getFirstSpellAbility();
+            sa.setActivatingPlayer(me);
+            final long[] at = new long[3];
+            final boolean[] paid = new boolean[1];
+            final Throwable[] failure = new Throwable[1];
+            final long p0 = t.game.getAction().getStaticPasses();
+            final Thread payer = new Thread(() -> {
+                lock.lock();
+                try {
+                    at[0] = System.nanoTime();
+                    paid[0] = ((ManaBrewInteractiveController) me.getController()).payManaCost(
+                            sa.getPayCosts().getTotalMana(), sa.getPayCosts().getCostMana(), sa, "pay", null, false);
+                    at[2] = System.nanoTime();
+                } catch (final Throwable thrown) {
+                    failure[0] = thrown;
+                } finally {
+                    lock.unlock();
+                }
+            }, "autopay");
+            payer.setDaemon(true);
+            payer.start();
+            long seen = -1;
+            int prompts = 0;
+            final long stop = System.currentTimeMillis() + 600_000;
+            while (payer.isAlive() && System.currentTimeMillis() < stop) {
+                final String json = t.session.getLatestPromptJson();
+                final com.google.gson.JsonObject prompt = json == null ? null : com.google.gson.JsonParser.parseString(json).getAsJsonObject();
+                if (prompt == null || prompt.get("promptId").getAsLong() == seen) {
+                    Thread.sleep(2);
+                    continue;
+                }
+                seen = prompt.get("promptId").getAsLong();
+                final com.google.gson.JsonObject input = prompt.getAsJsonObject("input");
+                if (!"payManaCost".equals(input.get("type").getAsString())) {
+                    t.session.submitAction("{\"type\":\"" + input.get("type").getAsString() + "\",\"output\":{\"type\":\"pass\"}}");
+                    continue;
+                }
+                if (!forge.harness.common.SnapshotExtractor.javaCardId(sa.getHostCard()).equals(input.has("cardId") ? input.get("cardId").getAsString() : "")) {
+                    continue;
+                }
+                prompts++;
+                if (at[1] == 0) {
+                    at[1] = System.nanoTime();
+                }
+                final boolean confirm = input.has("canConfirmFromPool") && input.get("canConfirmFromPool").getAsBoolean();
+                t.session.submitAction("{\"type\":\"payManaCost\",\"output\":{\"type\":\"pay\",\"auto\":" + !confirm + "}}");
+            }
+            payer.join(5_000);
+            if (failure[0] != null) {
+                throw new IllegalStateException("autopay failed", failure[0]);
+            }
+            final List<String> tapped = new ArrayList<>();
+            for (final Card c : me.getCardsIn(ZoneType.Battlefield)) {
+                if (c.isTapped()) {
+                    tapped.add(c.getName() + "#" + c.getId());
+                }
+            }
+            System.out.println(String.format(Locale.ROOT, "autopay perSeat=%d cost=%s paid=%s prompt=%.0f ms auto=%.0f ms total=%.0f ms prompts=%d passes=%d tapped=%d %s",
+                    perSeat, spell[1], paid[0], (at[1] - at[0]) / 1e6, (at[2] - at[1]) / 1e6, (at[2] - at[0]) / 1e6, prompts,
+                    t.game.getAction().getStaticPasses() - p0, tapped.size(), String.join(",", tapped)));
         }
     }
 
@@ -354,10 +447,33 @@ public final class BigBoardCheck {
             System.out.println("pass perSeat=" + perSeat + " sameState=" + same + " ms afterTap=" + ms(s1) + " ms dependencyScans=" + (act.getGame().getAction().getDependencyScans() - d0));
             return;
         }
-        final Combat combat = new Combat(act);
+        Combat combat = new Combat(act);
         if (what.equals("attack")) {
             act.getGame().getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, act, 5);
             act.getGame().getPhaseHandler().setCombat(combat);
+        }
+        Player blocking = t.players.get(1);
+        if (what.equals("block")) {
+            act.getGame().getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, act, 5);
+            combat = new Combat(act);
+            act.getGame().getPhaseHandler().setCombat(combat);
+            final List<Player> defenders = new ArrayList<>(t.players.subList(1, t.players.size()));
+            int k = 0;
+            for (final Card c : act.getCreaturesInPlay()) {
+                for (int tries = 0; tries < defenders.size(); tries++) {
+                    final Player d = defenders.get(k++ % defenders.size());
+                    if (CombatUtil.canAttack(c, d)) {
+                        combat.addAttacker(c, d);
+                        break;
+                    }
+                }
+            }
+            for (final Player d : defenders) {
+                if (combat.getAttackersOf(d).size() > combat.getAttackersOf(blocking).size()) {
+                    blocking = d;
+                }
+            }
+            blocking.setLife(Math.max(1, Math.min(blocking.getLife(), 6)), null);
         }
         final Thread main = Thread.currentThread();
         final Map<String, Integer> incl = new java.util.HashMap<>();
@@ -397,12 +513,15 @@ public final class BigBoardCheck {
             ActionSpace.getPossibleActions(act, true, true);
         } else if (what.equals("attack")) {
             act.getController().declareAttackers(act, combat);
+        } else if (what.equals("block")) {
+            blocking.getController().declareBlockers(blocking, combat);
         } else {
             ComputerUtilMana.payManaCost(sa.getPayCosts(), act, sa, false);
         }
         final double took = ms(t0);
         sampler.interrupt();
-        System.out.println("sample " + what + " perSeat=" + perSeat + " ms=" + took + " samples=" + n[0]);
+        System.out.println("sample " + what + " perSeat=" + perSeat + " ms=" + took + " samples=" + n[0]
+                + (what.equals("block") ? " attackers=" + combat.getAttackersOf(blocking).size() + " of " + combat.getAttackers().size() + " blockers=" + combat.getAllBlockers().size() + " life=" + blocking.getLife() : ""));
         incl.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(25)
                 .forEach(e -> System.out.println("  incl " + e.getValue() + " " + e.getKey()));
         self.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(5)
