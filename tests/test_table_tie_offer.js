@@ -120,7 +120,16 @@ q('told = {} chat("tie", "", Player.White) return nil');
 ok("12 tie: mtg tie alone says the words again", /Rounds without progress: 2 of 3/.test(q("return told[1]") || ""), q("return told[1]"));
 q(`engineTieUpdate(${DECLINED(5, 0)}, false) return nil`);
 ok("12 tie: a new offer shows again to everyone", seen().includes("White"), at("eng_tie", "visibility"));
+// a closed strip is the strip's: the same offer asked again (pending) is a question, and shows to everyone
+q(`engineTieUpdate(${DECLINED(6, 1)}, false) return nil`);
+q('told = {} onMtgTie(Player.White, nil, "eng_tiehide") return nil');
+ok("12 tie: precondition, White closed this offer's strip", !seen().includes("White"), at("eng_tie", "visibility"));
+q(`engineTieUpdate(${PENDING.replace("id = 1", "id = 6")}, false) return nil`);
+ok("12 tie: the same offer asked again is shown to White though White closed its strip", seen().includes("White"), at("eng_tie", "visibility"));
 q(`engineTieUpdate(nil, false) return nil`);
+// no offer open: "mtg tie" alone has no words to say again, and says how to use it
+q('told = {} chat("tie", "", Player.White) return nil');
+ok("12 tie: mtg tie alone with no offer open says how to use it, not the last offer's words", /mtg tie yes/.test(q("return told[#told]") || "") && !/Rounds without progress/.test(q("return told[#told]") || ""), q("return told[#told]"));
 
 q('chat("tie", "yes", Player.White) return nil');
 same("mtg tie yes", q("return lastSent()"), "tieVote White true 76561190000000001");
