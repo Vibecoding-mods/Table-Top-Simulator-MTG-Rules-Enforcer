@@ -1,0 +1,14 @@
+{
+  "label": "\"Yes ×3\" / \"No ×3\" on a repeated yes/no: cast Hordeling Outburst (three Goblins enter at once) and Soul's Attendant triggers three times, \"you may gain 1 life\" each; the first of the three asks with Yes ×3, No ×3 and How many... tests/test_bridge_scenario_checks.js",
+  "lands": {
+    "Mountain": 6,
+    "Plains": 4
+  },
+  "keepHand": false,
+  "hand": [
+    "Hordeling Outburst"
+  ],
+  "battlefield": [
+    "Soul's Attendant"
+  ]
+}
