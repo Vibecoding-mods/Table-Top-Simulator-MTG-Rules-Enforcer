@@ -215,6 +215,7 @@ namespace MtgCompanion
         Updater upd;
         volatile bool updateBusy;
         UpdateManifest pendingM; UpdatePlan pendingPlan; // (downloaded, waiting for the game to end; in updates.json as "pending")
+        bool pendingRevert; // (Revert pressed during a game: goes back after it; in updates.json as "pendingRevert")
         DateTime? idleSince; // (no game since then: a waiting update installs 2 minutes after the game)
         public string Recovered; // (Updater.Recover's sentence at this start, or null)
         volatile bool applying;
@@ -246,7 +247,28 @@ namespace MtgCompanion
                     }
                     else upd.Remember("pending", null);
                 }
+                RefreshRevert();
+                if (J.Str(st, "pendingRevert") != null)
+                {
+                    // a revert that waited for a game when the app last ran: it still waits (and goes back after the game)
+                    var r = Update.Revert;
+                    if (r != null && r.Possible && pendingM == null)
+                    {
+                        pendingRevert = true;
+                        SetUpdate(s => { s.Status = "revert-ready"; s.RevertWaiting = true; s.Text = "Revert ready — goes back to " + r.Target + " after the game."; });
+                    }
+                    else upd.Remember("pendingRevert", null);
+                }
             }
+        }
+
+        // what Revert would go back to, from the backups as they are now (at start, and after an update or a revert)
+        void RefreshRevert()
+        {
+            if (upd == null) return;
+            RevertInfo r;
+            try { r = upd.FindRevert(); } catch (Exception e) { r = new RevertInfo { Why = "Couldn't read the backups (" + e.Message + ")." }; }
+            SetUpdate(s => { s.Revert = r; });
         }
 
         // the package's files: at start, and again after an update replaced them
@@ -386,6 +408,45 @@ namespace MtgCompanion
             UpdateNow(r);
             return null;
         }
+        // Revert update: the previous version from the newest backup (on the worker; a game on: after it)
+        public string RevertNow()
+        {
+            if (upd == null) return Observe ? "Observe mode: no updates." : "Home mode: the repo updates with git, not here.";
+            if (UpdateBusy) return "An update is already being checked, downloaded or installed.";
+            if (pendingM != null) return "Update " + pendingM.Version + " is waiting for the game to end; revert after it is installed.";
+            if (pendingRevert) return "The revert is already waiting for the game to end.";
+            RefreshRevert();
+            var r = Update.Revert;
+            if (r == null || !r.Possible) return r != null && r.Why != null ? r.Why : Updates.NoBackup;
+            updateBusy = true; // (until DoRevert ends: a second press, a check or Update now waits)
+            SetUpdate(s => { s.Status = "reverting"; s.Error = null; s.Text = "Going back to " + r.Target + "…"; });
+            Enqueue(DoRevert);
+            return null;
+        }
+
+        // on the worker
+        void DoRevert()
+        {
+            updateBusy = true;
+            pendingRevert = false;
+            var was = Phase;
+            var target = Update.Revert != null ? Update.Revert.Target : null;
+            SetPhase("Going back to " + (target ?? "the earlier version"));
+            SetUpdate(s => { s.Status = "reverting"; s.RevertWaiting = false; });
+            ApplyResult res;
+            SetApplying(true);
+            try { res = upd.Revert(new Effects(this), ""); }
+            catch (Exception e) { Log.Write("revert: " + e); res = new ApplyResult { Text = "The revert failed (" + e.Message + ")." }; }
+            finally { SetApplying(false); updateBusy = false; }
+            Log.Write("revert: " + res.Text);
+            if (res.Ok) lock (updGate) offer = null; // (planned against the newer package)
+            SetUpdate(s => s.Reverted(res));
+            RefreshRevert();
+            if (res.Deferred) { pendingRevert = true; SetPhase(was); return; }
+            if (res.Swapping) { var h = ExitForUpdate; if (h != null) h(); return; }
+            pendingFrom = 1; // (the lights again, from the package as it is now)
+        }
+
         public string Later()
         {
             string tag = null;
@@ -408,7 +469,7 @@ namespace MtgCompanion
             {
                 try
                 {
-                    var r = upd.Check();
+                    var r = upd.Check(manual);
                     bool again;
                     lock (updGate) again = updState.Later && updState.Available == (r.Manifest != null ? r.Manifest.Version : null);
                     lock (updGate) offer = Updates.OfferAfterCheck(r);
@@ -461,6 +522,7 @@ namespace MtgCompanion
             SetUpdate(s => s.Applied(res));
             if (res.Deferred) { pendingM = m; pendingPlan = plan; SetPhase(was); return; }
             if (res.Swapping) { var h = ExitForUpdate; if (h != null) h(); return; }
+            RefreshRevert(); // (a new backup: Revert goes back to the version just replaced)
             pendingFrom = 1; // (the lights again, from the package as it is now)
         }
 
@@ -1402,6 +1464,7 @@ namespace MtgCompanion
         {
             RefreshGame();
             if (pendingM != null && !Observe && Updates.InstallNow(IsLocked, idleSince, DateTime.UtcNow, true)) { ApplyUpdate(pendingM, pendingPlan); return; } // (2 minutes after the game: install the update)
+            if (pendingRevert && !Observe && !updateBusy && Updates.InstallNow(IsLocked, idleSince, DateTime.UtcNow, true)) { DoRevert(); return; } // (and a revert that waited)
             if (OnServer) MonitorServer(); else MonitorDocker();
             MonitorBridgeAndTts();
         }

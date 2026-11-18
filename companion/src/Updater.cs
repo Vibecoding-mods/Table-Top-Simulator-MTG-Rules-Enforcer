@@ -150,9 +150,11 @@ namespace MtgCompanion
 
         // ── check
 
-        public CheckResult Check()
+        // manual: Check for updates (it clears the release a Revert skipped); else the automatic check at the start
+        public CheckResult Check(bool manual = true)
         {
-            var res = Run();
+            if (manual) Remember("skipped", null);
+            var res = Updates.SkipReverted(Run(), J.Str(State(), "skipped"), manual);
             Remember("lastCheck", DateTime.UtcNow.ToString("o"));
             Remember("lastResult", res.Text);
             Log.Write("update check: " + res.Text);
@@ -350,22 +352,9 @@ namespace MtgCompanion
             {
                 // An earlier update's journal (its undo couldn't finish: a held file): that one is finished first. A new
                 // journal over it would lose where the old files are, and its undo would then delete what is missing.
-                bool stopped = false;
-                if (File.Exists(JournalPath(L.Home)))
-                {
-                    fx.StopBridge(); stopped = true;
-                    var said = RecoverHeld(L.Home);
-                    fx.Reload();
-                    if (File.Exists(JournalPath(L.Home)))
-                    {
-                        fx.StartBridge();
-                        Log.Write("update " + m.Version + ": not started, an earlier update isn't undone yet");
-                        var text = "Not installing " + m.Version + ": an earlier update isn't fully undone yet. " + said;
-                        Remember("lastResult", text);
-                        return new ApplyResult { Text = text };
-                    }
-                    Log.Write("update " + m.Version + ": an earlier update was finished first (" + said + ")");
-                }
+                bool stopped;
+                var earlier = FinishEarlier(fx, "update " + m.Version, "Not installing " + m.Version, out stopped);
+                if (earlier != null) return earlier;
                 var plan = Updates.Plan(Local(), m, Format);
                 if (offered != null && !SamePlan(offered, plan)) Log.Write("update " + m.Version + ": the package changed since the check; planned again");
                 var no = NotReady(m, plan);
@@ -379,6 +368,28 @@ namespace MtgCompanion
                 return ApplyFiles(m, plan, fx, selfArgs, stopped);
             }
             finally { Free(mx); }
+        }
+
+        // An earlier update's (or revert's) journal, under the mutex: finished first. A new journal over it would lose
+        // where the old files are, and its undo would then delete what is missing. Null when there was none or it is
+        // finished now (stopped: the bridge was stopped for it), else the refusal.
+        ApplyResult FinishEarlier(IUpdateEffects fx, string what, string refusal, out bool stopped)
+        {
+            stopped = false;
+            if (!File.Exists(JournalPath(L.Home))) return null;
+            fx.StopBridge(); stopped = true;
+            var said = RecoverHeld(L.Home);
+            fx.Reload();
+            if (File.Exists(JournalPath(L.Home)))
+            {
+                fx.StartBridge();
+                Log.Write(what + ": not started, an earlier update isn't undone yet");
+                var text = refusal + ": an earlier update isn't fully undone yet. " + said;
+                Remember("lastResult", text);
+                return new ApplyResult { Text = text };
+            }
+            Log.Write(what + ": an earlier update was finished first (" + said + ")");
+            return null;
         }
 
         static bool SamePlan(UpdatePlan a, UpdatePlan b)
@@ -486,6 +497,7 @@ namespace MtgCompanion
                 return new ApplyResult { Text = changed ? "The update failed and was undone: " + e.Message + "." : "The update failed before anything changed: " + e.Message + "." };
             }
             try { File.Delete(JournalPath(L.Home)); } catch { }
+            if (self) KeepExe(backup); // (so Revert can put this app back too)
             Prune(backupRoot);
             Log.Write("update " + m.Version + ": files in place");
             if (self)
@@ -496,14 +508,14 @@ namespace MtgCompanion
                 if (!sw.Ok) fx.StartBridge();
                 return sw;
             }
-            Done(m);
-            return new ApplyResult { Ok = true, Text = "Updated to " + m.Version + "." };
+            Done(m, plan);
+            return new ApplyResult { Ok = true, Text = Updates.UpdatedText(m.Version, plan.Fetch.Select(p => p.Name)) };
         }
 
-        void Done(UpdateManifest m)
+        void Done(UpdateManifest m, UpdatePlan plan)
         {
             try { Directory.Delete(DownloadDir(m.Version), true); } catch { }
-            Remember("lastResult", "Updated to " + m.Version + ".");
+            Remember("lastResult", Updates.UpdatedText(m.Version, plan.Fetch.Select(p => p.Name)));
             Remember("installed", m.Version);
         }
 
@@ -550,10 +562,26 @@ namespace MtgCompanion
             j.Moved = j.Existed.Where(rel => File.Exists(saved(rel)) || Directory.Exists(saved(rel))).ToList();
             var u = Updates.Undo(j);
             var stuck = new List<string>();
+            Func<string, bool> there = p => File.Exists(p) || Directory.Exists(p);
+            bool revert = j.Kind == "revert";
             foreach (var pair in u.ReturnToDownload)
-                try { if (File.Exists(full(pair[0])) && !File.Exists(pair[1])) { Directory.CreateDirectory(Path.GetDirectoryName(pair[1])); File.Move(full(pair[0]), pair[1]); } } catch { }
+                try
+                {
+                    if (there(full(pair[0])) && !there(pair[1]))
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(pair[1]));
+                        if (Directory.Exists(full(pair[0]))) Directory.Move(full(pair[0]), pair[1]); else File.Move(full(pair[0]), pair[1]);
+                    }
+                }
+                catch
+                {
+                    // (a revert's placed path is the only copy of the older version: never deleted, it stays stuck;
+                    // an update's is a download, fetched again)
+                    if (revert) stuck.Add(pair[0]);
+                }
             foreach (var rel in u.Delete)
             {
+                if (stuck.Contains(rel)) continue;
                 var p = full(rel);
                 try { if (Directory.Exists(p)) Directory.Delete(p, true); else if (File.Exists(p)) File.Delete(p); } catch { stuck.Add(rel); }
             }
@@ -571,12 +599,14 @@ namespace MtgCompanion
             if (stuck.Count == 0)
             {
                 try { if (Directory.Exists(j.Backup)) Directory.Delete(j.Backup, true); } catch { }
+                if (revert) try { var root = Path.GetDirectoryName(j.Backup); if (Directory.Exists(root) && !Directory.EnumerateFileSystemEntries(root).Any()) Directory.Delete(root); } catch { }
                 try { File.Delete(JournalPath(home)); } catch { }
                 return null;
             }
             // (the journal stays: the next start tries again)
-            Log.Write("update undo: couldn't restore " + string.Join(", ", stuck) + " (the old files are in " + j.Backup + ")");
-            return "These couldn't be put back: " + string.Join(", ", stuck) + ". The old files are in " + j.Backup + "; MTG Companion tries again at its next start.";
+            stuck = stuck.Distinct().ToList();
+            Log.Write((revert ? "revert" : "update") + " undo: couldn't restore " + string.Join(", ", stuck) + " (the " + (revert ? "newer" : "old") + " files are in " + j.Backup + ")");
+            return "These couldn't be put back: " + string.Join(", ", stuck) + ". The " + (revert ? "newer" : "old") + " files are in " + j.Backup + "; MTG Companion tries again at its next start.";
         }
 
         // At the start, before the package is read: an update a kill or a power cut interrupted. Its files all in
@@ -598,15 +628,18 @@ namespace MtgCompanion
             {
                 var j = Journal.FromJson(J.Parse(Probes.ReadText(JournalPath(home))));
                 if (j == null) { Log.Write("update journal unreadable: left as is"); return "An interrupted update left a journal that can't be read (" + JournalPath(home) + ")."; }
+                bool revert = j.Kind == "revert";
+                string what = revert ? "The revert to " + j.Target : "The update to " + j.Target;
                 if (j.Phase == "placed")
                 {
                     File.Delete(JournalPath(home));
-                    Log.Write("update " + j.Target + ": interrupted after its files were in place; finished");
-                    return "The update to " + j.Target + " was interrupted after its files were in place; the start finishes it.";
+                    if (revert) RevertCleanup(j);
+                    Log.Write((revert ? "revert to " : "update ") + j.Target + ": interrupted after its files were in place; finished");
+                    return what + " was interrupted after its files were in place; the start finishes it.";
                 }
-                Log.Write("update " + j.Target + ": interrupted (" + j.Phase + "); undoing it");
+                Log.Write((revert ? "revert to " : "update ") + j.Target + ": interrupted (" + j.Phase + "); undoing it");
                 var undo = UndoFiles(home, j);
-                return undo == null ? "The update to " + j.Target + " was interrupted, so it was undone. Check for updates to try again." : "The update to " + j.Target + " was interrupted. " + undo;
+                return undo == null ? what + " was interrupted, so it was undone." + (revert ? " Revert update tries again." : " Check for updates to try again.") : what + " was interrupted. " + undo;
             }
             catch (Exception e) { Log.Write("update recovery failed: " + e.Message); return "An interrupted update couldn't be undone (" + e.Message + ")."; }
         }
@@ -635,6 +668,214 @@ namespace MtgCompanion
             catch { }
         }
 
+        // ── Revert: the newest backup\<old version>\ put back (docs/companion-app-spec.md §11.6), with the update's
+        // journal, mutex and undo: the newer files go to revert-undo\<version>\ (moved, journaled), the backup's are
+        // moved in (each placed path journaled first), then the same reload, images, hash-guarded save and bridge
+        // steps. Killed half way: Recover finishes (all placed) or undoes it, like an update.
+
+        string BackupRoot { get { return Path.Combine(L.Home, "backup"); } }
+
+        // the newest backup (by its creation time, as Prune keeps them), and whether it can be put back now
+        public RevertInfo FindRevert()
+        {
+            DirectoryInfo newest = null;
+            try
+            {
+                if (Directory.Exists(BackupRoot))
+                    newest = new DirectoryInfo(BackupRoot).GetDirectories().OrderByDescending(d => d.CreationTimeUtc).FirstOrDefault();
+            }
+            catch { }
+            if (newest == null) return Updates.PlanRevert(null, Local(), null, rel => false);
+            var dir = newest.FullName;
+            return Updates.PlanRevert(dir, Local(), J.Parse(Probes.ReadText(Path.Combine(dir, "version.json"))),
+                rel => { var p = Path.Combine(dir, rel.Replace('/', '\\')); return File.Exists(p) || Directory.Exists(p); });
+        }
+
+        public ApplyResult Revert(IUpdateEffects fx, string selfArgs)
+        {
+            if (!File.Exists(JournalPath(L.Home)))
+            {
+                var early = FindRevert();
+                if (!early.Possible) return new ApplyResult { Text = early.Why };
+            }
+            if (fx.Locked())
+            {
+                Log.Write("revert: deferred, a game is on");
+                Remember("pendingRevert", "yes");
+                var t = FindRevert();
+                return new ApplyResult { Deferred = true, Text = "Revert ready — goes back to " + (t.Target ?? "the earlier version") + " after this game." };
+            }
+            Remember("pendingRevert", null);
+            var mx = Acquire();
+            if (mx == null) return new ApplyResult { Text = "Another update is being installed right now." };
+            try
+            {
+                bool stopped;
+                var earlier = FinishEarlier(fx, "revert", "Not going back", out stopped);
+                if (earlier != null) return earlier;
+                var info = FindRevert(); // (again, under the mutex: the package as it is now)
+                if (!info.Possible) { if (stopped) fx.StartBridge(); return new ApplyResult { Text = info.Why }; }
+                return RevertFiles(info, fx, selfArgs, stopped);
+            }
+            finally { Free(mx); }
+        }
+
+        ApplyResult RevertFiles(RevertInfo info, IUpdateEffects fx, string selfArgs, bool bridgeStopped)
+        {
+            var src = info.Backup;
+            var current = Local();
+            var restore = Updates.RevertPaths(rel => File.Exists(Path.Combine(src, rel.Replace('/', '\\'))) || Directory.Exists(Path.Combine(src, rel.Replace('/', '\\'))));
+            var replaced = restore.Replaced;
+            string holdRoot = Path.Combine(L.Home, Updates.RevertHold), hold = Path.Combine(holdRoot, Updates.BackupName(current));
+            for (int i = 2; Directory.Exists(hold); i++) hold = Path.Combine(holdRoot, Updates.BackupName(current) + "-" + i);
+            var j = new Journal { Kind = "revert", Source = src, Target = info.Target, Backup = hold, Replaced = replaced };
+            j.Existed = replaced.Where(rel => File.Exists(Full(rel)) || Directory.Exists(Full(rel))).ToList();
+            var skip = J.Str(current, "release");
+            Log.Write("revert to " + info.Target + " from " + info.From + ": putting back " + string.Join(", ", restore.Restore) + " from " + src + (info.Self ? " and this app" : ""));
+            try
+            {
+                if (TestJournalFail) throw new IOException("test: --test-journal-fail");
+                WriteJournal(L.Home, j); // (before the first move)
+            }
+            catch (Exception e)
+            {
+                if (bridgeStopped) fx.StartBridge();
+                return new ApplyResult { Text = "The revert couldn't start: its journal can't be written (" + e.Message + "). Nothing was changed." };
+            }
+            // (before the first move: a revert killed and finished at the next start leaves it skipped too; one killed and
+            // undone leaves the package at that same release, which a check then finds up to date anyway)
+            if (skip != null) Remember("skipped", skip);
+            fx.StopBridge();
+            bool imagesLoaded = false;
+            try
+            {
+                foreach (var rel in j.Existed)
+                {
+                    var to = Path.Combine(hold, rel.Replace('/', '\\'));
+                    Directory.CreateDirectory(Path.GetDirectoryName(to));
+                    if (Directory.Exists(Full(rel))) Directory.Move(Full(rel), to); else File.Move(Full(rel), to);
+                    Point("move");
+                    j.Moved.Add(rel);
+                    WriteJournal(L.Home, j);
+                }
+                j.Phase = "placing";
+                foreach (var rel in restore.Restore)
+                {
+                    var from = Path.Combine(src, rel.Replace('/', '\\'));
+                    j.Placed.Add(new[] { rel, from });
+                    WriteJournal(L.Home, j);
+                    Directory.CreateDirectory(Path.GetDirectoryName(Full(rel)));
+                    if (Directory.Exists(from)) Directory.Move(from, Full(rel)); else File.Move(from, Full(rel));
+                    Point("place");
+                }
+                // the friend's picture cache is the newer one's (it only grows; an undo leaves that newer copy in the
+                // backup, which is no loss)
+                foreach (var k in Updates.Keep)
+                {
+                    var newer = Path.Combine(hold, k.Replace('/', '\\'));
+                    if (File.Exists(newer) && Directory.Exists(Path.GetDirectoryName(Full(k)))) File.Copy(newer, Full(k), true);
+                }
+                Point("written");
+                j.Phase = "placed";
+                WriteJournal(L.Home, j);
+                Point("placed");
+                fx.Reload();
+                if (restore.Restore.Contains("images")) { imagesLoaded = true; if (!fx.LoadImages()) throw new Exception("loading the earlier engine images didn't work"); }
+                if (restore.Restore.Contains("table") && !fx.InstallSave()) throw new Exception("installing the earlier table didn't work");
+                if (!info.Self && !fx.StartBridge()) throw new Exception("the earlier bridge didn't start");
+            }
+            catch (Exception e)
+            {
+                Log.Write("revert to " + info.Target + " failed: " + e.Message + "; undoing it");
+                bool changed = j.Moved.Count > 0 || j.Placed.Count > 0 || j.Phase != "moving";
+                j.Phase = "undoing";
+                try { WriteJournal(L.Home, j); } catch { }
+                string undo = UndoFiles(L.Home, j);
+                fx.Reload();
+                if (imagesLoaded) fx.LoadImages();
+                fx.StartBridge();
+                if (skip != null && undo == null) Remember("skipped", null);
+                Remember("lastResult", undo == null ? "Going back to " + info.Target + " failed and was undone." : "Going back to " + info.Target + " failed; " + undo);
+                if (undo != null) return new ApplyResult { Text = "The revert failed (" + e.Message + "). " + undo };
+                return new ApplyResult { Text = changed ? "The revert failed and was undone: " + e.Message + "." : "The revert failed before anything changed: " + e.Message + "." };
+            }
+            try { File.Delete(JournalPath(L.Home)); } catch { }
+            // version.json names the app that runs: this one, until an older exe has taken over (ReplaceOld writes its
+            // version then). Written only now: the backup's own version.json, which an undo moves back, stays as it was.
+            try
+            {
+                var v = J.Parse(Probes.ReadText(L.VersionFile)) as Dictionary<string, object>;
+                var mine = Updates.LocalVersion(current, "companion");
+                if (v != null && Updates.LocalVersion(v, "companion") != mine)
+                {
+                    var parts = new Dictionary<string, object>(J.Get(v, "parts") as Dictionary<string, object> ?? new Dictionary<string, object>());
+                    if (mine != null) parts["companion"] = mine; else parts.Remove("companion");
+                    v["parts"] = parts;
+                    WriteJson(L.VersionFile, v);
+                }
+            }
+            catch (Exception e) { Log.Write("revert: version.json's app version not written: " + e.Message); }
+            string text = "Went back to " + info.Target + " (from " + info.From + ")" + (info.Changes.Count > 0 ? ": " + Updates.ChangesWords(info.Changes) + " put back" : "") + "."
+                + (skip != null ? " The automatic check skips " + skip + "; Check for updates offers it again." : "");
+            if (info.Self)
+            {
+                var sw = RevertSwap(info, selfArgs);
+                RevertCleanup(j);
+                if (!sw.Ok) { fx.StartBridge(); Remember("lastResult", text + " " + sw.Text); return new ApplyResult { Ok = true, Text = text + " " + sw.Text }; }
+                Remember("lastResult", text);
+                return new ApplyResult { Ok = true, Swapping = true, Text = text + " The older MTG Companion takes over now." };
+            }
+            RevertCleanup(j);
+            Remember("lastResult", text);
+            Log.Write("revert to " + info.Target + ": done");
+            return new ApplyResult { Ok = true, Text = text };
+        }
+
+        // after a revert: the newer files and what is left of the backup it came from (an exe that took over, or
+        // nothing) go
+        static void RevertCleanup(Journal j)
+        {
+            try { if (Directory.Exists(j.Backup)) Directory.Delete(j.Backup, true); } catch { }
+            try { var root = Path.GetDirectoryName(j.Backup); if (Directory.Exists(root) && !Directory.EnumerateFileSystemEntries(root).Any()) Directory.Delete(root); } catch { }
+            try { if (j.Source != null && Directory.Exists(j.Source)) Directory.Delete(j.Source, true); } catch { }
+        }
+
+        // the backup's exe takes over (the update's swap: --replace-old, the version ReplaceOld writes)
+        ApplyResult RevertSwap(RevertInfo info, string selfArgs)
+        {
+            var src = Path.Combine(info.Backup, Updates.BackupExe.Replace('/', '\\'));
+            var next = Path.Combine(Path.GetDirectoryName(exePath), NewExe);
+            try
+            {
+                File.Copy(src, next, true);
+                using (var me = Process.GetCurrentProcess())
+                {
+                    var args = "--replace-old " + me.Id + " \"" + exePath + "\" --old-start " + me.StartTime.ToUniversalTime().Ticks + (info.CompanionVersion != null ? " --part-version " + info.CompanionVersion : "") + (selfArgs.Length > 0 ? " " + selfArgs.Trim() : "");
+                    Log.Write("revert to " + info.Target + ": starting " + NewExe + " " + args);
+                    Process.Start(new ProcessStartInfo(next, args) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exePath) }).Dispose();
+                }
+            }
+            catch (Exception e)
+            {
+                try { File.Delete(next); } catch { }
+                Log.Write("revert to " + info.Target + ": the older companion didn't start: " + e.Message);
+                return new ApplyResult { Text = "The older MTG Companion couldn't start (" + e.Message + "); this one carries on." };
+            }
+            return new ApplyResult { Ok = true, Swapping = true };
+        }
+
+        // this app's exe into the backup (an update that replaces it), so Revert can put it back
+        void KeepExe(string backup)
+        {
+            try
+            {
+                var to = Path.Combine(backup, Updates.BackupExe.Replace('/', '\\'));
+                Directory.CreateDirectory(Path.GetDirectoryName(to));
+                File.Copy(exePath, to, true);
+            }
+            catch (Exception e) { Log.Write("update: this app's exe wasn't kept in the backup (" + e.Message + "); Revert will keep the newer app"); }
+        }
+
         // ── the new companion: MTG Companion.new.exe takes over (ReplaceOld in the new exe does the swap)
 
         public const string NewExe = "MTG Companion.new.exe", OldExe = "MTG Companion.old.exe";
@@ -660,8 +901,8 @@ namespace MtgCompanion
                 Log.Write("update " + m.Version + ": the new companion didn't start: " + e.Message);
                 return new ApplyResult { Text = "The new MTG Companion couldn't start (" + e.Message + "); this one carries on." };
             }
-            if (!plan.CompanionFirst) Done(m);
-            return new ApplyResult { Ok = true, Swapping = true, Text = "Updated to " + m.Version + "; the new MTG Companion takes over now." };
+            if (!plan.CompanionFirst) Done(m, plan);
+            return new ApplyResult { Ok = true, Swapping = true, Text = Updates.UpdatedText(m.Version, plan.Fetch.Select(x => x.Name)).TrimEnd('.') + "; the new MTG Companion takes over now." };
         }
 
         // In the new exe: wait for the old one (that process, by its start time: not a later one with its number),

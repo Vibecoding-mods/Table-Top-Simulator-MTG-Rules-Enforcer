@@ -57,7 +57,7 @@ outer repo's `engine/manabrew.patch` history (`git -C mtg-tts log -- engine/mana
 
 - No comments in Manabrew Java (`manabrew/AGENTS.md`). The patch history shows one reviewer fix for a Java comment (`75844bc`).
 - Never push Manabrew (no upstream PR until TTS fully works). Local commits are allowed; `mb-pc`'s `origin` is a local clone.
-  The public form is `engine/manabrew.patch` in `Vibecoding-mods/Table-Top-Simulator-Mock-MTGA`.
+  The public form is `engine/manabrew.patch` in `Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer`.
 - When the protocol changes (a new directive, StateOp variant, prompt field the relay must carry), rebuild **both** images
   from the same source. Node-only changes (extra optional DTO fields the relay passes through) need only the node.
 - Never swap images in the middle of a game. Restart the relay as well as `forge-room` after a swap, or the room stays

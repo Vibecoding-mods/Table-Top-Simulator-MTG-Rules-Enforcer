@@ -17,6 +17,7 @@ namespace MtgCompanion
         {
             sb = output; fails = 0; passes = 0;
             if (name == "own-server") OwnServerChecks();
+            else if (name == "revert") RevertChecks();
             else Check("--section " + name + ": a section of the self-test", false, "unknown section");
             sb.AppendLine(passes + " passed, " + fails + " failed");
             return fails;

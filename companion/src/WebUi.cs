@@ -24,7 +24,9 @@
 //   log      {file, lines}                   the last lines of companion.log
 //   update   the self-update (docs/companion-app-spec.md §11), friend mode only (null in home mode and observe):
 //            {title, line, status, current, available, progress, deferred, error, lastCheck, actions}; actions in the
-//            menu's shape: update-now (when a release is offered), update-later, update-check. Built from the
+//            menu's shape: update-now (when a release is offered), update-later, update-check, update-revert (Revert
+//            to the newest backup, disabled with why when there is none). changes: what the offered release changes
+//            ("table", "app", "engine"); revert: {possible, target, from, why, self, changes, waiting}. Built from the
 //            Controller's one UpdateState snapshot (UpdateSection). The page shows the section only when it is an object.
 // POST /api/action answers {ok, message, needConfirm}; ok:false is a refusal (game lock, observe mode, a stale button).
 // update-now never waits for the game lock: it downloads, and the install itself waits for the game to end.
@@ -706,7 +708,7 @@ namespace MtgCompanion
 
         // ───────────────────────────── the update section ─────────────────────────────
 
-        static bool UpdateWorking(string status) { return status == "checking" || status == "downloading" || status == "installing" || status == "restarting"; }
+        static bool UpdateWorking(string status) { return status == "checking" || status == "downloading" || status == "installing" || status == "restarting" || status == "reverting"; }
 
         public static string UpdateTitle(UpdateState u)
         {
@@ -721,6 +723,10 @@ namespace MtgCompanion
                 case "failed": return "Update problem";
                 case "interrupted": return "An update was interrupted";
                 case "checking": return "Checking for updates";
+                case "skipped": return "Updates (one skipped)";
+                case "reverting": return "Going back to the earlier version";
+                case "revert-ready": return "Revert ready: goes back after the game";
+                case "reverted": return "Went back to the earlier version";
                 default: return "Updates";
             }
         }
@@ -744,12 +750,23 @@ namespace MtgCompanion
                 if (u.Status == "available" && !u.Later) actions.Add(UpdateButton("update-later", "Later", true, "No reminder for this update until you check again.", null));
             }
             actions.Add(UpdateButton("update-check", u.Status == "checking" ? "Checking…" : "Check for updates", !working, u.LastCheck != null ? "Last checked " + u.LastCheck : "Not checked yet.", null));
+            // Revert: enabled only when a backup can be put back, and not while an update or revert runs or waits
+            var rv = u.Revert;
+            bool canRevert = rv != null && rv.Possible && !working && u.Status != "ready" && u.Status != "revert-ready";
+            string revertTitle = Updates.RevertTitle(rv);
+            if (rv != null && rv.Possible && !canRevert)
+                revertTitle = u.Status == "ready" ? "Update " + u.Available + " is waiting for the game to end; revert after it is installed."
+                    : u.Status == "revert-ready" ? "The revert is waiting for the game to end."
+                    : "Wait: an update is being checked, downloaded or installed, or a revert is running.";
+            actions.Add(UpdateButton("update-revert", Updates.RevertLabel(rv), canRevert, revertTitle, canRevert ? Updates.RevertConfirm(rv) : null));
             string line = u.Text;
             if (string.IsNullOrEmpty(line)) line = "This package: " + (u.Current ?? "?") + ".";
             return new Dictionary<string, object>
             {
                 { "title", UpdateTitle(u) }, { "line", line }, { "status", u.Status }, { "current", u.Current }, { "available", u.Available },
                 { "progress", u.Progress }, { "deferred", u.DeferredUntilGameEnds }, { "error", u.Error }, { "lastCheck", u.LastCheck }, { "actions", actions },
+                { "changes", u.Changes != null ? u.Changes.ToArray() : null },
+                { "revert", rv == null ? null : new Dictionary<string, object> { { "possible", rv.Possible }, { "target", rv.Target }, { "from", rv.From }, { "why", rv.Why }, { "self", rv.Self }, { "changes", rv.Changes.ToArray() }, { "waiting", u.RevertWaiting } } },
             };
         }
 
@@ -828,6 +845,15 @@ namespace MtgCompanion
                     if (why != null) return No(why);
                     lastAccepted = id;
                     return Done("Downloading the update; the update section shows how far it is (it installs when no game is on).");
+                }
+                case "update-revert":
+                {
+                    if (c.Observe) return No(ObserveText);
+                    if (lastAccepted == id && c.UpdateBusy) return Already();
+                    var why = c.RevertNow();
+                    if (why != null) return No(why);
+                    lastAccepted = id;
+                    return Done("Going back to the earlier version; the update section shows how far it is (during a game it waits until the game is over).");
                 }
                 case "update-later":
                 {

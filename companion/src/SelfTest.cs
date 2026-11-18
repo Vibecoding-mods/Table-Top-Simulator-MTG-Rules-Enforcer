@@ -23,7 +23,7 @@ namespace MtgCompanion
         public static int Run(StringBuilder output)
         {
             sb = output; fails = 0; passes = 0;
-            Modes(); Sequence(); Docker(); Images(); Stack(); Ports(); Bridge(); GameLock(); Saves(); Tts(); Wsl(); LogTrimChecks(); Misc(); Update(); UpdateSafety(); OwnServerChecks();
+            Modes(); Sequence(); Docker(); Images(); Stack(); Ports(); Bridge(); GameLock(); Saves(); Tts(); Wsl(); LogTrimChecks(); Misc(); Update(); UpdateSafety(); RevertChecks(); OwnServerChecks();
             sb.AppendLine(passes + " passed, " + fails + " failed");
             return fails;
         }

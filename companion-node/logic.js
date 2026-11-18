@@ -732,7 +732,7 @@ const autoStart = (args) => args.includes("--start") || args.includes("--after-u
 
 const Updates = {
   Format: 2, // (2: the table is made from the host's Workshop copy; the table part is the patcher)
-  Repo: "Vibecoding-mods/Table-Top-Simulator-Mock-MTGA",
+  Repo: "Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer",
   ApiBase: "https://api.github.com",
   UserAgent: "MTG-Companion",
   ManifestAsset: "update-manifest.json",
@@ -835,9 +835,25 @@ function updatePlan(local, m, format) {
 const planAvailable = (p) => !!p && !p.upToDate && !p.refused;
 
 const mb = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;
+// what a set of parts changes, in the owner's words (Updates.Changes): "table", "app" (bridge and decks, the Node
+// runtime, the app itself), "engine" (the images); in that order, each once
+function changes(parts) {
+  const s = new Set(parts || []);
+  const c = [];
+  if (s.has("table")) c.push("table");
+  if (s.has("app") || s.has("runtime") || s.has("companion")) c.push("app");
+  if (s.has("images")) c.push("engine");
+  return c;
+}
+function changesWords(c) {
+  const w = (c || []).map((x) => `the ${x}`);
+  if (!w.length) return "nothing";
+  return w.length === 1 ? w[0] : `${w.slice(0, -1).join(", ")} and ${w[w.length - 1]}`;
+}
+const partWords = (n) => (n === "app" ? "bridge and decks" : n === "images" ? "engine" : n === "companion" ? "this app" : n === "runtime" ? "Node runtime" : n);
 function describe(p, m) {
-  const names = p.fetch.map((x) => (x.name === "app" ? "bridge and decks" : x.name === "images" ? "engine" : x.name));
-  return `Update available: ${m.version} (${names.join(", ")}). Download the new package for this computer from the project's Releases page and unpack it beside this one.`;
+  const names = p.fetch.map((x) => partWords(x.name));
+  return `Update available: ${m.version}: changes ${changesWords(changes(p.fetch.map((x) => x.name)))} (${names.join(", ")}). Download the new package for this computer from the project's Releases page and unpack it beside this one.`;
 }
 
 // a release from GET .../releases/latest
@@ -891,6 +907,7 @@ function updateChecked(s, r, laterSame, nowIso) {
     status: available ? "available" : r.quiet ? "not-public" : r.failed || (r.plan && r.plan.refused) ? "failed" : "up-to-date",
     error: available || r.quiet || !(r.failed || (r.plan && r.plan.refused)) ? null : r.text,
     available: available ? r.manifest.version : null, notes: available ? r.text : null, later: available && laterSame, progress: -1,
+    changes: available ? changes(r.plan.fetch.map((x) => x.name)) : null,
   };
 }
 
@@ -906,5 +923,5 @@ module.exports = {
   DefaultSaveName, Room, ttsHowTo, decideTts, sha8, clip, relayKey, worst, overall,
   NotStartedPhase, StoppedPhase, StartHint, engineUp, beforeStart, nextHint, autoStart,
   Updates, validTag, imagesVersion, parseKeys, verifySignature, parseManifest, localVersion, builtTime, downgrade,
-  updatePlan, planAvailable, describe, parseRelease, checkFailed, checkDue, allowedUrl, tokenFor, updateChecked, mb,
+  updatePlan, planAvailable, describe, changes, changesWords, parseRelease, checkFailed, checkDue, allowedUrl, tokenFor, updateChecked, mb,
 };

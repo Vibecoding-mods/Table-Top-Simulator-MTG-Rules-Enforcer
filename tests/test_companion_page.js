@@ -277,6 +277,25 @@ ok("vm: the script defines MtgPage without a document (and starts nothing)", P &
     [true, true]);
   same("tip: Update now and Later say what they do", [/installs 2 minutes after the game ends/.test(vo.update.actions[0].tip), vo.update.actions[1].tip.startsWith("Later: no reminder"), vo.update.actions.map((a) => a.icon)], [true, true, ["download", "clock", "search"]]);
   same("vm: down: every update button disabled", P.viewModel(uo, { mode: "down", inflight: {} }).update.actions.every((a) => a.disabled), true);
+  // Revert update (WebUi.UpdateSection's update-revert): enabled with a backup, asks first; greyed out with its why
+  const withRevert = status();
+  withRevert.update = { title: "Updates", line: "Up to date (v2).", status: "up-to-date", current: "v2", available: null, progress: -1, deferred: false, error: null, lastCheck: null,
+    changes: null, revert: { possible: true, target: "v1", from: "v2", why: null, self: false, changes: ["app"], waiting: false },
+    actions: [{ id: "update-check", label: "Check for updates", enabled: true, title: "Not checked yet.", confirm: null, confirmLocked: false },
+      { id: "update-revert", label: "Revert to v1", enabled: true, title: "Goes back to v1 (from v2): puts back the app.", confirm: "Go back to v1?\n\nThis puts back the app as they were before the last update (v2).", confirmLocked: false }] };
+  const vr = P.viewModel(withRevert, none).update.actions[1];
+  same("revert: the button's label, enabled, its icon", [vr.id, vr.label, vr.disabled, vr.icon, vr.kind], ["update-revert", "Revert to v1", false, "untap", "menu"]);
+  same("click: Revert asks first (its confirm), never confirmLocked", P.clickPlan(vr, none), { do: "act", id: "update-revert", confirm: "Go back to v1?\n\nThis puts back the app as they were before the last update (v2).", confirmLocked: false });
+  ok("tip: Revert says what it does, the wait for a game and the skip, and where it goes", vr.tip.startsWith("Revert: goes back to the version before the last update") && /2 minutes after the game ends/.test(vr.tip) && /Check for updates offers it again/.test(vr.tip) && vr.tip.includes("\nGoes back to v1 (from v2)"), vr.tip);
+  const noBackup = status();
+  noBackup.update = { title: "Updates", line: "Up to date (v2).", status: "up-to-date", revert: { possible: false, why: "No earlier version is kept yet: the first update makes one." },
+    actions: [{ id: "update-check", label: "Check for updates", enabled: true, title: "Not checked yet.", confirm: null, confirmLocked: false },
+      { id: "update-revert", label: "Revert update", enabled: false, title: "No earlier version is kept yet: the first update makes one.", confirm: null, confirmLocked: false }] };
+  const vn = P.viewModel(noBackup, none).update.actions[1];
+  same("revert, no backup: disabled", [vn.label, vn.disabled], ["Revert update", true]);
+  same("click: a disabled Revert says why (no backup), sends nothing", P.clickPlan(vn, none), { do: "say", text: "No earlier version is kept yet: the first update makes one.", kind: "warn" });
+  ok("tip: a disabled Revert's 'right now' is its own reason, not 'an update is being checked'", vn.tip.endsWith("\nRight now: No earlier version is kept yet: the first update makes one.") && !vn.tip.includes("being checked, downloaded"), vn.tip);
+  same("vm: an update line that says what changed is shown as sent", P.viewModel(Object.assign(status(), { update: { line: "Update available: v3: changes the table and the app (table, bridge and decks; 2.0 MB to download).", actions: [] } }), none).update.text, "Update available: v3: changes the table and the app (table, bridge and decks; 2.0 MB to download).");
   same("vm: update not an object: no section", [P.updateView("x", { down: false, inflight: {} }), P.updateView(null, { down: false, inflight: {} })], [null, null]);
 }
 
@@ -550,6 +569,37 @@ function boot(body) {
     for (let i = 0; i < 4; i++) await flush();
     same("shell: downloading: the new title and line, Update now gone, Check disabled", [h.$("update-title").textContent, h.$("update-text").textContent, box.children.filter((b) => !b.hidden).map((b) => [b.textContent, b.getAttribute("aria-disabled")])],
       ["Downloading update (40%)", "Downloading app.zip: 40%.", [["Check for updates", "true"]]]);
+  }
+
+  {
+    // Revert update: asks first; declined sends nothing, accepted posts update-revert; greyed out it sends nothing
+    const up = status();
+    up.update = { title: "Updates", line: "Up to date (v2).", status: "up-to-date",
+      actions: [{ id: "update-check", label: "Check for updates", enabled: true, title: "", confirm: null, confirmLocked: false },
+        { id: "update-revert", label: "Revert to v1", enabled: true, title: "Goes back to v1 (from v2).", confirm: "Go back to v1?", confirmLocked: false }] };
+    const h = boot(up);
+    await h.clock.advance(0);
+    const box = h.$("update-actions");
+    same("shell: Revert to v1 beside Check for updates", box.children.map((b) => b.textContent), ["Check for updates", "Revert to v1"]);
+    h.confirmQueue = [false];
+    box.children[1].click();
+    await flush(); await flush();
+    same("shell: Revert declined: asked, nothing sent", [h.confirms[h.confirms.length - 1], h.posts.length], ["Go back to v1?", 0]);
+    h.confirmQueue = [true];
+    box.children[1].click();
+    for (let i = 0; i < 4; i++) await flush();
+    same("shell: Revert accepted: posts update-revert", h.posts.map((p) => p.body.id), ["update-revert"]);
+    const off = status();
+    off.update = { title: "Updates", line: "Up to date (v1).", status: "reverted",
+      actions: [{ id: "update-check", label: "Check for updates", enabled: true, title: "", confirm: null, confirmLocked: false },
+        { id: "update-revert", label: "Revert update", enabled: false, title: "No earlier version is kept yet: the first update makes one.", confirm: null, confirmLocked: false }] };
+    h.body = off;
+    await h.clock.advance(2500);
+    for (let i = 0; i < 4; i++) await flush();
+    same("shell: no backup any more: Revert update greyed out", [box.children[1].textContent, box.children[1].getAttribute("aria-disabled")], ["Revert update", "true"]);
+    box.children[1].click();
+    for (let i = 0; i < 4; i++) await flush();
+    same("shell: a greyed-out Revert sends nothing", h.posts.length, 1);
   }
 
   // ───────────────────────────── table tools (GET/POST /api/tools) ─────────────────────────────
