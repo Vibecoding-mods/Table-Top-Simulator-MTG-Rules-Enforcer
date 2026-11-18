@@ -5,9 +5,12 @@
 // in the game the active team's leader (805.2) chooses; an AI keeps the default. Each mutation switches one piece off,
 // compiles only the edited file over the harness jar, runs TeamChoiceTest and requires the named check to fail; the
 // file is put back and checked by sha256. Needs a patched engine tree with its jar (engine/test-harness-local.sh).
-// (Not mutations: the ActivePlayer reference reading the ability's activator rather than its host's controller, since
-// no check here has those differ; and the early return without shared team turns, since the active team is then one
-// player and nobody would be asked anyway: levelOneHasOneActivePlayer checks the outcome.)
+// (The review fixes, cloud/l2-team-choices-fixes, add a mutation for each piece that had none: a null card read before
+// its early return, teamChoices not transient, choices opened outside shared team turns or by a sub-ability, no
+// finally, a kept or answered player not among the candidates, the ActivePlayer and DomainActivePlayer controller, a
+// team of three, a static cause, and Archenemy's team turns. Not a mutation: the early return in getActivePlayerFor
+// without shared team turns, since the active team is then one player and nobody would be asked anyway:
+// levelOneHasOneActivePlayer checks the outcome.)
 //   node tools/mutate-team-choices.js <engine tree> [label pattern]
 const fs = require("fs");
 const os = require("os");
@@ -20,11 +23,25 @@ const only = process.argv[3] ? new RegExp(process.argv[3], "i") : null;
 const JAR = path.join(TREE, "forge-harness", "target", "forge-harness-jar-with-dependencies.jar");
 const G = "forge/forge-game/src/main/java/forge/game/";
 const PH = G + "phase/PhaseHandler.java", AU = G + "ability/AbilityUtils.java";
+const AD = "forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java";
 const TC = "TeamChoiceTest";
 // [label, file (in the tree), from, to, test class, check that must fail]
 const MUTATIONS = [
+  ["a null card read for its game first", AU, "        if (card == null) {\n            return null;\n        }\n        final Player attacked = combat.getDefendingPlayerRelatedTo(card);\n        final Game game = card.getGame();", "        final Game game = card.getGame();\n        final Player attacked = combat.getDefendingPlayerRelatedTo(card);", TC, "fix aDefendingReferenceWithNoCardIsNull"],
+  ["teamChoices not transient", PH, "    private final transient Map<SpellAbility, Map<String, Player>> teamChoices", "    private final Map<SpellAbility, Map<String, Player>> teamChoices", TC, "fix teamChoicesIsTransient"],
+  ["choices opened in every game", AU, "sa.getParent() == null && ph.isSharedTeamTurns() && ph.beginTeamChoices(sa);", "sa.getParent() == null && ph.beginTeamChoices(sa);", TC, "fix noTeamChoicesOutsideSharedTurns"],
+  ["a sub-ability opens its own choices", AU, "ph != null && sa.getParent() == null && ph.isSharedTeamTurns()", "ph != null && ph.isSharedTeamTurns()", TC, "fix aSubAbilityOpensNoChoicesOfItsOwn"],
+  ["no finally: a failed resolution keeps its choices", AU, "        try {\n            resolveAbility(sa);\n        } finally {\n            if (choices) {\n                ph.endTeamChoices(sa);\n            }\n        }", "        resolveAbility(sa);\n        if (choices) {\n            ph.endTeamChoices(sa);\n        }", TC, "fix aFailedResolutionStillClosesItsChoices"],
+  ["a kept choice kept though no longer offered", PH, "        if (before != null && candidates.contains(before)) {", "        if (before != null) {", TC, "fix aKeptChoiceNoLongerOfferedIsAskedAgain"],
+  ["an answer off the list taken", PH, "            if (answer != null && candidates.contains(answer)) {", "            if (answer != null) {", TC, "fix anAnswerOffTheListKeepsTheDefault"],
+  ["no answer taken as the pick", PH, "            if (answer != null && candidates.contains(answer)) {", "            if (answer == null || candidates.contains(answer)) {", TC, "fix aNullAnswerKeepsTheDefault"],
+  ["ActivePlayer: the host's controller chooses", AU, "            players.add(game.getPhaseHandler().getActivePlayerFor(sa, player));", "            players.add(game.getPhaseHandler().getActivePlayerFor(sa, card.getController()));", TC, "fix theActivePlayerIsTheActivatorsChoice"],
+  ["DomainActivePlayer: the host's controller chooses", AU, "game.getPhaseHandler().getActivePlayerFor(ctb, player) : player;", "game.getPhaseHandler().getActivePlayerFor(ctb, c.getController()) : player;", TC, "fix domainActivePlayerIsTheActivatorsChoice"],
+  ["only two of a team of three offered", PH, "        for (final Player p : getActiveTeam()) {\n            if (p.isInGame()) {\n                team.add(p);", "        for (final Player p : getActiveTeam().subList(0, Math.min(2, getActiveTeam().size()))) {\n            if (p.isInGame()) {\n                team.add(p);", TC, "fix threeHg aTeamOfThreeIsOffered"],
+  ["a static cause asks too", PH, "        if (!(cause instanceof SpellAbility)) {\n            return fallback;\n        }\n", "", TC, "fix aStaticCauseGetsTheDefaultSilently"],
+  ["Archenemy's teamTurns without shared turns", AD, "            rules.setSharedTeamTurns(true);\n            return;", "            return;", TC, "fix archenemy sharedTurnsOnlyWithTeamTurns"],
   ["nobody is asked", PH, "        if (chooser != null && !chooser.getController().isAI()) {", "        if (false) {", TC, "cr805.9 aNonactiveControllerChoosesTheActivePlayer"],
-  ["a resolution never opens its choices", AU, "        final boolean choices = ph != null && sa.getParent() == null && ph.beginTeamChoices(sa);", "        final boolean choices = false;", TC, "cr805.9 aNonactiveControllerChoosesTheActivePlayer"],
+  ["a resolution never opens its choices", AU, "        final boolean choices = ph != null && sa.getParent() == null && ph.isSharedTeamTurns() && ph.beginTeamChoices(sa);", "        final boolean choices = false;", TC, "cr805.9 aNonactiveControllerChoosesTheActivePlayer"],
   ["the whole table offered as the active player", PH, "        for (final Player p : getActiveTeam()) {\n            if (p.isInGame()) {\n                team.add(p);", "        for (final Player p : game.getPlayers()) {\n            if (p.isInGame()) {\n                team.add(p);", TC, "cr805.9 aNonactiveControllerChoosesTheActivePlayer"],
   ["an active controller always names itself (as before)", PH, "        if (!(cause instanceof SpellAbility)) {\n            return fallback;", "        if (cause != null) {\n            return fallback;", TC, "cr805.9 anActiveControllerMayNameThePartner"],
   ["each reference asks again", PH, "        if (before != null && candidates.contains(before)) {", "        if (false) {", TC, "cr805.9 oneAskForEveryReferenceInTheEffect"],
