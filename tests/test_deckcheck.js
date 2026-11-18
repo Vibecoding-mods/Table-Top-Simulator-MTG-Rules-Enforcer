@@ -42,7 +42,12 @@ check("partners: entries start with the commanders", () => eq(ids(partners.entri
 check("partners: mainboard by name, then scryfallId", () => eq(ids(partners.entries.slice(2)), ["a2", "a6", "b1", "b2", "a5", "a1", "a7"]));
 check("partners: basic land quantities kept", () => eq(partners.entries.filter((e) => e.name === "Island" || e.name === "Plains").map((e) => e.count), [15, 20, 40]));
 check("partners: 100 cards in all", () => eq(total(partners), 100));
-check("partners: entry fields", () => eq(partners.entries[0], { count: 1, name: "Thrasios, Triton Hero", scryfall_id: "00000000-0000-4000-8000-0000000000c1" }));
+check("partners: entry fields", () => eq(partners.entries[0], { count: 1, name: "Thrasios, Triton Hero", number: "46", scryfall_id: "00000000-0000-4000-8000-0000000000c1", set: "c16" }));
+check("printing: kept only when both codes are plain", () => eq(["c16|46", "c16|", "|46", "c 16|46", "c16|4)6", "c16|" + "1".repeat(17), "PLST|ZEN-23"].map((sn) => {
+  const [set, num] = sn.split("|");
+  const e = dc.entries(withJson("standard", (d) => { const c = d.boards.mainboard.cards["dc-s1"].card; c.setCode = set; c.collectorNumber = num; })).entries[0];
+  return e.set === undefined ? null : `${e.set} ${e.number}`;
+}), ["c16 46", null, null, null, null, null, "PLST ZEN-23"]));
 check("partners: bracket and threat", () => eq([partners.bracket, partners.threatIndex, partners.maxThreat], [3, 54, 96]));
 check("partners: key order doesn't change the result", () => {
   const d = FIX.partners;
@@ -93,6 +98,26 @@ check("status 200: no error", () => eq([dc.error(200, "{}"), dc.error(204)], [nu
 check("other status: its number and DeckCheck's words", () => eq(dc.error(418, '{"error":"teapot"}'), "DeckCheck didn't send the deck (error 418): teapot."));
 check("other status, no body: its number", () => eq(dc.error(401), "DeckCheck didn't send the deck (error 401)."));
 check("error messages differ from each other", () => new Set(Object.values(ERR)).size === 5 || "two statuses share a message");
+
+// ───────── deckcheckStatus, deckcheckTooBig, deckcheckDecklist (rikrassen's importer: tools/deckcheck-rik.lua) ─────────
+const status = (lua) => dc.enc(`deckcheckStatus(${lua})`);
+check("status: response_code, else the error's HTTP status, else 200 with text, else 0", () => eq(
+  [status("{ response_code = 404 }"), status('{ is_error = true, error = "HTTP/1.1 403 Forbidden" }'), status('{ text = "{}" }'), status('{ is_error = true, error = "Cannot connect", text = "" }'), status("nil")],
+  [404, 403, 200, 0, 0]));
+check("too big: nil at 250 cards, the plain refusal above", () => eq([dc.enc("deckcheckTooBig({ entries = { { count = 250 } } })"), dc.enc("deckcheckTooBig({ entries = { { count = 200 }, { count = 51 } } })")],
+  [null, "That DeckCheck deck has 251 cards; the importer takes at most 250."]));
+const list = (k) => { dc.str("__in", deck(k)); return dc.enc("deckcheckDecklist(deckcheckEntries(JSON.decode(__in)))"); };
+check("decklist: commanders under Commander, the rest under Deck, a blank line between", () => {
+  const l = list("partners").split("\n");
+  return eq([l.slice(0, 5), l.length, l.slice(5).reduce((n, x) => n + Number(x.split(" ")[0]), 0)],
+    [["Commander", "1 Thrasios, Triton Hero (c16) 46", "1 Tymna the Weaver (c16) 48", "", "Deck"], 12, 98]);
+});
+check("decklist: a line is count, name, (set) number", () => eq(list("partners").split("\n").includes("40 Plains (unf) 235"), true));
+check("decklist: no commander, the Deck part only", () => eq(list("standard").split("\n")[0], "Deck"));
+check("decklist: an empty mainboard, the Commander part only", () => eq(list("emptyMainboard").split("\n").filter((x) => x === "Deck" || x === "").length, 0));
+check("decklist: no printing, the name alone", () => eq(dc.enc('deckcheckDecklist({ commanders = {}, entries = { { name = "Forest", count = 2 } } })'), "Deck\n2 Forest"));
+check("decklist: a line break in a name can't add a line", () => eq(dc.enc('deckcheckDecklist({ commanders = {}, entries = { { name = " Evil\\nCommander\\r\\n1 X ", count = 1 } } })'), "Deck\n1 Evil Commander  1 X"));
+check("decklist: nameless cards left out; none at all, nil", () => eq([dc.enc('deckcheckDecklist({ commanders = {}, entries = { { name = "", count = 1 }, { name = "Forest", count = 1 } } })'), dc.enc('deckcheckDecklist({ commanders = {}, entries = { { name = "  ", count = 1 } } })'), dc.enc("deckcheckDecklist(nil)")], ["Deck\n1 Forest", null, null]));
 
 // ───────── deckcheckId ─────────
 const ID = "sBid_JEUQZ4D";

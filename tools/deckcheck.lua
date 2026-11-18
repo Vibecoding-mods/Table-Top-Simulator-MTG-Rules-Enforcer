@@ -57,7 +57,8 @@ function deckcheckId(url)
 end
 
 -- one board's cards (an object keyed by deckCardId, or a list) → entries sorted by name then scryfallId,
--- the same scryfallId merged; cards with no scryfallId or a quantity of 0 are left out
+-- the same scryfallId merged; cards with no scryfallId or a quantity of 0 are left out. An entry also has `set` and
+-- `number` (setCode, collectorNumber) when both are plain codes (letters, digits, _ and -, up to 16 long)
 function deckcheckBoard(boards, key)
   local out = {}
   local board = nil
@@ -75,6 +76,10 @@ function deckcheckBoard(boards, key)
         if have then have.count = have.count + q
         else
           have = { scryfall_id = c.scryfallId, name = type(c.name) == "string" and c.name or "", count = q }
+          if deckcheckIdOk(c.setCode) and deckcheckIdOk(c.collectorNumber) and string.len(c.setCode) <= 16 and string.len(c.collectorNumber) <= 16 then
+            have.set = c.setCode
+            have.number = c.collectorNumber
+          end
           byId[c.scryfallId] = have
           out[#out + 1] = have
         end
@@ -127,6 +132,79 @@ function deckcheckError(status, body)
     why = ": " .. string.sub(body.error, 1, 120)
   end
   return "DeckCheck didn't send the deck (error " .. string.format("%d", math.floor(s)) .. ")" .. why .. "."
+end
+
+-- the HTTP status of a TTS web answer: response_code; else the number after "HTTP/1.1 " in the error ("HTTP/1.1 404
+-- Not Found"); else 200 for an answer with text and no error; else 0 (no answer: a timeout or no connection)
+function deckcheckStatus(wr)
+  if type(wr) ~= "table" then return 0 end
+  local s = tonumber(wr.response_code)
+  if s ~= nil and s > 0 then return math.floor(s) end
+  local e = tostring(wr.error or "")
+  local at = string.find(e, "HTTP/", 1, true)
+  if at ~= nil then
+    local sp = string.find(e, " ", at, true)
+    local n = sp and tonumber(string.sub(e, sp + 1, sp + 3)) or nil
+    if n ~= nil and n >= 100 and n < 600 then return math.floor(n) end
+  end
+  if not wr.is_error and type(wr.text) == "string" and wr.text ~= "" then return 200 end
+  return 0
+end
+
+DECKCHECK_MAX_CARDS = 250 -- (a Commander deck is 100; more is a broken or hostile answer, not a deck to spawn)
+
+-- the plain-words refusal for a deck (deckcheckEntries) of more than DECKCHECK_MAX_CARDS cards, or nil
+function deckcheckTooBig(info)
+  local total = 0
+  for _, e in ipairs(info.entries) do total = total + e.count end
+  if total <= DECKCHECK_MAX_CARDS then return nil end
+  return "That DeckCheck deck has " .. string.format("%d", total) .. " cards; the importer takes at most " .. string.format("%d", DECKCHECK_MAX_CARDS) .. "."
+end
+
+-- one decklist line, MTG Arena style: "4 Lightning Strike (m19) 152", or "4 Lightning Strike" without a printing
+-- (rikrassen's server falls back to the name for a printing it doesn't know). A line break in the name becomes a
+-- space, so a name can't add lines; nil for an entry with no name.
+function deckcheckDecklistLine(e)
+  local raw = type(e.name) == "string" and e.name or ""
+  local parts = {}
+  for i = 1, string.len(raw) do
+    local ch = string.sub(raw, i, i)
+    if ch == "\r" or ch == "\n" or ch == "\t" then ch = " " end
+    parts[#parts + 1] = ch
+  end
+  local name = table.concat(parts)
+  while string.sub(name, 1, 1) == " " do name = string.sub(name, 2) end
+  while string.len(name) > 0 and string.sub(name, -1) == " " do name = string.sub(name, 1, -2) end
+  if name == "" then return nil end
+  local line = string.format("%d", e.count) .. " " .. name
+  if e.set ~= nil and e.number ~= nil then line = line .. " (" .. e.set .. ") " .. e.number end
+  return line
+end
+
+-- a deck (deckcheckEntries) as a plain decklist, MTG Arena style: the commanders under "Commander", the rest under
+-- "Deck", a blank line between; a deck with no commander has the "Deck" part only. nil when no card has a name.
+function deckcheckDecklist(info)
+  if type(info) ~= "table" or type(info.entries) ~= "table" then return nil end
+  local nCommanders = type(info.commanders) == "table" and #info.commanders or 0
+  local commanders, deck = {}, {}
+  for i, e in ipairs(info.entries) do
+    local line = deckcheckDecklistLine(e)
+    if line ~= nil then
+      if i <= nCommanders then commanders[#commanders + 1] = line else deck[#deck + 1] = line end
+    end
+  end
+  local out = {}
+  if #commanders > 0 then
+    out[#out + 1] = "Commander"
+    for _, l in ipairs(commanders) do out[#out + 1] = l end
+  end
+  if #deck > 0 then
+    if #out > 0 then out[#out + 1] = "" end
+    out[#out + 1] = "Deck"
+    for _, l in ipairs(deck) do out[#out + 1] = l end
+  end
+  if #out == 0 then return nil end
+  return table.concat(out, "\n")
 end
 
 -- the GM-notes line for a deck from DeckCheck: "[deckcheck] id=<id> bracket=3 threat=54/96" (missing parts left out)
