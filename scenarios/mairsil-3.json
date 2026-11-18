@@ -1,0 +1,35 @@
+{
+  "label": "Mairsil 3: graveyard: Entomb, Buried Alive, Body Double, Dimir Doppelganger, Lazav, Volrath's Shapeshifter, Animate Dead, Reanimate, Insurrection, Crawlspace",
+  "mana": 25,
+  "keepHand": false,
+  "hand": [
+    "Entomb",
+    "Buried Alive",
+    "Body Double",
+    "Dimir Doppelganger",
+    "Lazav, the Multifarious",
+    "Volrath's Shapeshifter",
+    "Animate Dead",
+    "Reanimate",
+    "Insurrection",
+    "Crawlspace"
+  ],
+  "battlefield": [
+    "Reliquary Tower"
+  ],
+  "graveyard": [
+    "Abyssal Persecutor",
+    "Kiki-Jiki, Mirror Breaker",
+    "Pestermite"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Craw Wurm",
+      "Serra Angel",
+      "Grizzly Bears"
+    ],
+    "graveyard": [
+      "Hill Giant"
+    ]
+  }
+}

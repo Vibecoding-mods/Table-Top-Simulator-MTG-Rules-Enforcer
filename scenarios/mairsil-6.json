@@ -1,0 +1,32 @@
+{
+  "label": "Mairsil 6: spells: Rhystic Study, Helm of the Host, Fact or Fiction, Brainstorm, Ponder, Faithless Looting, Demonic/Diabolic Tutor, Cryptic Command, Chaos Warp, Cyclonic Rift, Deflecting Swat, Long River's Pull, Counterspell",
+  "mana": 25,
+  "keepHand": false,
+  "hand": [
+    "Rhystic Study",
+    "Helm of the Host",
+    "Fact or Fiction",
+    "Brainstorm",
+    "Ponder",
+    "Faithless Looting",
+    "Demonic Tutor",
+    "Diabolic Tutor",
+    "Cryptic Command",
+    "Chaos Warp",
+    "Cyclonic Rift",
+    "Deflecting Swat",
+    "Long River's Pull",
+    "Counterspell"
+  ],
+  "battlefield": [
+    "Reliquary Tower",
+    "Pestermite"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Craw Wurm",
+      "Serra Angel",
+      "Grizzly Bears"
+    ]
+  }
+}

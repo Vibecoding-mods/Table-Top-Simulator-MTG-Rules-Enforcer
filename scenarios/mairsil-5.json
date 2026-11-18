@@ -1,0 +1,30 @@
+{
+  "label": "Mairsil 5: goad: Coercive/Parasitic/Shiny Impetus, Disrupt Decorum, Vow of Flight, The Rani, Red Death, Deadpool, Agitator Ant, Life of the Party, Propaganda, Collective Restraint",
+  "mana": 25,
+  "keepHand": false,
+  "hand": [
+    "Coercive Impetus",
+    "Parasitic Impetus",
+    "Shiny Impetus",
+    "Disrupt Decorum",
+    "Vow of Flight",
+    "The Rani",
+    "Deadpool, Trading Card",
+    "Agitator Ant",
+    "Life of the Party",
+    "Propaganda",
+    "Collective Restraint"
+  ],
+  "battlefield": [
+    "Reliquary Tower",
+    "Red Death, Shipwrecker",
+    "Pestermite"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Craw Wurm",
+      "Serra Angel",
+      "Grizzly Bears"
+    ]
+  }
+}
