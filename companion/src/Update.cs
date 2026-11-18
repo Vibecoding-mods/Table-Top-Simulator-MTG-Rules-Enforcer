@@ -111,7 +111,7 @@ namespace MtgCompanion
         public string Text = "";            // the one line for the window and the tray
         public List<string> Changes;        // what the offered release changes: "table", "app", "engine" (Updates.Changes)
         public RevertInfo Revert;           // what Revert would go back to (the Controller's, after each change of the package)
-        public bool RevertWaiting;          // Revert was pressed during a game: it goes back after the game
+        public bool RevertWaiting;          // Revert was pressed during a game: it goes back after the game (the one place this is kept: Controller.PendingRevert reads it; a check changes Status, never this)
         public UpdateState Copy() { return (UpdateState)MemberwiseClone(); }
 
         // after a check. laterSame: Later was pressed for this same release
