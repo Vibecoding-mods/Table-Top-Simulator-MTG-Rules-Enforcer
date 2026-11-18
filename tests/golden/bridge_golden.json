@@ -949583,5 +949583,32 @@
    ],
    "redFromStart": []
   }
+ },
+ {
+  "name": "life log: 2HG, a team's shared loss is one team line with its cause",
+  "effects": [],
+  "result": {
+   "lines": [
+    "White + AI 1: 30 -> 28 life (-2, Night's Whisper)"
+   ]
+  }
+ },
+ {
+  "name": "life log: 3HG, three partners' shared loss is one line with its cause",
+  "effects": [],
+  "result": {
+   "lines": [
+    "White + AI 1 + Yellow: 45 -> 43 life (-2, Night's Whisper)"
+   ]
+  }
+ },
+ {
+  "name": "life log: free-for-all keeps a line a player",
+  "effects": [],
+  "result": {
+   "lines": [
+    "AI 1: 40 -> 38 life (-2, Night's Whisper)"
+   ]
+  }
  }
 ]
