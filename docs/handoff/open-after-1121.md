@@ -33,7 +33,6 @@ deployed", and each needs `engine/build-images.sh` (and a live check) on the own
 | Engine change (`docs/engine-changes.md`) | Branch |
 |---|---|
 | engine1117 (2HG Level 2, the life house rule) | engine1117, team-block |
-| Team draws / team effects (`engine1117-teamdraws`) | team-draws |
 | Team blocks as one decision | team-block |
 | Three-Headed Giant checks | three-headed-giant |
 | Tie offer | tie-offer |
@@ -68,11 +67,6 @@ Also waiting on images:
 building the JSON.
 
 **Two-Headed Giant:**
-- **Team draws (team-draws):**
-  - optional effects ("you may draw", optional scry or surveil) ask the partner on their own;
-  - Investigate, Amass and other effects with their own class, and energy not from `PutCounter`, aren't shared;
-  - with Team draws on, every `Dig` of a library is shared (Blightwing Bandit's too);
-  - HOW-TO-PLAY and `docs/game-modes-spec.md` don't describe the two house rules.
 - **Team blocks (team-block):**
   - teams of three or more aren't tested for the re-ask order;
   - the change notices use the acknowledged `revealCards` notice, so the bridge should print them rather than wait for

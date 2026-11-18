@@ -37,8 +37,15 @@ five minutes:
 
 ### Optional: Own server (the engine on another computer)
 
-The MTG Companion for Linux and macOS (`start.sh`, or "MTG Companion.command") can use an engine (the relay and the Forge room) that
-runs on a server of yours, instead of starting one on this computer. TTS and the bridge still run here.
+The MTG Companion can use an engine (the relay and the Forge room) that runs on a server of yours, instead of starting
+one on this computer. TTS and the bridge still run here.
+
+Step 1 below sets up the server, whichever computer you play on. Then:
+
+- **On Windows:** in the companion's page, the **Own server: use the host's engine** box takes the server's address
+  (**Server**), its **Key** and, behind TLS, **Secure (wss://)**. Press **Use this server**; **Use this computer** goes
+  back to the engine here. A friend can use the host's engine this way, with the host's server key.
+- **On Linux and macOS** (`start.sh`, or "MTG Companion.command"): a file, `server.json` (step 2 and after).
 
 1. On the server (Ubuntu or Debian): `sudo bash tools/setup-server.sh`. It runs the relay and a Forge room in Docker, binds
    the relay to your Tailscale address if there is one (else to the server itself: `--bind <ip>` or `--public` change that;
@@ -105,12 +112,17 @@ anyone into your server's games.
    READY? names the cards wearing your picture, and any link it could not use (that card shows its normal picture).
    Only the picture changes: the name, rules and hover text stay the real card's. Everyone at the table downloads your
    picture from that site, so it must open for everyone, not only you. The host can switch custom art off for everyone
-   with `mtg art off` (`mtg art on` brings it back). For now a double-faced card's back and the tokens the game makes
-   keep their normal pictures.
+   with `mtg art off` (`mtg art on` brings it back). A double-faced card imported with both faces shows the deck's
+   picture for its back too. For your tokens and backs: `mtg art token <token name> <link>` (every token of that name
+   you make), `mtg art back <card> <link>` (your two-faced card's back); `mtg art token clear` / `mtg art back clear`
+   take them off. Your pictures follow you (your Steam account), not the seat colour.
 5. When everyone is ready, anyone seated presses **Start** on the middle tile.
-   - Against the computer: `mtg start ai 1` (up to 3 AI players); `mtg aideck <deck>` (host) picks their deck.
+   - Against the computer: `mtg start ai 1` (up to 3 AI players; up to 5 on the six-seat table); `mtg aideck <deck>`
+     (host) picks their deck.
    - **Turn order goes clockwise round the table: White → Red → Yellow → Blue.** A dice roll picks who goes first;
-     the next turn is always the seat clockwise of them. AI players take the empty seats.
+     the next turn is always the seat clockwise of them. AI players take the empty seats. Some games pick the first
+     player instead: in Treachery the Leader goes first, in Archenemy the archenemy, in Juggernaut the Juggernaut, and
+     in a best-of-three match game 1's roll (see "Best of three" below).
 
 ## Your turn, Arena style
 
@@ -141,8 +153,11 @@ anyone into your server's games.
 - **Block:** click your glowing creature, then the attacker. Done.
 - **Tokens:** up to four identical tokens lie side by side; from five they stack as one card with an "xN" label.
   Clicking a stack to attack sends the whole stack (a life counter then aims all of them). To use only some of them,
-  or to block or target one, press **Split** in the grey box beside the stack: the tokens lie out one by one until
-  the question is answered.
+  or to block or target one, press **Split the N to pick one by one** (on the stack and on your screen): the tokens
+  lie out one by one until the question is answered. Tokens are "identical" when they have the same name, controller,
+  tapped or not, power and toughness, damage, counters and keywords, with nothing attached. **Treasure** (and Clues,
+  Food...) stack the same way; paying a cost spends your lands and other mana sources before any Treasure. A stack
+  of infinitely many tokens reads **x∞** (the engine keeps 500 real ones).
 - **Targets:** click the glowing card or player.
 - **Exact picks** ("which one stays?", "discard 1"): click the glowing card(s); the last one you need answers. The
   orange button counts them ("1 of 1 chosen") instead of offering Done.
@@ -156,14 +171,28 @@ anyone into your server's games.
 - **Equip:** drag the equipment onto your creature (or use its Equip button). It works when equipping is legal (your
   main phase, empty stack, mana available); otherwise the table says why.
 - **Copies:** a permanent that copies another (Phantasmal Image as your commander) has a purple **COPY** label.
+- **Cost badges:** when a card would cost something other than what is printed (a cost reducer, a tax, the commander
+  tax), a small box over its generic mana shows the new generic amount (**3**, not "+1"), with a thin rim under it:
+  **green** cheaper, **red** dearer. A change to a coloured symbol is a chip beside the cost, such as **-G** or **+BB**.
+  Badges show in your hand, your command zone and the row of cards you may play from elsewhere, never on the
+  battlefield and never on a face-down card. Hover the card for the words: "Costs {2}{R} now by flashback (printed
+  {R})". A split or adventure card has no badge; its hover gives each half ("Stomp: costs {2}{R} now (printed
+  {1}{R})"), and a card in the row lists "Other ways to cast it" too. A foretold card shows its foretell cost in its
+  hover. A card from your graveyard says **FROM GRAVEYARD** across its picture.
+- **Battles:** a battle sits on its controller's battlefield with its defense counters as the number in its corner.
+  When one enters, its controller picks which opponent protects it. Attack it like a player: click it as the attack's
+  target. Its protector's creatures are the only ones that can block for it, and the protector can't attack it.
+  Every 1 damage takes off a defense counter; at 0 it is defeated, and its controller may cast its back face free.
+  Hover it for the details.
 - **Draws and mills wait for you:** click your library (or the table's Draw button) to take the card. With **Auto**
   on (the default) a draw goes by itself after 2 s and a milled card flies straight to your graveyard.
 - **Cards you may play from exile or your graveyard** (flashback, foretell, Tibalt, adventure...) sit in a glowing
   row on the near strip of your own mat (below your lands); private ones (foretold) are in the small second hand zone. Drag one onto the battlefield to
   play it.
 - **Cards exiled by a permanent** (Banishing Light, O-Ring...) lie half-size under that permanent.
-- **Your own face-down cards** (a hideaway card under Mosswort Bridge, a morph): point at the card, or at the land
-  it lies under, and its face shows on your screen, left of the ability box. Only you see it.
+- **Your own face-down cards** (a hideaway card under Mosswort Bridge, a morph, a foretold card): point at the card,
+  or at the land it lies under, and its face shows on your screen, left of the ability box ("Face down under Mosswort
+  Bridge, only you see it"). Only you see it; everyone else sees "Face-down card".
 - **Discarding most of your hand** (cleanup with a huge hand, "discard 2" with 3 cards): the table asks which cards
   to **keep** instead; the rest are discarded. Dragging a card onto your graveyard still discards that card.
 - **The same yes/no several times** (Smothering Tithe's "Pay {2}?" for each card you draw, Rhystic Study's for each
@@ -184,7 +213,18 @@ anyone into your server's games.
   step changes. **Stop** on your panel (or `mtg stop`) turns it off at once and asks your next priority, so you can
   still respond and stop the loop.
 - **Long lists** (a creature type, a big search): the last button says **More...** and shows the next page; the
-  search box narrows the list.
+  search box narrows the list. A question that lets you pick any number of cards offers **All (N)** and **None**.
+  Scrying or surveilling more than 5 cards offers **All on top**, **All on the bottom** or **All into the graveyard**.
+- **Big turns:**
+  - copies of a spell (Storm, Thousand-Year Storm) ask once: "N copies of Grapeshot: keep their targets?", with
+    **Keep targets for all ×N** or **Choose each**;
+  - identical triggers show once, with "×N";
+  - a hand of more than 40 cards shows the first 40, and a "+N more in hand" card beside your library opens the rest
+    in the Engine panel;
+  - an attack tax (Ghostly Prison) asks once for all your attackers: **Pay {2} for all 3**, **Don't attack Blue**, or
+    **Back**;
+  - when a turn passes the engine's limit (a loop with no way to stop it), the table asks **Keep going** or **End in
+    a draw**; `mtg stop` stops a long run of triggers resolving by itself.
 - **Cancel a cost:** while you choose what to sacrifice, discard, exile or tap to pay for something, **Cancel** (the
   second button, bottom right) takes the spell or ability back. The card returns to your hand and the lands you
   tapped for it untap.
@@ -229,7 +269,19 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 
 ## When something goes wrong
 
-- **Undo...** (bottom right): rewind to an earlier point; the other players vote. Once everyone agrees it happens at once; if someone still has a question open, a **Rewind to ...** button appears for everyone, and pressing it goes back without answering the question.
+- **Undo...** (bottom right): **Rewind to...** lists the newest 12 points (upkeep, main phase, attacks and second
+  main phase of each turn, such as "turn 4, Blue's attacks"). Pick one; the others vote in a pop-up (**Rewind** /
+  **Keep playing**, or `mtg vote yes` / `mtg vote no`), and you can take it back with Keep playing. Once everyone
+  agrees it happens at once; if someone still has a question open, a **Rewind to ...** button appears for everyone, and
+  pressing it goes back without answering the question. Undo is off in Archenemy games ("the schemes in play can't be
+  rewound yet").
+- **A game that can't end:** when a player can't lose (Platinum Angel, "can't lose life", all damage to them
+  prevented), a pop-up offers a tie: "<who> can't lose the game: the game may never end. A tie is offered." Each
+  seated player presses **Tie** or **Keep playing** (or `mtg tie yes` / `mtg tie no`); AI players accept. If everyone
+  accepts, the game is a draw. If someone keeps playing and nothing changes for 3 full rounds (no life lost, no poison
+  or commander damage, no permanent leaving the battlefield, no card milled, nobody losing), the game ends in a forced
+  tie, with a warning each round. A forced tie gives everyone the **Stalemate** accomplishment (`mtg accomplishments`
+  lists yours).
 - A **phased-out** permanent stays where it was, dimmed, with PHASED OUT in its status box. It counts as not there until it phases in at its controller's next untap step, with its counters and attachments.
 - **Fix...** (bottom right): pause the game and put the board right by hand (the engine got a rule wrong, or the
   mistake is too old to rewind). The others vote first, then:
@@ -244,6 +296,60 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 - **Scoop** (top, beside your name): concede the game.
 - **Dropped out?** The game keeps your seat and cards. Rejoin TTS and sit at your colour: your screen says **Rejoining: the table is updating for you...** while your hand and board are drawn again, then **You're back in** (the same after an engine reconnect, a bridge restart, or an Undo to before you conceded). If it says **Couldn't rejoin**, the chat says what to do; `mtg refresh` draws your own view again.
 
+## Best of three (Standard, one against one)
+
+- The host types `mtg mode standard`, then `mtg match bo3` (`mtg match bo1` goes back to single games). Two seats play,
+  one may be an AI.
+- **Game 1:** a roll for who goes first, two d20, shown on everyone's screen ("BLUE WINS THE ROLL (14–7)"). The roll's
+  winner goes first. (Letting the winner choose play or draw is coming.)
+- **After each game:** the loser is asked **Play**, **Draw** or **Concede match** for the next game (after a drawn game,
+  the same player as before). An AI that lost plays first.
+- **Sideboarding:** a player whose deck came with a sideboard is asked **Keep deck**, **Swap cards** (take cards out,
+  then bring sideboard cards in; the main deck keeps 60 or more, the sideboard at most 15) or **Reset to registered**.
+  Only you see what you swapped; the others see "Blue is done sideboarding for game 2". The next game waits until every
+  player is done. For now a deck imported on the table has no sideboard (the Card Importer keeps it in the Notebook),
+  so only a deck loaded with its sideboard is asked.
+- **The score:** "MATCH 1–0" and "GAME 2" under each life total, "GAME 2 OF 3" on the bar at the top, and a line in the
+  chat and the log after each game. The first to win 2 games wins the match ("MATCH WON"); a drawn game counts for
+  neither, and the match ends after at most 5 games.
+- **Giving up the match:** `mtg match concede` twice within 15 s, or **Concede match** between games. Conceding a game
+  (`mtg concede`, Scoop) is not conceding the match. `mtg match` says the score.
+
+## Team games
+
+- **Two-Headed Giant** (`mtg mode 2hg`, Commander): see the table below for the rules. The official Two-Headed Giant
+  rules apply, with one house rule: your partner gaining or losing life counts as you gaining or losing it.
+  - **Blocking together:** when your team is attacked, each partner gets a **Block with <partner>** panel. It shows
+    the team's block so far, one line per attacker (the other players' names in their seat colours). Press **Agree**
+    to keep your blocks, or change them (your creature, then the attacker it blocks) and press **Done**. When your
+    partner changes the blocks you are asked again ("Yellow changed the blocks. Agree or change?"), and the chat says
+    what changed ("Yellow: Wall of Wood now blocks Hill Giant."). After four rounds of changes the team leader's
+    blocks stand, and the chat says "<leader> decides (team leader)". Running out of time counts as Agree.
+  - **One turn for each team:** `mtg 2hg turns shared` (host) makes it one turn for the team: both partners untap,
+    draw, attack and block together, and the team leader orders the team's triggers. `mtg 2hg turns own` goes back
+    (the default: each player takes their own turn, the team's back to back). Not yet tried with several people.
+- **Three-Headed Giant** (`mtg mode 3hg`, on the six-seat table): each side of the table is a team of three, White +
+  Red + Yellow against Green + Blue + Purple. A team shares life (120 in Commander, 45 in Standard), poison (20 loses)
+  and losing, blocks together and sees each other's hands; each player takes their own turn, the team's back to back.
+  Hover a life counter for "Team life: ...". On the six-seat table the Teams button also offers 3HG. The six-seat
+  table save ("MTG 6 player table - ENGINE MODE", with its own commander-damage trackers) is coming; until then
+  Three-Headed Giant can't start ("Three-Headed Giant is played on the six-seat table").
+
+## Archenemy
+
+- The host types `mtg archenemy <colour>` (a player or an AI), or presses the **Archenemy** button on the setup tile
+  (Off, then each colour). `mtg archenemy off` ends it. The archenemy plays against everyone else as one team.
+- **The scheme deck:** `mtg schemes random` (20 at random) or `mtg schemes <name>; <name>; ...` (20 or more, at most 2
+  of each; "2 <name>" for two).
+- **The game:** the archenemy has 80 life in Commander (40 in Standard) and goes first; the others have their usual
+  life and their own turns. At each of the archenemy's first main phases the top scheme is set in motion: a banner on
+  every screen ("SET IN MOTION: <scheme>"), the scheme face up beside the archenemy's mat, ongoing schemes in a row
+  beside it, and the scheme deck face down ("ARCHENEMY, 20 SCHEMES"; hover it for how many are left). The bar at the top
+  says "(ARCHENEMY)" on their turns. The archenemy wins when all the others have lost; they win together when the
+  archenemy loses.
+- Undo is off in Archenemy games. For now Archenemy is played on the four-player table; Archenemy on the six-seat table
+  is coming.
+
 ## Chat commands
 
 | Command | What it does |
@@ -252,10 +358,17 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 | `mtg ready` | the same as the READY? button |
 | `mtg clear deck` | removes your own deck and commander from your seat (when your Delete key does nothing on them); not during a game |
 | `mtg friendly 0\|1\|2` | free mulligans each, for everyone, the same as the Free mulligans button |
-| `mtg mode 2hg` / `mtg mode ffa` | host: the next games are Two-Headed Giant (White + Red against Yellow + Blue) or free-for-all again. Partners share one life total (80 a team), poison (15 loses) and a commander's damage (42 loses), lose together and see each other's hands. Each player takes their own turn, the team's two turns back to back. Blocking is one team decision: each partner sets their own blockers, sees the team's block line by line, and clicks Agree or changes it; after four changes the team leader's blocks stand. `mtg 2hg turns shared` (host, not yet tried live) makes it one turn for each team: both partners untap, draw, attack and block together, and the team leader (White, or Yellow) puts the team's triggers in order; `mtg 2hg turns own` goes back. House rule (not the official rules): your partner gaining or losing life counts as you gaining or losing it, so your Ajani's Pridemate grows when your partner gains life and "if you gained life this turn" counts their gains (each gain still triggers each card once). All four seats play (Forge AI players fill the empty ones). Commander only |
-| `mtg mode 2v2` | host, Standard only (`mtg mode standard` first): 2v2, White + Red against Yellow + Blue, with Standard decks. Each player keeps their own life (20) and turn, no commander; teammates can't attack each other; a team wins when both its opponents have lost. All four seats play. The Teams button on the setup tile offers only the game mode's own: None, 2HG, Juggernaut in Commander; None, 2v2 in Standard. Switching the Game mode sets Teams back to None (said in chat) when the new mode doesn't play it |
+| `mtg mode 2hg` / `mtg mode ffa` | host: the next games are Two-Headed Giant (White + Red against Yellow + Blue) or free-for-all again. Partners share one life total (80 a team), poison (15 loses) and a commander's damage (42 loses), lose together and see each other's hands. Each player takes their own turn, the team's two turns back to back. Blocking is one team decision (the **Block with <partner>** panel, see "Team games" above): each partner sets their own blockers, sees the team's block line by line, and clicks Agree or changes it; after four changes the team leader's blocks stand ("<leader> decides (team leader)"). `mtg 2hg turns shared` (host, not yet tried live) makes it one turn for each team: both partners untap, draw, attack and block together, and the team leader (White, or Yellow) puts the team's triggers in order; `mtg 2hg turns own` goes back. House rule (not the official rules): your partner gaining or losing life counts as you gaining or losing it, so your Ajani's Pridemate grows when your partner gains life and "if you gained life this turn" counts their gains (each gain still triggers each card once). All four seats play (Forge AI players fill the empty ones). Commander only |
+| `mtg mode 2v2` | host, Standard only (`mtg mode standard` first): 2v2, White + Red against Yellow + Blue, with Standard decks. Each player keeps their own life (20) and turn, no commander; teammates can't attack each other; a team wins when both its opponents have lost. All four seats play. The Teams button on the setup tile offers only the game mode's own: None, 2HG, Juggernaut in Commander; None, 2v2 in Standard; on the six-seat table 3HG as well. Switching the Game mode sets Teams back to None (said in chat) when the new mode doesn't play it |
 | `mtg mode juggernaut` | host: Juggernaut, one player (White unless changed) against the other three. Commander only. The Juggernaut starts with 80 life, 10 cards, draws one extra card each draw step and goes first; it wins when all three have lost, and the three win together when it loses. All four seats play |
 | `mtg juggernaut ...` | host: the Juggernaut's settings: `mtg juggernaut <colour>` (who), `life <n>` or `life auto`, `hand <n>`, `draw <n>` (extra cards), `land <n>` (extra land plays), `cmd 21` or `cmd 42` (commander damage that knocks it out), `order first` or `order after` (a turn after every challenger's); `mtg juggernaut` alone says the settings |
+| `mtg mode 3hg` | host, on the six-seat table: Three-Headed Giant, each side of the table a team of three (see "Team games"). Commander or Standard |
+| `mtg match bo3` / `bo1` / `concede`, `mtg match` | host: best of three in Standard 1v1, or single games again; anyone: give up the match (twice within 15 s), or the score (see "Best of three") |
+| `mtg archenemy <colour>` / `off`, `mtg schemes random` / `mtg schemes <name>; <name>` | host: Archenemy in the next games, and the scheme deck (see "Archenemy") |
+| `mtg treachery on\|off\|leader <colour>` | host: in Treachery the Leader goes first (found from the table's identity cards, or the colour named); off leaves it to the engine's own pick |
+| `mtg winner <colour>` | host, Treachery: name the winner |
+| `mtg tie yes` / `mtg tie no` | answer a tie offer (a player who can't lose), the same as the pop-up's Tie / Keep playing |
+| `mtg accomplishments` | your accomplishments (a forced tie earns Stalemate) |
 | `mtg team <colour> 1\|2` | host, after `mtg mode 2hg` or `mtg mode 2v2`: move a seat to team 1 or 2 (in Two-Headed Giant partners must sit next to each other in turn order; 2v2 takes any 2 + 2) |
 | `mtg engine on` / `off` | anyone seated: the rules engine on or off |
 | `mtg start [ai N]` | anyone seated: start (optionally with N Forge AI players) |
@@ -264,13 +377,15 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 | `mtg hold` / `mtg hold off` | keep priority once after something goes on the stack, to respond to your own trigger or with an ability (or press Hold); over your own spell you are asked anyway when you hold a spell to cast |
 | `mtg skip <phase>` / `mtg skip off` | the Auto-resolve list's "Until" choices, typed: upkeep, draw, main, combat, blockers, damage, main2, end, mine |
 | `mtg timer [seconds]` / `mtg timer off` | turn timers for everyone (host) |
+| `mtg art token <token name> <link>`, `mtg art back <card> <link>`, `mtg art token clear` / `mtg art back clear` | your own picture for your tokens of that name, or for your two-faced card's back |
 | `mtg art off` / `mtg art on` | host: everyone sees the normal card pictures / the pictures players linked in their deck lists (`1 Sol Ring #https://...`) |
 | `mtg fix` (`yes` / `no` / `done` / `cancel`) | the manual fix, as the Fix... button |
-| `mtg concede` | leave the game (twice within 15 s); in Two-Headed Giant it concedes for your whole team (in 2v2 and Juggernaut only for you) |
+| `mtg concede` | leave the game (twice within 15 s); in Two-Headed Giant and Three-Headed Giant it concedes for your whole team (in 2v2 and Juggernaut only for you). In best of three it concedes the game, not the match |
 | `mtg effects on/off`, `mtg sounds on/off` | your own effects and sounds |
 | `mtg sounds test <kind> [N]` | host: play one table sound now, with N the one for N at once (death 5 plays the 4-stack); kinds: knockout, wipe, death, exile, damage, lifegain, instant, counter (counter and knockout have no sound yet) |
 | `mtg mana 99` | (testing) a manual fix in one line: 99 of each mana until the end of the turn |
 | `mtg debug <scenario>` / `list` / `off` | (testing) a test board from `scenarios/<name>.json`: 20 lands out (the commander's colours, or the lands the file names) and the scenario's cards in hand, plus anything it puts in other zones for you or the opponents. Typed before a game, it is set up at your first priority on your own turn (your opening hand is kept by itself); during one, at the next moment with nothing on the stack. Other players vote as for any fix |
+| `mtg hand <card>, <card> ...` / `mtg hand off` / `mtg hand` | (testing, with the host's debug tools on, against the AI only) your next game's starting cards, up to 7, the rest dealt from your deck; also the companion's **Starting hand** (Table tools → Debug tools). The engine deals the opening hand itself, so the picked cards are swapped in at your first priority in turn 1 and the dealt hand is kept by itself. (Getting them at the keep-or-mulligan question is coming) |
 | `mtg gif <words>` / `mtg gif off` / `mtg gif help` | your GIF frame: the first match for the words / empty it / the GIF commands |
 | `mtg gifs hide` / `show` | every GIF frame hidden or shown on your screen only |
 | `mtg gifs still` / `video` | every GIF frame's still picture instead of the moving GIF, on your screen only (for a GIF that is a white square for you) |
