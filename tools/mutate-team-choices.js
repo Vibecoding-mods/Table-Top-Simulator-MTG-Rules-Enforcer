@@ -1,5 +1,6 @@
 // Break-it for the 2HG team choices (engine1127-teamchoices: forge-harness TeamChoiceTest): with shared team turns
-// "the active player" (CR 805.9) and, with no attacking creature named, "defending player" (CR 805.10e) are one player
+// "the active player" (CR 805.9) and, with no creature named, "attacking player" (CR 805.10c) and "defending player"
+// (CR 805.10e) are one player
 // the controller of the spell or ability chooses as its effect is applied, asked once a resolution; with no controller
 // in the game the active team's leader (805.2) chooses; an AI keeps the default. Each mutation switches one piece off,
 // compiles only the edited file over the harness jar, runs TeamChoiceTest and requires the named check to fail; the
@@ -37,6 +38,11 @@ const MUTATIONS = [
   ["an attacker's own defender ignored", AU, "        final Player attacked = combat.getDefendingPlayerRelatedTo(card);", "        final Player attacked = null;", TC, "cr805.10e anAttackingCreatureNamesItsDefender"],
   ["the defending default not the team's leader", AU, "                game.getPhaseHandler().getPrimaryPlayer(defenders.get(0)),", "                defenders.get(defenders.size() - 1),", TC, "cr805.10e anAiControllerKeepsTheDefendingLeader"],
   ["a player out of the game offered", AU, "            if (p.isInGame() && !game.getPhaseHandler().isPlayerTurn(p)) {", "            if (!game.getPhaseHandler().isPlayerTurn(p)) {", TC, "cr805.10e aLoneDefenderIsNotAsked"],
+  ["no attacking choice (as before)", AU, "        if (card == null || !combat.isSharedTeamAttack() || !(sa instanceof SpellAbility)) {", "        if (true) {", TC, "cr805.10c aControllerChoosesTheAttackingPlayer"],
+  ["the attacking notice reads as the defending one", PH, "\"attacking\".equals(kind)\n                    ? \" as the attacking player (rule 805.10c)\"", "false\n                    ? \" as the attacking player (rule 805.10c)\"", TC, "cr805.10c aControllerChoosesTheAttackingPlayer"],
+  ["an attacker's own controller ignored", AU, "            if (combat.isAttacking(card)) {\n                return combat.getAttackingPlayerOf(card);\n            }\n", "", TC, "cr805.10c anAttackingCreatureNamesItsController"],
+  ["the attacking default not the first seat", AU, "                combat.getAttackingPlayer(), \"Choose the attacking player", "                attackers.get(attackers.size() - 1), \"Choose the attacking player", TC, "cr805.10c anAiControllerKeepsTheAttackingFirstSeat"],
+  ["a player out of the game offered as an attacker", AU, "        for (final Player p : combat.getAttackingPlayers()) {\n            if (p.isInGame()) {", "        for (final Player p : combat.getAttackingPlayers()) {\n            if (true) {", TC, "cr805.10c aLoneAttackerIsNotAsked"],
   ["with no controller nobody decides", PH, "        final Player chooser = controller != null && controller.isInGame() ? controller : getPrimaryPlayer(playerTurn);", "        final Player chooser = controller != null && controller.isInGame() ? controller : null;", TC, "cr805.2 withNoControllerTheTeamLeaderDecides"],
 ];
 

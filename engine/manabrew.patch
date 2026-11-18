@@ -23650,10 +23650,10 @@ index 0000000..9ebf250
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/TeamChoiceTest.java b/forge-harness/src/test/java/forge/harness/host/TeamChoiceTest.java
 new file mode 100644
-index 0000000..5bbc96f
+index 0000000..914fa5d
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/TeamChoiceTest.java
-@@ -0,0 +1,467 @@
+@@ -0,0 +1,526 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonElement;
@@ -23726,6 +23726,10 @@ index 0000000..5bbc96f
 +        CHECKS.put("cr805.10e anAttackingCreatureNamesItsDefender", TeamChoiceTest::anAttackingCreatureNamesItsDefender);
 +        CHECKS.put("cr805.10e anAiControllerKeepsTheDefendingLeader", TeamChoiceTest::anAiControllerKeepsTheDefendingLeader);
 +        CHECKS.put("cr805.10e aLoneDefenderIsNotAsked", TeamChoiceTest::aLoneDefenderIsNotAsked);
++        CHECKS.put("cr805.10c aControllerChoosesTheAttackingPlayer", TeamChoiceTest::aControllerChoosesTheAttackingPlayer);
++        CHECKS.put("cr805.10c anAttackingCreatureNamesItsController", TeamChoiceTest::anAttackingCreatureNamesItsController);
++        CHECKS.put("cr805.10c anAiControllerKeepsTheAttackingFirstSeat", TeamChoiceTest::anAiControllerKeepsTheAttackingFirstSeat);
++        CHECKS.put("cr805.10c aLoneAttackerIsNotAsked", TeamChoiceTest::aLoneAttackerIsNotAsked);
 +        CHECKS.put("cr805.2 withNoControllerTheTeamLeaderDecides", TeamChoiceTest::withNoControllerTheTeamLeaderDecides);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
 +            if (only.isEmpty() || only.contains(e.getKey()) || only.contains(e.getKey().split(" ")[1])) {
@@ -23911,6 +23915,61 @@ index 0000000..5bbc96f
 +        final Map<Player, Integer> before = handSizes(f);
 +        withoutPrompts(f, "a lone defender", () -> AbilityUtils.resolve(ability("DB$ Draw | Defined$ DefendingPlayer | NumCards$ 1", host, f.white)));
 +        expect(growth(f, before).get(f.yellow) == 1, "with Blue gone the defending player was not Yellow: " + growth(f, before));
++    }
++
++    private static void aControllerChoosesTheAttackingPlayer() throws Exception {
++        final Fixture f = new Fixture(true, "Yellow");
++        final List<String> told = recordNotes(f);
++        final Card bears = creature("Grizzly Bears", f.white);
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        combatOf(f, f.white).addAttacker(bears, f.yellow);
++        final Map<Player, Integer> before = handSizes(f);
++        final List<Ask> asks = resolveAnswering(f, ability("DB$ Draw | Defined$ AttackingPlayer | NumCards$ 1", host, f.yellow), "Red");
++        expect(asks.size() == 1 && asks.get(0).labels.equals(List.of("White", "Red")),
++                "Yellow was asked " + asks + ", not once between the attacking players White and Red (rule 805.10c)");
++        expect(asks.get(0).title.equals("Choose the attacking player for Obeka, Brute Chronologist (rule 805.10c)"), "the question read " + asks.get(0).title);
++        final Map<Player, Integer> drawn = growth(f, before);
++        expect(drawn.get(f.red) == 1 && drawn.get(f.white) == 0,
++                "\"attacking player draws\" with Red chosen drew " + drawn + " (rule 805.10c)");
++        final String note = "Yellow chooses Red as the attacking player (rule 805.10c)";
++        expect(told.contains("White: " + note) && told.contains("Red: " + note) && told.contains("Blue: " + note),
++                "the other players were not each told the attacking choice: " + told);
++    }
++
++    private static void anAttackingCreatureNamesItsController() throws Exception {
++        final Fixture f = new Fixture(true, "Red");
++        final Card bears = creature("Grizzly Bears", f.red);
++        combatOf(f, f.white).addAttacker(bears, f.yellow);
++        final Map<Player, Integer> before = handSizes(f);
++        withoutPrompts(f, "an attacker's attacking player", () -> AbilityUtils.resolve(ability("DB$ Draw | Defined$ AttackingPlayer | NumCards$ 1", bears, f.red)));
++        expect(growth(f, before).get(f.red) == 1, "Red's attacking Bears did not name Red: " + growth(f, before) + " (rule 805.10c)");
++    }
++
++    private static void anAiControllerKeepsTheAttackingFirstSeat() throws Exception {
++        final Fixture f = new Fixture(true);
++        final Card bears = creature("Grizzly Bears", f.red);
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        combatOf(f, f.white).addAttacker(bears, f.yellow);
++        final Map<Player, Integer> before = handSizes(f);
++        withoutPrompts(f, "an AI's attacking player", () -> AbilityUtils.resolve(ability("DB$ Draw | Defined$ AttackingPlayer | NumCards$ 1", host, f.yellow)));
++        final Map<Player, Integer> drawn = growth(f, before);
++        expect(drawn.get(f.white) == 1 && drawn.get(f.red) == 0, "the AI's attacking player drew " + drawn + ", not White, the first seat");
++    }
++
++    private static void aLoneAttackerIsNotAsked() throws Exception {
++        final Fixture f = new Fixture(true, "Yellow");
++        final Card bears = creature("Grizzly Bears", f.red);
++        final Card host = add("Obeka, Brute Chronologist", f.yellow, ZoneType.Battlefield);
++        combatOf(f, f.white).addAttacker(bears, f.yellow);
++        f.lock.lock();
++        try {
++            f.white.concede();
++        } finally {
++            f.lock.unlock();
++        }
++        final Map<Player, Integer> before = handSizes(f);
++        withoutPrompts(f, "a lone attacker", () -> AbilityUtils.resolve(ability("DB$ Draw | Defined$ AttackingPlayer | NumCards$ 1", host, f.yellow)));
++        expect(growth(f, before).get(f.red) == 1, "with White gone the attacking player was not Red: " + growth(f, before));
 +    }
 +
 +    private static void withNoControllerTheTeamLeaderDecides() throws Exception {
