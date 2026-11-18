@@ -29,12 +29,18 @@ const ok = (name, cond, why) => { if (cond) passed++; else { failed++; process.s
 const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringify(want), `got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
 const handOf = (gv) => (gv.zones || []).find((z) => z.zone === "hand" && z.ownerId === "player-0") || { cards: [], count: 0 };
 
-function bridge(h) {
-  const seat = new h.B.Seat("Blue", "neheb_minotaur_commander");
+// (t2: the Two-Headed Giant table of tools/check-scenarios.js: White, the host, and Red against Yellow and Blue)
+const T2GAME = { playerOrder: ["White", "Red", "Yellow", "Blue"], bots: 3, total: 4,
+  slotNames: { "player-0": "White", "player-1": "AI 1", "player-2": "AI 2", "player-3": "AI 3" }, slotColor: { "player-0": "White", "player-1": "Red", "player-2": "Yellow", "player-3": "Blue" },
+  teams: { White: 1, Red: 1, Yellow: 2, Blue: 2 }, teamMode: "2hg", teamTurns: "shared" };
+let HOST = "Blue";
+function bridge(h, t2 = false) {
+  HOST = t2 ? "White" : "Blue";
+  const seat = new h.B.Seat(HOST, "neheb_minotaur_commander");
   seat.slot = "player-0";
   seat.heartbeat = () => {};
-  h.B._setGame({ seats: new Map([["Blue", seat]]), bots: 1, total: 2, playerOrder: ["Blue", "AI"], slotNames: { "player-0": "Blue", "player-1": "AI 1" },
-    slotColor: { "player-0": "Blue", "player-1": "White" }, started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
+  h.B._setGame({ seats: new Map([[HOST, seat]]), bots: 1, total: 2, playerOrder: ["Blue", "AI"], slotNames: { "player-0": "Blue", "player-1": "AI 1" },
+    slotColor: { "player-0": "Blue", "player-1": "White" }, ...(t2 ? T2GAME : {}), started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
   return seat;
 }
 // one recorded question into the bridge: what it shows Blue and what it answers by itself
@@ -42,9 +48,10 @@ async function ask(h, seat, step) {
   seat.board = { state: JSON.parse(JSON.stringify(step.board)), fingerprint: null };
   const n0 = h.effects.length;
   h.B.onPrompt(seat, JSON.parse(JSON.stringify(step.prompt))); await h.flush();
-  const shownMsg = h.effects.slice(n0).filter((e) => e.tts?.t === "prompt" && e.tts.color === "Blue" && e.tts.promptId != null).map((e) => e.tts).pop() || null;
+  const shownMsg = h.effects.slice(n0).filter((e) => e.tts?.t === "prompt" && e.tts.color === HOST && e.tts.promptId != null).map((e) => e.tts).pop() || null;
   const sent = h.effects.slice(n0).map((e) => e.relay?.state).filter((x) => x?.kind === "response" && x.promptId === step.prompt.promptId).map((x) => x.action).pop() || null;
-  return { shown: shownMsg ? { title: shownMsg.title, options: (shownMsg.options || []).map((o) => o.label) } : null, ids: (shownMsg?.options || []).map((o) => o.id), sent };
+  const chats = h.effects.slice(n0).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text);
+  return { shown: shownMsg ? { title: shownMsg.title, options: (shownMsg.options || []).map((o) => o.label) } : null, ids: (shownMsg?.options || []).map((o) => o.id), sent, msg: shownMsg, chats };
 }
 
 // the table's hand code (engineHandPlace) on fengari: what it places for a hand of n cards
@@ -89,18 +96,18 @@ HAND = {}
   return lua.lua_tojsstring(L, -1);
 }
 
-async function scenario(name, check) {
+async function scenario(name, check, t2 = false) {
   const r = REC[name];
   if (!r) return ok(`${name}: recorded (tools/check-scenarios.js)`, false, "not in scenario-checks.json");
   same(`${name}: the scenario file is the one recorded`, JSON.parse(fs.readFileSync(path.join(ROOT, "scenarios", `${name}.json`), "utf8")), r.scenarioFile);
   same(`${name}: the engine game had no problems`, r.problems, []);
   const h = harness.load();
   try {
-    const seat = bridge(h);
+    const seat = bridge(h, t2);
     const setup = r.steps.find((s) => s.kind === "setup");
     await ask(h, seat, setup);
     const n0 = h.effects.length;
-    h.B.onTTS({ t: "debug", json: JSON.stringify({ color: "Blue", scenario: name }) }); await h.flush();
+    h.B.onTTS({ t: "debug", json: JSON.stringify({ color: HOST, scenario: name }) }); await h.flush();
     const d = h.effects.slice(n0).map((e) => e.relay?.state?.directive).find((x) => x?.type === "applyState");
     same(`${name}: the bridge still makes the recorded changes from it`, d?.ops, r.ops);
     const applied = r.steps.find((s) => s.kind === "applied")?.board.gameView;
@@ -116,10 +123,10 @@ async function replay(name, r, h, seat) {
     let sent = got.sent;
     if (st.click) {
       const n1 = h.effects.length;
-      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: st.prompt.promptId, choice: [st.click] }) }); await h.flush();
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: HOST, promptId: st.prompt.promptId, choice: [st.click] }) }); await h.flush();
       sent = h.effects.slice(n1).map((e) => e.relay?.state).filter((x) => x?.kind === "response" && x.promptId === st.prompt.promptId).map((x) => x.action).pop() || null;
     }
-    out.push({ st, shown: got.shown, sent });
+    out.push({ st, shown: got.shown, sent, msg: got.msg, chats: got.chats });
   }
   const differ = out.filter((x) => JSON.stringify(x.sent || null) !== JSON.stringify(x.st.sent || null) || JSON.stringify(x.shown) !== JSON.stringify(x.st.shown));
   ok(`${name}: the bridge shows and answers every question as recorded`, !differ.length, differ.slice(0, 2).map((x) => `${x.st.prompt.input?.type}: shown ${JSON.stringify(x.shown)} sent ${JSON.stringify(x.sent)}, recorded ${JSON.stringify(x.st.shown)} ${JSON.stringify(x.st.sent)}`).join(" | "));
@@ -156,6 +163,27 @@ async function replay(name, r, h, seat) {
     same("repeat-yesno-pay: the other two are answered No by the bridge, unseen", asks.map((x) => [x.shown ? "shown" : "unseen", x.sent?.output?.value]), [["shown", false], ["unseen", false], ["unseen", false]]);
     ok("repeat-yesno-pay: one chat line says it", (r.chatsAfter || []).length === 1 && /You answered No to Smothering Tithe's "Pay \{2\}\?" 3 times\./.test(r.chatsAfter[0]), JSON.stringify(r.chatsAfter));
   });
+  // the 2HG team block panel on the first AI team turn (scenarios/team-block-live.json): Two-Headed Giant at level 2,
+  // White (the host) and Red (AI) at 8 life with three Walls of Wood, Yellow and Blue (AI) with four Craw Wurms
+  await scenario("team-block-live", async (r, h, seat, applied) => {
+    same("team-block-live: the setup: White's team at 8, three Walls of Wood for White and Red, four Craw Wurms for Yellow and Blue",
+      [applied.players.map((p) => p.life), ["player-0", "player-1", "player-2", "player-3"].map((id) => ((applied.zones.find((z) => z.zone === "battlefield" && z.ownerId === id) || {}).cards || []).filter((c) => /^(Wall of Wood|Craw Wurm)$/.test(c.identity?.name)).map((c) => `${c.identity.name}${c.tapped ? " (tapped)" : ""}`))],
+      [[8, 8, 80, 80], [["Wall of Wood"], ["Wall of Wood", "Wall of Wood"], ["Craw Wurm", "Craw Wurm"], ["Craw Wurm", "Craw Wurm"]]]);
+    const out = await replay("team-block-live", r, h, seat);
+    const blocks = out.filter((x) => x.st.prompt.input?.type === "chooseBlockers");
+    const first = blocks[0];
+    const gv = first?.st.board.gameView;
+    const atk = first?.st.prompt.input?.attackers || [];
+    same("team-block-live: the AI team declares an attack on White's team on its first turn (turn 2, Yellow's team): all four Wurms, at White or Red",
+      [gv?.turn, gv?.activePlayerId, atk.length, atk.every((a) => { const c = gv.zones.flatMap((z) => z.cards || []).find((x) => x.id === a.attackerId); return c?.isAttacking === true && ["player-0", "player-1"].includes(c.attackTargetId); })],
+      [2, "player-2", 4, true]);
+    same("team-block-live: the block panel: \"Block with Red\", Agree first, the round told to the table", [first?.shown?.title, first?.shown?.options[0], first?.msg?.joint], ["Block with Red", "Agree", 0]);
+    ok("team-block-live: the panel shows the team's block, one line per attacker", /The team's block:/.test(first?.msg?.text || "") && (first?.msg?.text.match(/Craw Wurm/g) || []).length >= 4, first?.msg?.text);
+    same("team-block-live: Red's changes printed as chat lines, never asked", out.filter((x) => x.st.prompt.input?.type === "revealCards").map((x) => [x.shown ? "shown" : "printed", x.sent?.output?.type, x.chats.filter((c) => / now blocks /.test(c)).length]),
+      [["printed", "revealCardsAcknowledged", 1], ["printed", "revealCardsAcknowledged", 1]]);
+    same("team-block-live: White asked again after Red's change, the revise round naming Red", [blocks[1]?.shown?.title, blocks[1]?.shown?.options[0], blocks[1]?.msg?.joint], ["Red changed the blocks. Agree or change?", "Agree", 1]);
+    same("team-block-live: White's Agree sends the team's blocks back as they were", blocks.map((x) => JSON.stringify(x.sent?.output?.assignments)), blocks.map((x) => JSON.stringify(x.st.prompt.input.currentAssignments || [])));
+  }, true);
   process.stdout.write(`${failed ? "FAIL" : "PASS"} test_bridge_scenario_checks: ${passed} passed, ${failed} failed\n`);
   process.exit(failed ? 1 : 0);
 })().catch((e) => { process.stdout.write(`FAIL test_bridge_scenario_checks: ${e.stack}\n`); process.exit(1); });
