@@ -7414,4 +7414,89 @@ add(promptCase("rebuilt #7: an opponent's reveal said once as theirs", D2.board,
   } });
 }
 
+// The tie offer (open-after-1121.md §3: no golden scenario yet; bridge.js tieState / tieNews / onTieVote /
+// forcedTieEarned, the harness's TieOffer as gameView.tieOffer): a plain four-player board from the 2HG protocol fixture
+// with its team rules taken off, three seated players and a harmless bot in the fourth seat. The accomplishments are
+// kept in memory here (no MTG_ACCOMPLISHMENTS), on the harness's frozen clock.
+{
+  const TIE_FIX = F("2hg-level2-protocol");
+  const TIE_SLOTS = { "player-0": "White", "player-1": "Red", "player-2": "Yellow", "player-3": "Blue" };
+  const TIE_STEAM = { White: "76561190000000001", Red: "76561190000000002", Yellow: "not-a-steam-id" };
+  const tieBoard = (tie, over = false) => {
+    const b = clone(TIE_FIX.record.find((e) => e.board).board);
+    delete b.gameView.teamRules; delete b.gameView.activeTeamIds; delete b.gameView.priorityTeamIds;
+    for (const p of b.gameView.players) delete p.teamNumber;
+    if (tie) b.gameView.tieOffer = tie;
+    if (over) { b.gameView.gameOver = true; b.gameView.winnerId = null; }
+    return b;
+  };
+  const tieOffer = (status, extra = {}) => ({ voteId: extra.voteId || 1, locks: [{ playerId: "player-0", reasons: ["cantLose"] }],
+    awaitingPlayerIds: extra.awaiting || ["player-0", "player-1", "player-2", "player-3"], acceptedPlayerIds: extra.accepted || [],
+    status: { type: status, ...(extra.by ? { playerId: extra.by } : {}) }, roundsWithoutProgress: extra.rounds || 0, roundsToForce: 3 });
+  const tieGame = (h) => {
+    const seats = new Map();
+    for (const [slot, color] of Object.entries(TIE_SLOTS)) {
+      if (color === "Blue") continue;
+      const s = new h.B.Seat(color, "neheb_minotaur_commander");
+      s.slot = slot;
+      s.heartbeat = () => {};
+      s.send = (msg) => h.effects.push({ relay: msg });
+      seats.set(color, s);
+    }
+    const bot = { slot: "player-3", directive: (d) => h.effects.push({ relay: { state: { kind: "directive", fromPlayer: "player-3", directive: d } } }) };
+    h.B._setGame({ seats, bots: 1, total: 4, playerOrder: [...seats.values()].map((s) => s.username), slotNames: { ...TIE_SLOTS }, slotColor: { ...TIE_SLOTS },
+      started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {}, harmless: [bot], steam: h.B._steamIds(TIE_STEAM) });
+    return seats;
+  };
+  const tieShow = async (h, seats, b) => {
+    for (const s of seats.values()) s.board = { state: clone(b), fingerprint: null };
+    h.B._harmlessVotes(b.gameView);
+    h.B.sendTable();
+    await h.flush();
+  };
+  const tieEnd = (h) => ({ tie: (h.effects.filter((e) => e.tts?.t === "table").at(-1)?.tts || {}).tie ?? null,
+    overWhy: (h.effects.filter((e) => e.tts?.t === "table").at(-1)?.tts || {}).overWhy ?? null });
+
+  add({ name: "tie offer: a player who can't lose, the offer to every seat, the harmless bot accepts", run: async (h) => {
+    const seats = tieGame(h);
+    await tieShow(h, seats, tieBoard(tieOffer("pending")));
+    await tieShow(h, seats, tieBoard(tieOffer("pending")));
+    return tieEnd(h);
+  } });
+  add({ name: "tie offer: accepted by everyone, the game a draw", run: async (h) => {
+    const seats = tieGame(h);
+    await tieShow(h, seats, tieBoard(tieOffer("pending")));
+    for (const color of ["White", "Red", "Yellow"]) { h.B.onTTS({ t: "tieVote", color, accept: true }); await h.flush(); }
+    await tieShow(h, seats, tieBoard(tieOffer("agreed", { awaiting: [], accepted: ["player-0", "player-1", "player-2", "player-3"] }), true));
+    return { ...tieEnd(h), endWords: h.B.gameEndWords(tieBoard(tieOffer("agreed"), true).gameView) };
+  } });
+  add({ name: "tie offer: Keep playing, the forced-tie rule said, a late vote told no tie is open", run: async (h) => {
+    const seats = tieGame(h);
+    await tieShow(h, seats, tieBoard(tieOffer("pending")));
+    h.B.onTTS({ t: "tieVote", color: "Yellow", accept: false }); await h.flush();
+    await tieShow(h, seats, tieBoard(tieOffer("declined", { by: "player-2", awaiting: [] })));
+    h.B.onTTS({ t: "tieVote", color: "White", accept: true }); await h.flush();
+    return tieEnd(h);
+  } });
+  add({ name: "tie offer: three rounds without progress, the count started over once, then a forced tie", run: async (h) => {
+    const seats = tieGame(h);
+    await tieShow(h, seats, tieBoard(tieOffer("pending")));
+    for (const rounds of [0, 1, 2, 0, 1, 2]) await tieShow(h, seats, tieBoard(tieOffer("declined", { by: "player-2", awaiting: [], rounds })));
+    await tieShow(h, seats, tieBoard(tieOffer("forced", { by: "player-2", awaiting: [], rounds: 3 }), true));
+    return { ...tieEnd(h), endWords: h.B.gameEndWords(tieBoard(tieOffer("forced", { rounds: 3 }), true).gameView) };
+  } });
+  add({ name: "tie offer: Stalemate at a forced tie, for everyone with a Steam ID, once a game, then mtg accomplishments", run: async (h) => {
+    const seats = tieGame(h);
+    await tieShow(h, seats, tieBoard(tieOffer("pending")));
+    h.B.onTTS({ t: "tieVote", color: "Red", accept: false, steam: "76561190000000022" }); await h.flush();
+    await tieShow(h, seats, tieBoard(tieOffer("declined", { by: "player-1", awaiting: [] })));
+    await tieShow(h, seats, tieBoard(tieOffer("forced", { by: "player-1", awaiting: [], rounds: 3 }), true));
+    await tieShow(h, seats, tieBoard(tieOffer("forced", { by: "player-1", awaiting: [], rounds: 3 }), true));
+    await tieShow(h, seats, tieBoard(null, true));
+    await tieShow(h, seats, tieBoard(tieOffer("forced", { by: "player-1", awaiting: [], rounds: 3 }), true));
+    for (const [color, steam] of [["White", TIE_STEAM.White], ["Red", "76561190000000022"], ["Yellow", ""]]) { h.B.onTTS({ t: "accomplishments", color, steam }); await h.flush(); }
+    return { white: h.B._accomplishments.list(TIE_STEAM.White), red: h.B._accomplishments.list("76561190000000022"), redFromStart: h.B._accomplishments.list(TIE_STEAM.Red) };
+  } });
+}
+
 module.exports = cases;
