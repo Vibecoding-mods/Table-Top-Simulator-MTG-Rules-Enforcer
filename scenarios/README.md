@@ -75,8 +75,11 @@ manual fix (Done applies what the table shows, Cancel ends it).
 Tests: `node tests/test_bridge_debug.js` (59 checks).
 
 Scenarios played on the real engine: `node tools/check-scenarios.js <engine tree>` plays `hand-overflow`,
-`repeat-yesno` and `repeat-yesno-pay` headless (Blue against one Forge AI), with "mtg debug <name>" typed to the
+`repeat-yesno` and `repeat-yesno-pay` headless (Blue against one Forge AI), and `team-block-live` as a Two-Headed Giant
+game (White, the host, and Red against Yellow and Blue, shared team turns: White passes to the AI team's turn and its
+attack, and agrees to the team block), with "mtg debug <name>" typed to the
 sandboxed bridge, its applyState applied by the engine, and, for the two repeats, the scenario's spell cast and every
 question after it answered through the bridge. `node tests/test_bridge_scenario_checks.js` replays the recording
-(`tests/golden/fixtures/scenario-checks.json`): the hand-overflow card, "No ×3" / "Yes ×3" and "Don't pay ×3". Record
+(`tests/golden/fixtures/scenario-checks.json`): the hand-overflow card, "No ×3" / "Yes ×3" and "Don't pay ×3", the team block panel ("Block with Red", Agree, Red's
+changes as chat lines, "Red changed the blocks. Agree or change?"). Record
 again after changing one of the three files.

@@ -23,11 +23,16 @@ const TREE = path.resolve(process.argv[2] || path.join(os.homedir(), "engine"));
 const JAR = path.join(TREE, "forge-harness", "target", "forge-harness-jar-with-dependencies.jar");
 const DECK_DIRS = [path.join(ROOT, "decks"), path.join(TREE, "public", "preset_decks"), path.join(ROOT, "manabrew", "public", "preset_decks")];
 const OUT = path.join(ROOT, "tests", "golden", "fixtures", "scenario-checks.json");
-// per scenario: the spell Blue casts after the setup, and which option Blue clicks on the bridge's questions after it
+// per scenario: the spell Blue casts after the setup, and which option Blue clicks on the bridge's questions after it;
+// table "2hg": a Two-Headed Giant game (White, the host, and Red against Yellow and Blue, shared team turns), and
+// until: the question the bridge must show (no cast: the host passes until it comes)
 const PLAN = {
   "hand-overflow": {},
   "repeat-yesno": { cast: "Hordeling Outburst", click: ["__repeat:no"] },
   "repeat-yesno-pay": { cast: "Harmonize", click: ["__repeat:no"] },
+  // (Two-Headed Giant at level 2, White the host and Red, Yellow and Blue Forge AI: White passes its turn, no attacks,
+  // until the bridge shows the team block; White agrees, and the combat goes on to its damage)
+  "team-block-live": { table: "2hg", until: "chooseBlockers", click: ["__agree"] },
 };
 const NAMES = process.argv.slice(3).length ? process.argv.slice(3) : Object.keys(PLAN);
 process.env.MTG_SCENARIO_DIR = path.join(ROOT, "scenarios");
@@ -70,8 +75,14 @@ const handOf = (gv, slot) => (gv.zones || []).find((z) => z.zone === "hand" && z
 async function play(s, name) {
   const plan = PLAN[name] || {};
   const rec = { scenario: name, scenarioFile: JSON.parse(fs.readFileSync(path.join(ROOT, "scenarios", `${name}.json`), "utf8")), steps: [], problems: [] };
+  const T2 = plan.table === "2hg";
+  const HOST = T2 ? "White" : "Blue";
+  const players = T2
+    ? [["White", "neheb_minotaur_commander", false, 1], ["Red", "ashling_limitless_commander", true, 1], ["Yellow", "ramses_commander", true, 2], ["Blue", "real_teval_commander", true, 2]]
+      .map(([n, d, ai, team]) => ({ name: n, ...deckOf(d), team, ...(ai ? { ai: true, bot: true } : {}) }))
+    : [{ name: "Blue", ...deckOf("neheb_minotaur_commander") }, { name: "AI", ...deckOf("ashling_limitless_commander"), ai: true, bot: true }];
   const h0 = await s.ask(`start ${JSON.stringify({ gameId: `check-${name}`, variant: "Commander", startingLife: 40, seed: 7, snapshotRecording: false,
-    players: [{ name: "Blue", ...deckOf("neheb_minotaur_commander") }, { name: "AI", ...deckOf("ashling_limitless_commander"), ai: true, bot: true }] })}`);
+    ...(T2 ? { teamRules: "sharedTurns" } : {}), players })}`);
   if (h0.status !== "ok") { rec.problems.push(`start: ${h0.value.split("\n")[0]}`); return rec; }
   const view = async () => { const v = await s.ask("snapshot 0"); return v.status === "ok" && v.value ? JSON.parse(v.value) : null; };
   const promptNow = async () => { const p = await s.ask("prompt"); return p.value ? JSON.parse(p.value) : null; };
@@ -85,6 +96,8 @@ async function play(s, name) {
       if (err.value) { rec.problems.push(`engine error: ${err.value.split("\n")[0]}`); return null; }
       const p = await promptNow();
       if (p && p.promptId !== lastId) { lastId = p.promptId; return p; }
+      // (the game over: an end, not a problem; the last board kept)
+      if ((await s.ask("over")).value === "true") { rec.over = true; return null; }
       await sleep(20);
     }
     rec.problems.push("no new question in time");
@@ -92,19 +105,22 @@ async function play(s, name) {
   };
   const h = harness.load();
   try {
-    const seat = new h.B.Seat("Blue", "neheb_minotaur_commander");
+    const seat = new h.B.Seat(HOST, "neheb_minotaur_commander");
     seat.slot = "player-0";
     seat.heartbeat = () => {};
     // (playerOrder: the engine's player names, as the relay's usernames in a real game: the bridge reads the payer of a
     // trigger on the stack from Forge's "[Player: Blue]", stackPayer)
-    h.B._setGame({ seats: new Map([["Blue", seat]]), bots: 1, total: 2, playerOrder: ["Blue", "AI"], slotNames: { "player-0": "Blue", "player-1": "AI 1" }, slotColor: { "player-0": "Blue", "player-1": "White" },
-      started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
+    const T2GAME = { playerOrder: ["White", "Red", "Yellow", "Blue"], bots: 3, total: 4,
+      slotNames: { "player-0": "White", "player-1": "AI 1", "player-2": "AI 2", "player-3": "AI 3" }, slotColor: { "player-0": "White", "player-1": "Red", "player-2": "Yellow", "player-3": "Blue" },
+      teams: { White: 1, Red: 1, Yellow: 2, Blue: 2 }, teamMode: "2hg", teamTurns: "shared" };
+    h.B._setGame({ seats: new Map([[HOST, seat]]), bots: 1, total: 2, playerOrder: ["Blue", "AI"], slotNames: { "player-0": "Blue", "player-1": "AI 1" }, slotColor: { "player-0": "Blue", "player-1": "White" },
+      ...(T2 ? T2GAME : {}), started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
     const toBridge = async (p) => {
       const gv = await view();
       seat.board = { state: { gameView: gv }, fingerprint: null };
       const n0 = h.effects.length;
       h.B.onPrompt(seat, p); await h.flush();
-      const shown = h.effects.slice(n0).filter((e) => e.tts?.t === "prompt" && e.tts.color === "Blue" && e.tts.promptId != null).map((e) => e.tts).pop() || null;
+      const shown = h.effects.slice(n0).filter((e) => e.tts?.t === "prompt" && e.tts.color === HOST && e.tts.promptId != null).map((e) => e.tts).pop() || null;
       const sent = h.effects.slice(n0).map((e) => e.relay?.state).filter((x) => x?.kind === "response" && x.promptId === p.promptId).map((x) => x.action).pop() || null;
       return { gv, shown, sent };
     };
@@ -130,7 +146,7 @@ async function play(s, name) {
     // ── the setup: "mtg debug <name>" through the bridge, its applyState to the engine ──
     const before = await toBridge(p);
     const n0 = h.effects.length;
-    h.B.onTTS({ t: "debug", json: JSON.stringify({ color: "Blue", scenario: name }) }); await h.flush();
+    h.B.onTTS({ t: "debug", json: JSON.stringify({ color: HOST, scenario: name }) }); await h.flush();
     const directive = h.effects.slice(n0).map((e) => e.relay?.state?.directive).find((d) => d?.type === "applyState");
     rec.chats = h.effects.slice(n0).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text);
     if (!directive) { rec.problems.push(`the bridge sent no applyState: ${rec.chats.join(" | ")}`); return rec; }
@@ -142,30 +158,39 @@ async function play(s, name) {
     if (!after) { rec.problems.push("the engine never answered the applyState"); return rec; }
     if (!after.stateFix.applied) { rec.problems.push(`refused: ${after.stateFix.message || JSON.stringify(after.stateFix)}`); return rec; }
     rec.steps.push({ kind: "applied", board: { gameView: after } });
-    if (!plan.cast) return rec;
+    if (!plan.cast && !plan.until) return rec;
     // ── the cast: the engine's own cast action, auto pay; then every question through the bridge ──
-    p = await next();
-    const act = (p?.input?.actions || []).find((a) => a.type === "cast" && new RegExp(`^Cast ${plan.cast}\\b`, "i").test(a.label || ""));
-    if (!act) { rec.problems.push(`no "Cast ${plan.cast}" action: ${(p?.input?.actions || []).map((a) => a.label).join(" | ")}`); return rec; }
-    await submit({ type: "chooseAction", output: { type: "act", actionId: act.id } });
-    rec.steps.push({ kind: "cast", prompt: p, actionId: act.id });
-    const clicks = [...(plan.click || [])];
-    for (let k = 0; k < 60; k++) {
+    if (plan.cast) {
       p = await next();
+      const act = (p?.input?.actions || []).find((a) => a.type === "cast" && new RegExp(`^Cast ${plan.cast}\\b`, "i").test(a.label || ""));
+      if (!act) { rec.problems.push(`no "Cast ${plan.cast}" action: ${(p?.input?.actions || []).map((a) => a.label).join(" | ")}`); return rec; }
+      await submit({ type: "chooseAction", output: { type: "act", actionId: act.id } });
+      rec.steps.push({ kind: "cast", prompt: p, actionId: act.id });
+    } else lastId = null; // (until: the setup's own priority question is asked again, and goes through the bridge)
+    let reached = false; // (until: the question was shown and answered; then on to the end of that combat step)
+    const clicks = [...(plan.click || [])];
+    for (let k = 0; k < (plan.until ? 400 : 60); k++) {
+      p = await next();
+      if (!p && rec.over) break;
       if (!p) return rec;
       const { gv, shown, sent } = await toBridge(p);
       const step = { kind: "bridge", board: { gameView: gv }, prompt: p, shown: shown ? { title: shown.title, options: (shown.options || []).map((o) => o.label) } : null };
       // (the end: the run said in chat and the stack empty, or Blue asked for priority with nothing on the stack)
       const ranOut = h.effects.some((e) => e.tts?.t === "chat" && / answered (?:No|Yes) to /.test(e.tts.text || "")) && !(gv.stack || []).length;
-      if (ranOut || (shown && !(gv.stack || []).length && p.input?.type === "chooseAction")) { step.end = true; if (sent) step.sent = sent; rec.steps.push(step); break; }
+      // (until: the end is the first priority question after the combat's damage, the stack empty)
+      const untilDone = plan.until && reached && !(gv.stack || []).length && p.input?.type === "chooseAction" && !/^combatDeclare/.test(gv.step || "");
+      if (plan.until ? untilDone : (ranOut || (shown && !(gv.stack || []).length && p.input?.type === "chooseAction"))) { step.end = true; if (sent) step.sent = sent; rec.steps.push(step); break; }
       if (sent) { step.sent = sent; rec.steps.push(step); await submit(sent); continue; }
       if (!shown) { rec.problems.push(`question ${p.input?.type} neither shown nor answered by the bridge`); rec.steps.push(step); return rec; }
       // (a click on the table: the planned option when there is one, else the first; a priority question passes)
       const ids = (h.effects.filter((e) => e.tts?.t === "prompt" && e.tts.promptId === p.promptId).pop()?.tts.options || []).map((o) => o.id);
-      const pick = clicks.length && ids.includes(clicks[0]) ? clicks.shift() : p.input?.type === "chooseAction" ? (ids.find((i) => /pass/i.test(i)) || ids[0]) : ids[0];
+      // (an attack question: no attacks, so the host's blockers stay untapped)
+      const pick = clicks.length && ids.includes(clicks[0]) ? clicks.shift() : p.input?.type === "chooseAction" ? (ids.find((i) => /pass/i.test(i)) || ids[0])
+        : p.input?.type === "chooseAttackers" && ids.includes("__noattack") ? "__noattack" : ids[0];
+      if (plan.until && p.input?.type === plan.until) reached = true;
       step.click = pick;
       const n1 = h.effects.length;
-      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: p.promptId, choice: [pick] }) }); await h.flush();
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: HOST, promptId: p.promptId, choice: [pick] }) }); await h.flush();
       const ans = h.effects.slice(n1).map((e) => e.relay?.state).filter((x) => x?.kind === "response" && x.promptId === p.promptId).map((x) => x.action).pop();
       step.sent = ans || null;
       step.chats = h.effects.slice(n1).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text);
@@ -174,7 +199,13 @@ async function play(s, name) {
       await submit(ans);
     }
     rec.chatsAfter = h.effects.filter((e) => e.tts?.t === "chat").map((e) => e.tts.text).filter((t) => / answered /.test(t));
+    if (plan.until) {
+      rec.chatsAll = h.effects.filter((e) => e.tts?.t === "chat").map((e) => e.tts.text);
+      if (!reached) rec.problems.push(`the bridge never showed ${plan.until}`);
+      if (rec.over) rec.overSaid = h.effects.filter((e) => e.tts?.t === "chat").map((e) => e.tts.text).slice(-3);
+    }
     rec.final = { gameView: await view() };
+    if (rec.over && !plan.until) rec.problems.push("the game ended");
     return rec;
   } finally { harness.restore(); await s.ask("end"); }
 }

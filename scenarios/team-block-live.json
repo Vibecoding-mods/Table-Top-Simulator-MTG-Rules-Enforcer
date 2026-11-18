@@ -1,0 +1,10 @@
+{
+  "label": "the 2HG team block panel on the first AI team turn (Two-Headed Giant, White + Red vs Yellow + Blue, shared team turns): White's team at 8 life with three untapped Walls of Wood (0/3 defender: they can't attack, so they are still there), Yellow and Blue with two Craw Wurms each (6/4, on the battlefield before their turn). Pass White's turn; the AI team attacks White's team with the Wurms (24 power at 8 life, nothing they fear), and White is asked \"Block with Red\" with Agree. Type it before the game (Red, Yellow and Blue AI seats). tools/check-scenarios.js, tests/test_bridge_scenario_checks.js",
+  "lands": 3,
+  "keepHand": true,
+  "life": 8,
+  "battlefield": ["Wall of Wood"],
+  "Red": { "battlefield": ["Wall of Wood", "Wall of Wood"] },
+  "Yellow": { "battlefield": ["Craw Wurm", "Craw Wurm"] },
+  "Blue": { "battlefield": ["Craw Wurm", "Craw Wurm"] }
+}
