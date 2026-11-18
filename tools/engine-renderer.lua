@@ -6845,7 +6845,7 @@ function engineTieDraw(t, gameOver)
   if open then
     setAttr("eng_tie", "visibility", table.concat(see, "|"))
     setAttr("eng_tie", "height", strip and "52" or "146")
-    setAttr("eng_tie", "offsetXY", strip and "0 -114" or "0 -272")
+    setAttr("eng_tie", "offsetXY", strip and "0 -170" or "0 -272") -- (the strip: below the name plate and Scoop button, which end at 158 px, and above the centre question row at 245)
     setAttr("eng_tietext", "height", strip and "48" or "84")
     setAttr("eng_tietext", "fontSize", strip and "13" or "18")
     setAttr("eng_tietext", "offsetXY", strip and "-12 -2" or "0 -6")
