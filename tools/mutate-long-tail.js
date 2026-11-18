@@ -1,6 +1,7 @@
 // Break-it for the shared-turn long tail in Two-Headed Giant Level 2 (forge-harness LongTailTest, engine1127-longtail):
-// "until your next turn", delayed triggers, an extra combat, a concession and a partner leaving mid-turn (CR 800.4a,
-// 800.4m), and teams of three. Each mutation reverts one fix or switches off one hunk the checks lean on, compiles only
+// "until your next turn", delayed triggers, an extra combat, a concession mid-turn (CR 800.4a), a partner leaving
+// mid-turn in team turns (a design choice: 2HG teams leave together, CR 810.8b), CR 800.4m, and teams of three.
+// Each mutation reverts one fix or switches off one hunk the checks lean on, compiles only
 // the edited file over the harness jar, runs LongTailTest and requires every check it names to fail by name; the file
 // is put back and checked by sha256. Every LongTailTest check is named by at least one mutation (the script refuses to
 // run otherwise). Needs a patched engine tree with its jar (engine/test-harness-local.sh builds both).
@@ -25,13 +26,14 @@ const C = {
   partnerUntil: "cr805.4 aPartnersUntilYourNextTurnEndsWhenTheTeamsTurnBegins",
   gonePartner: "cr800.4m aGonePartnersUntilYourNextTurnLastsToTheTeamsNextTurn",
   goneDefender: "cr800.4m aGoneDefendersUntilYourNextTurnEndsAtItsTeamsTurn",
+  goneTeam: "cr800.4m aGoneTeamsUntilYourNextTurnEndsAtItsSeat",
   endStep: "cr805.4d theNextEndStepTriggersOnceForTheTeam",
   yourUpkeep: "cr805.4d yourNextUpkeepIsTheTeamsNextUpkeep",
   nextUpkeep: "cr805.4d theNextUpkeepTriggersOnceInTheOtherTeamsTurn",
   extraCombat: "cr805.8 aPartnersExtraCombatIsTheTeams",
   teamConcedes: "cr800.4a theActiveTeamConcedingMidTurnPassesTheTurnOn",
-  partnerLeaves: "cr800.4a aPartnerLeavingMidTurnLeavesTheTurnToTheOther",
-  firstSeatLeaves: "cr800.4a theFirstSeatLeavingMidTurnLeavesTheTurnToThePartner",
+  partnerLeaves: "teamTurns aPartnerLeavingMidTurnLeavesTheTurnToTheOther",
+  firstSeatLeaves: "teamTurns theFirstSeatLeavingMidTurnLeavesTheTurnToThePartner",
   threeUntap: "threes cr805.4 aTeamOfThreeUntapsAndDrawsTogether",
   threeTurns: "threes cr805.4 theTurnAlternatesBetweenTeamsOfThree",
   threeLands: "threes cr805.4c eachOfThreeMayPlayALand",
@@ -44,7 +46,8 @@ const MUTATIONS = [
   ["\"until your next turn\" ends for the first seat only", PH, "                    for (final Player member : getActiveTeam()) {\n                        game.getCleanup().executeUntil(member);\n                    }", "                    game.getCleanup().executeUntil(playerTurn);", LT, [C.until, C.partnerUntil]],
   ["\"until your next turn\" ends for every player each turn", PH, "                    for (final Player member : getActiveTeam()) {\n                        game.getCleanup().executeUntil(member);", "                    for (final Player member : game.getPlayers()) {\n                        game.getCleanup().executeUntil(member);", LT, [C.until]],
   ["a gone partner's effects end as the turn passes her seat (as before)", PH, "            if (p.hasLost() && (!isSharedTeamTurns() || !hasTeammateInGame(p))) {", "            if (p.hasLost()) {", LT, [C.gonePartner]],
-  ["a gone player's effects never wait for the team's turn (as before)", PH, "        if (isSharedTeamTurns() && playerTurn != null) {\n            for (final Player p : game.getRegisteredPlayers()) {", "        if (false) {\n            for (final Player p : game.getRegisteredPlayers()) {", LT, [C.gonePartner, C.goneDefender]],
+  ["a gone teammate's effects never ended (the team-turn pass off)", PH, "        if (isSharedTeamTurns() && playerTurn != null) {\n            for (final Player p : game.getRegisteredPlayers()) {", "        if (false) {\n            for (final Player p : game.getRegisteredPlayers()) {", LT, [C.gonePartner, C.goneDefender]],
+  ["a whole gone team's effects never ended (the seat walk skips every gone player under shared turns)", PH, "            if (p.hasLost() && (!isSharedTeamTurns() || !hasTeammateInGame(p))) {", "            if (p.hasLost() && !isSharedTeamTurns()) {", LT, [C.goneTeam]],
   ["a step runs for the first seat only", PH, "        for (final Player member : getActiveTeam()) {\n            teamStepPlayer = isSharedTeamTurns() ? member : null;", "        for (final Player member : getActiveTeam().subList(0, 1)) {\n            teamStepPlayer = isSharedTeamTurns() ? member : null;", LT, [C.yourUpkeep]],
   ["a delayed trigger kept after it fires", TH, KEEP_FROM, KEEP_TO, LT, [C.endStep]],
   ["a delayed step trigger fires on each member's run (team run check off, trigger kept)", [TR, TH], [TEAM_RUN_FROM, KEEP_FROM], [TEAM_RUN_TO, KEEP_TO], LT, [C.endStep, C.nextUpkeep]],
