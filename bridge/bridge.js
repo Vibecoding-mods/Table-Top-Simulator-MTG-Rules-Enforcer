@@ -9418,9 +9418,13 @@ const RESOLVE_LOOP_REPEATS = 4; // the same stack (names, texts, controllers) se
 // own number ("Change the text of Goblin King (37) by ...", hp-25 T5; "Monk Token (281)" from each token), and
 // "Ponder (18) - " in front, which the table's pop-up also cuts, goes first.
 // (a spell still being cast, its targets not chosen yet, by its own words: Forge's "White gains control of (nothing)."
-// named its caster as the one who gains, for Donate and Harmless Offering, Mairsil hand test #19)
-const stackText = (s) => (/\(nothing\)/.test(s.text || "") && s.sourceAbilityText ? displayText(s.sourceAbilityText)
-  : displayText(s.text || "").replace(/^[^\n]{0,100}?\(\d+\) - /, "").replace(/([A-Za-z'’,]) \(\d+\)/g, "$1"));
+// named its caster as the one who gains, for Donate and Harmless Offering, Mairsil hand test #19; an empty target name
+// the same: Rite of Replication's "White creates a token that's a copy of .", Mairsil re-test 2026-11-18, and with no
+// ability text to say instead, the dangling "of ." says "of its target (not chosen yet).")
+const STACK_NO_TARGET = /\b(of|to|on|onto|into|from|for|with|at|by) +\.(?=\s|$)/;
+const stackText = (s) => ((/\(nothing\)/.test(s.text || "") || STACK_NO_TARGET.test(s.text || "")) && s.sourceAbilityText ? displayText(s.sourceAbilityText)
+  : displayText(s.text || "").replace(/^[^\n]{0,100}?\(\d+\) - /, "").replace(/([A-Za-z'’,]) \(\d+\)/g, "$1")
+    .replace(new RegExp(STACK_NO_TARGET.source, "g"), "$1 its target (not chosen yet)."));
 const stackRunKey = (s) => `${s.controllerId}\u0001${s.identity?.name || "?"}\u0001${stackText(s)}`;
 // how many items on top of the stack make one run of `who`'s untargeted abilities alike, and its key (abilities only:
 // a spell is one press each, and a spell's targets may not all be listed)
