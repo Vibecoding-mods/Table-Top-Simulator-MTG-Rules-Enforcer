@@ -25,10 +25,17 @@ function runDeck(script, data, { color = "White", answers = {} } = {}) {
   setString("__answers", JSON.stringify(answers));
   setString("__data", JSON.stringify(data));
   run(`__answers = JSON.decode(__answers) __gets = {} __posts = {}
+    -- (real TTS hands the callback a WebRequest USERDATA, not a table: type(wr) == "userdata"; a check for "table" read
+    -- every DeckCheck answer as no connection, live 2026-11-18. The answers here say so too.)
+    __ud = setmetatable({}, { __mode = "k" })
+    local __rawtype = type
+    type = function(v) if __ud[v] then return "userdata" end return __rawtype(v) end
     WebRequest.get = function(url, cb)
       __gets[#__gets + 1] = url
       local a = __answers[url]
-      Wait.frames(function() cb(a or { is_done = true, is_error = true, error = "Cannot connect to destination host", text = "" }) end, 2)
+      local w = a or { is_done = true, is_error = true, error = "Cannot connect to destination host", text = "" }
+      __ud[w] = true
+      Wait.frames(function() cb(w) end, 2)
       return {}
     end
     WebRequest.custom = function(url, method, download, body, headers, cb)

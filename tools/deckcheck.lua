@@ -136,8 +136,10 @@ end
 
 -- the HTTP status of a TTS web answer: response_code; else the number after "HTTP/1.1 " in the error ("HTTP/1.1 404
 -- Not Found"); else 200 for an answer with text and no error; else 0 (no answer: a timeout or no connection)
+-- (real TTS answers with a WebRequest userdata, not a table: a "table" check read every answer as no connection, live
+-- 2026-11-18, with rikrassen's importer and the Card Importer both)
 function deckcheckStatus(wr)
-  if type(wr) ~= "table" then return 0 end
+  if type(wr) ~= "table" and type(wr) ~= "userdata" then return 0 end
   local s = tonumber(wr.response_code)
   if s ~= nil and s > 0 then return math.floor(s) end
   local e = tostring(wr.error or "")

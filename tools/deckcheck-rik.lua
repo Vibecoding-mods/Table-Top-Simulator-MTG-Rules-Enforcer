@@ -22,7 +22,8 @@ function deckcheckRikDeck(color, data, post)
   end
   WebRequest.get(DECKCHECK_API .. id, function(wr)
     local body = nil
-    if type(wr) == "table" and type(wr.text) == "string" and wr.text ~= "" then
+    -- (a WebRequest userdata in real TTS, a table in tests)
+    if (type(wr) == "table" or type(wr) == "userdata") and type(wr.text) == "string" and wr.text ~= "" then
       local ok, v = pcall(JSON.decode, wr.text)
       if ok and type(v) == "table" then body = v end
     end
