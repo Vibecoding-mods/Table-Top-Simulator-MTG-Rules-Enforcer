@@ -11129,6 +11129,13 @@ function onPrompt(seat, prompt) {
         } else if (input.cards.length && input.cards.every((c) => inPile(c.id))) {
           ui.pileChoices = input.cards.map((c) => c.id);
           ui.text = "Pick from the list, or right-click the graveyard/exile → Search and drag the card out.";
+        } else if (!copiesCast && input.cards.some((c) => inPile(c.id) && (!c.zone || c.zone === "graveyard" || c.zone === "exile"))) {
+          // (some in a graveyard or exile pile, the rest in the hand or on the battlefield: the pile's ones are dragged out
+          // too, and said so. Mairsil's cage choice "from your hand or graveyard" lit only the hand cards; the graveyard
+          // ones had no picture, list or hint outside Choices, Mairsil hand test #4 2026-11-18)
+          // (by the card's own zone when Forge gives it: a hand card's id seen in a stale graveyard list stays a hand card)
+          ui.pileChoices = input.cards.filter((c) => inPile(c.id) && (!c.zone || c.zone === "graveyard" || c.zone === "exile")).map((c) => c.id);
+          ui.text = `Click a glowing card, or right-click the graveyard/exile → Search and drag the card out (or pick from the list).${ui.text ? `\n${ui.text}` : ""}`;
         }
         // (a source is never searched for: a spell on the stack or a commander isn't in the library)
         if (input.cards.length && input.cards.every((c) => !visible.has(c.id)) && !isSourceChoice(input)) {
