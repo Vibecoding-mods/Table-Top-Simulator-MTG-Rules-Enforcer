@@ -7166,8 +7166,8 @@ const playerCounter = (p, name) => (p.counters || {})[name.toUpperCase()] || (p.
 // story, marks) went once both halves were live (docs/core-moves-cleanup-plan.md "2. trackMarks" step 6).
 // A PLAYER_MARKS row with a `row` key is sent under that key too, its value as read, left out when it shows nothing:
 // `extraTurns`, the extra turns the player has coming, drawn beside the life counter rather than in the label ("EXTRA
-// TURN" for one, "EXTRA TURN nx" for n, engineExtraTurnBadge); left out at 0 and from an engine that doesn't send the
-// count.
+// TURN" for one, "EXTRA TURN nx" for n up to 99, "EXTRA TURNS 99+" past it, engineExtraTurnBadge); sent as the real
+// count, left out at 0 and from an engine that doesn't send the count.
 function playerMarks(p, pub) {
   // (updateLog has just read this board: game.logPrev is its log snapshot)
   const { values, labels, tips } = trackMarks(p, pub, { turnRun: game.logPrev?.turnRun?.[p.id] });
