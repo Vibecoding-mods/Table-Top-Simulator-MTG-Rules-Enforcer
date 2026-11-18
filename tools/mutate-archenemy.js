@@ -16,10 +16,10 @@ const TESTS = [["tests/test_bridge_archenemy.js", []], ["tests/test_table_archen
 
 // [label, file, from, to]: `from` must occur exactly once
 const MUTATIONS = [
-  ["TEAM_MODES: Archenemy in Commander only", "bridge/teams.js", "archenemy: { rule: \"teams\", name: \"Archenemy\", gameMode: null }", "archenemy: { rule: \"teams\", name: \"Archenemy\", gameMode: \"commander\" }"],
+  ["TEAM_MODES: Archenemy in Commander only", "bridge/teams.js", "archenemy: { rule: \"teamTurns\", name: \"Archenemy\", gameMode: null }", "archenemy: { rule: \"teamTurns\", name: \"Archenemy\", gameMode: \"commander\" }"],
   ["teamModeProblem: a mode for either game mode refused", "bridge/teams.js", "  if (t.gameMode == null) return null;\n", ""],
-  ["setupOf: Archenemy's teams as sent", "bridge/teams.js", "return { teams: juggTeams(arch.color), mode: \"archenemy\", jugg: null, turns: null, arch };", "return { teams: teamsOf(m.teams), mode: \"archenemy\", jugg: null, turns: null, arch };"],
-  ["archOf: any colour", "bridge/teams.js", "if (TEAM_COLORS.indexOf(r.color) >= 0) out.color = r.color;", "if (r.color) out.color = r.color;"],
+  ["setupOf: Archenemy's teams as sent", "bridge/teams.js", "return { teams: archTeams(arch.color, colors), mode: \"archenemy\", jugg: null, turns: null, arch };", "return { teams: teamsOf(m.teams), mode: \"archenemy\", jugg: null, turns: null, arch };"],
+  ["archOf: any colour", "bridge/teams.js", "if (colors.indexOf(r.color) >= 0) out.color = r.color;", "if (r.color) out.color = r.color;"],
   ["archLife: Standard 80 too", "bridge/teams.js", "const archLife = (std) => (std ? 40 : 80);", "const archLife = (std) => 80;"],
   ["scheme deck: any size", "bridge/teams.js", "  if (names.length < ARCH_SCHEMES) return", "  if (false) return"],
   ["scheme deck: any number of copies", "bridge/teams.js", ".filter(([, k]) => k > ARCH_COPIES)", ".filter(([, k]) => k > 9)"],
@@ -36,12 +36,13 @@ const MUTATIONS = [
   ["mtg schemes: the deck unchecked", "bridge/bridge.js", "  if (problem) return chat(`[MTG] Not a scheme deck:", "  if (false) return chat(`[MTG] Not a scheme deck:"],
   ["withArchenemy: the switch ignored", "bridge/bridge.js", "  if (!archenemy.on) return setup;\n", "  return setup;\n"],
   ["withArchenemy: a table start without the host's list", "bridge/bridge.js", "schemes: setup.arch.schemes || archenemy.names } };", "schemes: setup.arch.schemes } };"],
-  ["start: the switch not applied", "bridge/bridge.js", "(withArchenemy(teams2hg.setupOf(m))));", "(teams2hg.setupOf(m)));"],
+  ["start: the switch not applied", "bridge/bridge.js", "(withArchenemy(teams2hg.setupOf(m, TABLE_COLORS))));", "(teams2hg.setupOf(m, TABLE_COLORS)));"],
   ["start: an archenemy not in the game let through", "bridge/bridge.js", "if (![...seatList, ...preset, ...aiFree].includes(a.color)) {", "if (false) {"],
-  ["start: Archenemy on the 6-player table let through", "bridge/bridge.js", "    if (TABLE_COLORS.length !== teams2hg.TEAM_COLORS.length) { chat(", "    if (false) { chat("],
+  // ("Archenemy on the 6-player table let through" is gone: archenemy-six removed that refusal; tools/mutate-archenemy-six.js
+  // has "the six-seat refusal back")
   ["start: the scheme deck unchecked", "bridge/bridge.js", "    if (problem) { chat(`[MTG] Not started: Archenemy: ${problem}.`); return; }\n", ""],
   ["start: the game not an Archenemy game", "bridge/bridge.js", "...(archGame ? { arch: archGame } : {}),", ""],
-  ["start: gameConfig without the archenemy", "bridge/bridge.js", "game.teamTurns || null, game.arch || null) } });", "game.teamTurns || null) } });"],
+  ["start: gameConfig without the archenemy", "bridge/bridge.js", "game.teamTurns || null, game.arch || null);", "game.teamTurns || null);"],
   ["board: the archenemy not passed to teamsField", "bridge/bridge.js", "game.teamMode, game.arch?.color || null), //", "game.teamMode), //"],
   ["undo: asked of the engine in an Archenemy game", "bridge/bridge.js", "  if (game.arch) return chat(`[MTG] ${ARCH_NO_UNDO}`, color);\n", ""],
   ["undo: the board doesn't say why", "bridge/bridge.js", "...(game?.arch ? { off: ARCH_NO_UNDO } : {})", "...{}"],

@@ -43,7 +43,7 @@ async function startFlow(h) {
   ok("schemes: no name twice", new Set(ALL).size === ALL.length);
 
   // ── teams.js ──
-  same("TEAM_MODES: Archenemy is its own mode, teams rule, either game mode", T.TEAM_MODES.archenemy, { rule: "teams", name: "Archenemy", gameMode: null });
+  same("TEAM_MODES: Archenemy is its own mode, the opponents' one turn (teamTurns, CR 904.2), either game mode", T.TEAM_MODES.archenemy, { rule: "teamTurns", name: "Archenemy", gameMode: null });
   ok("game mode: Archenemy in Commander and in Standard", T.teamModeProblem("archenemy", "commander") === null && T.teamModeProblem("archenemy", "standard") === null);
   ok("game mode: 2v2 still Standard only, Juggernaut still Commander only", /Standard only/.test(T.teamModeProblem("2v2", "commander") || "") && /Commander only/.test(T.teamModeProblem("juggernaut", "standard") || ""));
   same("setupOf: an Archenemy start's teams come from the archenemy, not the teams sent",
@@ -62,7 +62,7 @@ async function startFlow(h) {
   ok("teamsProblem: Archenemy alone is refused", /at least one other player/.test(T.teamsProblem(T.juggTeams("White"), 1, "archenemy") || ""));
   const users = ["u-w", "u-r", "u-y", "u-b"];
   const cfg = T.gameConfig(T.juggTeams("Blue"), users, COLORS, "archenemy", null, false, null, { color: "Blue", names: TWENTY });
-  ok("gameConfig: the archenemy flag", cfg.archenemy === true && cfg.teamRules === "teams", JSON.stringify({ a: cfg.archenemy, r: cfg.teamRules }));
+  ok("gameConfig: the archenemy flag, and teamTurns (CR 904.2)", cfg.archenemy === true && cfg.teamRules === "teamTurns", JSON.stringify({ a: cfg.archenemy, r: cfg.teamRules }));
   same("gameConfig: the archenemy alone, 80 life, first, with the schemes", cfg.players[3], { username: "u-b", team: 1, startingLife: 80, goesFirst: true, schemes: TWENTY });
   same("gameConfig: the others team 2, nothing else", cfg.players.slice(0, 3), [{ username: "u-w", team: 2 }, { username: "u-r", team: 2 }, { username: "u-y", team: 2 }]);
   same("gameConfig: in Standard the archenemy has 40", T.gameConfig(T.juggTeams("White"), users, COLORS, "archenemy", null, true, null, { color: "White", names: TWENTY }).players[0].startingLife, 40);
@@ -81,8 +81,19 @@ async function startFlow(h) {
   same("board: the archenemy named on the board's teams", T.teamsField(pub(), slotColor, "archenemy", "Blue").teams,
     { rule: "teams", mode: "archenemy", sides: [["White", "Red", "Yellow"], ["Blue"]], archenemy: "Blue" });
   same("board: the others won together", T.teamsField(pub({ gameOver: true, winnerId: "player-0" }), slotColor, "archenemy", "Blue").teams.won, ["White", "Red", "Yellow"]);
+  // the engine's teamTurns board (CR 904.2): the opponents' one turn, each with their own life
+  const tt = (over = {}) => pub({ teamRules: { rule: "teamTurns", poisonToLose: 10, commanderDamageToLose: 21 }, ...over });
+  same("teamTurns: the board's teams, the sides as they are and turns shared", T.teamsField(tt(), slotColor, "archenemy", "Blue").teams,
+    { rule: "teams", mode: "archenemy", sides: [["White", "Red", "Yellow"], ["Blue"]], turns: "shared", archenemy: "Blue" });
+  same("teamTurns: the others won together", T.teamsField(tt({ gameOver: true, winnerId: "player-1" }), slotColor, "archenemy", "Blue").teams.won, ["White", "Red", "Yellow"]);
+  same("teamTurns: on the team's turn all three are active, the active player first", T.turnPlayerIds(tt({ activePlayerId: "player-0" })), ["player-0", "player-1", "player-2"]);
+  same("teamTurns: on the archenemy's turn only the archenemy", T.turnPlayerIds(tt({ activePlayerId: "player-3" })), ["player-3"]);
+  ok("teamTurns: partners on the team, never the archenemy", T.turnPartners(tt(), "player-0", "player-2") && !T.turnPartners(tt(), "player-0", "player-3"));
+  same("teamTurns: whose turn, as said", [T.turnWhose(tt({ activePlayerId: "player-0" }), "player-1", (id) => slotColor[id]), T.turnWhose(tt({ activePlayerId: "player-0" }), "player-3", (id) => slotColor[id]), T.turnWhose(tt({ activePlayerId: "player-3" }), "player-0", (id) => slotColor[id])],
+    ["your team's", "White + Red + Yellow's", "Blue's"]);
+  ok("teamTurns: each player's own life (no shared life, no team poison)", !T.sharesLife(tt()) && T.sharesTurns(tt()));
   ok("board: no archenemy named in a Juggernaut game", !("archenemy" in T.teamsField(pub(), slotColor, "juggernaut", "Blue").teams));
-  ok("setup words: who, life, schemes, the win, and Undo off", /^Archenemy: Blue \(80 life, goes first, 20 random schemes\) vs White \+ Red \+ Yellow \(40 life each, their own turns\)\..*Undo is off in Archenemy games\.$/.test(T.setupWords("archenemy", T.juggTeams("Blue"), null, false, null, { color: "Blue", schemes: null })),
+  ok("setup words: who, life, schemes, the win, and Undo off", /^Archenemy: Blue \(80 life, goes first, 20 random schemes\) vs White \+ Red \+ Yellow \(40 life each, one turn together\)\..*Undo is off in Archenemy games\.$/.test(T.setupWords("archenemy", T.juggTeams("Blue"), null, false, null, { color: "Blue", schemes: null })),
     T.setupWords("archenemy", T.juggTeams("Blue"), null, false, null, { color: "Blue", schemes: null }));
 
   // ── the host's chat commands (mtg archenemy, mtg schemes) ──
@@ -186,7 +197,7 @@ async function startFlow(h) {
     ok("six seats: an Archenemy game with 20 random schemes", g?.teamMode === "archenemy" && g.arch?.color === "Purple" && g.arch?.names?.length === 20, JSON.stringify(g?.arch));
     ok("six seats: the setup said, double life, the five named", chats(h).some((c) => /^\[MTG\] Archenemy: Purple \(80 life, goes first, 20 random schemes\) vs White \+ Red \+ Yellow \+ Green \+ Blue \(40 life each/.test(c)), chats(h).join(" | "));
     const f = await startFlowSix(h, "Blue");
-    ok("six seats: gameConfig before StartGame, with the archenemy flag", f.cfgAt >= 0 && f.startAt > f.cfgAt && f.cfg?.archenemy === true && f.cfg?.teamRules === "teams", `${f.cfgAt}/${f.startAt}`);
+    ok("six seats: gameConfig before StartGame, with the archenemy flag", f.cfgAt >= 0 && f.startAt > f.cfgAt && f.cfg?.archenemy === true && f.cfg?.teamRules === "teamTurns", `${f.cfgAt}/${f.startAt}`);
     const arch = (f.cfg?.players || []).filter((p) => p.team === 1);
     ok("six seats: one player on team 1, the archenemy, 80 life, first, with the schemes", arch.length === 1 && arch[0].startingLife === 80 && arch[0].goesFirst === true && JSON.stringify(arch[0].schemes) === JSON.stringify(g.arch.names), JSON.stringify(f.cfg?.players));
     ok("six seats: the five others team 2 with nothing else", (f.cfg?.players || []).filter((p) => p.team === 2).length === 5 && (f.cfg?.players || []).filter((p) => p.team === 2).every((p) => Object.keys(p).sort().join() === "team,username"), JSON.stringify(f.cfg?.players));
@@ -228,6 +239,12 @@ async function startFlow(h) {
     h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["White"], bots: 1 }) });
     await h.flush();
     ok("one AI player takes Red, not Yellow: an archenemy Yellow is still refused, with the switch's way off", h.B._getGame() == null && chats(h).some((c) => c.startsWith("[MTG] Not started: Archenemy: Yellow isn't in this game") && c.includes("mtg archenemy off")), chats(h).join(" | "));
+  });
+  // (a table's own Archenemy start, not the switch's: refused the same, without the switch's way off)
+  await run(async (h) => {
+    h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["White"], bots: 1, fromTable: true, teamMode: "archenemy", archenemy: { color: "Yellow" } }) });
+    await h.flush();
+    ok("a table's own Archenemy start with Yellow not in the game: refused, without mtg archenemy off", h.B._getGame() == null && chats(h).some((c) => c.startsWith("[MTG] Not started: Archenemy: Yellow isn't in this game")) && !chats(h).some((c) => c.includes("mtg archenemy off")), chats(h).join(" | "));
   });
   await run(async (h) => {
     h.B._onArchenemy({ color: "White", text: "Blue" }); await h.flush();

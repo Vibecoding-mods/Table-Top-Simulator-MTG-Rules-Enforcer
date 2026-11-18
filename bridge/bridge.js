@@ -6743,8 +6743,10 @@ function sendTable() {
   const phaseNo = phaseNumber(pub);
   const tableMsg = {
     t: "table", turn: pub.turn, step: pub.step, active: game.slotColor[pub.activePlayerId] || null,
-    // (Two-Headed Giant Level 2: both partners' colours, the active player first; the table's whose-turn reads it)
-    ...(teams2hg.sharesTurns(pub) ? { activeTeam: teams2hg.turnPlayerIds(pub).map((id) => game.slotColor[id] || id) } : {}),
+    // (Two-Headed Giant Level 2: both partners' colours, the active player first; the table's whose-turn reads it.
+    // Archenemy's team turns, CR 904.2: the opponents' colours on their turn; on the archenemy's own, a team of one,
+    // none, so the table says "PURPLE'S TURN", not "TEAM PURPLE'S TURN")
+    ...(teams2hg.sharesTurns(pub) && teams2hg.turnPlayerIds(pub).length > 1 ? { activeTeam: teams2hg.turnPlayerIds(pub).map((id) => game.slotColor[id] || id) } : {}),
     activeTurnNo: game.turnsTaken?.[pub.activePlayerId] || 1,
     ...(phaseNo ? { phaseNo } : {}), // (an extra combat's or main phase's number, the phase bar's "COMBAT (2)": phaseNumber)
     priority: game.slotColor[pub.priorityPlayerId] || null, gameOver: !!pub.gameOver,
