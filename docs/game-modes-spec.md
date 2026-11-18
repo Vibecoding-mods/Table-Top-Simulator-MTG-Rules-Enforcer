@@ -8,7 +8,8 @@ game mode. The Ready / Start buttons (§10) are built and live since 2026-10-21.
 - Team plumbing (§4) and 2v2 Team Commander / Standard 2v2 (§4.1).
 - Two-Headed Giant: Level 1 (§5.9), the rules audit and its one house rule (§5.9.1), Level 2's shared team turns as a
   host option (§5.11), and the team's joint block (§5.12).
-- Juggernaut (§6.1). Archenemy (§13, new).
+- Juggernaut (§6.1). Archenemy (§13), on either table since engine1125, with the opponents' one turn together (904.2).
+- engine1125: one game-log life line for a team that shares life (2HG, 3HG; §5.5).
 - Three-Headed Giant at Level 1 (§8.4) and the six-seat table's code (§7; the six-seat save itself is not made yet).
 - Two-Headed Giant is the official rules plus one house rule (§5.9.1: a partner's life gain or loss counts as yours);
   nothing else is shared beyond what the rules share.
@@ -489,7 +490,12 @@ What exists (details and proofs: `docs/engine-changes.md`, "2026-11-13 2hg"):
 - **§5.5 bridge (`bridge/teams.js`):** the table's teams come with every Start; the bridge refuses a start that is not
   four seats in two teams of two side by side in turn order, sends `gameConfig` before `StartGame`, says the teams; the
   board gets `teams` (sides, poison limit, winners), poison as "POISON n/15", both partners' commander damage as the
-  team's, a "Team life: White + Red" hover line; the end words name the team; a concede is said for the team. Works in
+  team's, a "Team life: White + Red" hover line; the end words name the team; a concede is said for the team. The game
+  log gives a shared-life change one line for the team, "White + AI 1: 80 -> 74 life (-6, Reanimate)": every partner's
+  row shows the team's one total (810.4), and a line each read as twice the loss (live 2HG check 2026-11-18;
+  `cloud/team-life-log`, engine1125's bridge). Its cause is the partners' parts when they add up to the change, else one
+  partner's when it explains it alone; partners whose rows differ keep a line each, and every game without shared life
+  keeps a line a player. Three-Headed Giant's three partners are one line too. Works in
   both formats (Standard 2HG: 30 a team). Since 2026-11-15 Two-Headed Giant is Commander only (§4.1); the engine's
   Standard 2HG is no longer reachable from the table or the bridge.
 - **§5.6 table:** `mtg mode 2hg|ffa` and `mtg team <colour> 1|2` (host; beside main's `mtg mode standard|commander`), the
@@ -978,24 +984,47 @@ The questions as asked:
    spec's commander damage question, A or B, comes with it.)
 5. **Partners' hands:** in 2HG and 3HG, should partners see each other's hands on the table? The rules allow it.
 
-## 13. Archenemy (as built 2026-11-16/17; in engine1121)
+## 13. Archenemy (as built 2026-11-16/18; in engine1121, six seats and the shared turn in engine1125)
 
 - **Setup (host):** `mtg archenemy <colour>` (a player or an AI) or `off`; the setup tile's **Archenemy** button
-  cycles Off and the four colours (four-player table only). The switch overrides the table's teams: the archenemy
-  against everyone else as one team, 2-4 players, Commander or Standard.
+  cycles Off and the table's colours, in turn order (the four, or the six-seat table's six). The switch overrides the
+  table's teams: the archenemy against everyone else as one team, 2-4 players on the four-player table, 2-6 on the
+  six-seat table, Commander or Standard.
 - **Scheme deck:** `mtg schemes random` (20 of Forge's schemes) or `mtg schemes <name>; <name>; ...` (at least 20, at
   most 2 of each).
-- **Game:** the archenemy has 80 life in Commander (40 in Standard) and goes first; the others keep their own life and
-  turns. At each of the archenemy's first main phases the top scheme is set in motion. The archenemy wins when all the
-  others have lost; they win together when the archenemy loses.
+- **Game:** the archenemy has 80 life in Commander (40 in Standard) and goes first; the others keep their own life.
+  The archenemy's opponents take **one turn together** (904.2: the shared team turns option, 805; engine1125,
+  `cloud/archenemy-team-turns`):
+  - The engine's `teamRules` "teamTurns" is Forge's shared team turns without shared life, the Two-Headed Giant Level 2
+    machinery. The bridge asks for it in every Archenemy game.
+  - **Turns:** the archenemy's turn, then the team's (its first seat after the archenemy the active player), then the
+    archenemy's.
+  - **On the team's turn:** each of them untaps, draws (805.4b), plays a land and casts at sorcery speed, and they attack
+    together (805.10a).
+  - **When the archenemy attacks:** the team blocks together, and each may block a creature attacking any of them
+    (805.10d; ArchenemyTest checks the block for a teammate and the AI's). The block is the engine's shared-turn team
+    block, §5.12's path, which hasn't been seen in an Archenemy game yet.
+  - **Nobody skips the first draw** (103.8: no Two-Headed Giant skip).
+  - The table's banner says the team's turn to them (and "TEAM ... 'S TURN" to the archenemy); on the archenemy's own
+    turn it reads as a one-player turn.
+  - An older engine refuses "teamTurns", so the bridge and engine1125 go together. Own turns stay possible on the
+    engine ("teams"), but the bridge offers no switch back.
+
+  At each of the archenemy's first main phases the top scheme is set in motion. The archenemy wins when all the others
+  have lost; they win together when the archenemy loses.
 - **Table (look only):** the scheme set in motion last, face up at 1.5× by the archenemy's mat; ongoing schemes in a row
   beside it; the scheme deck face down ("ARCHENEMY / 20 SCHEMES", hover for the count); a gold banner "SET IN MOTION:
   <SCHEME>" on every screen once per scheme; "(ARCHENEMY)" in the phase bar; the archenemy's mat line in gold.
 - **Undo is off** in Archenemy games: "the schemes in play can't be rewound yet".
-- **Six seats: coming.** On the six-seat table the Start is refused ("Archenemy is played on the 4-player table for
-  now"), and the setup button is hidden. The six-seat work is on an unmerged branch.
-- **Not checked on the real table:** the schemes' spots, the setup button's place, the banner across a bridge restart;
-  schemes are drawn at a normal card's shape for now.
+- **Six seats (engine1125, `cloud/archenemy-six`):** one archenemy against one to five others. The bridge's teams,
+  `mtg archenemy`, the setup words and the refusals cover the table's own seats ("fill all six seats").
+  - **The setup button** goes round the six seats, beside the Teams button.
+  - **The schemes** lie in front of the archenemy's own seat (every six-seat mat is on a long side), 0.42 of the way to
+    the middle strip, the ongoing row toward the table's centre line.
+  - **Life** is as on four seats.
+- **Not checked on the real table:** the schemes' spots (on either table), the setup button's place, the banner across a
+  bridge restart, the scheme cards at the oversized shape (scale 1.4, `cloud/table-polish`), the team's shared turn.
+- **To check it live:** `scenarios/LIVE-CHECKS.md` (b), `mtg debug live-archenemy`.
 
 ## Sources
 
