@@ -73,3 +73,10 @@ when typed, saying what is wrong. A choice made before a game is dropped (and sa
 The engine refuses a name it doesn't know ("no card named ..."); the setup then goes back to editing as an ordinary
 manual fix (Done applies what the table shows, Cancel ends it).
 Tests: `node tests/test_bridge_debug.js` (59 checks).
+
+Scenarios played on the real engine: `node tools/check-scenarios.js <engine tree>` plays `hand-overflow`,
+`repeat-yesno` and `repeat-yesno-pay` headless (Blue against one Forge AI), with "mtg debug <name>" typed to the
+sandboxed bridge, its applyState applied by the engine, and, for the two repeats, the scenario's spell cast and every
+question after it answered through the bridge. `node tests/test_bridge_scenario_checks.js` replays the recording
+(`tests/golden/fixtures/scenario-checks.json`): the hand-overflow card, "No ×3" / "Yes ×3" and "Don't pay ×3". Record
+again after changing one of the three files.
