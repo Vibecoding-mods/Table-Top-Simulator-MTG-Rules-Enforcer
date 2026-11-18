@@ -4,8 +4,9 @@
 // only the edited file over the harness jar, runs BlockBudgetTest and requires the named check to fail; the file is
 // put back and checked by sha256. Needs a patched engine tree with its jar (engine/test-harness-local.sh builds both).
 // (Not mutations: keying the memo by the ability alone, since an ability is only ever checked for its own card's
-// controller; and the chump pass's attacker order, since the lethal board's 40 attackers are alike and no check could
-// see it. docs/handoff/ai-block-budget-report.md.)
+// controller; the chump pass's attacker order, since the lethal board's 40 attackers are alike and no check could see
+// it (docs/handoff/ai-block-budget-report.md); with shared life, each partner's own life as the pool, since partners'
+// lives are mirrored; and a "break" at the first safe pool, since each board here has one pool under attack.)
 //   node tools/mutate-ai-block-budget.js <engine tree> [label pattern]
 const fs = require("fs");
 const os = require("os");
@@ -26,8 +27,11 @@ const MUTATIONS = [
   ["the memo answers no", CU, "        return known.computeIfAbsent(ability, a -> new java.util.HashMap<>()).computeIfAbsent(payer, p -> {\n            pumpCostChecks++;\n            return ComputerUtilCost.canPayCost(ability, p, false);\n        });", "        return known.computeIfAbsent(ability, a -> new java.util.HashMap<>()).computeIfAbsent(payer, p -> {\n            pumpCostChecks++;\n            return !ComputerUtilCost.canPayCost(ability, p, false);\n        });", BT, "same blocks: pumpers at 6 life, with and without the memo"],
   ["the declaration's memo not begun", K, "        final boolean began = ComputerUtilCombat.beginPumpCosts();", "        final boolean began = false;", BT, "pump costs: in one declaration each pump ability's cost is checked once for a player"],
   ["no chump pass past the deadline", K, "            if (AiController.evalDeadlinePassed(ai)) {\n                makeChumpBlocksPastDeadline(combat, ai.getCreaturesInPlay());\n            }", "", BT, "lethal: past the deadline 40 attackers at 6 life leave no blocker free that could save the AI"],
-  ["chump blocks when not lethal", K, "            if (damage < ai.getLife()) {\n                break;\n            }", "", BT, "lethal: past the deadline an attack that isn't lethal gets no forced blocks"],
+  ["chump blocks when not lethal", K, "            if (damage.get(pool) < pool.getLife()) {\n                continue;\n            }", "", BT, "lethal: past the deadline an attack that isn't lethal gets no forced blocks"],
   ["the chump pass stops at the first block", K, "                    free.remove(blocker);", "                    free.clear();", BT, "lethal: past the deadline 40 attackers at 6 life leave no blocker free that could save the AI"],
+  ["the chump pass counts only the defender's own attackers (as before the team fix)", K, "        for (final Card attacker : ComputerUtilCombat.attackersOfBlockingTeam(ai, combat)) {", "        for (final Card attacker : combat.getAttackersOf(ai)) {", BT, "team: past the deadline, lethal on the partner is chump-blocked (shared team life)"],
+  ["a partner's attackers counted against the AI's own life", K, "            final Player pool = sharedLife ? ai : attacked;", "            final Player pool = ai;", BT, "team: past the deadline, lethal on the partner is chump-blocked (team turns, the partner's own life)"],
+  ["the team's chump blocks made when the partner is safe", K, "            if (damage.get(pool) < pool.getLife()) {\n                continue;\n            }", "            if (damage.get(pool) < 0) {\n                continue;\n            }", BT, "team: past the deadline, an attack on the partner that isn't lethal gets no forced blocks"],
   ["the chump pass works out values in its sort again", K, "        free.sort((a, b) -> Integer.compare(value.get(a), value.get(b)));", "        free.sort((a, b) -> { chumpEvaluations += 2; return Integer.compare(ComputerUtilCard.evaluateCreature(a), ComputerUtilCard.evaluateCreature(b)); });", BT, "chump pass: each attacker's damage and each blocker's value worked out once"],
 ];
 
