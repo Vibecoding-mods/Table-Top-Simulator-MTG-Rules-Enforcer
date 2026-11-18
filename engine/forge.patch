@@ -169,7 +169,7 @@ index c3b3b8ab..08516aac 100644
                          remainingAttackers.remove(attacker);
                          blockedAttackers.add(attacker);
 diff --git a/forge-ai/src/main/java/forge/ai/AiBlockController.java b/forge-ai/src/main/java/forge/ai/AiBlockController.java
-index eb732342..7da17678 100644
+index eb732342..b3413836 100644
 --- a/forge-ai/src/main/java/forge/ai/AiBlockController.java
 +++ b/forge-ai/src/main/java/forge/ai/AiBlockController.java
 @@ -142,7 +142,9 @@ public class AiBlockController {
@@ -210,7 +210,7 @@ index eb732342..7da17678 100644
          blockersLeft = new ArrayList<>(possibleBlockers); // keeps track of all unassigned blockers
          blockedButUnkilled = new ArrayList<>(); // keeps track of all blocked attackers that currently wouldn't be destroyed
      }
-@@ -1123,6 +1130,57 @@ public class AiBlockController {
+@@ -1123,6 +1130,75 @@ public class AiBlockController {
          attackers = sortPotentialAttackers(combat);
          assignBlockers(combat, possibleBlockers);
      }
@@ -220,10 +220,21 @@ index eb732342..7da17678 100644
 +     * assignment: past the budget its answer is "in danger" anyway, and the chump pass is the attackers times the
 +     * blockers. */
 +    public void declareBlockers(final Combat combat) {
-+        assignBlockersForCombat(combat, null);
-+        if (AiController.evalDeadlinePassed(ai)) {
-+            makeChumpBlocksPastDeadline(combat, ai.getCreaturesInPlay());
++        final boolean began = ComputerUtilCombat.beginPumpCosts();
++        try {
++            assignBlockersForCombat(combat, null);
++            if (AiController.evalDeadlinePassed(ai)) {
++                makeChumpBlocksPastDeadline(combat, ai.getCreaturesInPlay());
++            }
++        } finally {
++            ComputerUtilCombat.endPumpCosts(began);
 +        }
++    }
++
++    private static long chumpEvaluations;
++
++    public static long getChumpEvaluations() {
++        return chumpEvaluations;
 +    }
 +
 +    // Past the declaration's budget the steps above stop where they are, and on a big board that can be before the
@@ -232,24 +243,31 @@ index eb732342..7da17678 100644
 +    // times the blockers, with no combat prediction.
 +    private void makeChumpBlocksPastDeadline(final Combat combat, final List<Card> possibleBlockers) {
 +        final List<Card> unblocked = new ArrayList<>();
++        final Map<Card, Integer> unblockedDamage = new HashMap<>();
 +        int damage = 0;
 +        for (final Card attacker : combat.getAttackersOf(ai)) {
 +            if (combat.getBlockers(attacker).isEmpty()) {
 +                unblocked.add(attacker);
-+                damage += ComputerUtilCombat.damageIfUnblocked(attacker, ai, combat, false);
++                chumpEvaluations++;
++                final int dealt = ComputerUtilCombat.damageIfUnblocked(attacker, ai, combat, false);
++                unblockedDamage.put(attacker, dealt);
++                damage += dealt;
 +            }
 +        }
 +        if (ai.cantLoseForZeroOrLessLife()) {
 +            return;
 +        }
-+        unblocked.sort((a, b) -> Integer.compare(ComputerUtilCombat.damageIfUnblocked(b, ai, combat, false), ComputerUtilCombat.damageIfUnblocked(a, ai, combat, false)));
++        unblocked.sort((a, b) -> Integer.compare(unblockedDamage.get(b), unblockedDamage.get(a)));
 +        final List<Card> free = new ArrayList<>();
++        final Map<Card, Integer> value = new HashMap<>();
 +        for (final Card b : possibleBlockers) {
 +            if (!combat.isBlocking(b) && CombatUtil.canBlock(b, combat)) {
 +                free.add(b);
++                chumpEvaluations++;
++                value.put(b, ComputerUtilCard.evaluateCreature(b));
 +            }
 +        }
-+        free.sort((a, b) -> Integer.compare(ComputerUtilCard.evaluateCreature(a), ComputerUtilCard.evaluateCreature(b)));
++        free.sort((a, b) -> Integer.compare(value.get(a), value.get(b)));
 +        for (final Card attacker : unblocked) {
 +            if (damage < ai.getLife()) {
 +                break;
@@ -380,10 +398,54 @@ index 1f5ce6e9..6ef46c6d 100644
                  combat.addAttacker(c, ai);
              }
 diff --git a/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java b/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java
-index 1dfd5d98..d652baab 100644
+index 1dfd5d98..733de321 100644
 --- a/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java
 +++ b/forge-ai/src/main/java/forge/ai/ComputerUtilCombat.java
-@@ -181,10 +181,11 @@ public class ComputerUtilCombat {
+@@ -63,6 +63,43 @@ import java.util.Map;
+  */
+ public class ComputerUtilCombat {
+ 
++    // A block declaration asks, for every attacker and blocker pair, whether either side could pay for a pump ability
++    // (ComputerUtilCost.canPayCost: the mana sources on the whole board). The declaration changes only the combat, not
++    // the game, so within one (pumpCostsOnce) each ability's answer for a player is worked out once. Off: as before.
++    public static boolean pumpCostMemo = true;
++    private static final ThreadLocal<java.util.Map<SpellAbility, java.util.Map<Player, Boolean>>> PUMP_COSTS = new ThreadLocal<>();
++    private static long pumpCostChecks;
++
++    public static long getPumpCostChecks() {
++        return pumpCostChecks;
++    }
++
++    public static boolean beginPumpCosts() {
++        if (!pumpCostMemo || PUMP_COSTS.get() != null) {
++            return false;
++        }
++        PUMP_COSTS.set(new java.util.IdentityHashMap<>());
++        return true;
++    }
++
++    public static void endPumpCosts(final boolean began) {
++        if (began) {
++            PUMP_COSTS.remove();
++        }
++    }
++
++    private static boolean canPayPump(final SpellAbility ability, final Player payer) {
++        final java.util.Map<SpellAbility, java.util.Map<Player, Boolean>> known = PUMP_COSTS.get();
++        if (known == null) {
++            pumpCostChecks++;
++            return ComputerUtilCost.canPayCost(ability, payer, false);
++        }
++        return known.computeIfAbsent(ability, a -> new java.util.HashMap<>()).computeIfAbsent(payer, p -> {
++            pumpCostChecks++;
++            return ComputerUtilCost.canPayCost(ability, p, false);
++        });
++    }
++
+     /**
+      * <p>
+      * canAttackNextTurn.
+@@ -181,10 +218,11 @@ public class ComputerUtilCombat {
                  return 0;
              }
  
@@ -397,7 +459,7 @@ index 1dfd5d98..d652baab 100644
              }
          }
          return sum;
-@@ -206,8 +207,8 @@ public class ComputerUtilCombat {
+@@ -206,8 +244,8 @@ public class ComputerUtilCombat {
          if (!attacked.canReceiveCounters(CounterEnumType.POISON)) {
              return 0;
          }
@@ -408,7 +470,7 @@ index 1dfd5d98..d652baab 100644
          int poison = 0;
          if (attacker.isInfectDamage(attacked)) {
              int pd = predictDamageTo(attacked, damage, attacker, true);
-@@ -215,12 +216,12 @@ public class ComputerUtilCombat {
+@@ -215,12 +253,12 @@ public class ComputerUtilCombat {
              if (pd > 1 || !attacker.getController().getOpponents().getCardsIn(ZoneType.Battlefield).anyMatch(CardPredicates.nameEquals("Vorinclex, Monstrous Raider"))) {
                  poison = pd;
                  if (attacker.hasDoubleStrike()) {
@@ -423,7 +485,7 @@ index 1dfd5d98..d652baab 100644
          }
          return poison;
      }
-@@ -298,29 +299,45 @@ public class ComputerUtilCombat {
+@@ -298,29 +336,45 @@ public class ComputerUtilCombat {
          int damage = 0;
  
          if (ai.canLoseLife()) {
@@ -486,7 +548,7 @@ index 1dfd5d98..d652baab 100644
      // calculates the amount of poison counters after the attack
      /**
       * <p>
-@@ -332,11 +349,18 @@ public class ComputerUtilCombat {
+@@ -332,11 +386,18 @@ public class ComputerUtilCombat {
       * @return a int.
       */
      public static int resultingPoison(final Player ai, final Combat combat) {
@@ -508,7 +570,7 @@ index 1dfd5d98..d652baab 100644
          int poison = 0;
  
          final List<Card> attackers = combat.getAttackersOf(ai);
-@@ -361,15 +385,15 @@ public class ComputerUtilCombat {
+@@ -361,15 +422,15 @@ public class ComputerUtilCombat {
  
          poison += sumPoisonIfUnblocked(unblocked, ai);
  
@@ -528,7 +590,7 @@ index 1dfd5d98..d652baab 100644
                      res.add(c);
                  }
              }
-@@ -391,7 +415,7 @@ public class ComputerUtilCombat {
+@@ -391,7 +452,7 @@ public class ComputerUtilCombat {
      }
      public static boolean lifeInDanger(final Player ai, final Combat combat, final int payment) {
          // life in danger only cares about the player's life. Not Planeswalkers' life
@@ -537,7 +599,7 @@ index 1dfd5d98..d652baab 100644
              return false;
          }
  
-@@ -408,7 +432,7 @@ public class ComputerUtilCombat {
+@@ -408,7 +469,7 @@ public class ComputerUtilCombat {
          }
  
          // check for creatures that must be blocked
@@ -546,7 +608,7 @@ index 1dfd5d98..d652baab 100644
  
          final List<Card> threateningCommanders = getLifeThreateningCommanders(ai, combat);
  
-@@ -474,7 +498,7 @@ public class ComputerUtilCombat {
+@@ -474,7 +535,7 @@ public class ComputerUtilCombat {
          final List<Card> threateningCommanders = getLifeThreateningCommanders(ai, combat);
  
          // check for creatures that must be blocked
@@ -555,6 +617,42 @@ index 1dfd5d98..d652baab 100644
  
          for (final Card attacker : attackers) {
              final List<Card> blockers = combat.getBlockers(attacker);
+@@ -992,7 +1053,7 @@ public class ComputerUtilCombat {
+                 pBonus = AbilityUtils.calculateAmount(ability.getHostCard(), ability.getParamOrDefault("CounterNum", "1"), ability);
+             }
+ 
+-            if (pBonus > 0 && ComputerUtilCost.canPayCost(ability, blocker.getController(), false)) {
++            if (pBonus > 0 && canPayPump(ability, blocker.getController())) {
+                 power += pBonus;
+             }
+         }
+@@ -1120,7 +1181,7 @@ public class ComputerUtilCombat {
+                 tBonus = AbilityUtils.calculateAmount(ability.getHostCard(), ability.getParamOrDefault("CounterNum", "1"), ability);
+             }
+ 
+-            if (tBonus > 0 && ComputerUtilCost.canPayCost(ability, blocker.getController(), false)) {
++            if (tBonus > 0 && canPayPump(ability, blocker.getController())) {
+                 toughness += tBonus;
+             }
+         }
+@@ -1321,7 +1382,7 @@ public class ComputerUtilCombat {
+                 }
+             }
+ 
+-            if (pBonus > 0 && ComputerUtilCost.canPayCost(ability, attacker.getController(), false)) {
++            if (pBonus > 0 && canPayPump(ability, attacker.getController())) {
+                 power += pBonus;
+             }
+         }
+@@ -1542,7 +1603,7 @@ public class ComputerUtilCombat {
+                 tBonus = AbilityUtils.calculateAmount(ability.getHostCard(), ability.getParamOrDefault("CounterNum", "1"), ability);
+             }
+ 
+-            if (tBonus > 0 && ComputerUtilCost.canPayCost(ability, attacker.getController(), false)) {
++            if (tBonus > 0 && canPayPump(ability, attacker.getController())) {
+                 toughness += tBonus;
+             }
+         }
 diff --git a/forge-ai/src/main/java/forge/ai/ComputerUtilMana.java b/forge-ai/src/main/java/forge/ai/ComputerUtilMana.java
 index 5f96dead..def1a348 100644
 --- a/forge-ai/src/main/java/forge/ai/ComputerUtilMana.java
