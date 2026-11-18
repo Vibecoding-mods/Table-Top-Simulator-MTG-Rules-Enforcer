@@ -2069,8 +2069,8 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("marks fit, table board: one mark next leaves one box, at its own size (the other box goes)", !!ws && ws.boxes.length === 1 && ws.boxes[0].label === "POISON 2" && ws.boxes[0].w === 1700 && ws.boxes[0].h === 380, JSON.stringify(ws));
 }
 // Extra-turn counter (docs/extra-turn-counter-spec.md, 2026-11-06; counted from 1 since 2026-11-12, the user: one
-// extra turn is plain "EXTRA TURN", two "EXTRA TURN 2x", n "EXTRA TURN nx"; it showed the count + 1, "2" for one, live
-// check batch 1 item 4): the row's extraTurns as that label beside the life counter, hover text "<name> has n extra
+// extra turn is plain "EXTRA TURN", two "EXTRA TURN 2x", n "EXTRA TURN nx" up to 99, then "EXTRA TURNS 99+" (stress
+// catalog #21); it showed the count + 1, "2" for one, live check batch 1 item 4): the row's extraTurns as that label beside the life counter, hover text "<name> has n extra
 // turn(s) coming", none at 0, with no count (an engine from before) or a count that isn't a number; one button, edited
 // as the count changes; gone with the game (engineCountersReset) and back after the tracker's own onload clears its
 // buttons
@@ -2088,6 +2088,10 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     board({ extraTurns: 0 }), q(badge, "zero"),
     board({ extraTurns: 3 }), q('getObjectFromGUID("23e485").clearButtons() return "cleared"', "tracker reloaded"),
     board({ extraTurns: 3 }), q(badge, "after the reload"),
+    board({ extraTurns: 99 }), q(badge, "99"),
+    board({ extraTurns: 100 }), q(badge, "100"),
+    board({ extraTurns: 4321 }), q(badge, "4321"),
+    board({ extraTurns: 4320 }), q(badge, "4320"),
     board({ extraTurns: "2" }), q(badge, "a string"),
     board({ extraTurns: 1 }), { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 30 }, q(badge, "after the reset")]);
   const v = (m) => String(valueOf(r, m));
@@ -2100,6 +2104,9 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("extra turns: a turn taken lowers it", v("one taken") === v("one"), v("one taken"));
   ok("extra turns: none left, no badge", v("zero") === "no badge", v("zero"));
   ok("extra turns: a tracker that lost its buttons gets it back, three show EXTRA TURN 3x", v("after the reload").startsWith(`EXTRA TURN 3x | ${whiteName} has 3 extra turns coming @`), v("after the reload"));
+  ok("extra turns: 99 still show the number, EXTRA TURN 99x", v("99").startsWith(`EXTRA TURN 99x | ${whiteName} has 99 extra turns coming @`), v("99"));
+  ok("extra turns: past 99 the label is EXTRA TURNS 99+, the hover names the real count", v("100").startsWith(`EXTRA TURNS 99+ | ${whiteName} has 100 extra turns coming @`) && v("4321").startsWith(`EXTRA TURNS 99+ | ${whiteName} has 4321 extra turns coming @`), `${v("100")} / ${v("4321")}`);
+  ok("extra turns: past 99, a turn taken still edits the one button's hover count", v("4320").startsWith(`EXTRA TURNS 99+ | ${whiteName} has 4320 extra turns coming @`) && !v("4320").includes("||"), v("4320"));
   ok("extra turns: a count that isn't a number shows nothing", v("a string") === "no badge", v("a string"));
   ok("extra turns: the end of the game takes it away", v("after the reset") === "no badge", v("after the reset"));
   // (beside the life counter, on its own half: the counter's top-left lobe, off the marks label under it)
@@ -2165,7 +2172,8 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
 }
 // Extra-turn badge fit (checker, 2026-11-07: moving it from local x -1 to +1, onto the [R] lobe, passed every test). On
 // all four trackers, with one extra turn ("EXTRA TURN"), two ("EXTRA TURN 2x") and ten ("EXTRA TURN 10x"; 2026-11-12,
-// a label, no longer a lone number), beside a short label and a long list: the badge lies across the counter's top-left
+// a label, no longer a lone number), 99 ("EXTRA TURN 99x"), and past 99 "EXTRA TURNS 99+" (stress catalog #21: at four
+// digits "EXTRA TURN 1000x" ran past x -2 at the smallest font), beside a short label and a long list: the badge lies across the counter's top-left
 // lobe at local z -1.45, its right edge at most at x 0.55 and its left edge at least at -2, its font at least 120, and
 // its box meets none of the tracker's own life number, -20 or [R] buttons (read from the tracker's script in the save),
 // its marks label, or a commander-damage icon (as the marks fit above)
@@ -2198,6 +2206,10 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     "one extra turn, a short label": [["POISON 2"], 1, "EXTRA TURN"],
     "two extra turns, a short label": [["POISON 2"], 2, "EXTRA TURN 2x"],
     "ten extra turns, seven marks": [["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "MONARCH", "INITIATIVE", "CITY'S BLESSING", "YOU CAN'T LOSE THE GAME"], 10, "EXTRA TURN 10x"],
+    "99 extra turns, seven marks": [["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "MONARCH", "INITIATIVE", "CITY'S BLESSING", "YOU CAN'T LOSE THE GAME"], 99, "EXTRA TURN 99x"],
+    "100 extra turns, capped": [["POISON 2"], 100, "EXTRA TURNS 99+"],
+    "1,000 extra turns, capped": [["POISON 2"], 1000, "EXTRA TURNS 99+"],
+    "123,456 extra turns, capped": [["TURN RUN BY YELLOW", "RING TEMPTED 4", "SPEED 4 (MAX)", "MONARCH", "INITIATIVE", "CITY'S BLESSING", "YOU CAN'T LOSE THE GAME"], 123456, "EXTRA TURNS 99+"],
   };
   const steps = [];
   for (const [name, [marks, n]] of Object.entries(CASES)) steps.push(q(set(marks, n), `set ${name}`), q(btns, `buttons ${name}`));
