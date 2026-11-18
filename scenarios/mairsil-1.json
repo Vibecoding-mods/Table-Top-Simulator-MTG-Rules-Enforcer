@@ -1,0 +1,32 @@
+{
+  "label": "Mairsil 1: cast Mairsil from the command zone, cage Kiki-Jiki from the graveyard, Mairsil copies Pestermite (once a turn); Necrotic Ooze and Patchwork Crawler use graveyard abilities",
+  "mana": 12,
+  "lands": {
+    "Island": 5,
+    "Swamp": 5,
+    "Mountain": 5
+  },
+  "keepHand": false,
+  "hand": [
+    "Thought Scour"
+  ],
+  "battlefield": [
+    "Pestermite",
+    "Reliquary Tower",
+    "Necrotic Ooze",
+    "Patchwork Crawler"
+  ],
+  "graveyard": [
+    "Kiki-Jiki, Mirror Breaker",
+    "Phyrexian Dreadnought",
+    "Agitator Ant",
+    "Helm of the Host"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Craw Wurm",
+      "Serra Angel",
+      "Grizzly Bears"
+    ]
+  }
+}

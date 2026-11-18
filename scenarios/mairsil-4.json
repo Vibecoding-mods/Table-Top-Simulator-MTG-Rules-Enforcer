@@ -1,0 +1,27 @@
+{
+  "label": "Mairsil 4: giving things away: Illusions of Grandeur, Donate, Harmless Offering, Exchange of Words, Kitnap, Demonic Pact, Perplexing Chimera, Phyrexian Dreadnought, Bazaar Trader, Abyssal Persecutor",
+  "mana": 25,
+  "keepHand": false,
+  "hand": [
+    "Illusions of Grandeur",
+    "Donate",
+    "Harmless Offering",
+    "Exchange of Words",
+    "Kitnap",
+    "Demonic Pact",
+    "Perplexing Chimera",
+    "Phyrexian Dreadnought"
+  ],
+  "battlefield": [
+    "Reliquary Tower",
+    "Bazaar Trader",
+    "Abyssal Persecutor"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Craw Wurm",
+      "Serra Angel",
+      "Grizzly Bears"
+    ]
+  }
+}

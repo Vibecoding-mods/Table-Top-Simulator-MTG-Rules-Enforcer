@@ -1,0 +1,35 @@
+{
+  "label": "Mairsil 7: lands and rocks: bounce land, temple scry, Foreboding Ruins / Choked Estuary reveal, shock land, Crumbling Necropolis, Exotic Orchard, Urborg, Xander's Lounge, Sol Ring, signets, Talisman",
+  "mana": 0,
+  "lands": {
+    "Island": 2,
+    "Swamp": 2,
+    "Mountain": 2
+  },
+  "keepHand": false,
+  "hand": [
+    "Dimir Aqueduct",
+    "Temple of Deceit",
+    "Foreboding Ruins",
+    "Choked Estuary",
+    "Watery Grave",
+    "Crumbling Necropolis",
+    "Exotic Orchard",
+    "Urborg, Tomb of Yawgmoth",
+    "Xander's Lounge",
+    "Sol Ring",
+    "Arcane Signet",
+    "Dimir Signet",
+    "Talisman of Dominance",
+    "Swamp",
+    "Kiki-Jiki, Mirror Breaker"
+  ],
+  "battlefield": [
+    "Reliquary Tower"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Grizzly Bears"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "label": "Mairsil 2: clones: Clone, Phantasmal Image, Phyrexian Metamorph, Spark Double, Mocking Doppelganger, Cackling Counterpart, Rite of Replication (kicked), Saw in Half, Mirage Mirror, Fable",
+  "mana": 25,
+  "keepHand": false,
+  "hand": [
+    "Clone",
+    "Phantasmal Image",
+    "Phyrexian Metamorph",
+    "Spark Double",
+    "Mocking Doppelganger",
+    "Cackling Counterpart",
+    "Rite of Replication",
+    "Saw in Half",
+    "Mirage Mirror",
+    "Fable of the Mirror-Breaker"
+  ],
+  "battlefield": [
+    "Pestermite",
+    "Reliquary Tower"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Craw Wurm",
+      "Serra Angel",
+      "Grizzly Bears"
+    ]
+  }
+}
