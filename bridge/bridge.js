@@ -651,7 +651,9 @@ function matchGameWords() {
 const MAIN_MIN = 60, SIDE_MAX = 15;
 const cardName = (c) => c?.identity?.name || c?.name || "?";
 const deckWords = (d) => `main deck ${d.main.length}, sideboard ${d.side.length}`;
-const swapWords = (list) => joinNames([...list.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)));
+// each name once, "×N" after one said N times, in the order first seen
+const countedNames = (list) => [...list.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n));
+const swapWords = (list) => joinNames(countedNames(list));
 const sameDeck = (a, b) => JSON.stringify(a.map(cardName).sort()) === JSON.stringify(b.map(cardName).sort());
 // a seat's deck for this game of the match: game 1's is kept as registered; a later game's is the one left by the last
 // swap. d: the deck the seat would bring ({ deckName, deck, commanderName }) -> the deck to send
@@ -4523,7 +4525,7 @@ function sacrificeWords(m, was) {
 }
 // (many cards by count: Cut Your Losses's 46 read as one name after another, hp-16)
 // (cut to FEW_NAMES after the counting: a Living Death's 40 names read "... and 32 more", stress catalog #11)
-const byCount = (names) => fewNames([...names.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)));
+const byCount = (names) => fewNames(countedNames(names));
 const listOf = (names) => (names.length > 6 ? byCount(names) : fewNames(names));
 // (the same, keeping the order: only a run of one card next to itself counted, for cards whose order is told)
 // The trigger lines of one board, each line alike said once and counted (the owner, 2026-11-15: "if 20 pop up at once,
