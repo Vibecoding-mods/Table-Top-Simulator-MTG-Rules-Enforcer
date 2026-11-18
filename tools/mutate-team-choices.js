@@ -1,4 +1,4 @@
-// Break-it for the 2HG team choices (engine1127-teamchoices: forge-harness TeamChoiceTest): with shared team turns
+// Break-it for the 2HG team choices (engine1126-teamchoices: forge-harness TeamChoiceTest): with shared team turns
 // "the active player" (CR 805.9) and, with no creature named, "attacking player" (CR 805.10c) and "defending player"
 // (CR 805.10e) are one player
 // the controller of the spell or ability chooses as its effect is applied, asked once a resolution; with no controller

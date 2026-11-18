@@ -15938,10 +15938,10 @@ index 0000000..49affd1
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/LongTailTest.java b/forge-harness/src/test/java/forge/harness/host/LongTailTest.java
 new file mode 100644
-index 0000000..54a8a6e
+index 0000000..d0ead3d
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/LongTailTest.java
-@@ -0,0 +1,543 @@
+@@ -0,0 +1,558 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -16003,13 +16003,14 @@ index 0000000..54a8a6e
 +        CHECKS.put("cr805.4 aPartnersUntilYourNextTurnEndsWhenTheTeamsTurnBegins", LongTailTest::aPartnersUntilYourNextTurnEndsWhenTheTeamsTurnBegins);
 +        CHECKS.put("cr800.4m aGonePartnersUntilYourNextTurnLastsToTheTeamsNextTurn", LongTailTest::aGonePartnersUntilYourNextTurnLastsToTheTeamsNextTurn);
 +        CHECKS.put("cr800.4m aGoneDefendersUntilYourNextTurnEndsAtItsTeamsTurn", LongTailTest::aGoneDefendersUntilYourNextTurnEndsAtItsTeamsTurn);
++        CHECKS.put("cr800.4m aGoneTeamsUntilYourNextTurnEndsAtItsSeat", LongTailTest::aGoneTeamsUntilYourNextTurnEndsAtItsSeat);
 +        CHECKS.put("cr805.4d theNextEndStepTriggersOnceForTheTeam", LongTailTest::theNextEndStepTriggersOnceForTheTeam);
 +        CHECKS.put("cr805.4d yourNextUpkeepIsTheTeamsNextUpkeep", LongTailTest::yourNextUpkeepIsTheTeamsNextUpkeep);
 +        CHECKS.put("cr805.4d theNextUpkeepTriggersOnceInTheOtherTeamsTurn", LongTailTest::theNextUpkeepTriggersOnceInTheOtherTeamsTurn);
 +        CHECKS.put("cr805.8 aPartnersExtraCombatIsTheTeams", LongTailTest::aPartnersExtraCombatIsTheTeams);
 +        CHECKS.put("cr800.4a theActiveTeamConcedingMidTurnPassesTheTurnOn", LongTailTest::theActiveTeamConcedingMidTurnPassesTheTurnOn);
-+        CHECKS.put("cr800.4a aPartnerLeavingMidTurnLeavesTheTurnToTheOther", LongTailTest::aPartnerLeavingMidTurnLeavesTheTurnToTheOther);
-+        CHECKS.put("cr800.4a theFirstSeatLeavingMidTurnLeavesTheTurnToThePartner", LongTailTest::theFirstSeatLeavingMidTurnLeavesTheTurnToThePartner);
++        CHECKS.put("teamTurns aPartnerLeavingMidTurnLeavesTheTurnToTheOther", LongTailTest::aPartnerLeavingMidTurnLeavesTheTurnToTheOther);
++        CHECKS.put("teamTurns theFirstSeatLeavingMidTurnLeavesTheTurnToThePartner", LongTailTest::theFirstSeatLeavingMidTurnLeavesTheTurnToThePartner);
 +        CHECKS.put("threes cr805.4 aTeamOfThreeUntapsAndDrawsTogether", LongTailTest::aTeamOfThreeUntapsAndDrawsTogether);
 +        CHECKS.put("threes cr805.4 theTurnAlternatesBetweenTeamsOfThree", LongTailTest::theTurnAlternatesBetweenTeamsOfThree);
 +        CHECKS.put("threes cr805.4c eachOfThreeMayPlayALand", LongTailTest::eachOfThreeMayPlayALand);
@@ -16088,6 +16089,20 @@ index 0000000..54a8a6e
 +        nextTurn(f);
 +        expect(f.ph().getPlayerTurn() == f.p(2) && bears.getNetPower() == 2,
 +                "Blue left, and her \"until your next turn\" lasted into Yellow's turn " + f.ph().getTurn() + ", her team's: power " + bears.getNetPower() + " (rule 800.4m)");
++    }
++
++    private static void aGoneTeamsUntilYourNextTurnEndsAtItsSeat() throws Exception {
++        final Fixture f = new Fixture(6, 2, true, true, 30);
++        final Card bears = creature("Grizzly Bears", f.p(0));
++        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
++        resolve(f, WEAKEN, f.p(3));
++        leave(f, f.p(3));
++        expect(f.p(2).hasLost() && f.p(3).hasLost() && !f.game.isGameOver() && bears.getNetPower() == 1,
++                "Yellow and Blue's leaving ended Blue's weakening at once, left a partner in or ended the game: power " + bears.getNetPower());
++        nextTurn(f);
++        expect(f.ph().getPlayerTurn() == f.p(4) && bears.getNetPower() == 2,
++                "with Yellow and Blue's whole team gone, Blue's \"until your next turn\" lasted past the point her seat's turn would have come (turn "
++                        + f.ph().getTurn() + ", power " + bears.getNetPower() + ", rule 800.4m)");
 +    }
 +
 +    private static Card delayed(final Fixture f, final Player owner, final String trigger) {
@@ -16200,7 +16215,7 @@ index 0000000..54a8a6e
 +        f.ph().devModeSet(PhaseType.MAIN1, f.p(0), 1);
 +        leave(f, f.p(0));
 +        expect(!f.game.isGameOver() && f.ph().isPlayerTurn(f.p(1)) && f.ph().getActiveTeam().equals(List.of(f.p(1))),
-+                "with White gone mid-turn the active team is " + f.ph().getActiveTeam() + ", not Red (rule 800.4a)");
++                "with White gone mid-turn the active team is " + f.ph().getActiveTeam() + ", not Red");
 +        expect(f.p(1).canPlayLand(land, false, land.getFirstSpellAbility()), "Red can't play a land in her team's turn after White left");
 +        stepTo(f, PhaseType.UNTAP);
 +        expect(f.ph().getTurn() == 2 && f.ph().getPlayerTurn() == f.p(2), "after White left her turn, turn " + f.ph().getTurn() + " went to " + f.ph().getActiveTeam());

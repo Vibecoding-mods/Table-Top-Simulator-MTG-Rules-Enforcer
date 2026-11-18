@@ -5,9 +5,11 @@ Branch `cloud/l2-long-tail`, on top of `cloud/l2-team-choices` (ac0dae3, engine1
 
 ## What is covered now
 
-New harness test `LongTailTest` (forge-harness, headless, no table), 17 checks, added to
+New harness test `LongTailTest` (forge-harness, headless, no table), 18 checks, added to
 `engine/checks/harness-tests.sh`. "Level 2" is shared team life plus shared team turns. "Team turns" is shared turns
-with each player's own life, as in Archenemy's team. That is the only setup where one partner can leave alone.
+with each player's own life, as in Archenemy's team. That is the only setup where one partner can leave alone,
+because 2HG teams leave together (CR 810.8b). CR 800.4a takes the player out; that the partners then carry on the
+turn is a design choice for team turns, not a rule, and those two checks are labelled `teamTurns`, not by rule.
 
 | Area | Check | Setup |
 |---|---|---|
@@ -15,13 +17,14 @@ with each player's own life, as in Archenemy's team. That is the only setup wher
 | | `cr805.4 aPartnersUntilYourNextTurnEndsWhenTheTeamsTurnBegins`: Blue's (not the first seat) ends at her team's turn | Level 2 |
 | | `cr800.4m aGonePartnersUntilYourNextTurnLastsToTheTeamsNextTurn`: Red leaves in her own team's turn; her effect lasts to her team's next turn | team turns |
 | | `cr800.4m aGoneDefendersUntilYourNextTurnEndsAtItsTeamsTurn`: Blue leaves in the other team's turn; her effect ends when her team's turn begins | team turns |
+| | `cr800.4m aGoneTeamsUntilYourNextTurnEndsAtItsSeat`: Yellow and Blue's whole team leaves; Blue's effect ends when the turn order passes her seat (the old seat walk, kept for a team with nobody left) | Level 2, 3×2 |
 | Delayed triggers | `cr805.4d theNextEndStepTriggersOnceForTheTeam`: "at the beginning of the next end step" fires once in the team's end step, and not again | Level 2 |
 | | `cr805.4d yourNextUpkeepIsTheTeamsNextUpkeep`: White's and Red's "your next upkeep" each fire once in their team's next upkeep | Level 2 |
 | | `cr805.4d theNextUpkeepTriggersOnceInTheOtherTeamsTurn`: "the next upkeep" fires once in the other team's upkeep | Level 2 |
 | Extra combat | `cr805.8 aPartnersExtraCombatIsTheTeams`: Red's Relentless Assault gives the team two combats and two second main phases; both partners are asked to attack in each | Level 2 |
 | Concede mid-turn | `cr800.4a theActiveTeamConcedingMidTurnPassesTheTurnOn`: at six seats (three teams of two), the active team concedes in its main phase; the game goes on and the turns go to the other two teams in order | Level 2, 3×2 |
-| Partner leaving mid-turn | `cr800.4a aPartnerLeavingMidTurnLeavesTheTurnToTheOther`: Red leaves; White alone is active, priority goes White, Yellow, Blue, and later turns come back to White | team turns |
-| | `cr800.4a theFirstSeatLeavingMidTurnLeavesTheTurnToThePartner`: White (the first seat) leaves; Red alone is active, may play a land, and the turns go on with Red | team turns |
+| Partner leaving mid-turn (design choice) | `teamTurns aPartnerLeavingMidTurnLeavesTheTurnToTheOther`: Red leaves; White alone is active, priority goes White, Yellow, Blue, and later turns come back to White | team turns |
+| | `teamTurns theFirstSeatLeavingMidTurnLeavesTheTurnToThePartner`: White (the first seat) leaves; Red alone is active, may play a land, and the turns go on with Red | team turns |
 | Three per team | `threes cr805.4 aTeamOfThreeUntapsAndDrawsTogether` | Level 2, 2×3 |
 | | `threes cr805.4 theTurnAlternatesBetweenTeamsOfThree` | Level 2, 2×3 |
 | | `threes cr805.4c eachOfThreeMayPlayALand` | Level 2, 2×3 |
@@ -54,7 +57,8 @@ with each player's own life, as in Archenemy's team. That is the only setup wher
    gone, the old seat walk stays. Without shared turns, nothing changes.
 
    Failing before the fix: `aGonePartnersUntilYourNextTurnLastsToTheTeamsNextTurn` and `aGoneDefendersUntilYourNextTurnEndsAtItsTeamsTurn`.
-2. **CR 800.4a: the first seat leaving mid-turn.** `getActiveTeam` kept the gone first seat (the player whose turn
+2. **The first seat leaving mid-turn in team turns** (CR 800.4a takes the player out; the partner carrying on is our
+   choice, see above). `getActiveTeam` kept the gone first seat (the player whose turn
    Forge tracks) on the active team. Now it drops players who left; the turn goes on for the rest of the team.
 
    Failing before the fix: `theFirstSeatLeavingMidTurnLeavesTheTurnToThePartner`.
@@ -63,7 +67,7 @@ No protocol change and no Rust change.
 
 ## Break-it
 
-`node tools/mutate-long-tail.js <engine tree>`: 14 of 14 caught by name, all files restored by sha256. Each mutation
+`node tools/mutate-long-tail.js <engine tree>`: 15 of 15 caught by name, all files restored by sha256. Each mutation
 lists the checks that must all fail. The script refuses to run if any `LongTailTest` check is named by no mutation.
 
 | Mutation | Checks that fail by name |
@@ -71,7 +75,8 @@ lists the checks that must all fail. The script refuses to run if any `LongTailT
 | "until your next turn" ends for the first seat only | untilYourNextTurnLastsUntilTheTeamsNextTurn, aPartnersUntilYourNextTurnEndsWhenTheTeamsTurnBegins |
 | "until your next turn" ends for every player each turn | untilYourNextTurnLastsUntilTheTeamsNextTurn |
 | a gone partner's effects end as the turn passes her seat (fix 1 reverted, first half) | aGonePartnersUntilYourNextTurnLastsToTheTeamsNextTurn |
-| a gone player's effects never wait for the team's turn (fix 1 reverted, second half) | aGonePartners…, aGoneDefendersUntilYourNextTurnEndsAtItsTeamsTurn |
+| a gone teammate's effects never ended (the team-turn pass of fix 1 off) | aGonePartners…, aGoneDefendersUntilYourNextTurnEndsAtItsTeamsTurn |
+| a whole gone team's effects never ended (the seat walk skips every gone player under shared turns) | aGoneTeamsUntilYourNextTurnEndsAtItsSeat |
 | a step runs for the first seat only | yourNextUpkeepIsTheTeamsNextUpkeep |
 | a delayed trigger kept after it fires | theNextEndStepTriggersOnceForTheTeam |
 | a delayed step trigger fires on each member's run (team-run check off and trigger kept) | theNextEndStepTriggersOnceForTheTeam, theNextUpkeepTriggersOnceInTheOtherTeamsTurn |
