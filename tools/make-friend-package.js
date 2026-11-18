@@ -608,7 +608,8 @@ function companion(pkg) {
   }
   const t0 = Date.now() - 2000;
   execFileSync("cmd", ["/c", build], { cwd: tree, stdio: "inherit", timeout: 300000 });
-  const exe = [path.join(tree, "companion", "bin", "MTG Companion.exe"), path.join(tree, "MTG Companion.exe"), path.join(tree, "companion", "MTG Companion.exe")].find((f) => fs.existsSync(f) && fs.statSync(f).mtimeMs >= t0);
+  // (COMPANION_OUT first: build.cmd writes there instead, so a running companion's bin\ exe doesn't block a release)
+  const exe = [...(process.env.COMPANION_OUT ? [path.join(process.env.COMPANION_OUT, "MTG Companion.exe")] : []), path.join(tree, "companion", "bin", "MTG Companion.exe"), path.join(tree, "MTG Companion.exe"), path.join(tree, "companion", "MTG Companion.exe")].find((f) => fs.existsSync(f) && fs.statSync(f).mtimeMs >= t0);
   if (!exe) stop(`${build} ran, but no fresh "MTG Companion.exe" is in ${tree} or its companion folder`);
   copy(exe, path.join(pkg, "MTG Companion.exe"));
   companionSource(tree, pkg);
