@@ -88,6 +88,37 @@ q('onMtgTie(Player.Red, nil, "eng_tieyes") return nil');
 same("no Steam ID: sent empty", q("return lastSent()"), "tieVote Red true ");
 same("engineSteamIds: the seated players'", q('local t = engineSteamIds({ "White", "Red" }) return t.White .. "|" .. t.Red'), "76561190000000001|");
 
+// 12 (hand test Mairsil): after a no, the pop-up that counts the rounds stayed for the rest of the game over White's
+// top battlefield row and every centre question's title. It is a one-line strip under the turn bar then, and each player
+// may close it for that offer (its words to their chat, "mtg tie" says them again); a question to answer is never hidden.
+const at = (id, k) => q(`return attrs["${id}.${k}"]`);
+const DECLINED = (id, rounds) => `{ id = ${id}, status = "declined", rounds = ${rounds}, toForce = 3, declinedBy = "Red", locked = { { who = "AI 1", why = { "can't lose the game" } } }, waiting = {} }`;
+q(`attrs = {} engineTieUpdate(${PENDING}, false) return nil`);
+same("12 tie: an offer to answer keeps its full pop-up, nothing to close", [at("eng_tie", "height"), at("eng_tie", "offsetXY"), at("eng_tiehide", "active")], ["146", "0 -272", "false"]);
+q('told = {} onMtgTie(Player.White, nil, "eng_tiehide") return nil');
+ok("12 tie: an offer to answer can't be closed", (at("eng_tie", "visibility") || "").split("|").includes("White") && q("return tostring(#told)") === "0", `${at("eng_tie", "visibility")} told ${q("return tostring(#told)")}`);
+q(`engineTieUpdate(${DECLINED(4, 1)}, false) return nil`);
+same("12 tie: after a no it is a one-line strip under the turn bar, with a close button", [at("eng_tie", "active"), at("eng_tie", "height"), at("eng_tie", "offsetXY"), at("eng_tietext", "fontSize"), at("eng_tiehide", "active")], ["true", "52", "0 -114", "13", "true"]);
+{
+  // (clear of the centre question row's title: its panel's top edge, from its XML, below the strip's bottom edge; both
+  // on TTS's 1920x1080 reference screen)
+  const row = /<Panel id="eng_row_' \.\. c \.\. '"[^>]*height="(\d+)" rectAlignment="MiddleCenter" offsetXY="0 (-?\d+)"/.exec(RENDERER);
+  const rowTop = row ? 540 - Number(row[2]) - Number(row[1]) / 2 : NaN;
+  const stripBottom = -Number(String(at("eng_tie", "offsetXY")).split(" ")[1]) + Number(at("eng_tie", "height"));
+  ok("12 tie: the strip clears the centre question's title", stripBottom < rowTop, `strip ends at ${stripBottom} px, the row starts at ${rowTop} px`);
+}
+q('told = {} onMtgTie(Player.White, nil, "eng_tiehide") return nil');
+const seen = () => (at("eng_tie", "visibility") || "").split("|");
+ok("12 tie: closed by White, hidden from White only", !seen().includes("White") && seen().includes("Red") && at("eng_tie", "active") === "true", at("eng_tie", "visibility"));
+ok("12 tie: the words go to White's chat on closing", /^White: \[MTG\] AI 1 can't lose the game: the game may never end\.\nRed declined the tie\..*mtg tie/s.test(q("return told[1]") || ""), q("return told[1]"));
+q(`engineTieUpdate(${DECLINED(4, 2)}, false) return nil`);
+ok("12 tie: the next round's count keeps it closed for White", !seen().includes("White") && at("eng_tie", "active") === "true", at("eng_tie", "visibility"));
+q('told = {} chat("tie", "", Player.White) return nil');
+ok("12 tie: mtg tie alone says the words again", /Rounds without progress: 2 of 3/.test(q("return told[1]") || ""), q("return told[1]"));
+q(`engineTieUpdate(${DECLINED(5, 0)}, false) return nil`);
+ok("12 tie: a new offer shows again to everyone", seen().includes("White"), at("eng_tie", "visibility"));
+q(`engineTieUpdate(nil, false) return nil`);
+
 q('chat("tie", "yes", Player.White) return nil');
 same("mtg tie yes", q("return lastSent()"), "tieVote White true 76561190000000001");
 q('chat("tie", "no", Player.White) return nil');

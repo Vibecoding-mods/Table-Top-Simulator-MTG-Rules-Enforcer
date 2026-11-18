@@ -3065,7 +3065,7 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
     // (and exerted, which nothing showed: Arena of Glory stays tapped through its controller's next untap step, hp-09 gap)
     // (a curse on a player: the player it is on, for the table to lay it on their mat, engine1112 attachedToPlayer)
     ...(c.attachedToPlayer && game.slotColor[c.attachedToPlayer] ? { attP: game.slotColor[c.attachedToPlayer] } : {}),
-    ...statusLists(c, [...(game.goaded?.has(c.id) ? [`Goaded by ${nameOf(game.goaded.get(c.id).by)}`] : []),
+    ...statusLists(c, [...(goadersOf(c.id).length ? [`Goaded by ${goadersOf(c.id).map(nameOf).join(" and ")}`] : []),
       ...(game.renowned?.has(c.id) ? ["Renowned"] : []),
       ...(game.suspected?.has(c.id) ? ["Suspected: can't block"] : []),
       // (a permanent's states and what a delayed trigger will do to it; a card elsewhere is in a pile or a hand)
@@ -3280,6 +3280,12 @@ function cardNotes(c, zone, row = false) {
     // cast it, and it ceases to exist when the creature leaves the battlefield)
     const prep = game?.prepared?.get(c.id);
     if (prep) nt.push(`Prepared by ${prep.hostName}: a copy of its spell, not a card. ${(prep.ctl && nameOf(prep.ctl)) || "Its controller"} may cast it; doing so unprepares ${prep.hostName}. It ceases to exist if ${prep.hostName} leaves the battlefield.`);
+    // (a caged card: who has its activated abilities now, cageHoldersOf)
+    const cage = cageHoldersOf(c);
+    if (cage) {
+      const names = [...new Set(cage.map((h) => h.identity.name))];
+      nt.push(names.length ? `Caged: ${cage.length > 1 && names.length === 1 ? `each ${names[0]}` : names.join(" and ")} ${names.length > 1 ? "have" : "has"} its activated abilities` : "Caged: nothing on the battlefield has its activated abilities now");
+    }
     // (exile only: counters leave a card that moves (CR 122.2), and nothing reads counters in a graveyard)
     for (const [k, n] of Object.entries(c.counters || {})) if (n) nt.push(`${n} ${counterWords(k.toUpperCase()) || `${k.toLowerCase()} counter`}${n === 1 ? "" : "s"}`);
   }
@@ -3321,6 +3327,24 @@ function exiledWithNote(c) {
     return [`Exiled with ${name}. When ${name} leaves the battlefield, its trigger returns this card`];
   }
   return [`Exiled with ${name}`];
+}
+// A caged card (Mairsil, the Pretender: its owner's card in exile with a cage counter; that player's permanents whose
+// text names cage counters have its activated abilities, whoever caged it): those permanents on the board drawn now
+// (tableCtx), or null for a card with no cage counter (hand test Mairsil bugs 5, 6)
+function cageHoldersOf(c) {
+  if (!Object.entries(c?.counters || {}).some(([k, n]) => n && k.toUpperCase() === "CAGE")) return null;
+  const ctx = game?.tableCtx;
+  if (!ctx) return [];
+  return [...ctx.field].map((id) => ctx.byId[id]).filter((h) => h && !h.isFaceDown && h.visibility !== "hidden" && h.controllerId === c.ownerId && /\bcage counters?\b/i.test(String(h.currentText ?? h.text ?? "")));
+}
+// The card the table lays a caged card under (its ew): Forge's exiledWith while that permanent has its abilities, else
+// the first one that has them. Forge names the original Mairsil for a card a copy of it caged (Spark Double's), and a
+// Mairsil that left the battlefield: the card went into the exile pile, its cage and abilities out of sight, though
+// the copy still had them.
+function withCageHost(c) {
+  const holders = cageHoldersOf(c);
+  if (!holders?.length || holders.some((h) => h.id === c.exiledWith)) return c;
+  return { ...c, exiledWith: holders[0].id, returnsWhenHostLeaves: false };
 }
 // How long a card's play permission lasts, from the words of the card that gave it ("Until the end of your next turn,
 // you may play those cards.", "You may play them this turn."): { until, cast } or null when its sentence names no end.
@@ -3563,6 +3587,32 @@ const genericOf = (cost) => Number(/^\{(\d+)\}/.exec(cost || "")?.[1] || 0);
 
 // The lore counters on a Saga (the counter's name comes from Forge: compared without its case)
 const loreOf = (c) => Object.entries(c.counters || {}).find(([k]) => k.toUpperCase() === "LORE")?.[1] || 0;
+
+// Static goad, which Forge's card view doesn't show either (game.goaded is only what resolved goad spells and abilities
+// did): an Aura or Equipment whose text says "enchanted/equipped creature ... is goaded" goads its creature (Coercive
+// Impetus and the other Impetus auras, The Rani's Mark of the Rani token), and a Mocking Doppelganger's copy goads the
+// other creatures with its name; each by the source's controller, for as long as it is there (hand test Mairsil
+// bug 9). Read once a board (sendTable keeps it as game.staticGoad): card id -> the goading slots.
+const GOAD_ATTACHED = /\b(?:enchanted|equipped) creature\b[^.\n]*\bis goaded\b/i;
+const GOAD_SAME_NAME = /\bother creatures with the same name as this creature\b[^\n]*?\bare goaded\b/i;
+function staticGoadOf(gv) {
+  const out = new Map();
+  const add = (id, slot) => { if (id && slot && !(out.get(id) || []).includes(slot)) out.set(id, [...(out.get(id) || []), slot]); };
+  const field = (gv?.zones || []).filter((z) => z.zone === "battlefield").flatMap((z) => z.cards || []).filter((c) => c?.identity && !c.isFaceDown && !c.phasedOut);
+  const textOf = (c) => String(c.currentText ?? c.text ?? "");
+  for (const c of field) {
+    const t = textOf(c);
+    if (c.attachedTo && GOAD_ATTACHED.test(t)) add(c.attachedTo, c.controllerId);
+    const same = GOAD_SAME_NAME.exec(t);
+    // (the uncopied Doppelganger's own "may enter as a copy ..., except it has ..." names it without having it)
+    if (same && (c.isCopy || !/\bexcept it has\b/i.test(t.slice(0, same.index).split("\n").pop()))) {
+      for (const o of field) if (o.id !== c.id && o.types?.includes("Creature") && o.identity.name === c.identity.name) add(o.id, c.controllerId);
+    }
+  }
+  return out;
+}
+// Who goads a card now: the static goad above, then what a resolved goad did (game.goaded), each slot once
+const goadersOf = (id) => [...new Set([...(game?.staticGoad?.get(id) || []), ...(game?.goaded?.has(id) ? [game.goaded.get(id).by] : [])])];
 
 // The cards haunting a creature (game.haunting: haunting card id -> its creature's id), by name (hp-20 gap)
 function hauntedBy(id) {
@@ -6742,6 +6792,7 @@ function sendTable() {
   fixNews(pub);
   const byId = cardIndex(pub);
   game.delayedNow = delayedOf(pub); // (the delayed triggers' words on their cards: tableCard, cardNotes)
+  game.staticGoad = staticGoadOf(pub); // (an Impetus aura's, a Mark of the Rani's goad: tableCard, attackReminder)
   const views = seats.map((s) => cardIndex(s.board.state.gameView));
   noteForetold(pub, views); // (the FORETOLD n marks below: playerMarks)
   for (const s of seats) noteTypes(s.board.state.gameView); // (before the stack below: its instants)
@@ -6784,7 +6835,8 @@ function sendTable() {
       battlefield: zoneOf(pub, "battlefield", p.id).cards.map((c) => withPeek(tableCard(c, { blockers, active: pub.activePlayerId, zone: "battlefield", views }))),
       graveyard: zoneOf(pub, "graveyard", p.id).cards.map((c) => tableCard(c, { blockers, zone: "graveyard" })),
       // (a face-down card the drawing seat may not see still lies under the card it was exiled with: faceDownAnyView)
-      exile: zoneOf(pub, "exile", p.id).cards.map((c) => withPeek(tableCard(faceDownAnyView(c, views), { blockers, zone: "exile" }), true)),
+      // (a caged card under a permanent that has its abilities: withCageHost)
+      exile: zoneOf(pub, "exile", p.id).cards.map((c) => withPeek(tableCard(withCageHost(faceDownAnyView(c, views)), { blockers, zone: "exile" }), true)),
       command: command.filter((c) => !planeIds.has(c.id)).map((c) => tableCard(c, { blockers, zone: "command" })), // (zone: a commander's tax, costNow)
       ...dungeonRow(p, command),
       // (Archenemy, engine1119: the archenemy, and their scheme deck's size)
@@ -7719,8 +7771,7 @@ function attackReminder(gv, input, slot) {
         if (u?.reason === "goaded") return String(d).startsWith("player-") ? `goaded by ${nameOf(d)}` : "goaded";
         return u?.reason === "static" && u.sourceName ? u.sourceName : "";
       }
-      const g = game?.goaded?.get(a.attackerId);
-      if (g && g.by === d) return `goaded by ${nameOf(d)}`;
+      if (goadersOf(a.attackerId).includes(d)) return `goaded by ${nameOf(d)}`;
       const card = byId[a.attackerId] || {};
       const rule = R.cants.find((r) => r.at === ctlOf(d) && attackWordFits(card, r.only) !== false && (!r.without || !hasKeyword(card, r.without)));
       return rule ? name(rule.card) : "";
