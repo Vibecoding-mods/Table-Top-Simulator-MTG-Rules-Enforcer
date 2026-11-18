@@ -142,7 +142,9 @@ New from the re-test:
 - The tie strip at 114 px covered the name plate and the Scoop button. It was moved to 170 px (5bcdf31), with a test,
   and deployed in table 7299c332. Its new place is not yet seen live.
 - Rite of Replication's kicker hint repeats ("Pick, then Done. Pick it, then Done."), and the preview read "a copy of ."
-  before the target was chosen. Both are being fixed on fix/retest-text.
+  before the target was chosen. Both fixed (3bac5c6): a question whose own words say "then Done" gets no second hint,
+  and an empty target name falls back to the spell's text or "its target (not chosen yet)".
+- The user asked that the game log not open by itself: it now stays closed until the Log button (8f8a9ec).
 - Found by the user: rikrassen's importer refused DeckCheck links. They now go through the table's DeckCheck code as a
   decklist (1bc5c00, deployed in 7299c332). Its panel is not yet tried live.
 
