@@ -68,8 +68,11 @@ All of these are still open: nothing was seen in TTS. See (d), which adds the ne
   `cloud/team-block-2`).
 - ~~Team blocks: teams of three not tested for the re-ask order~~ (`cloud/team-block-2`, queued).
 - **Level 2 tests, still open:**
-  - 805.9's "the active team chooses which player" and 805.10e's choice (an effect naming a defending player without
-    an attacker) have no team choice in Forge and no check;
+  - ~~805.9's "the active player" and 805.10e's "defending player" with no attacker named have no choice in Forge~~
+    (`cloud/l2-team-choices`, engine1127-teamchoices): the controller of the spell or ability chooses, as the rules
+    say (not the whole team); with no controller in the game, the active team's leader. `TeamChoiceTest`, 14 checks;
+  - 805.10c's "attacking player" with no attacking creature named still goes to the active team's first seat (the
+    rules let the controller choose there too);
   - 805.3a's simultaneous mulligans are checked only for order.
 
 **Best of three:**
