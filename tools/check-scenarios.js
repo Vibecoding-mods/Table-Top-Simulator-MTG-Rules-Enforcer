@@ -33,6 +33,17 @@ const PLAN = {
   // (Two-Headed Giant at level 2, White the host and Red, Yellow and Blue Forge AI: White passes its turn, no attacks,
   // until the bridge shows the team block; White agrees, and the combat goes on to its damage)
   "team-block-live": { table: "2hg", until: "chooseBlockers", click: ["__agree"] },
+  // (scenarios/LIVE-CHECKS.md: each live check's scenario. untilTurn: play on, through the bridge, until that turn
+  // begins; snapshots: the engine records restore points, as a real game does; arch4: an Archenemy game on four seats,
+  // White the archenemy with the first 20 schemes of bridge/forge-schemes.json)
+  // (key: boards kept only where the checks read them, the setup, every question shown, the first board with a card
+  // the engine stopped counting, and the last; the other steps keep their question's type and the answer sent. A
+  // runaway loop's thousand boards of 500 tokens would be 400 MB)
+  "live-rewind": { snapshots: true, untilTurn: 8, key: true },
+  "live-archenemy": { table: "arch4", untilTurn: 2, key: true },
+  "live-art": { cast: "Raise the Alarm", key: true },
+  "live-runaway": { cast: "Polyraptor", untilUnbounded: true, key: true },
+  "live-also-costs": { key: true },
 };
 const NAMES = process.argv.slice(3).length ? process.argv.slice(3) : Object.keys(PLAN);
 process.env.MTG_SCENARIO_DIR = path.join(ROOT, "scenarios");
@@ -75,14 +86,16 @@ const handOf = (gv, slot) => (gv.zones || []).find((z) => z.zone === "hand" && z
 async function play(s, name) {
   const plan = PLAN[name] || {};
   const rec = { scenario: name, scenarioFile: JSON.parse(fs.readFileSync(path.join(ROOT, "scenarios", `${name}.json`), "utf8")), steps: [], problems: [] };
-  const T2 = plan.table === "2hg";
-  const HOST = T2 ? "White" : "Blue";
-  const players = T2
-    ? [["White", "neheb_minotaur_commander", false, 1], ["Red", "ashling_limitless_commander", true, 1], ["Yellow", "ramses_commander", true, 2], ["Blue", "real_teval_commander", true, 2]]
-      .map(([n, d, ai, team]) => ({ name: n, ...deckOf(d), team, ...(ai ? { ai: true, bot: true } : {}) }))
+  const T2 = plan.table === "2hg", A4 = plan.table === "arch4";
+  const HOST = T2 || A4 ? "White" : "Blue";
+  const SCHEMES = (() => { const j = require(path.join(ROOT, "bridge", "forge-schemes.json")); return [...j.schemes, ...(j.ongoing || [])].slice(0, 20); })();
+  const players = T2 || A4
+    ? [["White", "neheb_minotaur_commander", false, 1], ["Red", "ashling_limitless_commander", true, T2 ? 1 : 2], ["Yellow", "ramses_commander", true, 2], ["Blue", "real_teval_commander", true, 2]]
+      .map(([n, d, ai, team]) => ({ name: n, ...deckOf(d), team, ...(ai ? { ai: true, bot: true } : {}),
+        ...(A4 && n === "White" ? { startingLife: 80, goesFirst: true, schemes: SCHEMES.map((x) => ({ name: x })) } : {}) }))
     : [{ name: "Blue", ...deckOf("neheb_minotaur_commander") }, { name: "AI", ...deckOf("ashling_limitless_commander"), ai: true, bot: true }];
-  const h0 = await s.ask(`start ${JSON.stringify({ gameId: `check-${name}`, variant: "Commander", startingLife: 40, seed: 7, snapshotRecording: false,
-    ...(T2 ? { teamRules: "sharedTurns" } : {}), players })}`);
+  const h0 = await s.ask(`start ${JSON.stringify({ gameId: `check-${name}`, variant: "Commander", startingLife: 40, seed: 7, snapshotRecording: !!plan.snapshots,
+    ...(T2 ? { teamRules: "sharedTurns" } : {}), ...(A4 ? { teamRules: "teams", archenemy: true } : {}), players })}`);
   if (h0.status !== "ok") { rec.problems.push(`start: ${h0.value.split("\n")[0]}`); return rec; }
   const view = async () => { const v = await s.ask("snapshot 0"); return v.status === "ok" && v.value ? JSON.parse(v.value) : null; };
   const promptNow = async () => { const p = await s.ask("prompt"); return p.value ? JSON.parse(p.value) : null; };
@@ -113,13 +126,16 @@ async function play(s, name) {
     const T2GAME = { playerOrder: ["White", "Red", "Yellow", "Blue"], bots: 3, total: 4,
       slotNames: { "player-0": "White", "player-1": "AI 1", "player-2": "AI 2", "player-3": "AI 3" }, slotColor: { "player-0": "White", "player-1": "Red", "player-2": "Yellow", "player-3": "Blue" },
       teams: { White: 1, Red: 1, Yellow: 2, Blue: 2 }, teamMode: "2hg", teamTurns: "shared" };
+    const A4GAME = { ...T2GAME, teams: { White: 1, Red: 2, Yellow: 2, Blue: 2 }, teamMode: "archenemy", teamTurns: null, arch: { color: "White", schemes: SCHEMES } };
     h.B._setGame({ seats: new Map([[HOST, seat]]), bots: 1, total: 2, playerOrder: ["Blue", "AI"], slotNames: { "player-0": "Blue", "player-1": "AI 1" }, slotColor: { "player-0": "Blue", "player-1": "White" },
-      ...(T2 ? T2GAME : {}), started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
+      ...(T2 ? T2GAME : A4 ? A4GAME : {}), started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
     const toBridge = async (p) => {
       const gv = await view();
       seat.board = { state: { gameView: gv }, fingerprint: null };
       const n0 = h.effects.length;
-      h.B.onPrompt(seat, p); await h.flush();
+      // (the engine's runaway question has the bridge's own expiry timer, and the harness's flush runs every timer at
+      // once: only the first few here, so the click comes before it, as a player's would)
+      h.B.onPrompt(seat, p); await h.flush(String(p.input?.presentation?.title || "") === "This turn passed the engine's limit" ? 2 : 400);
       const shown = h.effects.slice(n0).filter((e) => e.tts?.t === "prompt" && e.tts.color === HOST && e.tts.promptId != null).map((e) => e.tts).pop() || null;
       const sent = h.effects.slice(n0).map((e) => e.relay?.state).filter((x) => x?.kind === "response" && x.promptId === p.promptId).map((x) => x.action).pop() || null;
       return { gv, shown, sent };
@@ -131,6 +147,9 @@ async function play(s, name) {
       if (!p) return rec;
       const gv = await view();
       const type = p.input?.type;
+      // (Archenemy: a board with a scheme in a command zone, its set-in-motion trigger on the stack before the setup,
+      // kept for the bridge: tests/test_bridge_scenario_checks.js sends it first, as the table's seat would have had it)
+      if ((gv.zones || []).some((z) => z.zone === "command" && (z.cards || []).some((c) => (c.types || []).includes("Scheme"))) && !rec.schemeBoards) rec.schemeBoards = [{ gameView: gv }];
       if (type === "mulligan") { await submit({ type, output: { type: "mulliganDecision", keep: true } }); continue; }
       if (type === "chooseAction" && gv.activePlayerId === "player-0" && gv.step === "main1" && !(gv.stack || []).length) break;
       if (type === "chooseAction") { await submit({ type, output: { type: "pass" } }); continue; }
@@ -158,7 +177,7 @@ async function play(s, name) {
     if (!after) { rec.problems.push("the engine never answered the applyState"); return rec; }
     if (!after.stateFix.applied) { rec.problems.push(`refused: ${after.stateFix.message || JSON.stringify(after.stateFix)}`); return rec; }
     rec.steps.push({ kind: "applied", board: { gameView: after } });
-    if (!plan.cast && !plan.until) return rec;
+    if (!plan.cast && !plan.until && !plan.untilTurn) return rec;
     // ── the cast: the engine's own cast action, auto pay; then every question through the bridge ──
     if (plan.cast) {
       p = await next();
@@ -169,7 +188,7 @@ async function play(s, name) {
     } else lastId = null; // (until: the setup's own priority question is asked again, and goes through the bridge)
     let reached = false; // (until: the question was shown and answered; then on to the end of that combat step)
     const clicks = [...(plan.click || [])];
-    for (let k = 0; k < (plan.until ? 400 : 60); k++) {
+    for (let k = 0; k < (plan.until || plan.untilTurn || plan.untilUnbounded ? 1500 : 60); k++) {
       p = await next();
       if (!p && rec.over) break;
       if (!p) return rec;
@@ -179,7 +198,17 @@ async function play(s, name) {
       const ranOut = h.effects.some((e) => e.tts?.t === "chat" && / answered (?:No|Yes) to /.test(e.tts.text || "")) && !(gv.stack || []).length;
       // (until: the end is the first priority question after the combat's damage, the stack empty)
       const untilDone = plan.until && reached && !(gv.stack || []).length && p.input?.type === "chooseAction" && !/^combatDeclare/.test(gv.step || "");
-      if (plan.until ? untilDone : (ranOut || (shown && !(gv.stack || []).length && p.input?.type === "chooseAction"))) { step.end = true; if (sent) step.sent = sent; rec.steps.push(step); break; }
+      // (untilTurn: that turn has begun; untilUnbounded: a card the engine stopped counting is on the battlefield, and
+      // the stack empty or the engine's runaway question answered)
+      const turnDone = plan.untilTurn && gv.turn >= plan.untilTurn;
+      const anyUnbounded = (gv.zones || []).some((z) => (z.cards || []).some((c) => c.unbounded));
+      if (anyUnbounded && !rec.sawUnbounded) step.firstUnbounded = true;
+      if (anyUnbounded) rec.sawUnbounded = true;
+      // (key: a step answered by the bridge alone, and not the first unbounded board, keeps no board and a short prompt)
+      if (plan.key && !shown && !step.firstUnbounded) { delete step.board; step.prompt = { promptId: p.promptId, input: { type: p.input?.type, presentation: p.input?.presentation } }; }
+      const unbDone = plan.untilUnbounded && rec.sawUnbounded && (!(gv.stack || []).length || rec.runawayAnswered);
+      const end = plan.until ? untilDone : plan.untilTurn ? turnDone : plan.untilUnbounded ? unbDone : (ranOut || (shown && !(gv.stack || []).length && p.input?.type === "chooseAction"));
+      if (end) { step.end = true; step.board = { gameView: gv }; if (sent) step.sent = sent; rec.steps.push(step); break; }
       if (sent) { step.sent = sent; rec.steps.push(step); await submit(sent); continue; }
       if (!shown) { rec.problems.push(`question ${p.input?.type} neither shown nor answered by the bridge`); rec.steps.push(step); return rec; }
       // (a click on the table: the planned option when there is one, else the first; a priority question passes)
@@ -188,6 +217,7 @@ async function play(s, name) {
       const pick = clicks.length && ids.includes(clicks[0]) ? clicks.shift() : p.input?.type === "chooseAction" ? (ids.find((i) => /pass/i.test(i)) || ids[0])
         : p.input?.type === "chooseAttackers" && ids.includes("__noattack") ? "__noattack" : ids[0];
       if (plan.until && p.input?.type === plan.until) reached = true;
+      if (String(p.input?.presentation?.title || "") === "This turn passed the engine's limit") { rec.runawayAnswered = true; (rec.runaway ??= []).push({ title: shown.title, options: (shown.options || []).map((o) => o.label), click: pick }); }
       step.click = pick;
       const n1 = h.effects.length;
       h.B.onTTS({ t: "answer", json: JSON.stringify({ color: HOST, promptId: p.promptId, choice: [pick] }) }); await h.flush();
@@ -199,8 +229,8 @@ async function play(s, name) {
       await submit(ans);
     }
     rec.chatsAfter = h.effects.filter((e) => e.tts?.t === "chat").map((e) => e.tts.text).filter((t) => / answered /.test(t));
+    rec.chatsAll = h.effects.filter((e) => e.tts?.t === "chat").map((e) => e.tts.text);
     if (plan.until) {
-      rec.chatsAll = h.effects.filter((e) => e.tts?.t === "chat").map((e) => e.tts.text);
       if (!reached) rec.problems.push(`the bridge never showed ${plan.until}`);
       if (rec.over) rec.overSaid = h.effects.filter((e) => e.tts?.t === "chat").map((e) => e.tts.text).slice(-3);
     }

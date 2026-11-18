@@ -33,6 +33,8 @@ const handOf = (gv) => (gv.zones || []).find((z) => z.zone === "hand" && z.owner
 const T2GAME = { playerOrder: ["White", "Red", "Yellow", "Blue"], bots: 3, total: 4,
   slotNames: { "player-0": "White", "player-1": "AI 1", "player-2": "AI 2", "player-3": "AI 3" }, slotColor: { "player-0": "White", "player-1": "Red", "player-2": "Yellow", "player-3": "Blue" },
   teams: { White: 1, Red: 1, Yellow: 2, Blue: 2 }, teamMode: "2hg", teamTurns: "shared" };
+// (arch4: an Archenemy game on four seats, White the archenemy, as tools/check-scenarios.js plays it)
+const A4GAME = { ...T2GAME, teams: { White: 1, Red: 2, Yellow: 2, Blue: 2 }, teamMode: "archenemy", teamTurns: null, arch: { color: "White" } };
 let HOST = "Blue";
 function bridge(h, t2 = false) {
   HOST = t2 ? "White" : "Blue";
@@ -40,7 +42,7 @@ function bridge(h, t2 = false) {
   seat.slot = "player-0";
   seat.heartbeat = () => {};
   h.B._setGame({ seats: new Map([[HOST, seat]]), bots: 1, total: 2, playerOrder: ["Blue", "AI"], slotNames: { "player-0": "Blue", "player-1": "AI 1" },
-    slotColor: { "player-0": "Blue", "player-1": "White" }, ...(t2 ? T2GAME : {}), started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
+    slotColor: { "player-0": "Blue", "player-1": "White" }, ...(t2 === "arch4" ? A4GAME : t2 ? T2GAME : {}), started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
   return seat;
 }
 // one recorded question into the bridge: what it shows Blue and what it answers by itself
@@ -115,10 +117,21 @@ async function scenario(name, check, t2 = false) {
     await check(r, h, seat, applied);
   } finally { harness.restore(); }
 }
+// the table message the bridge sends for board gv (the first one with the seat's zones), and its cards' statics
+async function tableOf(h, seat, gv) {
+  seat.board = { state: { gameView: JSON.parse(JSON.stringify(gv)) }, fingerprint: null };
+  const n0 = h.effects.length;
+  h.B.sendTable(); await h.flush(200000);
+  const msgs = h.effects.slice(n0).filter((e) => e.tts?.t === "table" || e.tts?.t === "texts").map((e) => e.tts);
+  const t = msgs.find((m) => m.t === "table") || null;
+  return { t, me: t?.players.find((p) => p.slot === "player-0") || null, stat: Object.assign({}, ...msgs.map((m) => m.cards || {})), log: h.effects.slice(n0).filter((e) => e.tts?.t === "gamelog").flatMap((e) => e.tts.lines || []) };
+}
+const bfOf = (gv, slot = "player-0") => ((gv.zones || []).find((z) => z.zone === "battlefield" && z.ownerId === slot) || {}).cards || [];
 // the recorded questions after the cast, replayed: the bridge must show and answer each as recorded
 async function replay(name, r, h, seat) {
   const out = [];
   for (const st of r.steps.filter((s) => s.kind === "bridge")) {
+    if (!st.board) { out.push({ st, shown: st.shown, sent: st.sent, msg: null, chats: [] }); continue; } // (a key recording's step without its board: as recorded)
     const got = await ask(h, seat, st);
     let sent = got.sent;
     if (st.click) {
@@ -184,6 +197,66 @@ async function replay(name, r, h, seat) {
     same("team-block-live: White asked again after Red's change, the revise round naming Red", [blocks[1]?.shown?.title, blocks[1]?.shown?.options[0], blocks[1]?.msg?.joint], ["Red changed the blocks. Agree or change?", "Agree", 1]);
     same("team-block-live: White's Agree sends the team's blocks back as they were", blocks.map((x) => JSON.stringify(x.sent?.output?.assignments)), blocks.map((x) => JSON.stringify(x.st.prompt.input.currentAssignments || [])));
   }, true);
+  // ── scenarios/LIVE-CHECKS.md: one scenario per live check ──
+  // (a) rewind: the board changes on each of Blue's turns, and the engine's restore points reach the table's Undo
+  await scenario("live-rewind", async (r, h, seat) => {
+    const turns = [];
+    for (const st of r.steps.filter((x) => x.board)) {
+      const gv = st.board.gameView;
+      if (gv.activePlayerId !== "player-0" || turns.some((t) => t.turn === gv.turn)) continue;
+      const bf = bfOf(gv);
+      turns.push({ turn: gv.turn, life: gv.players[0].life, faeries: bf.filter((c) => /^Faerie Rogue/.test(c.identity?.name || "")).length, counters: bf.reduce((n, c) => n + ((c.counters || {}).P1P1 || 0), 0) });
+    }
+    same("live-rewind: Blue's turns 2, 4, 6 and 8 seen", turns.map((t) => t.turn), [2, 4, 6, 8]);
+    ok("live-rewind: each of Blue's turns changes the board: life down, a Faerie more, a +1/+1 counter more", turns.slice(2).every((t, i) => t.life < turns[i + 1].life && t.faeries > turns[i + 1].faeries && t.counters > turns[i + 1].counters), JSON.stringify(turns));
+    const end = r.steps.filter((x) => x.board).at(-1).board.gameView;
+    ok("live-rewind: the engine recorded restore points, past the first turns", (end.checkpoints || []).length >= 20, (end.checkpoints || []).length);
+    const { t } = await tableOf(h, seat, end);
+    const pts = t?.rewind?.points || [];
+    ok("live-rewind: the table's Undo lists them, the newest first, named by turn and step", pts.length >= 8 && /^turn \d+, (Blue|AI 1)'s /.test(pts[0]?.label || "") && pts.some((x) => /^turn \d+, Blue's /.test(x.label)), JSON.stringify(pts.map((x) => x.label)));
+  });
+  // (b) Archenemy on four seats: White the archenemy, a scheme set in motion on turn 1
+  await scenario("live-archenemy", async (r, h, seat, applied) => {
+    const w = applied.players.find((p) => p.id === "player-0");
+    same("live-archenemy: White the archenemy at 80, the others at 40, the scheme deck 20", [w.isArchenemy, applied.players.map((p) => p.life), w.schemeDeckCount], [true, [80, 40, 40, 40], 20]);
+    const ev = (applied.events || []).find((e) => e.how === "setInMotion");
+    ok("live-archenemy: the engine set a scheme in motion on turn 1, at White's first main phase", ev && applied.turn === 1, JSON.stringify(ev));
+    const sb = (r.schemeBoards || [])[0]?.gameView;
+    const { t, stat } = await tableOf(h, seat, sb || applied);
+    ok("live-archenemy: the table gets it as the scheme set in motion (schemeNow, seq 1), the scheme the engine set in motion", t?.schemeNow?.seq === 1 && t.schemeNow.card?.id === ev?.cardId, JSON.stringify(t?.schemeNow).slice(0, 200));
+    ok("live-archenemy: the table's teams name White the archenemy", t?.teams?.archenemy === "White", JSON.stringify(t?.teams));
+    ok("live-archenemy: White's row says archenemy, with the scheme deck", t?.players.find((p) => p.color === "White")?.arch === true && typeof t.players.find((p) => p.color === "White").schemeDeck === "number");
+    void stat;
+  }, "arch4");
+  // (c) art and effects: a double-faced card on the battlefield and in hand, a Treasure, and Raise the Alarm's two tokens
+  await scenario("live-art", async (r, h, seat, applied) => {
+    const dfc = applied.zones.flatMap((z) => (z.ownerId === "player-0" ? z.cards || [] : [])).filter((c) => c.isDoubleFaced).map((c) => c.identity.name).sort();
+    same("live-art: two double-faced cards, Huntmaster of the Fells on the battlefield and Delver of Secrets in hand", dfc, ["Delver of Secrets", "Huntmaster of the Fells"]);
+    const a = await tableOf(h, seat, applied);
+    ok("live-art: the Treasure goes to the table as a token", (a.me?.battlefield || []).some((c) => a.stat[c.id]?.n === "Treasure Token" && a.stat[c.id]?.tok), JSON.stringify((a.me?.battlefield || []).map((c) => a.stat[c.id]?.n)));
+    const end = r.steps.filter((x) => x.board).at(-1).board.gameView;
+    same("live-art: Raise the Alarm resolved on the engine: two Soldier tokens", bfOf(end).filter((c) => c.identity?.isToken && /^Soldier/.test(c.identity.name)).length, 2);
+    const e = await tableOf(h, seat, end);
+    same("live-art: the table gets both Soldiers as tokens", (e.me?.battlefield || []).filter((c) => e.stat[c.id]?.n === "Soldier Token" && e.stat[c.id]?.tok).length, 2);
+  });
+  // (d) the runaway limit: Polyraptor and Marauding Raptor's loop
+  await scenario("live-runaway", async (r, h, seat) => {
+    same("live-runaway: the engine's limit asked three times, Keep going each time", (r.runaway || []).map((x) => [x.title, x.options, x.click]), Array(3).fill(["This turn passed the engine's limit", ["Keep going", "End in a draw"], "yes"]));
+    same("live-runaway: each said to everyone", (r.chatsAll || []).filter((c) => c === "[MTG] Blue kept the turn going past the engine's limit.").length, 3);
+    const first = r.steps.find((x) => x.firstUnbounded)?.board.gameView;
+    ok("live-runaway: the engine stopped counting the pile: unbounded Polyraptors on the battlefield", first && bfOf(first).filter((c) => c.unbounded && c.identity?.name === "Polyraptor").length >= 100, first && bfOf(first).filter((c) => c.unbounded).length);
+    const { me } = await tableOf(h, seat, first);
+    ok("live-runaway: the table gets them marked inf (the x∞ pile)", (me?.battlefield || []).filter((c) => c.inf).length >= 100, (me?.battlefield || []).filter((c) => c.inf).length);
+    const end = r.steps.at(-1).board?.gameView;
+    same("live-runaway: the loop over, the stack empty", (end?.stack || []).length, 0);
+  });
+  // (e) the "also costs" hover: Dread Return's flashback and Uro's escape from the graveyard
+  await scenario("live-also-costs", async (r, h, seat, applied) => {
+    const { me, stat } = await tableOf(h, seat, applied);
+    const row = (n) => (me?.playable || []).find((c) => stat[c.id]?.n === n);
+    ok("live-also-costs: Dread Return in the playable row, FROM GRAVEYARD, its hover: flashback also costs three creatures", row("Dread Return")?.og === "graveyard" && (row("Dread Return").nt || []).includes("Flashback also costs: sacrifice three creatures."), JSON.stringify(row("Dread Return")));
+    ok("live-also-costs: Uro in the playable row, FROM GRAVEYARD, its hover: escape also costs five other cards", row("Uro, Titan of Nature's Wrath")?.og === "graveyard" && (row("Uro, Titan of Nature's Wrath").nt || []).includes("Escape also costs: exile five other cards from your graveyard."), JSON.stringify(row("Uro, Titan of Nature's Wrath")));
+  });
   process.stdout.write(`${failed ? "FAIL" : "PASS"} test_bridge_scenario_checks: ${passed} passed, ${failed} failed\n`);
   process.exit(failed ? 1 : 0);
 })().catch((e) => { process.stdout.write(`FAIL test_bridge_scenario_checks: ${e.stack}\n`); process.exit(1); });
