@@ -9458,36 +9458,54 @@ function sacPicker(seat, g, caps, need, ctx) {
 function sacStart(seat, g, col, n, ctx) {
   const cards = g.cards.slice(0, Math.max(1, n));
   const gv = seat.board?.state?.gameView || {};
-  seat.sacRun = { kind: ctx.kind, card: ctx.card ?? null, colour: col, name: g.name, left: cards.slice(1), last: cards[0], turn: gv.turn, at: Date.now() };
+  seat.sacRun = { kind: ctx.kind, card: ctx.card ?? null, colour: col, name: g.name, left: cards.slice(1), last: cards[0], confirmed: false, turn: gv.turn, at: Date.now() };
   if (ctx.kind === "pay") seat.tappedFor = ctx.card; // (the cost covered by the last one is paid from the pool, as after a tap by hand)
   return { type: "act", actionId: g.act(cards[0], col).id };
 }
+// A run ended early, said once: how many of the player's X were not sacrificed (nothing said when none are); false
+function sacStop(seat, run, n, why) {
+  if (n > 0) chat(`[MTG] ${run.name}: ${why ? `${why}; ` : ""}${n} more couldn't be sacrificed for mana; the rest is yours to pay.`, seat.color);
+  seat.sacRun = null;
+  return false;
+}
 // The next of a "Sacrifice X" run, answered unseen: the payment for the same card (until the pool covers it) or the
-// priority question that follows a mana ability, by the next card's action of the chosen colour; a "choose a color" of
-// the card just used, by that colour. Its "Sacrifice ...?" (chooseBoolean) is CONFIRMS', and a colour question it can't
-// answer is asked as usual: both leave the run on. Any other question, or a card that can't be used any more, ends it;
-// true when it answered.
+// priority question that follows a mana ability, by the next card's action of the chosen colour. The card just used:
+// its one "Sacrifice ...?" answered yes (by its source card, or its name in the title when Forge sends none), its
+// "choose a color" by the run's colour. Any other question (a yes/no or colour question the run doesn't answer goes to
+// the player, whose No leaves that one unsacrificed), a card that can't be used any more, or the card just used still
+// offered (the engine didn't take that activation, review of 58e810e) ends it, said once; true when it answered.
 function sacRunStep(seat, prompt, type, input, gv) {
   const run = seat.sacRun;
-  if (!run || type === "chooseBoolean") return false;
-  if (type === "chooseColor") {
-    const name = run.colour.length === 1 ? COLOR_NAMES[run.colour] : null;
-    if (!name || prompt.sourceCard?.id !== run.last || !(input.validColors || []).includes(name)) return false;
-    seat.respond(prompt.promptId, type, { type: "colorDecision", chosenColors: { [name]: input.amount } });
-    return true;
+  if (!run) return false;
+  if (type === "chooseBoolean" || type === "chooseColor") {
+    const title = String(input.presentation?.title || "");
+    const mine = prompt.sourceCard?.id ? prompt.sourceCard.id === run.last : title.toLowerCase().includes(run.name.toLowerCase());
+    if (type === "chooseBoolean" && mine && !run.confirmed && /^Sacrifice\b/i.test(title)) {
+      run.confirmed = true;
+      seat.forget("manaTap"); // (answered here: CONFIRMS must not take a second one as this tap's too)
+      seat.respond(prompt.promptId, type, { type: "decision", value: true });
+      return true;
+    }
+    const colour = run.colour.length === 1 ? COLOR_NAMES[run.colour] : null;
+    if (type === "chooseColor" && mine && colour && (input.validColors || []).includes(colour)) {
+      seat.respond(prompt.promptId, type, { type: "colorDecision", chosenColors: { [colour]: input.amount } });
+      return true;
+    }
+    return sacStop(seat, run, run.left.length, "another question came first");
   }
-  const fits = Date.now() - run.at < 60000 && (run.kind === "pay" ? type === "payManaCost" && input.cardId === run.card && !input.canConfirmFromPool
-    : type === "chooseAction" && gv.turn === run.turn);
+  const same = Date.now() - run.at < 60000 && (run.kind === "pay" ? type === "payManaCost" && input.cardId === run.card : type === "chooseAction" && gv.turn === run.turn);
+  const usable = (a, id) => a.cardId === id && (a.isManaAbility || a.type === "activateManaAbility") && sacColour(a) === run.colour;
+  // (a sacrificed card is never offered again: offered, its activation wasn't taken)
+  if (same && (input.actions || []).some((a) => usable(a, run.last))) return sacStop(seat, run, run.left.length + 1, "the engine didn't take the last one");
+  const fits = same && !(run.kind === "pay" && input.canConfirmFromPool);
   const id = fits ? run.left[0] : null;
   const name = id ? cardIndex(gv)[id]?.identity?.name : null;
-  const act = id ? (input.actions || []).find((a) => a.cardId === id && (a.isManaAbility || a.type === "activateManaAbility") && sacColour(a) === run.colour && sacrificesItself(a, name)) : null;
-  if (!act) {
-    if (fits && run.left.length) chat(`[MTG] ${run.name}: ${run.left.length} more couldn't be sacrificed for mana; the rest is yours to pay.`, seat.color);
-    seat.sacRun = null;
-    return false;
-  }
+  const act = id ? (input.actions || []).find((a) => usable(a, id) && sacrificesItself(a, name)) : null;
+  // (the pool covering the cost ends it unsaid: what is left isn't needed)
+  if (!act) return sacStop(seat, run, same && !fits ? 0 : run.left.length, fits ? "" : "another question came first");
   run.left.shift();
   run.last = id;
+  run.confirmed = false;
   run.at = Date.now();
   if (run.kind === "pay") seat.tappedFor = run.card;
   seat.respond(prompt.promptId, type, { type: "act", actionId: act.id });
