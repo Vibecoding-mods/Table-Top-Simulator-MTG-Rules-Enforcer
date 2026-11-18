@@ -121153,7 +121153,8 @@
          "t": "3",
          "sick": true,
          "ctl": "Blue",
-         "fo": true
+         "fo": true,
+         "og": "exile"
         }
        ]
       },
@@ -122194,7 +122195,8 @@
          "t": "3",
          "sick": true,
          "ctl": "Blue",
-         "fo": true
+         "fo": true,
+         "og": "exile"
         }
        ],
        "keep": [

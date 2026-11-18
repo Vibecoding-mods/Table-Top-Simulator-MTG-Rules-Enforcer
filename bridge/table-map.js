@@ -96,7 +96,8 @@ const CARD_FACTS = {
 // Keys tableCard sends that stand for no single CardDto field: combat worked out from the game's blocker list, and the
 // bridge's own records of what Forge doesn't send
 const TABLE_ONLY_KEYS = { blk: "blocking", blkOf: "the attackers it blocks", sick: "nothing reads it; the status box's mark is decided in the bridge, which knows whose turn it is", enc: "ew is a cipher link; the table treats it as any link",
-  og: "a playable-row card from the graveyard: the FROM GRAVEYARD chip (the zone the bridge found it in, no CardDto field)",
+  og: "a playable-row card from the graveyard or exile: the FROM GRAVEYARD / FROM EXILE chip (the zone the bridge found it in, no CardDto field; exile not on a card face down to the others)",
+  ogw: "why a playable-row card in exile may be cast from there, the FROM EXILE chip's hover: the card that let it be played (exiledWith, mayPlay, playWindow), madness (isMadnessExiled), warp (isWarpExiled)",
   pk: "your own face-down card's face { n, f, v }: from each human seat's own view (facePeek), drawn as UI only those seats' colours see" };
 
 // Forge's zones -> where the table puts them. check: the words engineSelfCheck reports
