@@ -36,14 +36,26 @@ namespace MtgCompanion
     public class CheckResult
     {
         public bool Failed, Quiet;
+        public bool Skipped;  // the automatic check found the release the player went back from (Revert): not offered
         public string Text;
         public UpdateManifest Manifest;
         public ReleaseInfo Release;
         public UpdatePlan Plan;
-        public bool Available { get { return Plan != null && !Plan.UpToDate && Plan.Refused == null; } }
+        public bool Available { get { return Plan != null && !Plan.UpToDate && Plan.Refused == null && !Skipped; } }
     }
 
     public class ApplyResult { public bool Ok, Deferred, Swapping; public string Text; }
+
+    // What Revert would go back to: the newest backup\<old version>\ (docs/companion-app-spec.md §11.6). Possible
+    // false: Why says why not (no backup yet, or one that lacks a part it would need). Self: the backup holds this
+    // app's own exe of that version, which then takes over the way an update's new exe does. Changes: what goes back
+    // ("table", "app", "engine"), in the order the check line names them.
+    public class RevertInfo
+    {
+        public bool Possible, Self;
+        public string Backup, Target, From, Why, CompanionVersion;
+        public List<string> Changes = new List<string>();
+    }
 
     // An update in progress, on disk before the first file moves (update-journal.json in the package): what a start
     // after a kill or a power cut needs to put the package back. Existed: the paths that were there before;
@@ -51,12 +63,13 @@ namespace MtgCompanion
     public class Journal
     {
         public string Target, Backup, Phase = "moving";
+        public string Kind = "update", Source; // Kind "revert": Backup holds the newer files, Source is the backup they came back from
         public List<string> Replaced = new List<string>(), Existed = new List<string>(), Moved = new List<string>();
         public List<string[]> Placed = new List<string[]>();
 
         public object ToJson()
         {
-            return new Dictionary<string, object> { { "target", Target }, { "backup", Backup }, { "phase", Phase }, { "replaced", Replaced.ToArray() },
+            return new Dictionary<string, object> { { "kind", Kind }, { "source", Source }, { "target", Target }, { "backup", Backup }, { "phase", Phase }, { "replaced", Replaced.ToArray() },
                 { "existed", Existed.ToArray() }, { "moved", Moved.ToArray() }, { "placed", Placed.Select(p => (object)p).ToArray() } };
         }
 
@@ -64,13 +77,13 @@ namespace MtgCompanion
         {
             if (!(o is Dictionary<string, object>)) return null;
             Func<string, List<string>> list = k => (J.Arr(o, k) ?? new object[0]).Select(x => Convert.ToString(x)).Where(x => x != null).ToList();
-            var j = new Journal { Target = J.Str(o, "target"), Backup = J.Str(o, "backup"), Phase = J.Str(o, "phase") ?? "moving", Replaced = list("replaced"), Existed = list("existed"), Moved = list("moved") };
+            var j = new Journal { Kind = J.Str(o, "kind") ?? "update", Source = J.Str(o, "source"), Target = J.Str(o, "target"), Backup = J.Str(o, "backup"), Phase = J.Str(o, "phase") ?? "moving", Replaced = list("replaced"), Existed = list("existed"), Moved = list("moved") };
             foreach (var p in J.Arr(o, "placed") ?? new object[0])
             {
                 var a = p as object[] ?? (p is System.Collections.ArrayList ? ((System.Collections.ArrayList)p).ToArray() : null);
                 if (a != null && a.Length == 2) j.Placed.Add(new[] { Convert.ToString(a[0]), Convert.ToString(a[1]) });
             }
-            if (j.Backup == null) return null;
+            if (j.Backup == null || (j.Kind == "revert" && j.Source == null)) return null;
             return j;
         }
     }
@@ -80,8 +93,10 @@ namespace MtgCompanion
     public class UndoPlan { public List<string> Delete = new List<string>(), MoveBack = new List<string>(); public List<string[]> ReturnToDownload = new List<string[]>(); }
 
     // Where the self-update stands, as one snapshot (the window, the tray and the status page read it; nothing else is
-    // kept elsewhere). Status: idle, checking, up-to-date, not-public, available, downloading, ready (waits for the
-    // game to end), installing, restarting (the new app takes over), updated, failed.
+    // kept elsewhere). Status: idle, checking, up-to-date, not-public, skipped (the automatic check found the release
+    // Revert went back from), available, downloading, ready (waits for the game to end), installing, restarting (the
+    // new app takes over), updated, failed, interrupted; and for Revert: reverting, revert-ready (waits for the game
+    // to end), reverted.
     public class UpdateState
     {
         public string Status = "idle";
@@ -94,6 +109,9 @@ namespace MtgCompanion
         public string Error;                // the last failure, in words
         public string LastCheck;            // ISO time of the last check
         public string Text = "";            // the one line for the window and the tray
+        public List<string> Changes;        // what the offered release changes: "table", "app", "engine" (Updates.Changes)
+        public RevertInfo Revert;           // what Revert would go back to (the Controller's, after each change of the package)
+        public bool RevertWaiting;          // Revert was pressed during a game: it goes back after the game
         public UpdateState Copy() { return (UpdateState)MemberwiseClone(); }
 
         // after a check. laterSame: Later was pressed for this same release
@@ -103,8 +121,10 @@ namespace MtgCompanion
             Text = r.Text;
             Status = r.Available ? "available" : r.Quiet ? "not-public" : r.Failed || (r.Plan != null && r.Plan.Refused != null) ? "failed" : "up-to-date";
             Error = Status == "failed" ? r.Text : null;
+            if (r.Skipped) Status = "skipped";
             Available = r.Available ? r.Manifest.Version : null;
             Notes = r.Available ? r.Text : null;
+            Changes = r.Available ? Updates.Changes(r.Plan.Fetch.Select(p => p.Name)) : null;
             Later = r.Available && laterSame;
             Progress = -1;
         }
@@ -117,7 +137,19 @@ namespace MtgCompanion
             DeferredUntilGameEnds = res.Deferred;
             Error = res.Ok || res.Deferred ? null : res.Text;
             Progress = -1;
-            if (res.Ok && !res.Swapping) { Available = null; Notes = null; }
+            if (res.Ok && !res.Swapping) { Available = null; Notes = null; Changes = null; }
+        }
+
+        // after a revert (or its wait for the game). One that went back clears any offer: it was planned against the
+        // newer package.
+        public void Reverted(ApplyResult res)
+        {
+            Text = res.Text;
+            Status = res.Deferred ? "revert-ready" : res.Swapping ? "restarting" : res.Ok ? "reverted" : "failed";
+            RevertWaiting = res.Deferred;
+            Error = res.Ok || res.Deferred ? null : res.Text;
+            Progress = -1;
+            if (res.Ok) { Available = null; Notes = null; Changes = null; Later = false; }
         }
     }
 
@@ -125,7 +157,7 @@ namespace MtgCompanion
     {
         public const int Format = 2; // the manifest format this app applies (a release's minCompanion; 2: the table is made
                                      // from the host's Workshop copy, the table part is the patcher)
-        public const string Repo = "Vibecoding-mods/Table-Top-Simulator-Mock-MTGA";
+        public const string Repo = "Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer";
         public const string ApiBase = "https://api.github.com";
         public const string UserAgent = "MTG-Companion";
         public const string ManifestAsset = "update-manifest.json", SignatureAsset = "update-manifest.json.sig";
@@ -449,10 +481,131 @@ namespace MtgCompanion
 
         public static string Mb(long bytes) { return (bytes / 1048576.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " MB"; }
 
+        // What a set of parts changes, in the words the owner reads: "table" (the table part), "app" (the bridge and
+        // decks, the Node runtime or this app itself), "engine" (the engine images). In that order, each once.
+        public static List<string> Changes(IEnumerable<string> parts)
+        {
+            var set = new HashSet<string>(parts ?? new string[0]);
+            var c = new List<string>();
+            if (set.Contains("table")) c.Add("table");
+            if (set.Contains("app") || set.Contains("runtime") || set.Contains("companion")) c.Add("app");
+            if (set.Contains("images")) c.Add("engine");
+            return c;
+        }
+
+        // "the table", "the table and the app", "the table, the app and the engine"
+        public static string ChangesWords(IList<string> c)
+        {
+            var w = (c ?? new List<string>()).Select(x => "the " + x).ToList();
+            if (w.Count == 0) return "nothing";
+            if (w.Count == 1) return w[0];
+            return string.Join(", ", w.Take(w.Count - 1)) + " and " + w[w.Count - 1];
+        }
+
+        public static string PartWords(string part) { return part == "app" ? "bridge and decks" : part == "images" ? "engine" : part == "companion" ? "this app" : part == "runtime" ? "Node runtime" : part; }
+
         public static string Describe(UpdatePlan p, UpdateManifest m)
         {
-            var names = p.Fetch.Select(x => x.Name == "app" ? "bridge and decks" : x.Name == "images" ? "engine" : x.Name == "companion" ? "this app" : x.Name);
-            return "Update available: " + m.Version + " (" + string.Join(", ", names) + "; " + Mb(p.Bytes) + " to download).";
+            var names = p.Fetch.Select(x => PartWords(x.Name));
+            return "Update available: " + m.Version + ": changes " + ChangesWords(Changes(p.Fetch.Select(x => x.Name))) + " (" + string.Join(", ", names) + "; " + Mb(p.Bytes) + " to download).";
+        }
+
+        // the line after an install: "Updated to v3: the table and the app changed."
+        public static string UpdatedText(string version, IEnumerable<string> parts)
+        {
+            var c = Changes(parts);
+            return "Updated to " + version + (c.Count > 0 ? ": " + ChangesWords(c) + " changed" : "") + ".";
+        }
+
+        // the automatic check's line for the release the player went back from
+        public static string SkippedText(string version) { return "Skipped " + version + " (you went back from it with Revert). Check for updates offers it again."; }
+
+        // the automatic check: the release the player went back from isn't offered; a manual check, or any other
+        // release, is. (skipped: updates.json "skipped", written by Revert, cleared by a manual check)
+        public static CheckResult SkipReverted(CheckResult r, string skipped, bool manual)
+        {
+            if (manual || r == null || skipped == null || !r.Available || r.Manifest.Version != skipped) return r;
+            r.Skipped = true;
+            r.Text = SkippedText(skipped);
+            return r;
+        }
+
+        // ── Revert (docs/companion-app-spec.md §11.6)
+
+        public const string NoBackup = "No earlier version is kept yet: the first update makes one.";
+        public const string BackupExe = "companion/MTG Companion.exe"; // (this app's exe, kept in the backup by an update that replaced it)
+        public const string RevertHold = "revert-undo"; // (in the package: the newer files while a revert runs, so it can be undone)
+
+        // Whether a backup can be put back over the package as it is now. current, backup: the two version.json.
+        // has(rel): whether the backup holds that package path. A part whose version differs must be in the backup
+        // (only the newest backup keeps the engine images); a part the two agree on, or can't say, needs nothing.
+        public static RevertInfo PlanRevert(string backupDir, object current, object backup, Func<string, bool> has)
+        {
+            var r = new RevertInfo { Backup = backupDir };
+            if (backupDir == null) { r.Why = NoBackup; return r; }
+            if (!(backup is Dictionary<string, object>)) { r.Why = "The newest backup (" + Path.GetFileName(backupDir) + ") has no version.json, so it can't be put back."; return r; }
+            r.Target = VersionName(backup);
+            r.From = VersionName(current);
+            var changed = new List<string>();
+            foreach (var part in new[] { "app", "table", "runtime", "images" })
+            {
+                string mine = LocalVersion(current, part), theirs = LocalVersion(backup, part);
+                if (mine == null || theirs == null || mine == theirs) continue;
+                if (!has(part == "app" ? "bridge" : Holds[part][0]))
+                {
+                    r.Why = "The backup of " + r.Target + " lacks " + (part == "images" ? "the engine images (only the newest backup keeps them)" : "its " + PartWords(part)) + ", so it can't be put back.";
+                    return r;
+                }
+                changed.Add(part);
+            }
+            string cMine = LocalVersion(current, "companion"), cTheirs = LocalVersion(backup, "companion");
+            if (cMine != null && cTheirs != null && cMine != cTheirs && has(BackupExe)) { r.Self = true; r.CompanionVersion = cTheirs; changed.Add("companion"); }
+            r.Changes = Changes(changed);
+            r.Possible = true;
+            return r;
+        }
+
+        // What a revert replaces and what it moves back. A part counts as replaced by the last update when the backup
+        // holds one of its own paths (not version.json or deployed.json, which every update moves): then all of its
+        // paths are replaced, so one the update added and the backup lacks goes too (as an update's undo deletes it).
+        public class RevertSet { public List<string> Replaced = new List<string>(), Restore = new List<string>(); }
+        public static RevertSet RevertPaths(Func<string, bool> inBackup)
+        {
+            var always = new[] { "version.json", "stack/deployed.json" };
+            var s = new RevertSet();
+            s.Replaced.AddRange(always);
+            foreach (var part in PartOrder)
+            {
+                string[] holds;
+                if (Holds.TryGetValue(part, out holds) && holds.Where(h => !always.Contains(h)).Any(inBackup)) s.Replaced.AddRange(holds);
+            }
+            s.Replaced = s.Replaced.Distinct().ToList();
+            s.Restore = s.Replaced.Where(inBackup).ToList();
+            return s;
+        }
+
+        // "v2026.11.10-1432", or "the build of 2026-11-09"
+        public static string VersionName(object v)
+        {
+            var rel = J.Str(v, "release");
+            if (rel != null) return rel;
+            var b = J.Str(v, "built");
+            return "the build of " + (b != null && b.Length >= 10 ? b.Substring(0, 10) : "?");
+        }
+
+        // the button's words, its hover line and its question
+        public static string RevertLabel(RevertInfo r) { return r != null && r.Possible ? "Revert to " + r.Target : "Revert update"; }
+        public static string RevertTitle(RevertInfo r)
+        {
+            if (r == null || !r.Possible) return r != null && r.Why != null ? r.Why : NoBackup;
+            return "Goes back to " + r.Target + " (from " + r.From + ")" + (r.Changes.Count > 0 ? ": puts back " + ChangesWords(r.Changes) : "") + ".";
+        }
+        public static string RevertConfirm(RevertInfo r)
+        {
+            if (r == null || !r.Possible) return null;
+            return "Go back to " + r.Target + "?\n\nThis puts back " + (r.Changes.Count > 0 ? ChangesWords(r.Changes) : "the files") + " as they were before the last update (" + r.From + ")."
+                + (r.Self ? " This app restarts as the older version." : "")
+                + "\n\nThe bridge stops for a minute. During a game it waits, and goes back 2 minutes after the game. The automatic check won't offer " + r.From + " again; Check for updates does.";
         }
     }
 

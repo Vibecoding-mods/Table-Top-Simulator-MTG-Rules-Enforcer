@@ -19,6 +19,9 @@
 //       [--update-base URL] (a fake GitHub on this PC: http://127.0.0.1:PORT only; then also --test-public-key KEY,
 //       --test-die-at move|place|written|placed, --test-format N, --test-skip-recover, --test-journal-fail) [--fake-effects FILE [--fake-fail STEP,...]] (--update-now needs it)
 //       [--bridge-url URL] [--state DIR] [--log FILE]; exit 0 up to date or done, 10 update available, 3 deferred, 1 failed
+//       [--auto] (--update-check as the automatic check: the release Revert went back from isn't offered)
+//   MTG Companion.exe --revert --fake-effects FILE [...]   Revert without the window (the same flags; exit as above)
+//   MTG Companion.exe --update-check --revert-info         what Revert would go back to (exit 0 possible, 1 not)
 //   MTG Companion.exe --set-token               the GitHub token from stdin, stored with DPAPI (empty: removed)
 //   MTG Companion.exe --replace-old PID PATH --old-start TICKS --part-version V   (internal) the new exe takes over
 using System;
@@ -35,7 +38,7 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("MTG Companion")]
 [assembly: AssemblyDescription("Starts and watches the MTG rules-engine table for Tabletop Simulator")]
 [assembly: AssemblyProduct("MTG Companion")]
-[assembly: AssemblyCompany("Table-Top-Simulator-Mock-MTGA")]
+[assembly: AssemblyCompany("Table-Top-Simulator-MTG-Rules-Enforcer")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
 
@@ -93,6 +96,23 @@ namespace MtgCompanion
                 int f; if (int.TryParse(Arg(args, "--test-format") ?? "", out f)) upd.Format = f;
                 upd.TestJournalFail = args.Contains("--test-journal-fail");
             }
+            if (args.Contains("--revert-info"))
+            {
+                // what Revert would do (the page's button): its label and line
+                var info = upd.FindRevert();
+                say(Updates.RevertLabel(info) + (info.Possible ? " (enabled)" : " (disabled)") + ": " + Updates.RevertTitle(info));
+                return info.Possible ? 0 : 1;
+            }
+            if (args.Contains("--revert"))
+            {
+                string rfake = Arg(args, "--fake-effects");
+                if (rfake == null) { say("--revert runs only with --fake-effects (the app reverts from its tray menu and status page)."); return 2; }
+                var rcarry = new List<string>();
+                foreach (var k in new[] { "--fake-effects", "--state", "--update-base", "--test-public-key", "--bridge-url", "--log" }) if (Arg(args, k) != null) { rcarry.Add(k); rcarry.Add(Arg(args, k)); }
+                var rres = upd.Revert(Effects(args, layout), "--then-exit " + string.Join(" ", rcarry.Select(Quote)));
+                say(rres.Text);
+                return rres.Ok ? 0 : rres.Deferred ? 3 : 1;
+            }
             UpdateManifest m; UpdatePlan plan; string error;
             string applyTag = Arg(args, "--apply-update");
             if (applyTag != null)
@@ -103,7 +123,7 @@ namespace MtgCompanion
             }
             else
             {
-                var r = upd.Check();
+                var r = upd.Check(!args.Contains("--auto")); // (--auto: as the automatic check at the start)
                 say(r.Text);
                 if (args.Contains("--update-check") || !r.Available) return r.Available ? 10 : r.Failed && !r.Quiet ? 1 : 0;
                 m = r.Manifest; plan = r.Plan;
@@ -112,13 +132,7 @@ namespace MtgCompanion
             }
             string fake = Arg(args, "--fake-effects");
             if (fake == null) { say("--update-now installs only with --fake-effects (the app installs updates from its tray menu)."); return 2; }
-            var fails = (Arg(args, "--fake-fail") ?? "").Split(',').Where(x => x.Length > 0);
-            var fx = new FakeEffects(fake, fails, () =>
-            {
-                double? age = null;
-                foreach (var f in layout.ResumeFiles) try { if (File.Exists(f)) { double a = (DateTime.UtcNow - File.GetLastWriteTimeUtc(f)).TotalSeconds; if (!age.HasValue || a < age.Value) age = a; } } catch { }
-                return Logic.Locked(Logic.DecideGame(Probes.HttpGet(Controller.BridgeUrl + "/state", 5000), age));
-            });
+            var fx = Effects(args, layout);
             // what the new exe runs with: just the swap here, or (companion first) the rest of the release headless too
             var carry = new List<string>();
             foreach (var k in new[] { "--fake-effects", "--fake-fail", "--state", "--update-base", "--test-public-key", "--bridge-url", "--log" }) if (Arg(args, k) != null) { carry.Add(k); carry.Add(Arg(args, k)); }
@@ -126,6 +140,18 @@ namespace MtgCompanion
             var res = upd.Apply(m, plan, fx, selfArgs);
             say(res.Text);
             return res.Ok ? 0 : res.Deferred ? 3 : 1;
+        }
+
+        // --fake-effects FILE [--fake-fail STEP,...]: each step written to the file; the game lock asked of --bridge-url
+        static FakeEffects Effects(string[] args, Layout layout)
+        {
+            var fails = (Arg(args, "--fake-fail") ?? "").Split(',').Where(x => x.Length > 0);
+            return new FakeEffects(Arg(args, "--fake-effects"), fails, () =>
+            {
+                double? age = null;
+                foreach (var f in layout.ResumeFiles) try { if (File.Exists(f)) { double a = (DateTime.UtcNow - File.GetLastWriteTimeUtc(f)).TotalSeconds; if (!age.HasValue || a < age.Value) age = a; } } catch { }
+                return Logic.Locked(Logic.DecideGame(Probes.HttpGet(Controller.BridgeUrl + "/state", 5000), age));
+            });
         }
 
         [STAThread]
@@ -212,7 +238,7 @@ namespace MtgCompanion
                 Out((string.IsNullOrWhiteSpace(t) ? "token removed" : "token saved (encrypted for this Windows user)") + Environment.NewLine, Arg(args, "--out"));
                 return 0;
             }
-            if (args.Contains("--update-check") || args.Contains("--update-now"))
+            if (args.Contains("--update-check") || args.Contains("--update-now") || args.Contains("--revert"))
                 return HeadlessUpdate(args, layout, stateDir, exe, recovered);
             if (args.Contains("--bridge-loop"))
             {

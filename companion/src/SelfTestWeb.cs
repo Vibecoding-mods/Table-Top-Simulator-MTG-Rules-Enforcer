@@ -424,7 +424,8 @@ namespace MtgCompanion
             var st0 = J.Parse(Send(w, Get(w, "/api/status", w.Token)).Body);
             var up0 = J.Get(st0, "update");
             var acts0 = J.Arr(up0, "actions");
-            Check("update: friend mode: a section with Check for updates", up0 is Dictionary<string, object> && J.Str(up0, "title") == "Updates" && acts0.Length == 1 && J.Str(acts0[0], "id") == "update-check" && J.Bool(acts0[0], "enabled"), J.Write(up0));
+            Check("update: friend mode: a section with Check for updates", up0 is Dictionary<string, object> && J.Str(up0, "title") == "Updates" && acts0.Length == 2 && J.Str(acts0[0], "id") == "update-check" && J.Bool(acts0[0], "enabled"), J.Write(up0));
+            Check("update: no backup: Revert update shown greyed out, saying why", J.Str(acts0[1], "id") == "update-revert" && !J.Bool(acts0[1], "enabled") && J.Str(acts0[1], "label") == "Revert update" && J.Str(acts0[1], "title") == Updates.NoBackup && J.Str(acts0[1], "confirm") == null, J.Write(acts0[1]));
             Check("update: its line says this package's version before any check", (J.Str(up0, "line") ?? "").StartsWith("This package: "), J.Str(up0, "line"));
             var nu = Act(w, "update-now");
             Check("update-now with nothing offered: refused, says to check first", !J.Bool(nu, "ok") && J.Str(nu, "message").Contains("check for updates first"), J.Write(nu));
@@ -436,7 +437,7 @@ namespace MtgCompanion
             var avail = new UpdateState { Status = "available", Current = "v1", Available = "v2", Notes = "Update available: v2 (bridge and decks; 1.0 MB to download).", Text = "Update available: v2 (bridge and decks; 1.0 MB to download).", LastCheck = "2026-11-10T12:00:00Z" };
             var sec = Sec(avail, true, false);
             var ids = J.Arr(sec, "actions").Select(a => J.Str(a, "id")).ToArray();
-            Check("update: offered: Update now, Later, Check, in the menu's shape", ids.SequenceEqual(new[] { "update-now", "update-later", "update-check" }) && J.Arr(sec, "actions").All(a => J.Has(a, "label") && J.Has(a, "enabled") && J.Has(a, "title") && J.Has(a, "confirm") && J.Has(a, "confirmLocked")), string.Join(",", ids));
+            Check("update: offered: Update now, Later, Check, Revert, in the menu's shape", ids.SequenceEqual(new[] { "update-now", "update-later", "update-check", "update-revert" }) && J.Arr(sec, "actions").All(a => J.Has(a, "label") && J.Has(a, "enabled") && J.Has(a, "title") && J.Has(a, "confirm") && J.Has(a, "confirmLocked")), string.Join(",", ids));
             Check("update: Update now asks first, naming the version and that a game only gets a download", J.Str(J.Arr(sec, "actions")[0], "confirm").Contains("v2") && J.Str(J.Arr(sec, "actions")[0], "confirm").Contains("after the game") && J.Str(sec, "title") == "Update available: v2" && J.Str(sec, "available") == "v2", J.Str(J.Arr(sec, "actions")[0], "confirm"));
             avail.Later = true;
             Check("update: after Later: no Later button", !J.Arr(Sec(avail, true, false), "actions").Any(a => J.Str(a, "id") == "update-later"));
@@ -445,7 +446,7 @@ namespace MtgCompanion
             Check("update: downloading: the percentage, no install or check button to press", J.Str(sec, "title") == "Downloading update (40%)" && J.Int(sec, "progress") == 40 && J.Arr(sec, "actions").All(a => !J.Bool(a, "enabled") || J.Str(a, "id") != "update-check") && !J.Arr(sec, "actions").Any(a => J.Str(a, "id") == "update-now"), J.Write(sec));
             var failedState = new UpdateState { Status = "failed", Available = "v2", Error = "The update failed and was undone: x.", Text = "The update failed and was undone: x." };
             sec = Sec(failedState, true, false);
-            Check("update: failed with a release offered: Update now again, no Later, the error", J.Arr(sec, "actions").Select(a => J.Str(a, "id")).SequenceEqual(new[] { "update-now", "update-check" }) && J.Str(sec, "error").Contains("undone") && J.Str(sec, "title") == "Update problem", J.Write(sec));
+            Check("update: failed with a release offered: Update now again, no Later, the error", J.Arr(sec, "actions").Select(a => J.Str(a, "id")).SequenceEqual(new[] { "update-now", "update-check", "update-revert" }) && J.Str(sec, "error").Contains("undone") && J.Str(sec, "title") == "Update problem", J.Write(sec));
             sec = Sec(new UpdateState { Status = "ready", Available = "v2", DeferredUntilGameEnds = true, Text = "Update ready — will install after this game." }, true, false);
             Check("update: waiting for the game: says so, nothing to install by hand", J.Bool(sec, "deferred") && J.Str(sec, "title").Contains("after the game") && !J.Arr(sec, "actions").Any(a => J.Str(a, "id") == "update-now"), J.Write(sec));
             Check("update: home mode and observe: no section", Sec(avail, false, false) == null && Sec(avail, true, true) == null);

@@ -74,7 +74,8 @@ From the header of `Program.cs:3-17`, checked against `Main` (`Program.cs:120-29
 | `--bridge-loop --home DIR` | internal: the hidden process that runs and restarts the bridge (§5.5) |
 | `--bridge-stop` | stops this package's loop and bridge only (`Program.cs:210-218`) |
 | `--probe-login URL [KEY]` | one relay login, printed (`Program.cs:137-143`) |
-| `--update-check`, `--update-now`, `--update-base`, `--test-*`, `--fake-effects`, `--fake-fail` | headless update and its test hooks (§11, `Program.cs:68-117`) |
+| `--update-check`, `--update-now`, `--update-base`, `--test-*`, `--fake-effects`, `--fake-fail` | headless update and its test hooks (§11, `Program.cs:68-117`); `--auto` makes the check the automatic one (a skipped release isn't offered, §11.6) |
+| `--revert --fake-effects FILE`, `--update-check --revert-info` | headless Revert and what it would go back to (§11.6; exit 0 done or possible, 3 waits for a game, 1 refused) |
 | `--set-token` | reads a GitHub token from stdin and stores it with DPAPI (`Program.cs:196-202`) |
 | `--replace-old PID PATH --old-start TICKS --part-version V` | internal: the new exe takes over from the old (§11.5) |
 | `--write-icon FILE` | writes the app icon |
@@ -424,7 +425,8 @@ on a balloon open it (`StatusForm.cs:217, 241-242`).
 ## 9. Tray, window, quit
 
 - **Tray icon** (drawn at run time, colour = worst light; tooltip as in §4). Menu: Open status, Open logs folder, the version
-  line, **Check for updates**, **GitHub token…**, Restart engine, Stop everything, Quit (`StatusForm.cs:217-231`).
+  line, **Check for updates**, **Revert to <version>** (greyed out as **Revert update** when no backup can be put back; it asks
+  first, §11.6), **GitHub token…**, Restart engine, Stop everything, Quit (`StatusForm.cs:217-231`).
 - **Restart engine**: confirm, then stop bridge → `forceFresh` → run steps 1-6 (`Controller.cs:1134-1149`). Locked during a game.
 - **Stop everything**: stops the bridge loop and the bridge, then, only if the Docker light is green, `docker compose ... down` (friend) or `stop` (home) (`Controller.cs:1161`); Docker
   Desktop and TTS keep running; the other lights go grey ("Stopped.") except TTS's, which keeps saying whether TTS runs (green
@@ -581,9 +583,16 @@ old key whose companion carries both lines (`release-keys.txt` header).
 
 ### 11.4 Checking and downloading (`Update.cs`, `Updater.cs`)
 - At start (friend, not observe) at most every 6 h (`Updates.CheckEvery` `Update.cs:133`), and from the tray: `GET
-  https://api.github.com/repos/Vibecoding-mods/Table-Top-Simulator-Mock-MTGA/releases/latest` with `User-Agent: MTG-Companion`
-  (`Update.cs:127-129`). 404 (private repo or no release) → the quiet line "Updates will work once the project is public"
+  https://api.github.com/repos/Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer/releases/latest` with `User-Agent: MTG-Companion`
+  (`Update.cs:127-129`; the repository was renamed from Table-Top-Simulator-Mock-MTGA on 2026-11-14, and the check uses the
+  new name since 2026-11-17). 404 (private repo or no release) → the quiet line "Updates will work once the project is public"
   (`Update.cs:132`); never a red light.
+- The check installs only **signed releases**, never the repository's commits as they are: anyone who can push could push
+  unsigned code, and the release key's signature is what makes an update safe.
+- **The check line says what the release changes** (`Updates.Changes`, `Describe`): the table (the `table` part), the app
+  (`app`, `runtime` or `companion`) and the engine (`images`), for example "Update available: v2026.11.20-1200: changes the
+  table and the app (table, bridge and decks; 3.1 MB to download)." After the install: "Updated to …: the table and the app
+  changed." The page's update section also sends `changes: ["table", "app"]`.
 - The signature is checked over the manifest bytes **before** the manifest is parsed; a missing or foreign signature, or a manifest
   whose `version` is not the release's tag, is not used, with the sentence "The update manifest of <tag> isn't signed by this project's release key: not used." in the update line (`Updater.cs:165`). No downgrades: a manifest whose `built` is older
   than the package's is refused (`Update.cs:282`).
@@ -610,19 +619,50 @@ Never during a game: the update waits, is remembered in `updates.json` `pending`
    place (`MTG Companion.old.exe` is deleted at the next clean start).
 An install killed half way is finished or undone by `Updater.Recover` at the next start, before the package is read
 (`Program.cs:147-160`). State and UI: one `UpdateState` snapshot (`Controller.cs:143-149`) with status idle, checking, up-to-date,
-not-public, available, downloading, ready, installing, restarting, updated, failed, interrupted; the page's update banner has
-**Update now**, **Later**, **Check for updates** (`WebUi.cs:724-744`).
+not-public, skipped, available, downloading, ready, installing, restarting, updated, failed, interrupted, and for Revert reverting,
+revert-ready and reverted; the page's update banner has
+**Update now**, **Later**, **Check for updates**, **Revert to <version>** (`WebUi.cs:724-744`). An update that replaces the app itself
+also copies the old exe into `backup\<old version>\companion\MTG Companion.exe`, so Revert can put the app back (§11.6).
+
+### 11.6 Revert update (`Updater.Revert`, `RevertFiles`; `Updates.PlanRevert`, `RevertPaths`, `SkipReverted`; 2026-11-17)
+- **What it goes back to**: the newest `backup\<old version>\` (by creation time, as the prune keeps them), that is the
+  version before the last update. The button (status page update section and tray) reads **Revert to v…** and is enabled only
+  when that backup can be put back; otherwise it reads **Revert update**, greyed out, and its line says why: "No earlier version
+  is kept yet: the first update makes one.", or a backup that lacks a part whose version differs (only the newest backup keeps
+  the engine images). It asks first, naming both versions and what goes back (the table, the app, the engine).
+- **Never during a game**: the revert waits like an update (`updates.json` `pendingRevert`, status `revert-ready`) and goes back
+  2 minutes after the game (`Updates.InstallNow`). It is refused while an update waits for a game.
+- **The same machinery as Apply**, under the mutex `Local\MtgTtsCompanionUpdate`, with an earlier journal finished first: the
+  journal (`kind: "revert"`, `source`: the backup) is written before the first move and after every move; the newer files
+  are **moved** to `revert-undo\<version>\`; each backup path is journaled as placed, then moved in; then reload, the engine
+  images (`docker load` + `compose up -d`) if the backup held them, the table save through the same hash-guarded install if it
+  held the table, and the bridge. A part the backup holds is replaced whole, so a path the update added (and the backup lacks)
+  goes too. The friend's picture cache stays the newer one. Any failure is undone from the journal ("The revert failed and was
+  undone: …"); an undo that can't move a path back keeps it (never deletes the only copy of the older version) and says so.
+- **The app itself**: when the backup holds the old exe and its version differs, the old exe is copied to
+  `MTG Companion.new.exe` and takes over with the same `--replace-old` swap, which writes its version into `version.json`; the
+  app being replaced doesn't start the bridge (its loop would hold the exe). Without that exe (a backup made before
+  2026-11-17, or a release that needed the new app first), the app stays the newer one and `version.json` says so.
+- **After a revert** the backup it used and `revert-undo\` are deleted, and the release it went back from is remembered as
+  `updates.json` `skipped`: the automatic check says "Skipped v… (you went back from it with Revert). Check for updates offers it
+  again." and offers nothing; **Check for updates** clears it and offers that release again; a newer release is offered as usual.
+- **Killed half way**: `Updater.Recover` at the next start finishes a revert whose files are all in place ("The revert to v… was
+  interrupted after its files were in place; the start finishes it.") or undoes it ("… was interrupted, so it was undone.
+  Revert update tries again."), exactly like an update.
+- **Linux and macOS** (`companion-node`): no Revert. That companion only checks; it installs nothing, so it keeps no backup. Its
+  update line ends with "Revert: not on Linux or macOS. … to go back, unpack the older package from the project's Releases page
+  beside this one", and there is no button.
 
 ## 12. Files the app reads and writes
 
 | File | Where | Holds |
 |---|---|---|
 | `state.json` | `%LOCALAPPDATA%\MTG Companion\` | `saveFile`, `saveHash`, `savesDir`, `images{...}`, `statusPageShown`, `package` (`Controller.cs:765-832`, `WebUi.cs:908-915`) |
-| `updates.json`, `github-token.bin`, `backup\` | same | check time, pending update, DPAPI token, save backups |
+| `updates.json`, `github-token.bin`, `backup\` | same | check time, pending update, `pendingRevert`, `skipped` (§11.6), DPAPI token, save backups |
 | `companion.log` (5 MB then `.1`) | `logs\` or `tmp\` | lights, buttons, update steps (`Controller.cs:20-44`) |
 | `bridge.log` (20 MB then `.1`) | `logs\` or `tmp\bridge-live.log` | the bridge's stdout/stderr, `[bridge exited with code N; restarting in 3 s]` lines |
 | `log-trim.stamp`, `log-archive\table-log-YYYY-MM-DD.log.gz`, `<log>.old` | `logs\` or `tmp\` (`.old` also in `bridge\`, home) | the 14-day log trim (§7.1): its last run, the archived game history (kept forever), one previous roll of each other log |
-| `update-journal.json`, `updates\`, `backup\` | package folder | update bookkeeping |
+| `update-journal.json`, `updates\`, `backup\`, `revert-undo\` | package folder | update and revert bookkeeping (`revert-undo\` only while a revert runs) |
 | `.wslconfig` (+ `.bak-<stamp>`) | `%USERPROFILE%` | only on the **Limit Docker's CPU use** button |
 | `TS_Save_N.json` (+ `.png`) | TTS Saves folder | only the table save step |
 
@@ -634,7 +674,9 @@ not-public, available, downloading, ready, installing, restarting, updated, fail
 - `tests/test_companion_page.js`: the page script in Node with a stub DOM, including the table-tools section against a stub fetch.
 - `tests/test_companion_update.js`: a fake GitHub (Node `http`) and the built exe in a temp package, driven by the hidden flags in
   §3, covering kill points during install, tampered signatures, resumed downloads, off-host URLs, token leaks and the
-  self-update swap.
+  self-update swap; and Revert (§11.6): `--selftest --section revert`, back from a backup exactly as before the update, during a
+  game, killed at each journal step and recovered, no backup, a skipped release, a failing save step, the app's own exe.
+  `COMPANION_UPDATE_ONLY=revert` runs only those. `tools/mutate-companion-revert.js` breaks Revert's rules one at a time.
 - `tests/test_friend_package.js`: the packager's release rules. `tests/test_bridge_ai_tools.js`: the bridge side of §10.
   `tests/test_bridge_hand.js`: the Starting hand (§10.3) on the bridge; `tests/test_table_hand_chat.js`: `mtg hand` in the
   table's chat; `tests/live_hand_check.js` (`tools/live-check.sh exile tests/live_hand_check.js`): the first-priority fix and

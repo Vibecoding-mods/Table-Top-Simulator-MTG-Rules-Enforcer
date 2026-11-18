@@ -139,7 +139,7 @@ namespace MtgCompanion
         readonly TextBox hint = new TextBox();
         readonly Button startBtn = new Button(), restartBtn = new Button(), stopBtn = new Button(), logsBtn = new Button(), wslBtn = new Button();
         readonly ToolTip tips = new ToolTip();
-        readonly ToolStripMenuItem miStart, miRestart, miStop, miVersion, miCheck;
+        readonly ToolStripMenuItem miStart, miRestart, miStop, miVersion, miCheck, miRevert;
         readonly EventWaitHandle showSignal;
         bool reallyQuit, toldAboutTray, blocking;
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool ShutdownBlockReasonCreate(IntPtr hWnd, string reason);
@@ -222,6 +222,8 @@ namespace MtgCompanion
             miCheck = new ToolStripMenuItem("Check for updates", null, (s, e) => c.CheckNow());
             menu.Items.Add(miVersion);
             menu.Items.Add(miCheck);
+            miRevert = new ToolStripMenuItem("Revert update", null, (s, e) => DoRevert()) { Enabled = false };
+            menu.Items.Add(miRevert);
             menu.Items.Add("GitHub token…", null, (s, e) => TokenDialog());
             menu.Items.Add(new ToolStripSeparator());
             miStart = new ToolStripMenuItem("Start engine", null, (s, e) => DoStart());
@@ -354,6 +356,14 @@ namespace MtgCompanion
             string vt = c.VersionShort + (c.UpdateLine.Length > 0 ? " · " + Logic.Clip(c.UpdateLine, 70) : "");
             if (miVersion.Text != vt) miVersion.Text = vt;
             miCheck.Enabled = c.L.Friend && !c.Observe;
+            // Revert: the version it goes back to, enabled only when a backup can be put back (WebUi.UpdateSection's rule)
+            var u = c.Update;
+            var rb = WebUi.UpdateSection(u, c.L.Friend, c.Observe);
+            object ra = rb == null ? null : ((List<object>)rb["actions"]).FirstOrDefault(a => J.Str(a, "id") == "update-revert");
+            string rl = ra == null ? "Revert update" : J.Str(ra, "label");
+            if (miRevert.Text != rl) miRevert.Text = rl;
+            miRevert.Enabled = ra != null && J.Get(ra, "enabled") is bool && (bool)J.Get(ra, "enabled");
+            miRevert.ToolTipText = ra == null ? "" : J.Str(ra, "title");
             restartBtn.Enabled = miRestart.Enabled = !locked && !c.Observe;
             tips.SetToolTip(restartBtn, locked ? Logic.LockText(g) : "Stops the bridge, restarts relay and room, then starts the bridge again.");
             stopBtn.Enabled = miStop.Enabled = !c.Observe;
@@ -389,6 +399,16 @@ namespace MtgCompanion
             }
             var refused = c.DoFix(row, v.Fix);
             if (refused != null) MessageBox.Show(this, refused, "MTG Companion", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        // Revert update: asks first (the page's question), then goes back (the Controller says why not)
+        void DoRevert()
+        {
+            var r = c.Update.Revert;
+            if (r == null || !r.Possible) { MessageBox.Show(this, Updates.RevertTitle(r), "MTG Companion"); return; }
+            if (MessageBox.Show(this, Updates.RevertConfirm(r), "MTG Companion", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+            var why = c.RevertNow();
+            if (why != null) MessageBox.Show(this, why, "MTG Companion", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         // Update available: Update now / Later

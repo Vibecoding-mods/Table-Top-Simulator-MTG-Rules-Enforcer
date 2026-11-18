@@ -82,6 +82,22 @@ stuck ("busy with another game"), restart it there (`docker compose -f stack/com
 is restarted when you press **Start engine** (never during a game). Keep `server.json` to yourself: the key in it lets
 anyone into your server's games.
 
+### The companion: updates, and going back (friend package on Windows)
+
+- **Check for updates** (on the status page, or right-click the tray icon) asks the project's Releases page whether a newer
+  package is out. It only installs releases signed with the project's key, never whatever was last pushed to the repository.
+  The line says what the release changes, for example "changes the table and the app" (the table, the app, the engine). Nothing
+  installs until you press **Update now**, and never during a game: it waits, and installs 2 minutes after the game ends.
+- Each update keeps a copy of what it replaced. **Revert to v…** (beside Check for updates, and in the tray menu) goes back to
+  the version before the last update: the table, the app and the engine as they were, and the companion itself if the update
+  changed it. It asks first, and during a game it waits like an update. If something goes wrong half way (even a power cut), the
+  companion finishes or undoes it the next time it starts.
+- It is greyed out (**Revert update**) when there is no earlier version to go back to, for example before the first update.
+- After going back, the companion won't offer that same release again by itself. Press **Check for updates** when you want it,
+  or wait for a newer release.
+- On Linux and macOS the companion only checks for updates; it doesn't install them, so there is nothing to go back to. To go
+  back there, unpack the older package from the Releases page beside this one (your table save stays).
+
 ## Everyone: getting into a game
 
 1. **Sit at a colour** (White, Red, Yellow, Blue).

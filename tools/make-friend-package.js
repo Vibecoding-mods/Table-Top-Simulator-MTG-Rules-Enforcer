@@ -844,7 +844,7 @@ function releaseFinish({ tag, dir, partVersions, previous, plan }, pkg, zip, inf
   fs.writeFileSync(path.join(dir, "update-manifest.json.sig"), `${signManifest(bytes, signing.key)}\n`);
   if (!crypto.verify("sha256", bytes, { key: crypto.createPublicKey(signing.key), dsaEncoding: "ieee-p1363" }, Buffer.from(fs.readFileSync(path.join(dir, "update-manifest.json.sig"), "utf8").trim(), "base64"))) stop("the manifest's signature doesn't verify");
   console.log(`\nrelease ${tag} in ${dir}${previous ? ` (after ${previous.version})` : " (no previous release: every part built)"}`);
-  console.log(`  Create the release with tag ${tag} on Vibecoding-mods/Table-Top-Simulator-Mock-MTGA and attach:`);
+  console.log(`  Create the release with tag ${tag} on Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer and attach:`);
   for (const f of ["update-manifest.json", "update-manifest.json.sig", ...plan.build.map((k) => RELEASE_PARTS[k].file), fullName]) console.log(`    ${f.padEnd(34)} ${mb(fs.statSync(path.join(dir, f)).size).padStart(10)}`);
   for (const [k, p] of Object.entries(plan.reuse)) console.log(`  (${k}: unchanged, the updater takes ${p.file} from release ${p.release})`);
   for (const r of pointedAt(manifest)) console.log(`  keep release ${r} published: this release takes files from it`);

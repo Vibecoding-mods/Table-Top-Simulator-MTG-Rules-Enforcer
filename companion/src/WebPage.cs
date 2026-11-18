@@ -429,9 +429,10 @@ var MtgPage = (function () {
     'wsl-limits': 'Limit Docker’s CPU use: optional, and it asks first. It writes processors=2 and memory=8GB into the [wsl2] section of .wslconfig in your user folder (other lines are kept, and a copy of the old file is saved beside it), so the engine’s Linux VM leaves CPU for TTS; the engine thinks a little slower. It affects every WSL program on this PC and takes effect only after WSL restarts: nothing restarts now. A game doesn’t lock it.',
     'update-now': 'Update now: downloads and installs this update (it asks first). The bridge stops for about a minute while it installs. During a game it only downloads, and installs 2 minutes after the game ends.',
     'update-later': 'Later: no reminder for this update until you press Check for updates. Nothing is downloaded.',
-    'update-check': 'Check for updates: asks the project’s releases whether a newer package is out. Nothing is installed until you press Update now.'
+    'update-check': 'Check for updates: asks the project’s releases whether a newer package is out, and says what it changes (the table, the app, the engine). Nothing is installed until you press Update now. A release you went back from with Revert is offered again.',
+    'update-revert': 'Revert: goes back to the version before the last update, from the copy the update kept (it asks first). It puts back what that update changed: the table, the app, the engine. The bridge stops for about a minute; during a game it waits, and goes back 2 minutes after the game ends. The automatic check then skips the release you went back from; Check for updates offers it again. Greyed out when no earlier version is kept.'
   };
-  var MENU_ICONS = { 'start-engine': 'play', 'restart-engine': 'restart', 'stop-everything': 'stop', 'open-logs': 'folder', 'wsl-limits': 'cpu', 'update-now': 'download', 'update-later': 'clock', 'update-check': 'search' };
+  var MENU_ICONS = { 'start-engine': 'play', 'restart-engine': 'restart', 'stop-everything': 'stop', 'open-logs': 'folder', 'wsl-limits': 'cpu', 'update-now': 'download', 'update-later': 'clock', 'update-check': 'search', 'update-revert': 'untap' };
   var UPDATE_BUSY = 'an update is being checked, downloaded or installed.';
   // (by the fix id after 'fix:<row>:'; the tip starts with the button's own label)
   var FIX_TIPS = {
@@ -479,12 +480,12 @@ var MtgPage = (function () {
     var busy = !!b.inflight[m.id], locked = !m.enabled, lockText = m.title ? String(m.title) : 'Not available now.';
     var upd = /^update-/.test(str(m.id));
     var base = MENU_TIPS[m.id] || str(m.label) + (m.title ? ': ' + str(m.title) : '');
-    var extra = m.id === 'open-logs' && m.title ? '\nFolder: ' + str(m.title) : (m.id === 'update-check' || m.id === 'update-now') && m.title ? '\n' + clip(m.title, 240) : '';
+    var extra = m.id === 'open-logs' && m.title ? '\nFolder: ' + str(m.title) : (m.id === 'update-check' || m.id === 'update-now' || m.id === 'update-revert') && m.title ? '\n' + clip(m.title, 240) : '';
     return {
       id: m.id, kind: 'menu', label: str(m.label), locked: locked, lockText: lockText, confirm: m.confirm || null, confirmLocked: !!m.confirmLocked,
       disabled: locked || b.down || busy, busy: busy, title: str(m.title),
       aria: locked ? str(m.label) + '. ' + lockText : null, danger: m.id === 'stop-everything' || !!m.danger, primary: !!m.primary,
-      tip: withNow(base + extra, nowWhy(b.down, busy, locked, upd ? UPDATE_BUSY : lockText)),
+      tip: withNow(base + extra, nowWhy(b.down, busy, locked, upd && m.id !== 'update-revert' ? UPDATE_BUSY : lockText)),
       icon: MENU_ICONS[m.id] || 'bolt'
     };
   }
@@ -510,7 +511,7 @@ var MtgPage = (function () {
   }
 
   // the update section (status.update: WebUi.UpdateSection, friend mode; null in home mode and observe). Its actions
-  // (update-now, update-later, update-check) use the menu's shape and go through the same
+  // (update-now, update-later, update-check, update-revert) use the menu's shape and go through the same
   // click plan and POST /api/action, so a new kind of update needs no new click code.
   function updateView(u, b) {
     if (!u || typeof u !== 'object') return null;

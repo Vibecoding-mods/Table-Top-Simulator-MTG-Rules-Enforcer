@@ -154,7 +154,10 @@ function confirmOf(v) {
   }
 }
 
-// the update section (UpdateSection): checks only; an update found is downloaded and unpacked by hand
+// the update section (UpdateSection): checks only; an update found is downloaded and unpacked by hand. There is no
+// Revert button here: this companion installs nothing, so it keeps no earlier version to go back to (RevertNote says so
+// on the page instead of a button that could never work)
+const RevertNote = "Revert: not on Linux or macOS. This companion doesn't install updates, so it keeps no earlier version to go back to; to go back, unpack the older package from the project's Releases page beside this one (your table save stays).";
 const updateWorking = (s) => s === "checking";
 function updateTitle(u) {
   switch (u.status) {
@@ -168,7 +171,9 @@ function updateSection(u, friend, observe) {
   if (!friend || observe || !u) return null;
   const btn = (id, label, enabled, title, confirm) => ({ id, label, enabled, title, confirm, confirmLocked: false });
   const actions = [btn("update-check", u.status === "checking" ? "Checking…" : "Check for updates", !updateWorking(u.status), u.lastCheck ? `Last checked ${u.lastCheck}` : "Not checked yet.", null)];
-  return { title: updateTitle(u), line: u.text || `This package: ${u.current || "?"}.`, status: u.status, current: u.current, available: u.available, progress: u.progress, deferred: false, error: u.error, lastCheck: u.lastCheck, actions };
+  const line = u.text || `This package: ${u.current || "?"}.`;
+  return { title: updateTitle(u), line: `${line} ${RevertNote}`, status: u.status, current: u.current, available: u.available, progress: u.progress, deferred: false, error: u.error, lastCheck: u.lastCheck, actions,
+    changes: u.changes || null, revert: { possible: false, why: RevertNote } };
 }
 
 class WebUi {
@@ -381,6 +386,8 @@ class WebUi {
         this.lastAccepted = id;
         return done("Checking for updates.");
       }
+      case "update-revert":
+        return no(RevertNote);
       case "update-now": case "update-later":
         return no("This companion doesn't install updates itself yet: download the new package from the project's Releases page and unpack it beside this one (your table save stays).");
       default: return { known: false, ok: false, message: "Unknown action." };
@@ -439,4 +446,4 @@ function noBridge(h) {
 const openAtStart = (friend, observe, shownBefore) => friend && !observe && !shownBefore;
 const openAfterFirstPass = (observe, lights, needsStart) => !observe && (!!needsStart || lights.some((l) => l === Light.Red));
 
-module.exports = { WebUi, parseHead, reader, writeResp, jsonType, pageFromCs, loadPage, stateOf, wordOf, updateSection, openAtStart, openAfterFirstPass, MaxHead, MaxBody, TokenHeader };
+module.exports = { WebUi, parseHead, reader, writeResp, jsonType, pageFromCs, loadPage, stateOf, wordOf, updateSection, RevertNote, openAtStart, openAfterFirstPass, MaxHead, MaxBody, TokenHeader };

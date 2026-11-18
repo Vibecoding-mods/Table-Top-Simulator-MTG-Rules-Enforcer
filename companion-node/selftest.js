@@ -471,6 +471,19 @@ function update() {
   check("state: 404 is not-public, no error, nothing offered", us.status === "not-public" && us.error === null && us.available === null, us);
   us = L.updateChecked(us, { failed: true, text: "Couldn't check for updates (HTTP 500)." }, false, "t");
   check("state: a failed check is failed, with the error", us.status === "failed" && us.error.includes("HTTP 500"), us);
+  check("repo: the renamed repository (Table-Top-Simulator-MTG-Rules-Enforcer)", L.Updates.Repo === "Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer", L.Updates.Repo);
+  // what a release changes, in the check line (the Windows app's Updates.Changes)
+  check("changes: the table, the app, the engine, each once and in that order", JSON.stringify(L.changes(["images", "companion", "app", "table", "runtime"])) === '["table","app","engine"]' && JSON.stringify(L.changes(["runtime"])) === '["app"]');
+  check("changes: words", L.changesWords(["table", "app"]) === "the table and the app" && L.changesWords(["table", "app", "engine"]) === "the table, the app and the engine" && L.changesWords(["engine"]) === "the engine");
+  const two = L.parseManifest(all.replace('"a1"', '"a2"').replace('"s1"', '"s2"')).m;
+  const twoPlan = L.updatePlan(local, two, 1);
+  check("check line: names what changed (the table and the app)", L.describe(twoPlan, two).startsWith(`Update available: ${two.version}: changes the table and the app (`), L.describe(twoPlan, two));
+  check("state: an offer carries what it changes", JSON.stringify(L.updateChecked({}, { manifest: two, plan: twoPlan, text: "x" }, false, "t").changes) === '["table","app"]');
+  // no Revert here: the page says why instead of a button
+  const { updateSection, RevertNote } = require("./web");
+  const sec = updateSection({ status: "up-to-date", text: "Up to date (v2).", current: "v2" }, true, false);
+  check("revert: no button on Linux/macOS, the page line says why", !sec.actions.some((a) => a.id === "update-revert") && sec.line.endsWith(RevertNote) && sec.line.startsWith("Up to date (v2).") && sec.revert.possible === false, sec);
+  check("revert: the note says how to go back by hand", RevertNote.includes("not on Linux or macOS") && RevertNote.includes("older package"));
   // the manifest's signature (the vector the Windows selftest uses, made by the packager's Node code)
   section("self-update: the signature");
   const nodeKey = "4w4l1SZR71phfBRUhXcqlR4YLfGtHULpwc8aIxg56paGWyP2mawAWljSG0D2M0wAp1igtNUsslS8lYlWH8iCHg==";

@@ -74,7 +74,7 @@ Option A needs only a README line, and the companion log text should say "downlo
   1 each combat. You chose 3.", also in the corner hint of the re-asked question. Conceded: "Game over: White
   conceded. AI 1 wins." No bridge errors from the game.
 - Dev setup restored afterwards; /versions in step.
-- Left for the user: create the release v2026.11.10-1418 on Vibecoding-mods/Table-Top-Simulator-Mock-MTGA and attach
+- Left for the user: create the release v2026.11.10-1418 on Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer and attach
   the 8 files in its folder; invite the friend; the author message (docs/publishing-checklist.md); back up the
   release key. Updates (option B) need a token the friend enters in the companion's tray menu.
 

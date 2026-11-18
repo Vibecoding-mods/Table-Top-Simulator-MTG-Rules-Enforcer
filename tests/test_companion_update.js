@@ -1,7 +1,8 @@
 // The companion's self-update (docs/companion-app-spec.md §18) end to end: the built exe in a temp package against a
 // fake GitHub (releases signed with a test key, assets with a redirect to a second host, Range, a first-try 500, a cut
 // download, a wrong Content-Range) and a fake bridge /state. The bridge, Docker and save steps are written to a file (--fake-effects), so nothing real is touched:
-// no Docker, no TTS saves, no live bridge (--bridge-url points at the fake).
+// no Docker, no TTS saves, no live bridge (--bridge-url points at the fake). Revert update (§11.6) too: back from the backup, during a game,
+// killed at each journal step, no backup, a skipped release, the app's own exe.
 //   node tests/test_companion_update.js        (builds companion\bin\MTG Companion.exe first when it is stale)
 const fs = require("fs");
 const os = require("os");
@@ -16,7 +17,7 @@ const REPO = path.join(__dirname, "..");
 const COMPANION = path.join(REPO, "companion");
 const EXE = process.env.COMPANION_EXE || path.join(COMPANION, "bin", "MTG Companion.exe"); // (COMPANION_EXE: the mutation pass's build)
 const TAR = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe");
-const API = "/repos/Vibecoding-mods/Table-Top-Simulator-Mock-MTGA";
+const API = "/repos/Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer";
 let failed = 0, passed = 0;
 const ok = (name, cond, why) => {
   if (cond) { passed++; return; }
@@ -217,11 +218,193 @@ const v1Manifest = { version: "v1", parts: Object.fromEntries(Object.entries(BAS
 const unchanged = (k) => ({ version: BASE_PARTS[k], release: "v1" });
 const newApp = () => zipOf({ "bridge/bridge.js": "// new bridge\n", "decks/b.json": "{}", "stack/compose.yml": "name: mtg-table\n", "README-FRIEND.txt": "new readme" });
 
+// ── Revert update (docs/companion-app-spec.md §11.6): the newest backup put back with the update's journal and undo
+const revert = (p, extra = []) => run(p, ["--revert", "--fake-effects", p.fx, ...extra]);
+const revertInfo = (p) => run(p, ["--update-check", "--revert-info"]);
+const noUpdates = (s) => Object.fromEntries(Object.entries(s).filter(([k]) => !k.startsWith("updates/")));
+async function revertTests() {
+  // R0. the self-test's own revert section (the rules, the button, a package on disk)
+  {
+    const r = await new Promise((done) => {
+      const child = spawn(EXE, ["--selftest", "--section", "revert"], { stdio: ["ignore", "pipe", "pipe"], cwd: os.tmpdir() });
+      let out = ""; child.stdout.on("data", (d) => { out += d; }); child.stderr.on("data", (d) => { out += d; });
+      const t = setTimeout(() => child.kill(), 120000);
+      child.on("exit", (code) => { clearTimeout(t); done({ code, out }); });
+    });
+    for (const line of r.out.match(/^FAIL .*$/gm) || []) ok(`selftest: ${line.slice(5).split("   got:")[0]}`, false, line);
+    const m = /(\d+) passed, (\d+) failed/.exec(r.out);
+    ok("selftest: the revert section ran, every check passed", m && Number(m[1]) >= 40 && m[2] === "0" && r.code === 0, r.out.slice(-400));
+  }
+
+  // R1. happy path: an update of the app and the engine, then Revert puts the package back exactly as it was
+  {
+    reset();
+    const tar = Buffer.from("revert images tar ".repeat(50));
+    publish("v20", { app: { version: "a20", body: newApp() }, table: unchanged("table"), images: { version: "i20", body: tar }, runtime: unchanged("runtime"), companion: unchanged("companion") }, { previous: v1Manifest });
+    server.latest = "v20";
+    const p = makePkg();
+    const original = snapshot(p.pkg);
+    const none = await revertInfo(p);
+    ok("revert, no backup yet: the button is disabled and says why", none.code === 1 && none.out.includes("Revert update (disabled): No earlier version is kept yet"), JSON.stringify(none));
+    const check = await run(p, ["--update-check"]);
+    ok("check line: says the release changes the app and the engine", check.code === 10 && check.out.includes("Update available: v20: changes the app and the engine (bridge and decks, engine;"), JSON.stringify(check));
+    const up = await now(p);
+    ok("revert: the update first (exit 0, says what changed)", up.code === 0 && up.out.includes("Updated to v20: the app and the engine changed."), JSON.stringify(up));
+    const updated = noUpdates(snapshot(p.pkg));
+    const info = await revertInfo(p);
+    ok("revert: then the button is enabled and names the version it goes back to", info.code === 0 && info.out.startsWith("Revert to v1 (enabled): Goes back to v1 (from v20): puts back the app and the engine."), JSON.stringify(info));
+    fs.writeFileSync(p.fx, "");
+    const r = await revert(p);
+    ok("revert: went back, exit 0, says to what and from what", r.code === 0 && r.out.includes("Went back to v1 (from v20): the app and the engine put back.") && r.out.includes("The automatic check skips v20"), JSON.stringify(r));
+    same("revert: the bridge stopped, the old images loaded, the bridge started (no save: the table didn't change)", effects(p), ["stop-bridge", "reload", "load-images", "start-bridge"]);
+    const after = noUpdates(snapshot(p.pkg));
+    same("revert: every file exactly as before the update (old bridge and its extra file, tar, version.json, deployed.json)", after, noUpdates(original));
+    ok("revert: no journal, no backup, no revert-undo left", !fs.existsSync(path.join(p.pkg, "update-journal.json")) && !fs.existsSync(path.join(p.pkg, "backup", "v1")) && !fs.existsSync(path.join(p.pkg, "revert-undo")), tree(p.pkg).join(","));
+    ok("revert: the update's files were really different (the test isn't empty)", JSON.stringify(updated) !== JSON.stringify(after));
+    same("revert: the release reverted from is remembered as skipped", json(path.join(p.state, "updates.json")).skipped, "v20");
+    const gone = await revertInfo(p);
+    ok("revert: afterwards no backup, the button disabled again", gone.code === 1 && gone.out.includes("(disabled)"), JSON.stringify(gone));
+    // the automatic check doesn't offer (or install) it again; a newer release it does; a manual check does
+    server.requests = [];
+    const auto = await run(p, ["--update-check", "--auto"]);
+    ok("skipped: the automatic check doesn't offer v20 (exit 0, says skipped)", auto.code === 0 && auto.out.includes("Skipped v20 (you went back from it with Revert)"), JSON.stringify(auto));
+    fs.writeFileSync(p.fx, "");
+    const autoNow = await run(p, ["--update-now", "--auto", "--fake-effects", p.fx]);
+    ok("skipped: and doesn't install it", autoNow.code === 0 && autoNow.out.includes("Skipped v20") && effects(p).length === 0 && dl().length === 0 && read(path.join(p.pkg, "bridge", "bridge.js")) === "// old bridge\n", JSON.stringify([autoNow, effects(p), dl()]));
+    publish("v21", { app: { version: "a21", body: newApp() }, table: unchanged("table"), images: unchanged("images"), runtime: unchanged("runtime"), companion: unchanged("companion") }, { previous: v1Manifest, built: "2026-11-11T12:00:00.000Z" });
+    server.latest = "v21";
+    const newer = await run(p, ["--update-check", "--auto"]);
+    ok("skipped: a newer release is offered by the automatic check", newer.code === 10 && newer.out.includes("Update available: v21"), JSON.stringify(newer));
+    server.latest = "v20";
+    const manual = await run(p, ["--update-check"]);
+    ok("skipped: a manual check offers v20 again", manual.code === 10 && manual.out.includes("Update available: v20"), JSON.stringify(manual));
+    ok("skipped: the manual check cleared it", json(path.join(p.state, "updates.json")).skipped === undefined, read(path.join(p.state, "updates.json")));
+    const autoAgain = await run(p, ["--update-check", "--auto"]);
+    ok("skipped: then the automatic check offers it too", autoAgain.code === 10 && autoAgain.out.includes("Update available: v20"), JSON.stringify(autoAgain));
+    const reinstall = await now(p);
+    ok("skipped: and Update now installs it again (a manual press)", reinstall.code === 0 && reinstall.out.includes("Updated to v20") && read(path.join(p.pkg, "bridge", "bridge.js")) === "// new bridge\n", JSON.stringify(reinstall));
+  }
+
+  // R2. a game on: the revert waits (nothing touched), remembered; after the game it goes back
+  {
+    reset();
+    publish("v22", { app: { version: "a22", body: newApp() }, table: unchanged("table"), images: unchanged("images"), runtime: unchanged("runtime"), companion: unchanged("companion") }, { previous: v1Manifest });
+    server.latest = "v22";
+    const p = makePkg();
+    await now(p);
+    const updated = snapshot(p.pkg);
+    server.game = true;
+    fs.writeFileSync(p.fx, "");
+    const r = await revert(p);
+    ok("revert, game on: deferred, exit 3, says it goes back after the game", r.code === 3 && r.out.includes("Revert ready — goes back to v1 after this game"), JSON.stringify(r));
+    same("revert, game on: nothing done", effects(p), []);
+    same("revert, game on: every file as it was", snapshot(p.pkg), updated);
+    ok("revert, game on: the wait remembered (updates.json pendingRevert)", json(path.join(p.state, "updates.json")).pendingRevert !== undefined, read(path.join(p.state, "updates.json")));
+    server.game = false;
+    const r2 = await revert(p);
+    ok("revert, game over: went back", r2.code === 0 && r2.out.includes("Went back to v1") && read(path.join(p.pkg, "bridge", "bridge.js")) === "// old bridge\n", JSON.stringify(r2));
+    ok("revert, game over: nothing waits any more", json(path.join(p.state, "updates.json")).pendingRevert === undefined);
+  }
+
+  // R3. killed at each journal step: the next start finishes it (all placed) or undoes it (the package as after the
+  // update, the backup whole, so Revert works again)
+  addRelease("v1r", {}); // (a latest with no manifest: the next start's check finds nothing to install)
+  for (const die of ["move", "place", "written", "placed"]) {
+    reset();
+    const tag = `v23${die}`;
+    publish(tag, { app: { version: `a23${die}`, body: newApp() }, table: unchanged("table"), images: { version: `i23${die}`, body: Buffer.from(`tar ${die}`) }, runtime: unchanged("runtime"), companion: unchanged("companion") }, { previous: v1Manifest });
+    server.latest = tag;
+    const p = makePkg();
+    const original = noUpdates(snapshot(p.pkg));
+    await now(p);
+    const updated = noUpdates(snapshot(p.pkg));
+    const r = await revert(p, ["--test-die-at", die]);
+    ok(`revert killed at ${die}: died with a journal on disk`, !r.out.includes("Went back") && !r.out.includes("undone") && fs.existsSync(path.join(p.pkg, "update-journal.json")), JSON.stringify(r));
+    server.latest = "v1r";
+    const next = await run(p, ["--update-check"]);
+    if (die === "placed") {
+      ok(`revert killed at ${die}: the next start finishes it`, next.out.includes("The revert to v1 was interrupted after its files were in place"), JSON.stringify(next));
+      same(`revert killed at ${die}: every file as before the update`, noUpdates(snapshot(p.pkg)), original);
+      ok(`revert killed at ${die}: no journal, no backup/v1, no revert-undo`, !fs.existsSync(path.join(p.pkg, "update-journal.json")) && !fs.existsSync(path.join(p.pkg, "backup", "v1")) && !fs.existsSync(path.join(p.pkg, "revert-undo")), tree(p.pkg).join(","));
+    } else {
+      ok(`revert killed at ${die}: the next start undoes it and says so`, next.out.includes("The revert to v1 was interrupted, so it was undone"), JSON.stringify(next));
+      same(`revert killed at ${die}: every file as after the update (the backup whole)`, noUpdates(snapshot(p.pkg)), updated);
+      ok(`revert killed at ${die}: no journal, no revert-undo`, !fs.existsSync(path.join(p.pkg, "update-journal.json")) && !fs.existsSync(path.join(p.pkg, "revert-undo")), tree(p.pkg).join(","));
+      fs.writeFileSync(p.fx, "");
+      const again = await revert(p);
+      ok(`revert killed at ${die}: then Revert works`, again.code === 0 && again.out.includes("Went back to v1"), JSON.stringify(again));
+      same(`revert killed at ${die}: and every file is as before the update`, noUpdates(snapshot(p.pkg)), original);
+    }
+  }
+
+  // R4. no backup: the button disabled, a press refused, nothing touched
+  {
+    reset();
+    const p = makePkg();
+    const before = snapshot(p.pkg);
+    const r = await revert(p);
+    ok("revert, no backup: refused, exit 1, says no earlier version is kept", r.code === 1 && r.out.includes("No earlier version is kept yet"), JSON.stringify(r));
+    same("revert, no backup: nothing done, every file as it was", [effects(p), snapshot(p.pkg)], [[], before]);
+  }
+
+  // R5. a table update whose revert fails at the save install: undone, the package as after the update; then it works
+  {
+    reset();
+    publish("v24", { app: unchanged("app"), table: { version: "s24", body: zipOf({ "table/MTG Table.json": "new table" }) }, images: unchanged("images"), runtime: unchanged("runtime"), companion: unchanged("companion") }, { previous: v1Manifest });
+    server.latest = "v24";
+    const p = makePkg();
+    const original = noUpdates(snapshot(p.pkg));
+    const up = await now(p);
+    ok("table revert: the update says the table changed", up.out.includes("Updated to v24: the table changed."), JSON.stringify(up));
+    const updated = noUpdates(snapshot(p.pkg));
+    fs.writeFileSync(p.fx, "");
+    const r = await revert(p, ["--fake-fail", "install-save"]);
+    ok("table revert failing: undone, exit 1, says why", r.code === 1 && r.out.includes("The revert failed and was undone: installing the earlier table didn't work"), JSON.stringify(r));
+    same("table revert failing: the save install tried (the same hash-guarded step), then the bridge started", effects(p), ["stop-bridge", "reload", "install-save", "reload", "start-bridge"]);
+    same("table revert failing: every file as after the update", noUpdates(snapshot(p.pkg)), updated);
+    ok("table revert failing: nothing skipped", json(path.join(p.state, "updates.json")).skipped === undefined, read(path.join(p.state, "updates.json")));
+    fs.writeFileSync(p.fx, "");
+    const r2 = await revert(p);
+    ok("table revert: then it works and says the table went back", r2.code === 0 && r2.out.includes("Went back to v1 (from v24): the table put back."), JSON.stringify(r2));
+    same("table revert: the old table, the save installed again", [read(path.join(p.pkg, "table", "MTG Table.json")), effects(p)], ["old table", ["stop-bridge", "reload", "install-save", "start-bridge"]]);
+    same("table revert: every file as before the update", noUpdates(snapshot(p.pkg)), original);
+  }
+
+  // R6. the app itself: an update that replaced the exe keeps the old one in the backup; Revert swaps it back the way
+  // an update swaps a new one in (--replace-old), and version.json names the old app again
+  {
+    reset();
+    const newExe = Buffer.concat([fs.readFileSync(EXE), Buffer.from(`\0REVERT-NEW-${Date.now()}`)]);
+    publish("v25", { app: { version: "a25", body: newApp() }, table: unchanged("table"), images: unchanged("images"), runtime: unchanged("runtime"), companion: { version: "c25", body: newExe } }, { previous: v1Manifest });
+    server.latest = "v25";
+    const p = makePkg();
+    const oldExe = fs.readFileSync(path.join(p.pkg, "MTG Companion.exe"));
+    const up = await now(p);
+    ok("app revert: the update swaps the new app in", up.code === 0 && up.out.includes("Updated to v25: the app changed; the new MTG Companion takes over now."), JSON.stringify(up));
+    const swapped = await wait(() => { try { return fs.readFileSync(path.join(p.pkg, "MTG Companion.exe")).equals(newExe) && json(path.join(p.pkg, "version.json")).parts.companion === "c25"; } catch { return false; } });
+    ok("app revert: the new app in place", swapped, read(p.log));
+    ok("app revert: the old exe kept in backup\\v1\\companion", fs.existsSync(path.join(p.pkg, "backup", "v1", "companion", "MTG Companion.exe")) && fs.readFileSync(path.join(p.pkg, "backup", "v1", "companion", "MTG Companion.exe")).equals(oldExe));
+    await wait(() => !fs.existsSync(path.join(p.pkg, "MTG Companion.new.exe")), 10000);
+    const info = await revertInfo(p); // (a clean start: the .old.exe goes)
+    ok("app revert: the button says it goes back to v1, the app too", info.code === 0 && info.out.includes("Revert to v1 (enabled)") && info.out.includes("puts back the app"), JSON.stringify(info));
+    fs.writeFileSync(p.fx, "");
+    const r = await revert(p);
+    ok("app revert: went back, the older app takes over", r.code === 0 && r.out.includes("Went back to v1 (from v25)") && r.out.includes("The older MTG Companion takes over now"), JSON.stringify(r));
+    same("app revert: the bridge isn't started by the app being replaced (its loop would hold the exe)", effects(p), ["stop-bridge", "reload"]);
+    const back = await wait(() => { try { return fs.readFileSync(path.join(p.pkg, "MTG Companion.exe")).equals(oldExe) && json(path.join(p.pkg, "version.json")).parts.companion === "c1"; } catch { return false; } });
+    ok("app revert: MTG Companion.exe is the old one again, version.json says c1", back, `${read(p.log)?.split("\n").filter((l) => /swap|revert/.test(l)).join(" | ")} ${read(path.join(p.pkg, "version.json"))}`);
+    same("app revert: the old bridge back", read(path.join(p.pkg, "bridge", "bridge.js")), "// old bridge\n");
+    ok("app revert: no backup left, no .new.exe", await wait(() => !fs.existsSync(path.join(p.pkg, "MTG Companion.new.exe")), 10000) && !fs.existsSync(path.join(p.pkg, "backup", "v1")), tree(p.pkg).join(","));
+  }
+}
+
 async function main() {
   build();
   await new Promise((r) => srv.listen(0, "127.0.0.1", r));
   PORT = srv.address().port; BASE = `http://127.0.0.1:${PORT}`;
   addRelease("v1", {});
+  await revertTests();
+  if (process.env.COMPANION_UPDATE_ONLY === "revert") return; // (tools/mutate-companion-revert.js: only Revert's checks)
 
   // 1. up to date
   {
@@ -253,9 +436,9 @@ async function main() {
     server.latest = "v3";
     const p = makePkg();
     const check = await run(p, ["--update-check"]);
-    ok("new app: --update-check offers it (exit 10), changes nothing", check.code === 10 && check.out.includes("Update available: v3 (bridge and decks;") && read(path.join(p.pkg, "bridge", "bridge.js")) === "// old bridge\n", JSON.stringify(check));
+    ok("new app: --update-check offers it (exit 10), changes nothing", check.code === 10 && check.out.includes("Update available: v3: changes the app (bridge and decks;") && read(path.join(p.pkg, "bridge", "bridge.js")) === "// old bridge\n", JSON.stringify(check));
     const r = await now(p);
-    ok("new app: updated, exit 0", r.code === 0 && r.out.includes("Updated to v3"), JSON.stringify(r));
+    ok("new app: updated, exit 0, says the app changed", r.code === 0 && r.out.includes("Updated to v3: the app changed."), JSON.stringify(r));
     same("new app: only app.zip downloaded", dl(), ["v3/app.zip"]);
     same("new app: the bridge stopped and started, no images, no save", effects(p), ["stop-bridge", "reload", "start-bridge"]);
     same("new app: the new bridge", read(path.join(p.pkg, "bridge", "bridge.js")), "// new bridge\n");
