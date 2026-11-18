@@ -93,8 +93,11 @@ const REVEAL_PICTURES = 40;
 const NUMBER_PICK_MAX = 999;
 // How many names a list in a log line, the effects hover or a chat line names before "... and N more" (#11)
 const FEW_NAMES = 8;
+// Names in a list: ", " between them, or "; " when one has a comma of its own (Mairsil hand test #17: "White puts Body
+// Double, Deadpool, Trading Card, Kiki-Jiki, Mirror Breaker into their graveyard" read as five cards)
+const joinNames = (list) => list.join(list.some((n) => String(n).includes(",")) ? "; " : ", ");
 // "A, B, C" up to n names, else the first n then " ... and N more"
-const fewNames = (list, n = FEW_NAMES) => (list.length > n ? `${list.slice(0, n).join(", ")} ... and ${list.length - n} more` : list.join(", "));
+const fewNames = (list, n = FEW_NAMES) => (list.length > n ? `${joinNames(list.slice(0, n))} ... and ${list.length - n} more` : joinNames(list));
 // How long a clash's log line waits for the other human seats to be shown the same clash (each acknowledges in turn,
 // so one player's slow OK delays the next one's question): see the clash in onPrompt
 const CLASH_SAME_MS = 120000;
@@ -646,7 +649,7 @@ function matchGameWords() {
 const MAIN_MIN = 60, SIDE_MAX = 15;
 const cardName = (c) => c?.identity?.name || c?.name || "?";
 const deckWords = (d) => `main deck ${d.main.length}, sideboard ${d.side.length}`;
-const swapWords = (list) => [...list.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(", ");
+const swapWords = (list) => joinNames([...list.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)));
 const sameDeck = (a, b) => JSON.stringify(a.map(cardName).sort()) === JSON.stringify(b.map(cardName).sort());
 // a seat's deck for this game of the match: game 1's is kept as registered; a later game's is the one left by the last
 // swap. d: the deck the seat would bring ({ deckName, deck, commanderName }) -> the deck to send
@@ -3648,7 +3651,10 @@ const CHOICE_WORDS = {
 };
 function choiceWords(c, views) {
   const same = (x) => views.every((v) => (v[c.id]?.choices || []).some((y) => JSON.stringify(y) === JSON.stringify(x)));
-  return (c.choices || []).filter((x) => CHOICE_WORDS[x.kind] && same(x)).map((x) => CHOICE_WORDS[x.kind](x));
+  // (the card a permanent chose to swap text boxes with, by its name: Deadpool read "Chose 1 card", Mairsil hand test #27)
+  const swapped = game?.textSwaps?.get(c.id);
+  return (c.choices || []).filter((x) => CHOICE_WORDS[x.kind] && same(x))
+    .map((x) => (x.kind === "chosenCard" && swapped && x.count === 1 ? `Exchanged text boxes with ${swapped}` : CHOICE_WORDS[x.kind](x)));
 }
 
 
@@ -4202,7 +4208,11 @@ function abilityGist(text, name = "") {
   t = t.trim();
   if (/\n|[()]/.test(t)) return "";
   t = t.replace(/\s+/g, " ").replace(/\bCARDNAME\b/g, mask);
+  // (a token's by its card's name too, as its text says it: "Mairsil, the Pretender token's ability triggers (White): the
+  // Pretender enters, ..." was cut at the name's comma, Mairsil hand test #8)
+  const bare = String(name).replace(/ [Tt]oken$/, "");
   if (name) t = t.split(name).join(mask);
+  if (bare && bare !== name) t = t.split(bare).join(mask);
   // (an ability word or a flavor word before it: "Battalion — Whenever ...", "Timey-Wimey — {7}: ...")
   t = t.replace(/^[A-Z][A-Za-z'!-]*(?: [A-Za-z'!-]+){0,3} — (?=When|Whenever|At\b|\{|[+−-]?\d|[A-Z][^.:]*:\s)/, "");
   if (/^(?:When|Whenever|At)\b/.test(t)) {
@@ -5078,6 +5088,18 @@ function tapNews(prev, cur, resolved) {
       if (was?.zone === "battlefield" && now?.zone === "battlefield" && was.tapped !== now.tapped) lines.push(`${s.name} ${now.tapped ? "taps" : "untaps"} ${tokenWords(now.name, now.token)}`);
     }
   }
+  // (and every one an untargeted "tap all" or "untap all" turned, by controller: Cryptic Command's "Tap all creatures your
+  // opponents control" was in no log, Mairsil hand test #30)
+  for (const s of resolved) {
+    const all = /\b(tap|untap) all\b/i.exec(s.text || "");
+    if (!all) continue;
+    const tap = all[1].toLowerCase() === "tap", by = {};
+    for (const [id, c] of Object.entries(cur.cards)) {
+      const was = prev.cards[id];
+      if (c.zone === "battlefield" && was?.zone === "battlefield" && !!c.tapped === tap && !!was.tapped !== tap && !s.cardTg.includes(id)) (by[c.ctl] ||= []).push(tokenWords(c.name, c.token));
+    }
+    for (const [ctl, names] of Object.entries(by)) lines.push(`${s.name} ${tap ? "taps" : "untaps"} ${nameOf(ctl)}'s ${byCount(names)}`);
+  }
   for (const [id, c] of Object.entries(cur.cards)) {
     const was = prev.cards[id];
     if (c.zone === "battlefield" && was?.zone === "battlefield" && c.creature && !was.creature) lines.push(`${tokenWords(c.name, c.token)} becomes a creature`);
@@ -5500,7 +5522,7 @@ function logEvents(prev, cur, pub, facts = null) {
     if (!/\bsuspect target creature\b/i.test(g.text)) continue;
     const ids = g.cardTg.filter((id) => cur.cards[id]?.zone === "battlefield" && !game.suspected.has(id));
     for (const id of ids) game.suspected.add(id);
-    if (ids.length) out.push(`${ids.map((id) => cur.cards[id].name).join(", ")} ${ids.length > 1 ? "are" : "is"} suspected: menace, and can't block`);
+    if (ids.length) out.push(`${fewNames(ids.map((id) => cur.cards[id].name))} ${ids.length > 1 ? "are" : "is"} suspected: menace, and can't block`);
   }
   for (const [id, c] of Object.entries(cur.cards)) {
     // (not one a counterspell no board showed took off the stack: a Disrupt Decorum countered unseen goaded, checker
@@ -5517,7 +5539,9 @@ function logEvents(prev, cur, pub, facts = null) {
       : all ? Object.entries(cur.cards).filter(([, c]) => c.zone === "battlefield" && c.creature && c.ctl !== g.ctl).map(([id]) => id) : g.cardTg.filter((id) => cur.cards[id]?.zone === "battlefield");
     if (!ids.length) continue;
     for (const id of ids) game.goaded.set(id, { by: g.ctl, turn: cur.turn });
-    out.push(`${ids.map((id) => cur.cards[id].name).join(", ")} ${ids.length > 1 ? "are" : "is"} goaded by ${who(g.ctl)}: ${ids.length > 1 ? "they attack" : "it attacks"} each combat, a player other than ${who(g.ctl)} if able, until ${who(g.ctl)}'s next turn`);
+    // (many by count, the number first: Disrupt Decorum's 30 creatures were named one by one, Mairsil hand test #17)
+    const goadedNames = ids.map((id) => cur.cards[id].name);
+    out.push(`${ids.length > 6 ? `${ids.length} creatures (${byCount(goadedNames)})` : fewNames(goadedNames)} ${ids.length > 1 ? "are" : "is"} goaded by ${who(g.ctl)}: ${ids.length > 1 ? "they attack" : "it attacks"} each combat, a player other than ${who(g.ctl)} if able, until ${who(g.ctl)}'s next turn`);
   }
   // detain (Forge shows none): a resolved "detain target ..." said of its targets; Lyev Skyknight's read only "ability
   // triggers", keyword sweep kw-21
@@ -6013,7 +6037,11 @@ function logEvents(prev, cur, pub, facts = null) {
       // (not itself: Tithing Blade exiled to pay its own craft read "Tithing Blade is exiled with Tithing Blade", mechanic run hp-12)
       // (nor the card it was paid for, its cost's words name it: forage read "(to pay for Treetop Sentries) with Treetop
       // Sentries", live check 11)
-      const host = c.ew && c.ew !== id && !(/^Cost:/.test(moved?.cause || "") && moved.causeName === cur.cards[c.ew]?.name) && cur.cards[c.ew];
+      // (nor the card that exiled it and then became a copy of it, said by the name it had: Dimir Doppelganger read "Abyssal
+      // Persecutor is exiled from White's graveyard by Dimir Doppelganger with Abyssal Persecutor", Mairsil hand test #11)
+      const hostWas = c.ew && cur.cards[c.ew] ? [cur.cards[c.ew].pn, prev.cards[c.ew]?.name].filter((n) => n && n !== cur.cards[c.ew].name) : [];
+      const host = c.ew && c.ew !== id && !(/^Cost:/.test(moved?.cause || "") && moved.causeName === cur.cards[c.ew]?.name)
+        && !(moved?.causeName && hostWas.includes(moved.causeName)) && cur.cards[c.ew];
       // (and what exiled it, Forge's word, unless a cost's words or the card it is exiled with name it already: "Elemental
       // token is exiled" after Swords to Plowshares named nothing, readability audit C1)
       const by = !k.label && causeBy(moved, c.name, was?.name);
@@ -6054,6 +6082,18 @@ function logEvents(prev, cur, pub, facts = null) {
     const [[a, ca], [b, cb]] = retexted;
     const swapper = Object.values(prev.stack).find((s) => /\bexchange\b[^.]*\btext box/i.test(s.text || "") && !s.sids.some((x) => curSids.has(x)));
     if (swapper || (ca.tx === prev.cards[b].tx && cb.tx === prev.cards[a].tx)) out.push(`${ca.name} and ${cb.name} exchange text boxes${swapper ? ` (${swapper.name})` : ""}`);
+  }
+  // (or a permanent that swapped as it entered, so had no text on the last board: Deadpool's "As Deadpool enters, you may
+  // exchange his text box and another creature's" was in no log, Mairsil hand test #27. The other one now has the words
+  // of that exchange, the one that entered the other's old text.)
+  for (const id of game.textSwaps?.keys() || []) if (cur.cards[id] && cur.cards[id].zone !== "battlefield") game.textSwaps.delete(id);
+  if (retexted.length === 1) {
+    const [[b, cb]] = retexted;
+    const came = Object.entries(cur.cards).find(([id, c]) => id !== b && c.zone === "battlefield" && prev.cards[id]?.zone !== "battlefield" && c.tx === prev.cards[b].tx);
+    if (came && /\bexchange\b[^.]*\btext box/i.test(cb.tx)) {
+      out.push(`${came[1].name} exchanges text boxes with ${cb.name} as it enters`);
+      (game.textSwaps ??= new Map()).set(came[0], cb.name);
+    }
   }
   // (a word in a permanent's text changed by the spell that targeted it, just resolved: the first word that differs, as
   // it was and as it is; Mind Bend, Artificial Evolution and Sleight of Mind were in no log, mechanic run hp-25 2026-11-05)
@@ -6237,6 +6277,7 @@ function logEvents(prev, cur, pub, facts = null) {
   // log said nothing, so no Army token showed and nothing told why, hp-06 2026-10-28)
   // (the same number on several at once, one line with counts: Munda's Vanguard's cohort read sixteen lines, hp-21 gap)
   const p1Gains = {};
+  const controlGains = {}; // (who took control from whom, by what: one line each, see the control change below)
   for (const [id, c] of Object.entries(cur.cards)) {
     const was = prev.cards[id];
     if (c.zone === "battlefield" && was?.zone === "battlefield" && c.p1 > (was.p1 || 0)) {
@@ -6261,7 +6302,16 @@ function logEvents(prev, cur, pub, facts = null) {
     // own source counts as targeted: Volatile Stormdrake's exchange targets only the other creature, review 2026-11-12)
     if (c.zone === "battlefield" && was?.zone === "battlefield" && c.ctl !== was.ctl) {
       const by = resolved.filter((s) => /\b(?:gains?|exchange) control\b/i.test(s.text || "") && (s.cardTg.includes(id) || s.id === id || !s.cardTg.length));
-      out.push(`${who(c.ctl)} gains control of ${c.name} from ${who(was.ctl)}${by.length === 1 ? ` (${by[0].name})` : ""}`);
+      // (one line for the cards one player took from another at once, by count, and a control given back as its effect
+      // ends by what gave it: Insurrection's 29 read one line each, then 25 "AI n gains control of X from White" with no
+      // cause, Mairsil hand test #17)
+      const taken = game.controlTaken?.get(id);
+      const cause = by.length === 1 ? ` (${by[0].name})` : !by.length && taken && taken.from === c.ctl && taken.to === was.ctl ? ` (${taken.by} ends)` : "";
+      if (by.length === 1) (game.controlTaken ??= new Map()).set(id, { by: by[0].name, from: was.ctl, to: c.ctl });
+      else if (taken) game.controlTaken.delete(id);
+      const key = `${c.ctl}|${was.ctl}|${cause}`;
+      if (!controlGains[key]) { controlGains[key] = { at: out.length, names: [], ctl: c.ctl, from: was.ctl, cause }; out.push(""); }
+      controlGains[key].names.push(c.name);
     }
     // (and its other counters, gained or lost, with how many are left: Tangle Wire's fading took a fade counter off each
     // upkeep and the log said nothing, hp-14 gap)
@@ -6296,6 +6346,14 @@ function logEvents(prev, cur, pub, facts = null) {
       if (own || unseenOwn) (game.ownLoyalty ??= new Map()).set(id, cur.turn);
       else out.push(`${tokenWords(c.name, c.token)} gets ${countWords(n, n, "loyalty counter")} (${c.loy} in all)`);
     }
+  }
+  // (a spell on the stack under a new controller: Perplexing Chimera's exchange gave White AI 3's spell and only the
+  // Chimera's move was logged, Mairsil hand test #30)
+  for (const [key, s] of Object.entries(cur.stack)) {
+    const was = prev.stack[key];
+    if (!was || s.ability || !was.ctl || !s.ctl || was.ctl === s.ctl) continue;
+    const by = resolved.filter((r) => /\b(?:gains?|exchange) control\b/i.test(r.text || ""));
+    out.push(`${who(s.ctl)} gains control of ${s.name} (a spell on the stack) from ${who(was.ctl)}${by.length === 1 ? ` (${by[0].name})` : ""}`);
   }
   // (what a resolved "taps an untapped ..." made its player tap: Tangle Wire's upkeep taps read nothing, hp-14 gap)
   for (const s of Object.values(prev.stack)) {
@@ -6380,6 +6438,7 @@ function logEvents(prev, cur, pub, facts = null) {
     const what = `${n === "1" ? "a" : n} +1/+1 counter${n === "1" ? "" : "s"}`;
     out[g.at] = g.names.length === 1 ? `${g.names[0]} gets ${what}` : `${byCount(g.names)} each get ${what}`;
   }
+  for (const g of Object.values(controlGains)) out[g.at] = `${who(g.ctl)} gains control of ${g.names.length > 6 ? `${g.names.length} permanents: ${byCount(g.names)}` : fewNames(g.names)} from ${who(g.from)}${g.cause}`;
   // (last: the lines above are written by index. What resolved in the turn just ended goes above the new turn's header:
   // the AI's Sensei's Divining Top "entered" after White's turn header, re-test 2 bug i; the new turn's own lines, its
   // draw, stay under it. The attack's place is found by identity, so neither these cuts nor the discard's insert above
@@ -7036,6 +7095,9 @@ function cardLabel(c) {
   if (!c) return "?";
   if (c.visibility === "hidden" || !c.identity) return "(face-down)";
   let s = c.identity.name;
+  // (a copy by the card it is too, as the log says it: Phyrexian Dreadnought's sacrifice offered Phantasmal Image as
+  // "Craw Wurm 6/4", Mairsil hand test #22)
+  if (c.printedName && !c.isFaceDown && c.printedName !== s) s += ` (${c.printedName})`;
   if (c.power != null && c.toughness != null) s += ` ${c.power}/${c.toughness}`;
   // (in words: Karn's Bastion's proliferate offered "Kenrith, the Returned King 6/6 [1 P1P1]", hp-05)
   const counters = Object.entries(c.counters || {}).filter(([, n]) => n)
@@ -8091,7 +8153,7 @@ function tokensCounted(names, article = false) {
     out.push(k > 1 ? `${k} ${n}s` : article ? `${/^[aeiou]/i.test(n) ? "an" : "a"} ${n}` : n);
     counts.set(n, 0);
   }
-  return out.join(", ");
+  return joinNames(out);
 }
 // a card's possessive: "Exchange of Words' ability", not "Exchange of Words's" (re-test 2 bug f)
 function poss(name) { return /s$/i.test(String(name)) ? `${name}'` : `${name}'s`; }
@@ -8211,7 +8273,7 @@ function yesNoWords(title, src, input) {
     q = named ? `Search your library for ${named[1]}?` : among ? `Put a ${among[1]}card from among them into your hand?` : `Look in your ${m[1]} for a card?`;
   } else if (/If a commander is in a graveyard or in exile/i.test(q)) {
     q = src ? `Put ${src} back in the command zone?` : "Put your commander back in the command zone?"; yes = "Command zone"; no = "Leave it";
-  } else if ((m = q.match(/^Pay ((?:Put|Remove|Sacrifice|Exile|Discard|Tap|Untap|Return)\b.*?)\??$/))) {
+  } else if ((m = q.match(/^Pay ((?:Put|Remove|Sacrifice|Exile|Discard|Tap|Untap|Return|Reveal)\b.*?)\??$/))) {
     q = `${m[1]}?`; yes = "Yes"; no = "No";
   } else if ((m = q.match(/^Pay (.+?)\??$/)) && /^Ward\b/i.test(String(input.abilityText || input.presentation?.text || ""))) {
     // (an ability targeting it too, by Forge's otherwise sentence: Kenrith's counter ability on Hexing Squelcher, gap-04)
@@ -8229,6 +8291,9 @@ function yesNoWords(title, src, input) {
     // ("Use Deadpool, Trading Card?" / "Use Serra Angel?" said nothing: the ability's own "you may ..." says what,
     // hp-25 T11 T17 2026-10-27; Forge's raw "Apply replacement effect of X?\r\n<its text>" reaches here as it is)
     q = src ? `${src}: ${m[1]}?` : `${m[1][0].toUpperCase()}${m[1].slice(1)}?`;
+    // (a "may" that is a choice of two, "you may tap or untap target permanent": Yes or No to "tap or untap X?" said
+    // nothing, and Forge's "Tap or untap X?" with Tap / Untap came next under the same words, Mairsil hand test #2)
+    if (/^[a-z]+ or [a-z]+\b/i.test(m[1])) { q = `${src ? `${src}: ` : ""}use its ability (${m[1]})?`; yes = "Use it"; no = "Don't"; }
     more = String(input.abilityText).trim();
   } else if ((m = q.match(/^Do you want to play (.+?) transformed\?$/i))) {
     // (a defeated Siege's cast, CR 310.11b: "Cast Invasion of Ikoria transformed?" named neither the back face nor that
@@ -9348,7 +9413,10 @@ const RESOLVE_LOOP_REPEATS = 4; // the same stack (names, texts, controllers) se
 // A stack item's text as the table shows it (its tx) and as a run compares it: Forge's stack text names cards with its
 // own number ("Change the text of Goblin King (37) by ...", hp-25 T5; "Monk Token (281)" from each token), and
 // "Ponder (18) - " in front, which the table's pop-up also cuts, goes first.
-const stackText =(s) => displayText(s.text || "").replace(/^[^\n]{0,100}?\(\d+\) - /, "").replace(/([A-Za-z'’,]) \(\d+\)/g, "$1");
+// (a spell still being cast, its targets not chosen yet, by its own words: Forge's "White gains control of (nothing)."
+// named its caster as the one who gains, for Donate and Harmless Offering, Mairsil hand test #19)
+const stackText = (s) => (/\(nothing\)/.test(s.text || "") && s.sourceAbilityText ? displayText(s.sourceAbilityText)
+  : displayText(s.text || "").replace(/^[^\n]{0,100}?\(\d+\) - /, "").replace(/([A-Za-z'’,]) \(\d+\)/g, "$1"));
 const stackRunKey = (s) => `${s.controllerId}\u0001${s.identity?.name || "?"}\u0001${stackText(s)}`;
 // how many items on top of the stack make one run of `who`'s untargeted abilities alike, and its key (abilities only:
 // a spell is one press each, and a spell's targets may not all be listed)
@@ -10821,7 +10889,8 @@ function onPrompt(seat, prompt) {
         const asked = title.replace(/\?\s*$/, "").replace(/\{X\}/g, xv ? `{${xv.n}}` : "{X}");
         // (a cost that isn't mana is asked as itself: Remorseless Punishment's "pay Discard two cards?" read
         // "Pay Discard two cards" on its button, prompt-shapes probe 2026-11-17)
-        const costWords = asked.match(/^Pay ((?:Put|Remove|Sacrifice|Exile|Discard|Tap|Untap|Return)\b.*)$/);
+        // (and a reveal: Foreboding Ruins' "pay Reveal a Swamp or Mountain card from your hand?", Mairsil hand test #33)
+        const costWords = asked.match(/^Pay ((?:Put|Remove|Sacrifice|Exile|Discard|Tap|Untap|Return|Reveal)\b.*)$/);
         const ask = costWords ? costWords[1] : asked;
         const askTitle = costWords ? costWords[1][0].toLowerCase() + costWords[1].slice(1) : asked;
         // the gesture that means No: a chosen card onto your library, or the permanent into your graveyard (onIntent)
@@ -11262,6 +11331,32 @@ function onPrompt(seat, prompt) {
       // only one thing to choose and it must be chosen ("choose a kind of counter": +1/+1, six times a game): answered,
       // as Arena doesn't ask a forced choice
       if (input.options.length === 1 && (input.minTotal ?? 0) >= 1) { seat.respond(prompt.promptId, type, { type: "selectionDecision", chosenIndices: [0] }); return; }
+      // two piles to choose from (the harness's chooseCardsPile: "-- Pile 1 (2 cards) -- Necrotic Ooze Thought Scour",
+      // the names run together after a space): each pile's cards by name and with their pictures. Fact or Fiction's two
+      // buttons read only that, cut, Mairsil hand test #29.
+      const pileMatch = input.options.map((o) => /^-- Pile (\d+) \((\d+) cards?\) --\s*(.*)$/.exec(String(o.label ?? "")));
+      if (pileMatch.length === 2 && pileMatch.every(Boolean)) {
+        const known = [...new Set([...Object.values(byId).map((c) => c?.identity?.name), ...(seat.lastShown?.names || []), ...(game?.namesSeen?.values() || [])].filter(Boolean))]
+          .sort((x, y) => y.length - x.length);
+        // (the longest known name at each place; none known there: the rest as it is)
+        const namesIn = (rest) => {
+          const out = [];
+          for (let r = rest.trim(); r;) {
+            const k = known.find((n) => r === n || r.startsWith(`${n} `));
+            if (!k) { out.push(r); break; }
+            out.push(k);
+            r = r.slice(k.length).trim();
+          }
+          return out;
+        };
+        const piles = pileMatch.map((m) => ({ n: m[1], count: Number(m[2]), names: namesIn(m[3]) }));
+        const where = /\bone pile into your hand\b/i.test(String(prompt.sourceAbilityText || srcCardText)) ? "put into your hand" : "choose";
+        ui = { title: `${src ? `${src}: ` : ""}${where === "choose" ? "choose which pile?" : "put which pile into your hand?"}`, mode: "single",
+          options: piles.map((p, i) => ({ id: i, label: `Pile ${p.n}: ${!p.count ? "no cards" : p.names.length ? joinNames(p.names) : `${countWords(p.count, p.count, "face-down card")}`}` })),
+          show: piles.flatMap((p) => p.names.map((n) => ({ n: `Pile ${p.n}: ${n}`, img: pictureOf(n) || undefined }))).filter((x) => x.img) };
+        toOutput = (a) => ({ type: "selectionDecision", chosenIndices: a.map(Number) });
+        break;
+      }
       // nor the order of one card's own enter effects, which all apply ("enters tapped", "Graft 1 (... enters with a
       // +1/+1 counter ...)"): Llanowar Reborn asked "choose one" over them, hp-18
       // (and with no ability text, when each is the card's own: a Siege's "(As a Siege enters, choose an opponent to
@@ -12113,6 +12208,12 @@ function onPrompt(seat, prompt) {
   ui.text = displayText([ui.text, ability].filter(Boolean).join("\n"));
   ui.text = plainWords(ui.text);
   ui.title = plainWords(displayText(ui.title));
+  // (Forge's number for a card after its name taken out: "Perplexing Chimera: Change targets of Murderous Compulsion
+  // (177)?", Mairsil hand test #24. Only after a card's name the game knows, as "(3)" may be a count.)
+  if (typeof ui.title === "string" && / \(\d+\)/.test(ui.title)) {
+    const known = [...new Set([...(gv.stack || []).map((s) => s.identity?.name), ...Object.values(byId).map((c) => c?.identity?.name)].filter(Boolean))];
+    ui.title = ui.title.replace(/ \((\d+)\)/g, (m, n, at, all) => (known.some((k) => all.slice(0, at).endsWith(k)) ? "" : m));
+  }
   // (a question asked for a player this seat controls says so: Mindslaver's turn asked White for AI 1 under no name,
   // Kykar re-test new bug 1)
   if (forP && type !== "chooseAction" && typeof ui.title === "string") ui.title = `${nameOf(forP)} (you control): ${ui.title}`;
