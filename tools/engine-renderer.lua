@@ -6409,6 +6409,9 @@ function engineRowUpdate(color)
     end
     sub = "Number: " .. tostring(st.value) .. "   (" .. tostring(p.min or 0) .. " to " .. tostring(p.max) .. ")   "
       .. (engineNumberWide(p) and ("Step " .. (st.step or 1) .. "; or type the number in the Engine panel's search.   ") or "") .. sub
+  -- (a question whose own words already say how, the bridge's optional cost "Pick it, then Done. Done alone: not paid.",
+  -- keeps them alone: Rite of Replication's kicker read "Pick, then Done. Pick it, then Done.", Mairsil re-test 2026-11-18)
+  elseif p.mode == "multi" and string.find(sub, "then Done", 1, true) ~= nil then
   -- (an exact number answers at the last click, onMtgRow: the line said "then Done" for Kenrith's one target, hp-07 re-test)
   elseif p.mode == "multi" and #tiles > 0 and tiles[1].opt ~= nil then
     sub = (engineExactPick(p) and ("Click " .. (p.max == 1 and "the card" or (p.max .. " cards")) .. " you want: the last click answers.   ")

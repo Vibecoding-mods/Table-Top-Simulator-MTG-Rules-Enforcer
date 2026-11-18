@@ -161,6 +161,17 @@ async function tableFor(gv) {
     const t = await tableFor(gv);
     same("#19 Donate on the stack before its targets: its own words, not \"Blue gains control of (nothing)\"", (t?.stack || []).map((s) => s.tx), [DONATE]);
   }
+  // ── re-test R2: an empty target name, Rite of Replication's "White creates a token that's a copy of ." ──
+  {
+    const RITE = "Kicker {5}\nCreate a token that's a copy of target creature. If this spell was kicked, create five of those tokens instead.";
+    const rite = (abilityText) => board((b) => { b.stack = [{ id: "casting-2", sourceId: id(72), controllerId: "player-0", ownerId: "player-0", identity: { name: "Rite of Replication" },
+      ...(abilityText ? { sourceAbilityText: abilityText } : {}), targets: [], isCasting: true, text: "Rite of Replication (72) - Blue creates a token that's a copy of ." }];
+      put(b, "hand", card(72, "Rite of Replication", ["Sorcery"], { text: RITE })); });
+    const t = await tableFor(rite(RITE));
+    same("R2 Rite of Replication before its target: its own words, not \"creates a token that's a copy of .\"", (t?.stack || []).map((s) => s.tx), [RITE]);
+    const bare = await tableFor(rite(null));
+    same("R2 with no ability text: no dangling \"of .\"", (bare?.stack || []).map((s) => s.tx), ["Blue creates a token that's a copy of its target (not chosen yet)."]);
+  }
 
   // ── #22 a copy in a choice ──
   {
