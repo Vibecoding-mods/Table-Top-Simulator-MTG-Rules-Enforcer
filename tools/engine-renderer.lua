@@ -2471,11 +2471,12 @@ function engineCornerWrap(label, per)
   return rest == "" and first or (first .. "\n" .. rest)
 end
 -- A corner button's label as it is drawn: as it is up to `one` characters (the usual font), else wrapped to `per` a line
--- (engineCornerWrap), and whether it is the long kind, at the smaller font with the whole label in its tooltip
+-- (engineCornerWrap), and whether it is the long kind, at the smaller font with the whole label in its tooltip. A label
+-- of a few characters past `one` still fits on one line at the smaller font, so it is the long kind unwrapped (at the
+-- usual font it ran past the button's edge)
 function engineCornerText(label, one, per)
   if label == nil or #label <= one then return label, false end
-  local text = engineCornerWrap(label, per)
-  return text, text ~= label
+  return engineCornerWrap(label, per), true
 end
 -- A card picture the screen UI can draw, for every player. TTS's screen UI can't draw .webp, and Scryfall's CDN refuses
 -- TTS's downloader by its user-agent (HTTP 400): both left pictures white. The bridge's own route on this PC reached

@@ -3341,7 +3341,7 @@ function exiledWithNote(c) {
 function cageHoldersOf(c) {
   if (!Object.entries(c?.counters || {}).some(([k, n]) => n && k.toUpperCase() === "CAGE")) return null;
   const ctx = game?.tableCtx;
-  if (!ctx) return [];
+  if (!ctx) return null; // (no board drawn yet: who has its abilities isn't known, so nothing is said)
   return [...ctx.field].map((id) => ctx.byId[id]).filter((h) => h && !h.isFaceDown && h.visibility !== "hidden" && h.controllerId === c.ownerId && /\bcage counters?\b/i.test(String(h.currentText ?? h.text ?? "")));
 }
 // The card the table lays a caged card under (its ew): Forge's exiledWith while that permanent has its abilities, else
