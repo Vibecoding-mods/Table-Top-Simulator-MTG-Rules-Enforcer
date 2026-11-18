@@ -34,7 +34,7 @@ for (const t of Object.values(TABLES)) t.url = workshopUrl(t.id);
 const versionTables = () => Object.entries(TABLES).map(([key, t]) => ({ key, id: t.id, url: t.url, saveName: t.saveName, file: t.file, optional: t.optional, makeable: !!t.patcher }));
 // what the patcher needs beside it (make-engine-copy.js appends the Lua files to the table's scripts and reads the
 // table's profile with table-profile.js)
-const PATCHER_FILES = ["make-table.js", "make-engine-copy.js", "table-profile.js", "engine-json.lua", "engine-renderer.lua", "deckcheck.lua", "deckcheck-import.lua"];
+const PATCHER_FILES = ["make-table.js", "make-engine-copy.js", "table-profile.js", "engine-json.lua", "engine-renderer.lua", "deckcheck.lua", "deckcheck-import.lua", "deckcheck-rik.lua"];
 
 const DEV_STAMP = 'function engineStamp() return "dev" end';
 const sha8 = (data) => crypto.createHash("sha256").update(data).digest("hex").slice(0, 8);

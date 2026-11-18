@@ -204,6 +204,39 @@ end
 patchScripts("rikrassen importer: disable check_version (downloads importer code)",
   "function M.check_version(base_url, asset_base_url, cb)",
   `function M.check_version(base_url, asset_base_url, cb) do return end ${TAG}`);
+// rikrassen importer: DeckCheck deck links (docs/deckcheck-spec.md, "rikrassen's importer"). Its server refuses
+// deckcheck.co, so M.deck hands such a link to deckcheckRikDeck (tools/deckcheck-rik.lua, put in below with
+// tools/deckcheck.lua), which reads the deck from DeckCheck and posts it to the server as a decklist instead.
+patchScripts("rikrassen importer: DeckCheck links",
+  "  data.hand = hand\n  postJSON(BaseURL .. '/build', data, function(resp)\n    callback(resp, player, 'deck', next)\n  end)\n",
+  `  data.hand = hand
+  local function post() ${TAG} (a DeckCheck link is posted as a decklist once read: tools/deckcheck-rik.lua)
+    postJSON(BaseURL .. '/build', data, function(resp)
+      callback(resp, player, 'deck', next)
+    end)
+  end
+  if deckcheckRikDeck(color, data, post) then return end
+  post()
+`);
+patchScripts("rikrassen importer: help names DeckCheck",
+  "  - archidekt.com\n  - decks.tcgplayer.com\n",
+  "  - archidekt.com\n  - deckcheck.co\n  - decks.tcgplayer.com\n");
+{
+  // (the script is a luabundle that ends with `return __bundle_require("__root")`: the functions go just before it)
+  const lua = ["deckcheck.lua", "deckcheck-rik.lua"].map((f) => fs.readFileSync(path.join(__dirname, f), "utf8")).join("\n\n");
+  const END = 'return __bundle_require("__root")';
+  let n = 0;
+  for (const o of allObjects(save.ObjectStates)) {
+    if (typeof o.LuaScript !== "string" || !o.LuaScript.includes("if deckcheckRikDeck(color, data, post) then return end")) continue;
+    const at = o.LuaScript.lastIndexOf(END);
+    if (at < 0 || o.LuaScript.slice(at + END.length).trim() !== "") continue;
+    const nl = o.LuaScript.includes("\r\n") ? "\r\n" : "\n";
+    o.LuaScript = o.LuaScript.slice(0, at) + `${TAG} DeckCheck links (tools/deckcheck.lua, tools/deckcheck-rik.lua)${nl}${lua.replace(/\r?\n/g, nl)}${nl}${nl}` + o.LuaScript.slice(at);
+    n++;
+  }
+  report.push(`${n >= 1 ? "OK  " : "FAIL"} rikrassen importer: DeckCheck functions added (${n} script${n === 1 ? "" : "s"})`);
+  if (n < 1) process.exitCode = 1;
+}
 
 // 7. Card Importer: DeckCheck deck links (docs/deckcheck-spec.md, "Import"), next to Archidekt and Moxfield. The
 // link goes to fetchDeckCheckDeck (tools/deckcheck-import.lua, appended with tools/deckcheck.lua below), which spawns
