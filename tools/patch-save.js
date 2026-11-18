@@ -126,8 +126,9 @@ function addPieces(raw, built) {
 
 // The Card Importer's DeckCheck links (docs/deckcheck-spec.md) live in the importer's own object script, which the
 // Global patch above never touches. Each top-level object whose built script has the DeckCheck code and whose saved
-// script hasn't gets the built script, as text, every other byte as it was. One that can't be found exactly once is
-// left alone and named. Pure: the tests drive it.
+// script differs from it gets the built script, as text, every other byte as it was: a script with an OLDER copy of
+// the DeckCheck code too (a fix to that code never reached the importers while only a script without it was updated:
+// the userdata fix, 2026-11-18). One that can't be found exactly once is left alone and named. Pure: the tests drive it.
 function importerScripts(raw, built) {
   const save = JSON.parse(raw);
   const has = (s) => typeof s === "string" && s.includes("function deckcheckId(");
@@ -135,7 +136,7 @@ function importerScripts(raw, built) {
   const done = [], skipped = [], want = new Map();
   for (const o of save.ObjectStates || []) {
     const b = (built.ObjectStates || []).find((x) => x.GUID === o.GUID);
-    if (!b || !has(b.LuaScript) || has(o.LuaScript) || typeof o.LuaScript !== "string" || o.LuaScript === "") continue;
+    if (!b || !has(b.LuaScript) || o.LuaScript === b.LuaScript || typeof o.LuaScript !== "string" || o.LuaScript === "") continue;
     const old = JSON.stringify(o.LuaScript);
     if (out.split(old).length !== 2) { skipped.push(o.GUID); continue; }
     out = out.replace(old, () => JSON.stringify(b.LuaScript));

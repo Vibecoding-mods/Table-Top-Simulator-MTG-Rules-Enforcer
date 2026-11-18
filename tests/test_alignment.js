@@ -285,6 +285,10 @@ const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringif
   same("importer: what was updated is said", r.updated, ["Card Importer (988e5e)"]);
   const call = (a, b) => { try { return importerScripts(a, b); } catch (e) { return { raw: `threw: ${e.message}` }; } };
   same("importer: run again, nothing more", call(r.raw, built).raw, r.raw);
+  // (an importer that already has an older copy of the DeckCheck code gets the fix too: the userdata fix, 2026-11-18)
+  const newer = newImp + "-- fixed\n";
+  const upd = call(r.raw, { ObjectStates: [{ GUID: "988e5e", LuaScript: newer }, { GUID: "deck01", LuaScript: "y" }] });
+  same("importer: a newer DeckCheck script replaces an older one", (() => { try { return JSON.parse(upd.raw).ObjectStates[0].LuaScript; } catch (e) { return upd.raw; } })(), newer);
   same("importer: a build without the DeckCheck links changes nothing", call(raw, { ObjectStates: [{ GUID: "988e5e", LuaScript: oldImp + "-- other\n" }] }).raw, raw);
   const twice = raw.replace('"LuaScript": "g"', `"LuaScript": ${JSON.stringify(oldImp)}`);
   let t;
