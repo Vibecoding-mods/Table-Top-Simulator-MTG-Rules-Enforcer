@@ -3,6 +3,8 @@
 //       printed "[MTG] You can only touch your own cards."; a card the question doesn't offer still says it
 //   #23 the Engine panel's status line named the turn by seat colour ("Red's 4th turn") while the top bar said "AI 1'S
 //       TURN": it names players as the top bar does
+//   R1  an optional cost's hint (the bridge's "Pick it, then Done. Done alone: not paid.") read "Pick, then Done. Pick it,
+//       then Done. ..." under Rite of Replication's kicker question (re-test 2026-11-18): said once
 //   node tests/test_table_mairsil_text.js        (TABLE_SAVE=<save.json> to test a given save)
 const fs = require("fs");
 const path = require("path");
@@ -40,6 +42,13 @@ const click = (cid, mark) => q(`local real = engineSend local sent = "none" engi
 const act = (cid, action, mark) => q(`for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${cid}" then return tostring(onPlayerAction(Player.Blue, Player.Action.${action}, { x })) end end return "none"`, mark);
 const glows = (cid, mark) => q(`for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${cid}" then return tostring((engineGlowing.Blue or {})[x] == true) end end return "none"`, mark);
 const status = (mark) => q('return tostring(UI.getValue("eng_status_Blue"))', mark);
+const rowSub = (mark) => q('return tostring(UI.getValue("eng_rowsub_Blue"))', mark);
+// the bridge's kicker question as it sent it (tests/golden: Pestilence's), with the spell's own words after it
+const KICKER = { t: "prompt", color: "Blue", promptId: 9903, title: "Rite of Replication: pay Kicker ({5})?", mode: "multi", min: 0, max: 1, kind: "modal",
+  options: [{ id: "0", label: "Pay Kicker: {5}" }], text: "Pick it, then Done. Done alone: not paid.\nCreate a token that's a copy of target creature." };
+// a pick of up to two with no words of its own still gets the row's hint
+const PICK2 = { t: "prompt", color: "Blue", promptId: 9904, title: "Choose up to two", mode: "multi", min: 0, max: 2, kind: "modal",
+  options: [{ id: "0", label: "Draw a card" }, { id: "1", label: "Gain 3 life" }] };
 
 const r = simulate({ save, seated: ["Blue"], steps: [...prefix,
   board(), { frames: 4 },
@@ -57,6 +66,10 @@ const r = simulate({ save, seated: ["Blue"], steps: [...prefix,
   act(MINE.id, "Rotate", "rotate my glowing card"),
   board((b) => { b.active = "White"; b.priority = "White"; b.activeTurnNo = 4; }), { frames: 4 },
   status("status on AI 1's turn"),
+  { msg: { t: "prompt", json: JSON.stringify(KICKER) }, frames: 6 },
+  rowSub("kicker hint"),
+  { msg: { t: "prompt", json: JSON.stringify(PICK2) }, frames: 6 },
+  rowSub("pick two hint"),
 ] });
 const v = (mark) => (r.steps.find((s) => s.step === mark) || {}).value;
 const told = (mark) => ((r.steps.find((s) => s.step === mark) || {}).fx || []).filter((l) => l.includes("broadcastToColor")).join(" | ");
@@ -75,6 +88,10 @@ ok("#3 Blue's own card the question offers: picked up as always", v("pick up my 
 ok("#3 Blue's own card the question offers: rotating is still the engine's", v("rotate my glowing card") === "false" && /The engine handles that/.test(told("rotate my glowing card")), `${v("rotate my glowing card")} | ${told("rotate my glowing card")}`);
 const st = String(v("status on AI 1's turn"));
 ok("#23 the status line names the AI's turn and priority as the top bar does", /^AI 1's 4th turn \(game turn \d+\) - [^\n]* - priority: AI 1/.test(st) && !/White's 4th turn/.test(st), st);
+const kick = String(v("kicker hint"));
+ok("R1 the kicker question's hint says how once: \"Pick it, then Done. Done alone: not paid.\", no \"Pick, then Done.\" before it",
+  kick.startsWith("Pick it, then Done. Done alone: not paid.") && kick.split("then Done").length === 2, kick);
+ok("R1 a pick of several with no words of its own still reads \"Pick, then Done.\"", String(v("pick two hint")).startsWith("Pick, then Done."), v("pick two hint"));
 
 console.log(failed ? `\n${failed} failed, ${passed} passed` : `all ${passed} Mairsil table checks pass`);
 process.exit(failed ? 1 : 0);
