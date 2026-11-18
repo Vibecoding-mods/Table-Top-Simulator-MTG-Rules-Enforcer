@@ -638,10 +638,86 @@ index 972f4ae..a38c33c 100644
  
      private static List<Integer> mergeAlternativeManaAbility(
 diff --git a/forge-harness/src/main/java/forge/harness/common/AutoPay.java b/forge-harness/src/main/java/forge/harness/common/AutoPay.java
-index 4edefb1..eb1e7a1 100644
+index 4edefb1..41d2c6a 100644
 --- a/forge-harness/src/main/java/forge/harness/common/AutoPay.java
 +++ b/forge-harness/src/main/java/forge/harness/common/AutoPay.java
-@@ -390,10 +390,28 @@ public final class AutoPay {
+@@ -49,7 +49,43 @@ public final class AutoPay {
+         this.useManaCostManaAbilities = useManaCostManaAbilities;
+     }
+ 
++    public static boolean payBudget = true;
++    private static long holds;
++
++    public static long getHolds() {
++        return holds;
++    }
++
++    private final class Budget {
++        final long deadline = System.currentTimeMillis() + payer.getGame().getAIPayTimeoutMs();
++        boolean held;
++
++        void beforeActivation() {
++            if (payBudget && !held && System.currentTimeMillis() >= deadline && !payer.getGame().getAction().isHoldingStaticAbilities()) {
++                payer.getGame().getAction().setHoldCheckingStaticAbilities(true);
++                held = true;
++                holds++;
++            }
++        }
++
++        void end() {
++            if (held) {
++                payer.getGame().getAction().setHoldCheckingStaticAbilities(false);
++                payer.getGame().getAction().checkStaticAbilities();
++            }
++        }
++    }
++
+     public PayManaCostResult payManaCostWithTrace(final ManaCost toPay, final SpellAbility saBeingPaid, final boolean effect) {
++        final Budget budget = new Budget();
++        try {
++            return payManaCostWithTrace(toPay, saBeingPaid, effect, budget);
++        } finally {
++            budget.end();
++        }
++    }
++
++    private PayManaCostResult payManaCostWithTrace(final ManaCost toPay, final SpellAbility saBeingPaid, final boolean effect, final Budget budget) {
+         final ManaCostBeingPaid unpaid = new ManaCostBeingPaid(toPay);
+         final ManaPool pool = payer.getManaPool();
+         final List<Mana> manaSpentToPay = saBeingPaid.getPayingMana();
+@@ -80,6 +116,7 @@ public final class AutoPay {
+ 
+             steps.add(chosen.describeStep());
+ 
++            budget.beforeActivation();
+             payer.getGame().getStack().addAndUnfreeze(chosen.spellAbility);
+ 
+             pool.payManaFromAbility(saBeingPaid, unpaid, chosen.spellAbility);
+@@ -136,6 +173,15 @@ public final class AutoPay {
+     }
+ 
+     public List<Card> floatManaForCost(final ManaCost toPay, final SpellAbility saBeingPaid, final boolean effect) {
++        final Budget budget = new Budget();
++        try {
++            return floatManaForCost(toPay, saBeingPaid, effect, budget);
++        } finally {
++            budget.end();
++        }
++    }
++
++    private List<Card> floatManaForCost(final ManaCost toPay, final SpellAbility saBeingPaid, final boolean effect, final Budget budget) {
+         final ManaPool pool = payer.getManaPool();
+         final List<Card> tapped = new ArrayList<>();
+ 
+@@ -158,6 +204,7 @@ public final class AutoPay {
+                 break;
+             }
+ 
++            budget.beforeActivation();
+             if (!floatManaFromSource(chosen.spellAbility, effect)) {
+                 break;
+             }
+@@ -390,10 +437,28 @@ public final class AutoPay {
                  out.add(new ManaAbilityCandidate(manaAbility, sourceOrder++));
              }
          }
@@ -8851,6 +8927,338 @@ index 0000000..db530a4
 +            }
 +            expect(!thread.isAlive(), "declaring attackers did not finish");
 +            return paymentsFor;
++        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/AutoPayBudgetTest.java b/forge-harness/src/test/java/forge/harness/host/AutoPayBudgetTest.java
+new file mode 100644
+index 0000000..a28855f
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/AutoPayBudgetTest.java
+@@ -0,0 +1,326 @@
++package forge.harness.host;
++
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.AutoPay;
++import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++import java.util.concurrent.locks.ReentrantLock;
++
++public final class AutoPayBudgetTest {
++    private AutoPayBudgetTest() {}
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        CHECKS.put("held: past the budget the Auto payment holds the static checks, then one pass", AutoPayBudgetTest::heldPastBudget);
++        CHECKS.put("held: within the budget each mana ability runs its static pass, as before", AutoPayBudgetTest::passesWithinBudget);
++        CHECKS.put("held: the static checks are not left held after the payment", AutoPayBudgetTest::notLeftHeld);
++        CHECKS.put("held: the payment without a prompt (AutoPay.payManaCost) holds past the budget too, then one pass", AutoPayBudgetTest::directPayHeld);
++        CHECKS.put("same: {8} from mixed lands taps the same cards both ways", AutoPayBudgetTest::sameGeneric);
++        CHECKS.put("same: {3}{W}{W} and {G}{U} from duals, Gates and basics tap the same cards both ways", AutoPayBudgetTest::sameColoured);
++        CHECKS.put("same: the board after the payment is the same both ways (an anthem, a land-count creature)", AutoPayBudgetTest::sameBoardAfter);
++        CHECKS.put("same: a payment that can't be made is cancelled both ways, nothing tapped", AutoPayBudgetTest::cancelledBothWays);
++        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
++            check(e.getKey(), e.getValue());
++        }
++        System.out.println(failed == 0 ? "PASS AutoPayBudgetTest" : "FAIL AutoPayBudgetTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private interface Board {
++        void lay(Fixture f);
++    }
++
++    private static final Map<String, Check> CHECKS = new LinkedHashMap<>();
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable thrown) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + thrown);
++        }
++    }
++
++    private static void expect(final boolean ok, final String why) {
++        if (!ok) {
++            throw new AssertionError(why);
++        }
++    }
++
++    private static void plains(final Fixture f) {
++        for (int i = 0; i < 8; i++) {
++            f.add("Plains", f.me);
++        }
++    }
++
++    private static void mixed(final Fixture f) {
++        for (final String land : new String[] {"Plains", "Island", "Forest", "Tundra", "Savannah", "Tropical Island", "Azorius Guildgate",
++            "Selesnya Guildgate", "Simic Guildgate", "Command Tower", "Plains", "Forest", "Island"}) {
++            f.add(land, f.me);
++        }
++        f.add("Llanowar Elves", f.me);
++        f.add("Birds of Paradise", f.me);
++    }
++
++    private static void heldPastBudget() throws Exception {
++        final Fixture f = new Fixture();
++        plains(f);
++        f.game.AI_TIMEOUT = -1;
++        final long h0 = AutoPay.getHolds();
++        final Result r = f.pay("Ulamog's Crusher");
++        expect(r.paid && r.tapped.size() == 8, "paid " + r.paid + ", tapped " + r.tapped);
++        expect(r.passes == 1, "static passes during the Auto payment " + r.passes + ", want the one after it");
++        expect(AutoPay.getHolds() - h0 == 1, "the payment held the static checks " + (AutoPay.getHolds() - h0) + " times, want once");
++    }
++
++    private static void passesWithinBudget() throws Exception {
++        final Fixture f = new Fixture();
++        plains(f);
++        final long h0 = AutoPay.getHolds();
++        final Result r = f.pay("Ulamog's Crusher");
++        expect(r.paid && r.tapped.size() == 8, "paid " + r.paid + ", tapped " + r.tapped);
++        expect(r.passes >= 8, "static passes during the Auto payment " + r.passes + ", want one per mana ability");
++        expect(AutoPay.getHolds() == h0, "the payment within the budget held the static checks");
++    }
++
++    private static void notLeftHeld() throws Exception {
++        final Fixture f = new Fixture();
++        plains(f);
++        f.game.AI_TIMEOUT = -1;
++        f.pay("Ulamog's Crusher");
++        expect(!f.game.getAction().isHoldingStaticAbilities(), "the static checks are still held after the payment");
++    }
++
++    private static void directPayHeld() throws Exception {
++        final Fixture f = new Fixture();
++        plains(f);
++        f.game.AI_TIMEOUT = -1;
++        f.game.getAction().checkStaticAbilities();
++        final Card crusher = Card.fromPaperCard(FModel.getMagicDb().getCommonCards().getCard("Ulamog's Crusher"), f.me);
++        f.me.getZone(ZoneType.Hand).add(crusher);
++        final SpellAbility sa = crusher.getFirstSpellAbility();
++        sa.setActivatingPlayer(f.me);
++        final Field field = ManaBrewInteractiveController.class.getDeclaredField("autoPay");
++        field.setAccessible(true);
++        final AutoPay autoPay = (AutoPay) field.get(f.me.getController());
++        final long h0 = AutoPay.getHolds();
++        final long p0 = f.game.getAction().getStaticPasses();
++        final boolean paid;
++        f.lock.lock();
++        try {
++            paid = autoPay.payManaCost(sa.getPayCosts().getTotalMana(), sa, false);
++        } finally {
++            f.lock.unlock();
++        }
++        final long passes = f.game.getAction().getStaticPasses() - p0;
++        expect(paid && passes == 1 && AutoPay.getHolds() - h0 == 1 && !f.game.getAction().isHoldingStaticAbilities(),
++                "paid " + paid + ", static passes " + passes + ", holds " + (AutoPay.getHolds() - h0) + ", still held " + f.game.getAction().isHoldingStaticAbilities());
++    }
++
++    private static Result payBothWays(final Board board, final String spell, final List<String> out) throws Exception {
++        Result last = null;
++        for (final boolean held : new boolean[] {false, true}) {
++            final Fixture f = new Fixture();
++            board.lay(f);
++            if (held) {
++                f.game.AI_TIMEOUT = -1;
++            }
++            final Result r = f.pay(spell);
++            out.add((held ? "held: " : "full: ") + r.paid + " " + r.tapped + " | " + f.describe());
++            last = r;
++        }
++        return last;
++    }
++
++    private static void same(final Board board, final String spell, final String what) throws Exception {
++        final List<String> out = new ArrayList<>();
++        final Result r = payBothWays(board, spell, out);
++        expect(out.get(0).substring(6).equals(out.get(1).substring(6)), what + ":\n  " + out.get(0) + "\n  " + out.get(1));
++        expect(r.paid, what + ": not paid: " + out.get(1));
++    }
++
++    private static void sameGeneric() throws Exception {
++        same(AutoPayBudgetTest::mixed, "Ulamog's Crusher", "{8} from mixed lands");
++    }
++
++    private static void sameColoured() throws Exception {
++        same(AutoPayBudgetTest::mixed, "Serra Angel", "{3}{W}{W} from mixed lands");
++        same(AutoPayBudgetTest::mixed, "Coiling Oracle", "{G}{U} from mixed lands");
++    }
++
++    private static void sameBoardAfter() throws Exception {
++        same((f) -> {
++            mixed(f);
++            f.add("Glorious Anthem", f.me);
++            f.add("Gaea's Liege", f.me);
++            f.add("Krosan Tusker", f.ai);
++        }, "Serra Angel", "with an anthem and Gaea's Liege");
++    }
++
++    private static void cancelledBothWays() throws Exception {
++        final List<String> out = new ArrayList<>();
++        final Result r = payBothWays((f) -> {
++            f.add("Plains", f.me);
++            f.add("Island", f.me);
++        }, "Ulamog's Crusher", out);
++        expect(out.get(0).substring(6).equals(out.get(1).substring(6)), "cancelled:\n  " + out.get(0) + "\n  " + out.get(1));
++        expect(!r.paid && r.tapped.isEmpty(), "{8} from two lands: paid " + r.paid + ", tapped " + r.tapped);
++    }
++
++    private record Result(boolean paid, List<String> tapped, long passes) {
++    }
++
++    private static final class Fixture {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("autopay-budget");
++        final Game game;
++        final Player me;
++        final Player ai;
++        final ReentrantLock lock;
++
++        Fixture() throws Exception {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new ManaBrewInteractiveLobbyPlayer("White", session)));
++            players.add(new RegisteredPlayer(new Deck()).setPlayer(new LobbyPlayerAi("AI 1", null)));
++            final GameRules rules = new GameRules(GameType.Constructed);
++            rules.setRenderAbilityText(false);
++            game = new Game(players, rules, new Match(rules, players, "AutoPayBudgetTest"));
++            game.setAge(GameStage.Play);
++            game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0), 3);
++            game.getPhaseHandler().onStackResolved();
++            me = game.getPlayers().get(0);
++            ai = game.getPlayers().get(1);
++            session.attach(game.getMatch(), game, Set.of(), false);
++            final Field field = ManaBrewInteractiveSession.class.getDeclaredField("gameLock");
++            field.setAccessible(true);
++            lock = (ReentrantLock) field.get(session);
++        }
++
++        Card add(final String name, final Player p) {
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(name);
++                paper = FModel.getMagicDb().getCommonCards().getCard(name);
++            }
++            if (paper == null) {
++                throw new AssertionError("no card named " + name);
++            }
++            final Card card = Card.fromPaperCard(paper, p);
++            card.setGameTimestamp(game.getNextTimestamp());
++            p.getZone(ZoneType.Battlefield).add(card);
++            card.setSickness(false);
++            return card;
++        }
++
++        Result pay(final String spell) throws Exception {
++            game.getAction().checkStaticAbilities();
++            IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(spell);
++            if (paper == null) {
++                StaticData.instance().attemptToLoadCard(spell);
++                paper = FModel.getMagicDb().getCommonCards().getCard(spell);
++            }
++            final Card card = Card.fromPaperCard(paper, me);
++            me.getZone(ZoneType.Hand).add(card);
++            final SpellAbility sa = card.getFirstSpellAbility();
++            sa.setActivatingPlayer(me);
++            final String cardId = SnapshotExtractor.javaCardId(card);
++            final boolean[] paid = new boolean[1];
++            final Throwable[] failure = new Throwable[1];
++            final String before = session.getLatestPromptJson();
++            long seen = before == null ? -1 : JsonParser.parseString(before).getAsJsonObject().get("promptId").getAsLong();
++            final long p0 = game.getAction().getStaticPasses();
++            final Thread payer = new Thread(() -> {
++                lock.lock();
++                try {
++                    paid[0] = ((ManaBrewInteractiveController) me.getController()).payManaCost(
++                            sa.getPayCosts().getTotalMana(), sa.getPayCosts().getCostMana(), sa, "pay", null, false);
++                } catch (final Throwable thrown) {
++                    failure[0] = thrown;
++                } finally {
++                    lock.unlock();
++                }
++            }, "autopay-test");
++            payer.setDaemon(true);
++            payer.start();
++            int asked = 0;
++            final long stop = System.currentTimeMillis() + 120_000;
++            while (payer.isAlive() && System.currentTimeMillis() < stop) {
++                final String json = session.getLatestPromptJson();
++                final JsonObject prompt = json == null ? null : JsonParser.parseString(json).getAsJsonObject();
++                if (prompt == null || prompt.get("promptId").getAsLong() == seen) {
++                    Thread.sleep(2);
++                    continue;
++                }
++                seen = prompt.get("promptId").getAsLong();
++                final JsonObject input = prompt.getAsJsonObject("input");
++                if (!"payManaCost".equals(input.get("type").getAsString())) {
++                    session.submitAction("{\"type\":\"" + input.get("type").getAsString() + "\",\"output\":{\"type\":\"pass\"}}");
++                    continue;
++                }
++                final boolean confirm = input.has("canConfirmFromPool") && input.get("canConfirmFromPool").getAsBoolean();
++                final String output = asked++ > 2 ? "{\"type\":\"cancel\"}" : confirm ? "{\"type\":\"pay\",\"auto\":false}" : "{\"type\":\"pay\",\"auto\":true}";
++                session.submitAction("{\"type\":\"payManaCost\",\"output\":" + output + "}");
++            }
++            payer.join(5_000);
++            if (failure[0] != null) {
++                throw new AssertionError("the payment failed", failure[0]);
++            }
++            expect(!payer.isAlive(), "the payment of " + cardId + " didn't finish");
++            final List<String> tapped = new ArrayList<>();
++            int i = 0;
++            for (final Card c : me.getCardsIn(ZoneType.Battlefield)) {
++                if (c.isTapped()) {
++                    tapped.add(c.getName() + "#" + i);
++                }
++                i++;
++            }
++            return new Result(paid[0], tapped, game.getAction().getStaticPasses() - p0);
++        }
++
++        String describe() {
++            final List<String> out = new ArrayList<>();
++            for (final Player p : game.getPlayers()) {
++                for (final Card c : p.getCardsIn(ZoneType.Battlefield)) {
++                    out.add(c.getName() + (c.isCreature() ? " " + c.getNetPower() + "/" + c.getNetToughness() : "") + (c.isTapped() ? " tapped" : ""));
++                }
++            }
++            return String.join(", ", out) + " | pool " + me.getManaPool().totalMana();
 +        }
 +    }
 +}
