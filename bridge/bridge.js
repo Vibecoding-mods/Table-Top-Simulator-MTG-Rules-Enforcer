@@ -96,6 +96,8 @@ const FEW_NAMES = 8;
 // Names in a list: ", " between them, or "; " when one has a comma of its own (Mairsil hand test #17: "White puts Body
 // Double, Deadpool, Trading Card, Kiki-Jiki, Mirror Breaker into their graveyard" read as five cards)
 const joinNames = (list) => list.join(list.some((n) => String(n).includes(",")) ? "; " : ", ");
+// More than this many names at once in one log line (a goad, a control change) are said by count: "30 creatures (Craw Wurm ×5; ...)"
+const MANY_AT_ONCE = 6;
 // "A, B, C" up to n names, else the first n then " ... and N more"
 const fewNames = (list, n = FEW_NAMES) => (list.length > n ? `${joinNames(list.slice(0, n))} ... and ${list.length - n} more` : joinNames(list));
 // How long a clash's log line waits for the other human seats to be shown the same clash (each acknowledges in turn,
@@ -5541,7 +5543,7 @@ function logEvents(prev, cur, pub, facts = null) {
     for (const id of ids) game.goaded.set(id, { by: g.ctl, turn: cur.turn });
     // (many by count, the number first: Disrupt Decorum's 30 creatures were named one by one, Mairsil hand test #17)
     const goadedNames = ids.map((id) => cur.cards[id].name);
-    out.push(`${ids.length > 6 ? `${ids.length} creatures (${byCount(goadedNames)})` : fewNames(goadedNames)} ${ids.length > 1 ? "are" : "is"} goaded by ${who(g.ctl)}: ${ids.length > 1 ? "they attack" : "it attacks"} each combat, a player other than ${who(g.ctl)} if able, until ${who(g.ctl)}'s next turn`);
+    out.push(`${ids.length > MANY_AT_ONCE ? `${ids.length} creatures (${byCount(goadedNames)})` : fewNames(goadedNames)} ${ids.length > 1 ? "are" : "is"} goaded by ${who(g.ctl)}: ${ids.length > 1 ? "they attack" : "it attacks"} each combat, a player other than ${who(g.ctl)} if able, until ${who(g.ctl)}'s next turn`);
   }
   // detain (Forge shows none): a resolved "detain target ..." said of its targets; Lyev Skyknight's read only "ability
   // triggers", keyword sweep kw-21
@@ -6438,7 +6440,7 @@ function logEvents(prev, cur, pub, facts = null) {
     const what = `${n === "1" ? "a" : n} +1/+1 counter${n === "1" ? "" : "s"}`;
     out[g.at] = g.names.length === 1 ? `${g.names[0]} gets ${what}` : `${byCount(g.names)} each get ${what}`;
   }
-  for (const g of Object.values(controlGains)) out[g.at] = `${who(g.ctl)} gains control of ${g.names.length > 6 ? `${g.names.length} permanents: ${byCount(g.names)}` : fewNames(g.names)} from ${who(g.from)}${g.cause}`;
+  for (const g of Object.values(controlGains)) out[g.at] = `${who(g.ctl)} gains control of ${g.names.length > MANY_AT_ONCE ? `${g.names.length} permanents: ${byCount(g.names)}` : fewNames(g.names)} from ${who(g.from)}${g.cause}`;
   // (last: the lines above are written by index. What resolved in the turn just ended goes above the new turn's header:
   // the AI's Sensei's Divining Top "entered" after White's turn header, re-test 2 bug i; the new turn's own lines, its
   // draw, stay under it. The attack's place is found by identity, so neither these cuts nor the discard's insert above
@@ -11239,6 +11241,8 @@ function onPrompt(seat, prompt) {
         // The table puts exactly these cards into the library deck so the player can right-click → Search.
         const visible = new Set(Object.keys(byId));
         const inPile = (id) => (gv.zones || []).some((z) => (z.zone === "graveyard" || z.zone === "exile") && z.cards.some((c) => c.id === id));
+        // (by the card's own zone when Forge gives it: a hand card's id seen in a stale graveyard list stays a hand card)
+        const pileCards = input.cards.filter((c) => inPile(c.id) && (!c.zone || c.zone === "graveyard" || c.zone === "exile"));
         // (but a copy of the card is cast, the card itself stays: Arcane Bombardment's "cast any number of the copies"
         // read "play which card?" with the drag hint, and a dragged-out card is no copy, Kykar hand test #27)
         const copiesCast = /\b(?:cast|play)\b[^.]*\bcop(?:y|ies)\b/i.test(String(prompt.sourceAbilityText || srcCardText));
@@ -11246,16 +11250,14 @@ function onPrompt(seat, prompt) {
           ui.copies = true;
           if (src && /^[^:]+: (?:(?:play|cast) which cards?\?|choose\b.*)$/i.test(String(ui.title))) ui.title = `${src}: cast which cop${input.max > 1 ? "ies" : "y"}?`;
           ui.text = "The copy is cast; the card stays where it is.";
-        } else if (input.cards.length && input.cards.every((c) => inPile(c.id))) {
-          ui.pileChoices = input.cards.map((c) => c.id);
-          ui.text = "Pick from the list, or right-click the graveyard/exile → Search and drag the card out.";
-        } else if (!copiesCast && input.cards.some((c) => inPile(c.id) && (!c.zone || c.zone === "graveyard" || c.zone === "exile"))) {
-          // (some in a graveyard or exile pile, the rest in the hand or on the battlefield: the pile's ones are dragged out
-          // too, and said so. Mairsil's cage choice "from your hand or graveyard" lit only the hand cards; the graveyard
-          // ones had no picture, list or hint outside Choices, Mairsil hand test #4 2026-11-18)
-          // (by the card's own zone when Forge gives it: a hand card's id seen in a stale graveyard list stays a hand card)
-          ui.pileChoices = input.cards.filter((c) => inPile(c.id) && (!c.zone || c.zone === "graveyard" || c.zone === "exile")).map((c) => c.id);
-          ui.text = `Click a glowing card, or right-click the graveyard/exile → Search and drag the card out (or pick from the list).${ui.text ? `\n${ui.text}` : ""}`;
+        } else if (!copiesCast && pileCards.length) {
+          // (all in a graveyard or exile pile: dragged out of it, or picked from the list. Some in a pile, the rest in the hand
+          // or on the battlefield: the pile's ones are dragged out too, and said so. Mairsil's cage choice "from your hand or
+          // graveyard" lit only the hand cards; the graveyard ones had no picture, list or hint outside Choices, Mairsil hand
+          // test #4 2026-11-18)
+          ui.pileChoices = pileCards.map((c) => c.id);
+          ui.text = pileCards.length === input.cards.length ? "Pick from the list, or right-click the graveyard/exile → Search and drag the card out."
+            : `Click a glowing card, or right-click the graveyard/exile → Search and drag the card out (or pick from the list).${ui.text ? `\n${ui.text}` : ""}`;
         }
         // (a source is never searched for: a spell on the stack or a commander isn't in the library)
         if (input.cards.length && input.cards.every((c) => !visible.has(c.id)) && !isSourceChoice(input)) {
