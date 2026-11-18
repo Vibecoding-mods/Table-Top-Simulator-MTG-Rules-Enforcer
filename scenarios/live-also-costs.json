@@ -1,0 +1,23 @@
+{
+  "label": "the \"also costs\" hover on a playable graveyard card: Dread Return (flashback: sacrifice three creatures, three Grizzly Bears out) and Uro, Titan of Nature's Wrath (escape: exile five other cards from your graveyard, five there) in your graveyard; each says FROM GRAVEYARD and, in its hover, what casting it also costs. scenarios/LIVE-CHECKS.md (e)",
+  "lands": {
+    "Forest": 4,
+    "Island": 3,
+    "Swamp": 3
+  },
+  "keepHand": false,
+  "battlefield": [
+    "Grizzly Bears",
+    "Grizzly Bears",
+    "Grizzly Bears"
+  ],
+  "graveyard": [
+    "Dread Return",
+    "Uro, Titan of Nature's Wrath",
+    "Opt",
+    "Shock",
+    "Island",
+    "Forest",
+    "Duress"
+  ]
+}

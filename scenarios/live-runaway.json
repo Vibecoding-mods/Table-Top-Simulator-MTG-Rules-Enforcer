@@ -1,0 +1,14 @@
+{
+  "label": "the runaway limit: cast Polyraptor with Marauding Raptor out. Each Polyraptor token that enters is dealt 2 damage by the Raptor, and its enrage makes another copy: a loop with no choices, until the engine stops counting the pile (x∞) and asks whether to keep going. mtg stop stops the triggers resolving back to back. scenarios/LIVE-CHECKS.md (d)",
+  "lands": {
+    "Forest": 8,
+    "Mountain": 2
+  },
+  "keepHand": false,
+  "hand": [
+    "Polyraptor"
+  ],
+  "battlefield": [
+    "Marauding Raptor"
+  ]
+}
