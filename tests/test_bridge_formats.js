@@ -38,7 +38,7 @@ const withCards = (base, changes, filler, total) => {
 
 // the ban list data, as bridge/legality.js gives it (piece A's interface): status by format and name ("l" for a name
 // not in `table`, null for one in `unknown`), the formats it has data for
-function stub(table = {}, { hash = "h1", source = "Scryfall", date = "2026-11-18", unknown = [], formats = R.FORMATS.filter((f) => f.list).map((f) => f.key) } = {}) {
+function stub(table = {}, { hash = "h1", source = "scryfall", date = "2026-11-18", unknown = [], formats = R.FORMATS.filter((f) => f.list).map((f) => f.key) } = {}) {
   return {
     source, date, hash,
     has: (f) => formats.includes(f),
@@ -57,18 +57,18 @@ async function check(h, e, extra = {}) {
 
 (async () => {
   // ── bridge/format-rules.js ──
-  same("formats: the 17, in the Format button's order", R.FORMATS.map((f) => f.key), ["casualcommander", "commander", "duel", "paupercommander", "predh", "casual60",
-    "standard", "pioneer", "modern", "legacy", "vintage", "pauper", "premodern", "oldschool", "historic", "timeless", "alchemy"]);
-  same("formats: the game mode of each", R.FORMATS.map((f) => f.mode).join(","), "commander,commander,commander,commander,commander,standard,standard,standard,standard,standard,standard,standard,standard,standard,standard,standard,standard");
-  same("formats: the restricted kinds", R.FORMATS.filter((f) => f.restricted).map((f) => `${f.key}:${f.restricted}`), ["duel:commander", "vintage:copy", "oldschool:copy", "timeless:copy"]);
+  same("formats: the 16, in the Format button's order (no Old School)", R.FORMATS.map((f) => f.key), ["casualcommander", "commander", "duel", "paupercommander", "predh", "casual60",
+    "standard", "pioneer", "modern", "legacy", "vintage", "pauper", "premodern", "historic", "timeless", "alchemy"]);
+  same("formats: the game mode of each", R.FORMATS.map((f) => f.mode).join(","), "commander,commander,commander,commander,commander,standard,standard,standard,standard,standard,standard,standard,standard,standard,standard,standard");
+  same("formats: the restricted kinds", R.FORMATS.filter((f) => f.restricted).map((f) => `${f.key}:${f.restricted}`), ["duel:commander", "vintage:copy", "timeless:copy"]);
   same("formats: no list in the two Casual formats", R.FORMATS.filter((f) => !f.list).map((f) => f.key), ["casualcommander", "casual60"]);
   same("formats: the default is Casual Commander (§12.1)", R.DEFAULT_FORMAT, "casualcommander");
-  same("formatKey: as typed or sent", [" Modern", "DUEL", "pauper commander", "old_school", "brawl", null].map(R.formatKey), ["modern", "duel", "paupercommander", "oldschool", null, null]);
-  same("formatWords", ["duel", "paupercommander", "predh", "casual60", "oldschool", "nope"].map(R.formatWords), ["Duel Commander", "Pauper Commander", "PreDH", "Casual 60-card", "Old School", "Casual Commander"]);
+  same("formatKey: as typed or sent", [" Modern", "DUEL", "pauper commander", "time_less", "old school", "brawl", null].map(R.formatKey), ["modern", "duel", "paupercommander", "timeless", null, null, null]);
+  same("formatWords", ["duel", "paupercommander", "predh", "casual60", "timeless", "nope"].map(R.formatWords), ["Duel Commander", "Pauper Commander", "PreDH", "Casual 60-card", "Timeless", "Casual Commander"]);
   same("notLegalReason: §5.3's words", Object.fromEntries(R.FORMATS.map((f) => [f.key, R.notLegalReason(f.key)])), {
     casualcommander: null, commander: "not a tournament card", duel: "not a tournament card", paupercommander: "not a common, or an uncommon commander", predh: "not from its sets",
     casual60: null, standard: "not from its sets", pioneer: "not from its sets", modern: "not from its sets", legacy: "not a tournament card", vintage: "not a tournament card",
-    pauper: "not a common", premodern: "not from its sets", oldschool: "not from its sets", historic: "not on MTG Arena", timeless: "not on MTG Arena", alchemy: "not on MTG Arena" });
+    pauper: "not a common", premodern: "not from its sets", historic: "not on MTG Arena", timeless: "not on MTG Arena", alchemy: "not on MTG Arena" });
   same("few: 8 names, then how many more", R.few(["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]), "a, b, c, d, e, f, g, h, and 2 more");
 
   const basic = (n) => ["Mountain", "Island", "Plains", "Swamp", "Forest"].includes(n);
@@ -113,7 +113,7 @@ async function check(h, e, extra = {}) {
     r = fp("casualcommander", { status: st({ "Sol Ring": "b" }) }, [...Array(97).fill("Island"), "Sol Ring", "Sol Ring"], cmdr);
     same("casual commander: no list, no shape problem (today's warnings are checkDeck's)", [r.problems, r.warnings], [[], []]);
     r = fp("commander", { status: (f, n) => (n === "Mox Fake" ? null : "l") }, [...Array(98).fill("Island"), "Mox Fake"], cmdr);
-    same("commander: a name with no data is a warning", [r.problems, r.warnings], [[], ["not in the Commander card data, so not checked: Mox Fake"]]);
+    same("commander: a name with no data is a warning", [r.problems, r.warnings], [[], ["not on the Commander list (a newer card?), so not checked: Mox Fake"]]);
     r = fp("modern", {}, n60(["Ponder"]));
     same("modern: no data at all is said, only the shape checked", [r.problems, r.warnings], [[], ["no ban list data for Modern yet: only the deck's shape was checked"]]);
   }
@@ -125,7 +125,7 @@ async function check(h, e, extra = {}) {
     const reasons = R.FORMATS.filter((f) => f.list && f.mode === "standard").map((f) => fp(f.key, { status: st({ Ponder: "n" }) }, n60(["Ponder"])).problems[0]);
     same("each 60-card format's not-legal line", reasons, ["not legal in Standard (not from its sets): Ponder", "not legal in Pioneer (not from its sets): Ponder", "not legal in Modern (not from its sets): Ponder",
       "not legal in Legacy (not a tournament card): Ponder", "not legal in Vintage (not a tournament card): Ponder", "not legal in Pauper (not a common): Ponder", "not legal in Premodern (not from its sets): Ponder",
-      "not legal in Old School (not from its sets): Ponder", "not legal in Historic (not on MTG Arena): Ponder", "not legal in Timeless (not on MTG Arena): Ponder", "not legal in Alchemy (not on MTG Arena): Ponder"]);
+      "not legal in Historic (not on MTG Arena): Ponder", "not legal in Timeless (not on MTG Arena): Ponder", "not legal in Alchemy (not on MTG Arena): Ponder"]);
     r = fp("casual60", { status: st({ Ponder: "b" }) }, n60(["Ponder"]));
     same("casual 60: the shape only, no list", [r.problems, r.warnings], [[], []]);
     r = fp("modern", { status: st({ Ponder: "b", Brainstorm: "b" }) }, n60(["Ponder", "Brainstorm"]));
@@ -168,6 +168,34 @@ async function check(h, e, extra = {}) {
       ["Modern (banned cards allowed)", "Vintage (restricted cards at the normal limit)", "Duel Commander (restricted commanders allowed)", "Casual Commander", "Standard", "Casual 60-card"]);
   });
 
+  // ── with piece A's own data (bridge/legality.js; here Forge's list, bridge/forge-legality.json) ──
+  await run(async (h) => {
+    const L = h.B._legality.loadLegality();
+    const v = await check(h, entry([[56, "Island"], [4, "Sol Ring"]], [], "Lotus"), { format: "vintage", mode: "standard" });
+    ok("real data: Vintage's restricted Sol Ring, 4 copies", !v.ready && v.said.includes("- restricted in Vintage (1 copy each): 4× Sol Ring")
+      && v.said.includes(`Ban list: ${h.B._legality.sourceWords(L)}. The host can turn restricted cards off (Restricted cards button).`), v.said);
+    const c = await check(h, entry(withCards(KYKAR_99, { "Mana Crypt": 1 }, "Island", 99), [KYKAR_CMD], "Kykar"), { format: "commander", mode: "commander" });
+    ok("real data: Mana Crypt banned in Commander", !c.ready && /- banned in Commander: Mana Crypt/.test(c.said), c.said);
+    const ok2 = await check(h, entry(KYKAR_99, [KYKAR_CMD], "Kykar"), { format: "commander", mode: "commander" });
+    same("real data: the ready deck's rules carry the data's hash", ok2.deck?.rules, `commander|true|true|${L.hash}`);
+    if (!L.has("duel")) {
+      const d = await check(h, entry(KYKAR_99, [KYKAR_CMD], "Kykar"), { format: "duel", mode: "commander" });
+      ok("real data: a format the data lacks is said, the shape still checked", d.ready && /no ban list data for Duel Commander yet: only the deck's shape was checked/.test(d.said), d.said);
+    }
+  });
+  // ── a format change sends the table its ban list line (piece A's banlist message) ──
+  await run(async (h) => {
+    const mark = h.effects.length;
+    say(h, "format", { color: "White", format: "modern", mode: "standard" });
+    await h.flush();
+    const sent = h.effects.slice(mark).filter((e) => e.tts?.t === "banlist").map((e) => e.tts.format);
+    same("format: the banlist message for the new format", sent, ["modern"]);
+    const m2 = h.effects.length;
+    say(h, "format", { color: "White", format: "casualcommander", mode: "commander" });
+    await h.flush();
+    same("format: back to Casual Commander, its banlist message too", h.effects.slice(m2).filter((e) => e.tts?.t === "banlist").map((e) => e.tts.format), ["casualcommander"]);
+  });
+
   // ── the alert per format, a golden (§5.2, §5.3) ──
   const GOLDEN = path.join(__dirname, "golden", "bridge-format-alerts.json");
   const alerts = {};
@@ -199,7 +227,7 @@ async function check(h, e, extra = {}) {
     "- banned in Modern: Hired Claw, Master of Barbs",
     "- not legal in Modern (not from its sets): Shock",
     "Ban list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).",
-    "Also: not in the Modern card data, so not checked: Starting Town"]);
+    "Also: not on the Modern list (a newer card?), so not checked: Starting Town"]);
   ok("alert: Vintage says the restricted card", /- restricted in Vintage \(1 copy each\): 4× Burst Lightning/.test(alerts.vintage.said)
     && /The host can allow banned cards \(Banned cards button\), or turn restricted cards off \(Restricted cards button\)\./.test(alerts.vintage.said), alerts.vintage.said);
   ok("alert: Modern with the switches off still stops on the not-legal card (§12.2)", !alerts["modern (switches off)"].ready && /not legal in Modern/.test(alerts["modern (switches off)"].said)

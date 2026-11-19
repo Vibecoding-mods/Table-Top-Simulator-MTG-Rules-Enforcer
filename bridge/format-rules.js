@@ -2,11 +2,12 @@
 // function (bridge/legality.js's loadLegality().status, piece A; or Forge's own Standard list), so this file reads no
 // file and asks no network.
 //
-// FORMATS: the table's Format button, in its order (tools/engine-renderer.lua, piece C), one entry a key:
+// FORMATS: the table's Format button, in its order (tools/engine-renderer.lua, piece C), one entry a key (Old School is
+// left out: Scryfall's data for it is not the format's, and Forge has no list, so bridge/legality.js has none):
 //   key, name (the button's word and the alert's), mode ("commander" | "standard": the game mode it plays, MODES in
 //   bridge.js), shape ("commander": exactly 100 and singleton, problems; "casual": today's Commander warnings; "sixty":
 //   60+, 15 sideboard, 4 copies), list (false: a Casual format, no ban list checked), restricted (null; "copy": one copy
-//   of a restricted card, Vintage, Old School, Timeless; "commander": not as a commander, Duel Commander's use of it),
+//   of a restricted card, Vintage, Timeless; "commander": not as a commander, Duel Commander's use of it),
 //   reason (§5.3's words for a card that isn't legal there).
 const FORMATS = [
   { key: "casualcommander", name: "Casual Commander", mode: "commander", shape: "casual", list: false, restricted: null, reason: null },
@@ -22,7 +23,6 @@ const FORMATS = [
   { key: "vintage", name: "Vintage", mode: "standard", shape: "sixty", list: true, restricted: "copy", reason: "not a tournament card" },
   { key: "pauper", name: "Pauper", mode: "standard", shape: "sixty", list: true, restricted: null, reason: "not a common" },
   { key: "premodern", name: "Premodern", mode: "standard", shape: "sixty", list: true, restricted: null, reason: "not from its sets" },
-  { key: "oldschool", name: "Old School", mode: "standard", shape: "sixty", list: true, restricted: "copy", reason: "not from its sets" },
   { key: "historic", name: "Historic", mode: "standard", shape: "sixty", list: true, restricted: null, reason: "not on MTG Arena" },
   { key: "timeless", name: "Timeless", mode: "standard", shape: "sixty", list: true, restricted: "copy", reason: "not on MTG Arena" },
   { key: "alchemy", name: "Alchemy", mode: "standard", shape: "sixty", list: true, restricted: null, reason: "not on MTG Arena" },
@@ -43,8 +43,8 @@ const countOf = (list) => { const m = new Map(); for (const n of list) m.set(n, 
 // The problems of a deck under a format and its two switches. cards: the deck without its commander(s), commanders,
 // sideboard (60-card formats): engine names. opts:
 //   banned, restricted: true when ENFORCED (the table's switches; on by default)
-//   status(formatKey, name) -> "l" | "b" | "r" | "n" | null (null: no data for that name), or none at all (no data for
-//     the format: only the shape is checked, said as a warning)
+//   status(formatKey, name) -> "l" | "b" | "r" | "n" | null (null: the data hasn't the card, a newer one: a warning, not
+//     a block), or none at all (no data for the format: only the shape is checked, said as a warning)
 //   isBasic(name), limit(name) -> a card's own copy limit (a number, "any", or undefined: the format's own)
 //   source, date: the data the status came from, for the closing line
 // -> { problems: [lines, in §5.2's order: shape, banned, restricted, not legal], warnings: [lines], allowedBanned:
@@ -101,7 +101,7 @@ function formatProblems(key, opts, cards, commanders = [], sideboard = []) {
     const outside = names.filter((n) => st.get(n) === "n");
     if (outside.length) problems.push(`not legal in ${f.name} (${f.reason}): ${few(outside)}`);
     const unknown = names.filter((n) => st.get(n) == null);
-    if (unknown.length) warnings.push(`not in the ${f.name} card data, so not checked: ${few(unknown)}`);
+    if (unknown.length) warnings.push(`not on the ${f.name} list (a newer card?), so not checked: ${few(unknown)}`);
     const bannedHit = banned.length && opts.banned !== false;
     if (bannedHit || restrictedHit) {
       const from = [opts.source, opts.date].filter(Boolean).join(", ");
