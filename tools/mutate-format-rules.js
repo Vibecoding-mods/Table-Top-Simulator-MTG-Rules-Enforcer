@@ -65,7 +65,7 @@ const MUTATIONS = [
   ["start: AI decks not said", B, "if (formatGame && bots > aiTable.length &&", "if (false &&", "game: AI decks said not checked against the list, once"],
   ["resume: the rules not saved", B, "      ...(game.rules ? { rules: game.rules } : {}), // (a format's game keeps its rules", "      // (", "resume: the save has the rules"],
   ["game over: the format not named", B, "${game?.rules ? ` (${rulesWords(game.rules)})` : \"\"}", "", "game over: the game log's line names the format"],
-  ["refresh: the list not taken", B, "  legality = l || null;\n  legalStandard.clear();", "  legalStandard.clear();", "refresh: the deck with the new ban is dropped"],
+  ["refresh: the list not taken", B, "  legalData = l || null;\n  legalStandard.clear();", "  legalStandard.clear();", "refresh: the deck with the new ban is dropped"],
   ["refresh: a failing deck kept", B, "    delete readyDecks[c];\n    dropped.push(c);", "    dropped.push(c);", "refresh: the deck with the new ban is dropped"],
   ["refresh: a passing deck not given the new hash", B, "{ d.rules = `${r.format}|${r.banned}|${r.restricted}|${fc.hash}`; continue; }", "continue;", "refresh: the deck without it keeps its READY, under the new hash"],
   ["refresh: no red report", B, "  if (dropped.length) toTTS({ t: \"deckReport\", request: -1,", "  if (false) toTTS({ t: \"deckReport\", request: -1,", "refresh: a red report for it"],
@@ -73,6 +73,7 @@ const MUTATIONS = [
   ["sideboarding: not re-checked", B, "    if (fbad.length) {", "    if (false) {", "sideboarding: a swap bringing in a card banned since is refused"],
   ["ai list: not checked under the format", B, "const problems = fr ? deckFormatCheck(fr, main, cmd, side).problems : standardProblems(main, cmd, side);", "const problems = standardProblems(main, cmd, side);", "ai list: checked under the format"],
   ["presets: not filtered by the format", B, "  if (gameMode.format && formatRules.formatOf(gameMode.format).mode === mode) {\n    const key = rulesKey();", "  if (false) {\n    const key = rulesKey();", "presets: the format's check filters them"],
+  ["format: the new format's banlist not sent", B, "  tableHasFormats = true;\n  sendBanlist(banlistFormat(m));\n}", "  tableHasFormats = true;\n}", "format: each change sends the table that format's banlist (its count, the formats with none)"],
 ];
 
 const pattern = process.argv.slice(2).find((a) => !a.startsWith("--"));
