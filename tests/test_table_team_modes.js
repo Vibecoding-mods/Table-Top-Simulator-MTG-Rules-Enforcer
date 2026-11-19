@@ -91,7 +91,7 @@ const label = 'local tile for _, o in ipairs(getObjects()) do if o.getGMNotes() 
   ok("modes: Commander to Standard drops Two-Headed Giant and says so", valueOf(r, "commander to standard") === "nil" && /Teams set back to None: Two-Headed Giant is played in Commander only, not Standard\./.test(chats(r, "commander to standard")), `${valueOf(r, "commander to standard")} ${chats(r, "commander to standard")}`);
   ok("button (Standard): free-for-all -> 2v2", valueOf(r, "std click to 2v2") === "1122 2v2", String(valueOf(r, "std click to 2v2")));
   ok("button (Standard): 2v2 -> free-for-all, no Two-Headed Giant or Juggernaut", valueOf(r, "std click to ffa") === "nil", String(valueOf(r, "std click to ffa")));
-  ok("modes: a game-mode switch with no teams says nothing about teams", !/Teams set back/.test(chats(r, "ffa to commander")) && /set the game mode/.test(chats(r, "ffa to commander")), chats(r, "ffa to commander"));
+  ok("modes: a game-mode switch with no teams says nothing about teams", !/Teams set back/.test(chats(r, "ffa to commander")) && /set the format: Casual Commander/.test(chats(r, "ffa to commander")), chats(r, "ffa to commander"));
   ok("button: only the host", valueOf(r, "click not host") === "2212 juggernaut" && /Only the host/.test(chats(r, "click not host")), chats(r, "click not host"));
 }
 

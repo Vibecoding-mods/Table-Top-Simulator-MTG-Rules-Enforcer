@@ -136,7 +136,7 @@
      "f20 \"setPosition\" obj:43391b V(-45.5,-30,-1.4)",
      "f20 \"setInvisibleTo\" obj:4e8c7b {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
      "f20 \"setPosition\" obj:4e8c7b V(-49.585,-30,24.57)",
-     "f30 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"keepRewind\\\\\\\":true,\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"hello\\\\\\\",\\\\\\\"tokenRuns\\\\\\\":true}\\\",\\\"t\\\":\\\"hello\\\"}\""
+     "f30 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"formats\\\\\\\":true,\\\\\\\"keepRewind\\\\\\\":true,\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"hello\\\\\\\",\\\\\\\"tokenRuns\\\\\\\":true}\\\",\\\"t\\\":\\\"hello\\\"}\""
     ]
    },
    {
@@ -192,7 +192,8 @@
      "f60 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f60 \"createButton\" obj:s00001 \"Start\" \"0.20,0.68,0.30\" \"at 0.00,0.60,0.00 scale 0.4545\"",
      "f60 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
-     "f60 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Format\\\nCasual Commander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Banned list\\\nNone\" \"0.28,0.33,0.46\" \"at -21.36,1.88,-11.67 scale 1.6667\"",
      "f60 \"createButton\" obj:s00001 \"Teams\\\nNone\" \"0.28,0.33,0.46\" \"at 21.36,1.88,11.67 scale 1.6667\"",
      "f60 \"createButton\" obj:s00001 \"Archenemy\\\nOff\" \"0.28,0.33,0.46\" \"at 21.36,1.88,18.33 scale 1.6667\"",
      "f60 \"setPosition\" obj:e2f7ae V(27,1.03,27)",
@@ -4333,7 +4334,7 @@
      "f20 \"setPosition\" obj:43391b V(-45.5,-30,-1.4)",
      "f20 \"setInvisibleTo\" obj:4e8c7b {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
      "f20 \"setPosition\" obj:4e8c7b V(-49.585,-30,24.57)",
-     "f30 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"keepRewind\\\\\\\":true,\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"hello\\\\\\\",\\\\\\\"tokenRuns\\\\\\\":true}\\\",\\\"t\\\":\\\"hello\\\"}\""
+     "f30 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"formats\\\\\\\":true,\\\\\\\"keepRewind\\\\\\\":true,\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"hello\\\\\\\",\\\\\\\"tokenRuns\\\\\\\":true}\\\",\\\"t\\\":\\\"hello\\\"}\""
     ]
    },
    {
@@ -4389,7 +4390,8 @@
      "f60 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f60 \"createButton\" obj:s00001 \"Start\" \"0.20,0.68,0.30\" \"at 0.00,0.60,0.00 scale 0.4545\"",
      "f60 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
-     "f60 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Format\\\nCasual Commander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Banned list\\\nNone\" \"0.28,0.33,0.46\" \"at -21.36,1.88,-11.67 scale 1.6667\"",
      "f60 \"createButton\" obj:s00001 \"Teams\\\nNone\" \"0.28,0.33,0.46\" \"at 21.36,1.88,11.67 scale 1.6667\"",
      "f60 \"createButton\" obj:s00001 \"Archenemy\\\nOff\" \"0.28,0.33,0.46\" \"at 21.36,1.88,18.33 scale 1.6667\"",
      "f60 \"setPosition\" obj:e2f7ae V(27,1.03,27)",
@@ -13738,7 +13740,7 @@
      "f20 \"setPosition\" obj:43391b V(-45.5,-30,-1.4)",
      "f20 \"setInvisibleTo\" obj:4e8c7b {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
      "f20 \"setPosition\" obj:4e8c7b V(-49.585,-30,24.57)",
-     "f30 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"keepRewind\\\\\\\":true,\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"hello\\\\\\\",\\\\\\\"tokenRuns\\\\\\\":true}\\\",\\\"t\\\":\\\"hello\\\"}\""
+     "f30 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"formats\\\\\\\":true,\\\\\\\"keepRewind\\\\\\\":true,\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"hello\\\\\\\",\\\\\\\"tokenRuns\\\\\\\":true}\\\",\\\"t\\\":\\\"hello\\\"}\""
     ]
    },
    {
@@ -13767,7 +13769,8 @@
      "f37 \"createButton\" obj:56cd9d \"READY?\" \"0.85,0.68,0.12\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f37 \"createButton\" obj:s00001 \"Engine: on\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
      "f37 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
-     "f37 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f37 \"createButton\" obj:s00001 \"Format\\\nCasual Commander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f37 \"createButton\" obj:s00001 \"Banned list\\\nNone\" \"0.28,0.33,0.46\" \"at -21.36,1.88,-11.67 scale 1.6667\"",
      "f37 \"createButton\" obj:s00001 \"Teams\\\nNone\" \"0.28,0.33,0.46\" \"at 21.36,1.88,11.67 scale 1.6667\"",
      "f37 \"createButton\" obj:s00001 \"Archenemy\\\nOff\" \"0.28,0.33,0.46\" \"at 21.36,1.88,18.33 scale 1.6667\"",
      "f39 \"UI.setAttribute\" \"eng_panel_White\" \"active\" \"false\"",
@@ -13906,7 +13909,8 @@
      "f48 \"createButton\" obj:56cd9d \"FIX DECK\" \"0.78,0.20,0.18\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f48 \"createButton\" obj:s00001 \"Engine: on\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
      "f48 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
-     "f48 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f48 \"createButton\" obj:s00001 \"Format\\\nCasual Commander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f48 \"createButton\" obj:s00001 \"Banned list\\\nNone\" \"0.28,0.33,0.46\" \"at -21.36,1.88,-11.67 scale 1.6667\"",
      "f48 \"createButton\" obj:s00001 \"Teams\\\nNone\" \"0.28,0.33,0.46\" \"at 21.36,1.88,11.67 scale 1.6667\"",
      "f48 \"createButton\" obj:s00001 \"Archenemy\\\nOff\" \"0.28,0.33,0.46\" \"at 21.36,1.88,18.33 scale 1.6667\"",
      "f48 \"UI.setAttribute\" \"eng_scoopask_White\" \"active\" \"false\"",
@@ -13928,7 +13932,8 @@
      "f54 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f54 \"createButton\" obj:s00001 \"Engine: on\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
      "f54 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
-     "f54 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f54 \"createButton\" obj:s00001 \"Format\\\nCasual Commander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f54 \"createButton\" obj:s00001 \"Banned list\\\nNone\" \"0.28,0.33,0.46\" \"at -21.36,1.88,-11.67 scale 1.6667\"",
      "f54 \"createButton\" obj:s00001 \"Teams\\\nNone\" \"0.28,0.33,0.46\" \"at 21.36,1.88,11.67 scale 1.6667\"",
      "f54 \"createButton\" obj:s00001 \"Archenemy\\\nOff\" \"0.28,0.33,0.46\" \"at 21.36,1.88,18.33 scale 1.6667\"",
      "f54 \"UI.setAttribute\" \"eng_scoopask_White\" \"active\" \"false\"",
@@ -13969,7 +13974,8 @@
      "f78 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f78 \"createButton\" obj:s00001 \"Start\" \"0.20,0.68,0.30\" \"at 0.00,0.60,0.00 scale 0.4545\"",
      "f78 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
-     "f78 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f78 \"createButton\" obj:s00001 \"Format\\\nCasual Commander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f78 \"createButton\" obj:s00001 \"Banned list\\\nNone\" \"0.28,0.33,0.46\" \"at -21.36,1.88,-11.67 scale 1.6667\"",
      "f78 \"createButton\" obj:s00001 \"Teams\\\nNone\" \"0.28,0.33,0.46\" \"at 21.36,1.88,11.67 scale 1.6667\"",
      "f78 \"createButton\" obj:s00001 \"Archenemy\\\nOff\" \"0.28,0.33,0.46\" \"at 21.36,1.88,18.33 scale 1.6667\"",
      "f78 \"UI.setAttribute\" \"eng_scoopask_White\" \"active\" \"false\"",
@@ -14657,7 +14663,8 @@
      "f818 \"createButton\" obj:56cd9d \"READY?\" \"0.85,0.68,0.12\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f818 \"createButton\" obj:s00001 \"Engine: on\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
      "f818 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
-     "f818 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f818 \"createButton\" obj:s00001 \"Format\\\nCasual Commander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f818 \"createButton\" obj:s00001 \"Banned list\\\nNone\" \"0.28,0.33,0.46\" \"at -21.36,1.88,-11.67 scale 1.6667\"",
      "f818 \"createButton\" obj:s00001 \"Teams\\\nNone\" \"0.28,0.33,0.46\" \"at 21.36,1.88,11.67 scale 1.6667\"",
      "f818 \"createButton\" obj:s00001 \"Archenemy\\\nOff\" \"0.28,0.33,0.46\" \"at 21.36,1.88,18.33 scale 1.6667\"",
      "f818 \"UI.setAttribute\" \"eng_scoopask_White\" \"active\" \"false\"",
@@ -15125,7 +15132,7 @@
      "f20 \"setPosition\" obj:43391b V(-45.5,-30,-1.4)",
      "f20 \"setInvisibleTo\" obj:4e8c7b {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
      "f20 \"setPosition\" obj:4e8c7b V(-49.585,-30,24.57)",
-     "f30 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"keepRewind\\\\\\\":true,\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"hello\\\\\\\",\\\\\\\"tokenRuns\\\\\\\":true}\\\",\\\"t\\\":\\\"hello\\\"}\""
+     "f30 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"formats\\\\\\\":true,\\\\\\\"keepRewind\\\\\\\":true,\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"hello\\\\\\\",\\\\\\\"tokenRuns\\\\\\\":true}\\\",\\\"t\\\":\\\"hello\\\"}\""
     ]
    },
    {
@@ -15146,7 +15153,8 @@
      "f31 \"createButton\" obj:56cd9d \"READY?\" \"0.85,0.68,0.12\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f31 \"createButton\" obj:s00001 \"Engine: on\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
      "f31 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
-     "f31 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f31 \"createButton\" obj:s00001 \"Format\\\nCasual Commander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f31 \"createButton\" obj:s00001 \"Banned list\\\nNone\" \"0.28,0.33,0.46\" \"at -21.36,1.88,-11.67 scale 1.6667\"",
      "f31 \"createButton\" obj:s00001 \"Teams\\\nNone\" \"0.28,0.33,0.46\" \"at 21.36,1.88,11.67 scale 1.6667\"",
      "f31 \"createButton\" obj:s00001 \"Archenemy\\\nOff\" \"0.28,0.33,0.46\" \"at 21.36,1.88,18.33 scale 1.6667\"",
      "f33 \"UI.setAttribute\" \"eng_panel_Blue\" \"active\" \"false\"",
@@ -15229,7 +15237,8 @@
      "f36 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f36 \"createButton\" obj:s00001 \"Start\" \"0.20,0.68,0.30\" \"at 0.00,0.60,0.00 scale 0.4545\"",
      "f36 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
-     "f36 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f36 \"createButton\" obj:s00001 \"Format\\\nCasual Commander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f36 \"createButton\" obj:s00001 \"Banned list\\\nNone\" \"0.28,0.33,0.46\" \"at -21.36,1.88,-11.67 scale 1.6667\"",
      "f36 \"createButton\" obj:s00001 \"Teams\\\nNone\" \"0.28,0.33,0.46\" \"at 21.36,1.88,11.67 scale 1.6667\"",
      "f36 \"createButton\" obj:s00001 \"Archenemy\\\nOff\" \"0.28,0.33,0.46\" \"at 21.36,1.88,18.33 scale 1.6667\"",
      "f36 \"UI.setAttribute\" \"eng_scoopask_White\" \"active\" \"false\"",
@@ -15250,7 +15259,8 @@
      "f42 \"createButton\" obj:56cd9d \"READY?\" \"0.85,0.68,0.12\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f42 \"createButton\" obj:s00001 \"Engine: on\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
      "f42 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
-     "f42 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f42 \"createButton\" obj:s00001 \"Format\\\nCasual Commander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f42 \"createButton\" obj:s00001 \"Banned list\\\nNone\" \"0.28,0.33,0.46\" \"at -21.36,1.88,-11.67 scale 1.6667\"",
      "f42 \"createButton\" obj:s00001 \"Teams\\\nNone\" \"0.28,0.33,0.46\" \"at 21.36,1.88,11.67 scale 1.6667\"",
      "f42 \"createButton\" obj:s00001 \"Archenemy\\\nOff\" \"0.28,0.33,0.46\" \"at 21.36,1.88,18.33 scale 1.6667\"",
      "f42 \"UI.setAttribute\" \"eng_scoopask_White\" \"active\" \"false\"",
@@ -15277,7 +15287,8 @@
      "f54 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f54 \"createButton\" obj:s00001 \"Start\" \"0.20,0.68,0.30\" \"at 0.00,0.60,0.00 scale 0.4545\"",
      "f54 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
-     "f54 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f54 \"createButton\" obj:s00001 \"Format\\\nCasual Commander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f54 \"createButton\" obj:s00001 \"Banned list\\\nNone\" \"0.28,0.33,0.46\" \"at -21.36,1.88,-11.67 scale 1.6667\"",
      "f54 \"createButton\" obj:s00001 \"Teams\\\nNone\" \"0.28,0.33,0.46\" \"at 21.36,1.88,11.67 scale 1.6667\"",
      "f54 \"createButton\" obj:s00001 \"Archenemy\\\nOff\" \"0.28,0.33,0.46\" \"at 21.36,1.88,18.33 scale 1.6667\"",
      "f54 \"UI.setAttribute\" \"eng_scoopask_White\" \"active\" \"false\"",
@@ -15433,7 +15444,7 @@
      "f20 \"setPosition\" obj:43391b V(-45.5,-30,-1.4)",
      "f20 \"setInvisibleTo\" obj:4e8c7b {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
      "f20 \"setPosition\" obj:4e8c7b V(-49.585,-30,24.57)",
-     "f30 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"keepRewind\\\\\\\":true,\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"hello\\\\\\\",\\\\\\\"tokenRuns\\\\\\\":true}\\\",\\\"t\\\":\\\"hello\\\"}\""
+     "f30 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"formats\\\\\\\":true,\\\\\\\"keepRewind\\\\\\\":true,\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"hello\\\\\\\",\\\\\\\"tokenRuns\\\\\\\":true}\\\",\\\"t\\\":\\\"hello\\\"}\""
     ]
    },
    {
@@ -15489,7 +15500,8 @@
      "f60 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f60 \"createButton\" obj:s00001 \"Start\" \"0.20,0.68,0.30\" \"at 0.00,0.60,0.00 scale 0.4545\"",
      "f60 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
-     "f60 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Format\\\nCasual Commander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Banned list\\\nNone\" \"0.28,0.33,0.46\" \"at -21.36,1.88,-11.67 scale 1.6667\"",
      "f60 \"createButton\" obj:s00001 \"Teams\\\nNone\" \"0.28,0.33,0.46\" \"at 21.36,1.88,11.67 scale 1.6667\"",
      "f60 \"createButton\" obj:s00001 \"Archenemy\\\nOff\" \"0.28,0.33,0.46\" \"at 21.36,1.88,18.33 scale 1.6667\"",
      "f60 \"setPosition\" obj:e2f7ae V(27,1.03,27)",
@@ -16648,7 +16660,8 @@
      "f1108 \"createButton\" obj:56cd9d \"READY?\" \"0.85,0.68,0.12\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f1108 \"createButton\" obj:s00001 \"Engine: on\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
      "f1108 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
-     "f1108 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f1108 \"createButton\" obj:s00001 \"Format\\\nCasual Commander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f1108 \"createButton\" obj:s00001 \"Banned list\\\nNone\" \"0.28,0.33,0.46\" \"at -21.36,1.88,-11.67 scale 1.6667\"",
      "f1108 \"createButton\" obj:s00001 \"Teams\\\nNone\" \"0.28,0.33,0.46\" \"at 21.36,1.88,11.67 scale 1.6667\"",
      "f1108 \"createButton\" obj:s00001 \"Archenemy\\\nOff\" \"0.28,0.33,0.46\" \"at 21.36,1.88,18.33 scale 1.6667\"",
      "f1108 \"UI.setAttribute\" \"eng_scoopask_White\" \"active\" \"false\"",
@@ -17360,7 +17373,7 @@
      "f20 \"setPosition\" obj:43391b V(-45.5,-30,-1.4)",
      "f20 \"setInvisibleTo\" obj:4e8c7b {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
      "f20 \"setPosition\" obj:4e8c7b V(-49.585,-30,24.57)",
-     "f30 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"keepRewind\\\\\\\":true,\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"hello\\\\\\\",\\\\\\\"tokenRuns\\\\\\\":true}\\\",\\\"t\\\":\\\"hello\\\"}\""
+     "f30 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"formats\\\\\\\":true,\\\\\\\"keepRewind\\\\\\\":true,\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"hello\\\\\\\",\\\\\\\"tokenRuns\\\\\\\":true}\\\",\\\"t\\\":\\\"hello\\\"}\""
     ]
    },
    {
@@ -17416,7 +17429,8 @@
      "f60 \"createButton\" obj:56cd9d \"READY\" \"0.20,0.68,0.30\" \"at 0.17,0.10,0.62 scale 0.0676\"",
      "f60 \"createButton\" obj:s00001 \"Start\" \"0.20,0.68,0.30\" \"at 0.00,0.60,0.00 scale 0.4545\"",
      "f60 \"createButton\" obj:s00001 \"Free mulligans\\\nNone\" \"0.85,0.68,0.12\" \"at 21.36,1.88,5.00 scale 1.6667\"",
-     "f60 \"createButton\" obj:s00001 \"Game mode\\\nCommander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Format\\\nCasual Commander\" \"0.28,0.33,0.46\" \"at 21.36,1.88,-1.67 scale 1.6667\"",
+     "f60 \"createButton\" obj:s00001 \"Banned list\\\nNone\" \"0.28,0.33,0.46\" \"at -21.36,1.88,-11.67 scale 1.6667\"",
      "f60 \"createButton\" obj:s00001 \"Teams\\\nNone\" \"0.28,0.33,0.46\" \"at 21.36,1.88,11.67 scale 1.6667\"",
      "f60 \"createButton\" obj:s00001 \"Archenemy\\\nOff\" \"0.28,0.33,0.46\" \"at 21.36,1.88,18.33 scale 1.6667\"",
      "f60 \"setPosition\" obj:e2f7ae V(27,1.03,27)",
