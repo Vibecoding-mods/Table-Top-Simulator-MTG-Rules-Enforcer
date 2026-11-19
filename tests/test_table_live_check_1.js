@@ -138,9 +138,10 @@ same("exile: a face-down card says nothing (others may see the buttons)", parts(
 // ── 3. the planned attack line ──
 const style = (k) => { const m = SRC.match(new RegExp(`\\b${k} = \\{ color = \\{[^}]*\\}, thickness = ([\\d.]+) \\}`)); return m ? Number(m[1]) : null; };
 const thick = { target: style("target"), attack: style("attack"), block: style("block"), planned: style("planned"), border: Number(field(/thick = ([\d.]+), y = 0\.98/)) };
-ok("line: the planned line is as wide as a target line or wider (it was 0.12)", thick.planned >= 0.25, JSON.stringify(thick));
+// (the user 2026-11-19: "i want [it] the same as the blocker lines": as thin as a block line, not a target line's width)
+ok("line: the planned line is about a block line's width", Math.abs(thick.planned - thick.block) < 0.01, JSON.stringify(thick));
 ok("line: its width is its own (lines are told apart by width)", new Set(Object.values(thick).map((t) => t.toFixed(4))).size === 5, JSON.stringify(thick));
-ok("line: drawn on a target line's arc, bent around the planner's own counter (engineDrawLines' call)", SRC.includes("plannedStyle(pa[3]), nil, true, lifeSpot(pa[3]), g and g.mat or nil)"));
+ok("line: drawn solid on a block line's arc (engineDrawLines' call)", SRC.includes("plannedStyle(pa[3]), 0.3)"));
 ok("line: a quarter towards white, not halfway (White's own stays white)", SRC.includes("{ (1 + 3 * rgb[1]) / 4, (1 + 3 * rgb[2]) / 4, (1 + 3 * rgb[3]) / 4 }"));
 const arc = (a, b, avoid, mat, lift = "nil") => JSON.parse(q(`local pts = ENGINE_LINE_AVOID.arc(Vector(${a.x}, 1.2, ${a.z}), Vector(${b.x}, 1.2, ${b.z}), ${lift}, ${avoid ? `Vector(${avoid.x}, 1, ${avoid.z})` : "nil"}, ${mat ? `Vector(${mat.x}, 1, ${mat.z})` : "nil"}) local out = {} for _, p in ipairs(pts) do out[#out + 1] = string.format("[%.3f,%.3f,%.3f]", p[1], p[2], p[3]) end return "[" .. table.concat(out, ",") .. "]"`));
 const AV = (() => { const t = line("ENGINE_LINE_AVOID = {"); const g = (k) => Number(t.match(new RegExp(`\\b${k} = ([\\d.]+)`))[1]); return { hx: g("hx"), hz: g("hz") }; })();

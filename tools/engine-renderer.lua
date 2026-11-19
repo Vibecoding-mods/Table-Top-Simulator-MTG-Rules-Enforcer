@@ -2540,15 +2540,16 @@ end
 -- / battle) and per block (gold, blocker to attacker). Global vector lines are shared with what players draw by
 -- hand: ours are told apart by their exact thickness and only ours are replaced.
 -- Planned attacks (the user 2026-11-16: "targeting lines ... to show who you're targeting before attacks"): while the
--- turn player answers the attack question, each attacker picked so far is drawn dashed, in a light shade of their seat
+-- turn player answers the attack question, each attacker picked so far is drawn (solid, as a block line), in a light shade of their seat
 -- colour, to whom it will attack (enginePlannedAttacks); the declared board's attack lines replace them.
 -- (Live check 1: the planned line was too thin and faint to see, 0.12 wide, halfway to white, on a low arc under the
 -- cards; now as wide as a target line, a quarter towards white, on a target line's arc, ten dashes. And from White to
 -- Red on the 4-player table it ran over White's own life counter, the two counters 7 apart at the middle: it bends
--- around the attacker's own counter, towards the middle of the table, ENGINE_LINE_AVOID.)
+-- around the attacker's own counter, towards the middle of the table, ENGINE_LINE_AVOID. The user 2026-11-19: "i want
+-- [it] the same as the blocker lines": a solid line on a block line's low arc, as thin, still in the seat's shade.)
 do -- (its own scope, as the setup buttons below: the main chunk is at standard Lua's 200-locals limit)
 local LINE_STYLE = { target = { color = {0.35, 0.85, 1}, thickness = 0.3001 }, attack = { color = {1, 0.32, 0.4}, thickness = 0.2201 },
-  block = { color = {1, 0.8, 0.25}, thickness = 0.1601 }, planned = { color = {1, 0.75, 0.8}, thickness = 0.2601 } }
+  block = { color = {1, 0.8, 0.25}, thickness = 0.1601 }, planned = { color = {1, 0.75, 0.8}, thickness = 0.1651 } }
 -- TTS's seat colours, for the planned lines (mixed halfway to white when drawn, so they read lighter than a declared line)
 local SEAT_RGB = { White = {1, 1, 1}, Brown = {0.44, 0.23, 0.09}, Red = {0.86, 0.1, 0.09}, Orange = {0.96, 0.39, 0.11},
   Yellow = {0.9, 0.9, 0.17}, Green = {0.19, 0.7, 0.17}, Teal = {0.13, 0.69, 0.61}, Blue = {0.12, 0.53, 1},
@@ -2736,7 +2737,7 @@ function engineDrawLines(m, stackSpot)
   if m ~= nil and m.gameOver then m = nil end -- (the game is over: no attack or target lines stay on the table)
   local ours = {}
   local drawn = {} -- (one line per pair of spots: twenty tokens in one stack attacking one player are one line)
-  -- (dashed: five short lines along the arc, the first gap at the attacker and the last dash on the target)
+  -- (dashed: short lines along the arc, the first gap at the attacker and the last dash on the target; nothing draws dashed now)
   -- (avoid, mat: a planned line's attacker's own life counter and mat, bentArc)
   local function add(a, b, style, lift, dashed, avoid, mat)
     if a == nil or b == nil then return end
@@ -2771,8 +2772,7 @@ function engineDrawLines(m, stackSpot)
     -- attacking; a token stack split among players is one stack, and one line, per player: engineCombatSubs reads the
     -- same plan)
     for _, pa in ipairs(enginePlannedAttacks(m)) do
-      local g = seatGeometry(pa[3])
-      add(cardSpot(pa[1]), LIFE_TRACKERS[pa[2]] ~= nil and playerSpot(pa[2]) or cardSpot(pa[2]), plannedStyle(pa[3]), nil, true, lifeSpot(pa[3]), g and g.mat or nil)
+      add(cardSpot(pa[1]), LIFE_TRACKERS[pa[2]] ~= nil and playerSpot(pa[2]) or cardSpot(pa[2]), plannedStyle(pa[3]), 0.3)
     end
   end
   -- only when they changed (setVectorLines redraws for everyone and goes into the save)
