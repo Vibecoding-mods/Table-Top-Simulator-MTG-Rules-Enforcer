@@ -79,7 +79,7 @@ const write = (name, data) => { const f = path.join(dir, name); realWrite(f, typ
     use({ forgeFile });
     l = L.loadLegality();
     same("load: no cache: Forge's file", [l.source, l.date], ["forge", "2026-09-21"]);
-    same("load: Forge's file has only its formats", [l.has("modern"), l.has("duel"), l.missing().length], [true, false, 13]);
+    same("load: Forge's file has only its formats", [l.has("modern"), l.has("duel"), l.missing().length], [true, false, 12]);
     use();
     l = L.loadLegality();
     same("load: neither: no source, every status null", [l.source, l.date, l.status("modern", "Lightning Bolt"), l.has("modern")], [null, null, null, false]);
@@ -144,7 +144,7 @@ const write = (name, data) => { const f = path.join(dir, name); realWrite(f, typ
     use({ forgeFile: path.join(__dirname, "..", "bridge", "forge-legality.json") });
     l = L.loadLegality();
     same("forge file: loads as Forge's", l.source, "forge");
-    same("forge file: Duel Commander, Pauper Commander and Old School need Scryfall", l.missing(), ["duel", "paupercommander", "oldschool"]);
+    same("forge file: Duel Commander and Pauper Commander need Scryfall", l.missing(), ["duel", "paupercommander"]);
     same("forge file: statuses", [l.status("vintage", "Black Lotus"), l.status("legacy", "Black Lotus"), l.status("modern", "Lightning Bolt"), l.status("pauper", "Black Lotus"), l.status("standard", "Lightning Bolt"), l.status("commander", "Sol Ring")],
       ["r", "b", "l", "n", "n", "l"]);
     same("forge file: a split card and a DFC face", [l.status("modern", "Fire // Ice"), l.status("modern", "Insectile Aberration")], ["l", "l"]);
@@ -178,7 +178,7 @@ const write = (name, data) => { const f = path.join(dir, name); realWrite(f, typ
     const refreshWorld = (h, updatedAt, edit) => {
       const old = JSON.parse(JSON.stringify(cache));
       if (edit) { edit(old); old.hash = L.hashOf(old.keys, old.formats, old.cards); }
-      const file = write(`refresh-${updatedAt}.json`, old);
+      const file = write(`refresh-${updatedAt.replace(/[^0-9A-Za-z-]/g, "_")}.json`, old); // (no ":" in a Windows file name)
       const stub = async (url) => (String(url) === L.META_URL ? { ok: true, status: 200, json: async () => ({ updated_at: updatedAt, jsonl_download_uri: "https://data.example/cards.jsonl.gz" }) }
         : new Response(zlib.gzipSync(fs.readFileSync(FIXTURE)), { status: 200 }));
       h.B._legality._reset();

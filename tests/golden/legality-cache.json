@@ -1,7 +1,7 @@
 {
  "source": "scryfall",
  "updatedAt": "2026-11-18T10:01:54.000+00:00",
- "hash": "94e229b73d37090bc56c1a84d003db7b467671a3",
+ "hash": "eb7b816b69f08c5e4af575e3dc1a936af5edad23",
  "keys": [
   "commander",
   "duel",
@@ -14,7 +14,6 @@
   "vintage",
   "pauper",
   "premodern",
-  "oldschool",
   "historic",
   "timeless",
   "alchemy"
@@ -94,12 +93,6 @@
    ],
    "restricted": []
   },
-  "oldschool": {
-   "banned": [],
-   "restricted": [
-    "Black Lotus"
-   ]
-  },
   "historic": {
    "banned": [],
    "restricted": []
@@ -114,28 +107,28 @@
   }
  },
  "cards": {
-  "a-alrund's epiphany": "nnnnnnnnnnnnlll",
-  "alrund's epiphany": "llnnnblllnnnlln",
-  "black lotus": "bbnbnnnbrnnrnnn",
-  "bonecrusher giant": "llnnnllllnnnlll",
-  "bonecrusher giant // stomp": "llnnnllllnnnlll",
-  "brainstorm": "llllnnnlrlbllln",
-  "delver of secrets": "llllnnlllbnnlln",
-  "delver of secrets // insectile aberration": "llllnnlllbnnlln",
-  "emrakul, the aeons torn": "bbnlnnlblnnnlln",
-  "fire": "llllnnllllnnnnn",
-  "fire // ice": "llllnnllllnnnnn",
-  "grizzly bears": "llllnllllllllln",
-  "ice": "llllnnllllnnnnn",
-  "insectile aberration": "llllnnlllbnnlln",
-  "jotun grunt": "llllnnnllllnnnn",
-  "lightning bolt": "llllnnlllllnlln",
-  "mana crypt": "bbnbnnnbrnnnnnn",
-  "mox lotus": "nnnnnnnnnnnnnnn",
-  "sol ring": "lbnlnnnbrnnnnnn",
-  "stomp": "llnnnllllnnnlll",
-  "thassa's oracle": "llnnnllllnnnlll",
-  "up the beanstalk": "lllnllblllnnlll"
+  "a-alrund's epiphany": "nnnnnnnnnnnlll",
+  "alrund's epiphany": "llnnnblllnnlln",
+  "black lotus": "bbnbnnnbrnnnnn",
+  "bonecrusher giant": "llnnnllllnnlll",
+  "bonecrusher giant // stomp": "llnnnllllnnlll",
+  "brainstorm": "llllnnnlrlblln",
+  "delver of secrets": "llllnnlllbnlln",
+  "delver of secrets // insectile aberration": "llllnnlllbnlln",
+  "emrakul, the aeons torn": "bbnlnnlblnnlln",
+  "fire": "llllnnllllnnnn",
+  "fire // ice": "llllnnllllnnnn",
+  "grizzly bears": "llllnlllllllln",
+  "ice": "llllnnllllnnnn",
+  "insectile aberration": "llllnnlllbnlln",
+  "jotun grunt": "llllnnnllllnnn",
+  "lightning bolt": "llllnnllllllln",
+  "mana crypt": "bbnbnnnbrnnnnn",
+  "mox lotus": "nnnnnnnnnnnnnn",
+  "sol ring": "lbnlnnnbrnnnnn",
+  "stomp": "llnnnllllnnlll",
+  "thassa's oracle": "llnnnllllnnlll",
+  "up the beanstalk": "lllnllblllnlll"
  },
  "identity": {
   "a-alrund's epiphany": "U",
