@@ -1485,6 +1485,7 @@ function checkDeck(color, entry, mode = gameMode.mode, g = gameMode) {
   };
   for (const c of asList(entry.commander)) { const n = resolve(c); if (n) commanders.push(n); }
   for (const c of asList(entry.library)) { const n = resolve(c); if (n) cards.push(n); }
+  const deckUnknown = unknown.length; // (counted in the deck's size: the engine not knowing a card doesn't make the deck smaller)
   // (Standard: a second deck on the seat's graveyard spot is the sideboard, read by the table before a game, entry.sideboard;
   // best of three sideboards with it between games. Commander has none: a deck there is left alone)
   const sideboard = [];
@@ -1494,7 +1495,7 @@ function checkDeck(color, entry, mode = gameMode.mode, g = gameMode) {
   const counts = {};
   for (const n of cards) counts[n] = (counts[n] || 0) + 1;
   const extras = Object.entries(counts).filter(([n, k]) => k > 1 && !BASICS.has(normName(n))).map(([n, k]) => `${k}× ${n}`);
-  const total = cards.length + commanders.length;
+  const total = cards.length + commanders.length + deckUnknown;
   const notes = artNotes(art, (n) => (counts[n] || 0) + commanders.filter((x) => x === n).length);
   const artSaid = notes.length ? `\nYour card art${customArt.off ? " (the host has custom art off for now: everyone sees the normal pictures)" : ""}:\n- ${notes.join("\n- ")}` : "";
 

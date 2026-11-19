@@ -69,6 +69,14 @@ async function main() {
     if (relay) run("docker", ["tag", `mtg-relay:${image}`, "mtg-relay:exile"]);
     run("docker", ["compose", "-f", "stack/compose.yml", "up", "-d", "--force-recreate", "relay", "forge-room"]);
   }
+  // the bridge's list of the engine's cards (bridge/forge-cards.json) read from the engine about to run: rebuilt when it
+  // was made for another engine build, before the bridge starts with it
+  let cardList = null;
+  try { cardList = JSON.parse(fs.readFileSync(path.join(ROOT, "bridge", "forge-cards.json"), "utf8")).engineBuild || null; } catch {}
+  if (cardList !== engineBuildId()) {
+    console.log(`the card list is for engine ${cardList || "(unrecorded)"}, this tree's is ${engineBuildId()}: rebuilding it from the running engine`);
+    run(process.execPath, ["tools/build-forge-card-index.js"]);
+  }
   await mustBeIdle();
   run("powershell", ["-ExecutionPolicy", "Bypass", "-File", "tools/start-bridge.ps1"]);
   await bridgeCameUp();

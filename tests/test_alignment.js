@@ -296,5 +296,26 @@ const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringif
   ok("importer: a script that isn't in the file once is left alone and named", t.raw === twice && t.skipped.includes("988e5e"), t.threw || JSON.stringify(t.skipped));
 }
 
+// every card the engine patch adds (engine/forge.patch) is in the bridge's list of the engine's cards: otherwise READY
+// calls it unknown. 2026-11-19: the Star Trek cards were in the engine and the list was a month old, so Anthropological
+// Mission was refused. (A rebuild: node tools/build-forge-card-index.js; deploy does it when the engine build changes.)
+{
+  const fs = require("fs"), path = require("path");
+  const patchText = fs.readFileSync(path.join(__dirname, "..", "engine", "forge.patch"), "utf8");
+  const list = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "bridge", "forge-cards.json"), "utf8"));
+  const norm = (s) => s.normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[’‘`]/g, "'").replace(/\s+/g, " ").trim().toLowerCase();
+  const names = [];
+  for (const file of patchText.split(/^diff --git /m)) {
+    if (!/^\+\+\+ b\/forge-gui\/res\/cardsfolder\//m.test(file)) continue;
+    const m = /^\+Name:(.+)$/m.exec(file);
+    if (m) names.push(m[1].trim());
+  }
+  const missing = names.filter((n) => !(norm(n) in list.index));
+  ok("card list: the patch's cards were found (precondition)", names.length > 300, `${names.length} names`);
+  ok("card list: every card the engine patch adds is known to the bridge", missing.length === 0,
+    `${missing.length} missing, e.g. ${missing.slice(0, 5).join(", ")}: run node tools/build-forge-card-index.js`);
+  ok("card list: Anthropological Mission is known", norm("Anthropological Mission") in list.index);
+}
+
 process.stdout.write(failed ? `\n${failed} alignment checks failed (${passed} passed)\n` : `all ${passed} alignment checks pass\n`);
 process.exit(failed ? 1 : 0);
