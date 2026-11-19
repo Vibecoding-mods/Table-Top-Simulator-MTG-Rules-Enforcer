@@ -1152,11 +1152,18 @@ function listFor(key) {
   return null;
 }
 // a deck's problems under rules { format, banned, restricted } (formatRules.formatProblems), and the list's hash
+// the cards with a copy limit other than 4 ("any", Seven Dwarves 7, Nazgûl 9), by normName: a deck list's "Nazgul"
+// finds Forge's "Nazgûl". Every format reads them (forge-formats.json keeps every card's, not Standard's only).
+let copyLimitMap = null;
+function copyLimitsByName() {
+  if (!copyLimitMap) copyLimitMap = new Map(Object.entries(forgeFormat("Standard")?.limits || {}).map(([n, v]) => [normName(n), v]));
+  return copyLimitMap;
+}
 function deckFormatCheck(r, cards, commanders = [], sideboard = []) {
   const L = listFor(r.format);
-  const limits = forgeFormat("Standard")?.limits || {};
+  const limits = copyLimitsByName();
   const opts = { banned: r.banned, restricted: r.restricted, status: L?.status, source: L?.source, date: L?.date,
-    isBasic: (n) => BASICS.has(normName(n)), limit: (n) => limits[n] };
+    isBasic: (n) => BASICS.has(normName(n)), limit: (n) => limits.get(normName(n)) };
   return { ...formatRules.formatProblems(r.format, opts, cards, commanders, sideboard), hash: L?.hash ?? "" };
 }
 // the rules a deck is checked under, in one string: "<format>|<banned>|<restricted>|<hash>" (a Casual format's hash
@@ -1628,6 +1635,11 @@ function deckForMode(d, mode, k = 0, harmless = false) {
 // whether colour c's checked deck was checked under `rules` (rulesKey: a format's, with its switches and list hash; or
 // with no format the mode, and a deck checked before modes existed counts as Commander)
 const readyFor = (c, rules = "commander") => !!readyDecks[c] && (readyDecks[c].rules || readyDecks[c].mode || "commander") === rules;
+// a seat joining the started game: its deck as checked at Start. The format and switches must match, not the list's
+// hash: a refresh between Start and the seat joining re-checked the deck (onLegalityChanged), so one still here passed
+// under the new list and carries the new hash; comparing the hash would hand that player a built-in deck instead
+const noHash = (rules) => String(rules || "").split("|").slice(0, 3).join("|");
+const readyForGame = (c, rules = game.rules || game.mode) => !!readyDecks[c] && noHash(readyDecks[c].rules || readyDecks[c].mode || "commander") === noHash(rules);
 // the game log's last line: why, and a format's game names its rules ("Game over: Blue won (Modern)")
 const gameOverLine = (why) => `${why ? `Game over: ${why}` : "Game over"}${game?.rules ? ` (${rulesWords(game.rules)})` : ""}`;
 // what a Standard game adds to the table's "started" message and the resume file; nothing for Commander
@@ -2528,7 +2540,7 @@ function onRoomUpdate(seat, room) {
   if (me && !seat.joined) {
     seat.joined = true;
     // (a match game's deck: game 1's registered, a later game's as the last sideboarding left it, matchDeck)
-    const d = matchDeck(seat.color, seat.deck || (readyFor(seat.color, game.rules || game.mode) ? engineDeckFromTable(readyDecks[seat.color]) : loadPreset(seat.deckId)));
+    const d = matchDeck(seat.color, seat.deck || (readyForGame(seat.color) ? engineDeckFromTable(readyDecks[seat.color]) : loadPreset(seat.deckId)));
     const planes = game.planes && seat.color === game.planeSeat && !seat.harmless ? game.planes : null;
     seat.send({ type: "SetDeckSelection", deck_name: d.deckName, deck: planes ? { ...d.deck, planes: planes.map(planeDeckCard) } : d.deck, commander_name: d.commanderName });
     if (planes) chat(`[MTG] Planechase: ${planes.length} planes and phenomena dealt to the planar decks.`);
@@ -15081,7 +15093,7 @@ if (require.main === module) {
     fixOps, phaseNumber, fxFacts, gameEndWords, mutateWords, fewNames, NUMBER_PICK_MAX, FEW_NAMES, _effectMarks: effectMarks, DAMAGE_PICK_MAX, _ttsStats: ttsStats, _saveLargest: saveLargest, _noteBoard: noteBoard,
     standardProblems, modeWords, loadPreset, STANDARD_DECKS, _gameMode: gameMode,
     _onBanlist: onBanlist, _onBanlistChanged: onBanlistChanged, _legality: legality, // the ban lists (docs/format-banlist-spec.md §6.3)
-    rulesKey, rulesWords, presetsFor, gameOverLine, _onLegalityChanged: (l) => onLegalityChanged(l), _setLegality: (l) => { legalData = l; legalStandard.clear(); },
+    rulesKey, rulesWords, presetsFor, gameOverLine, _readyForGame: readyForGame, _onLegalityChanged: (l) => onLegalityChanged(l), _setLegality: (l) => { legalData = l; legalStandard.clear(); },
     onGifMessage, onGifKey, _gifs: gifs, _gifFavs: gifFavs, // GIF frames
   };
 }

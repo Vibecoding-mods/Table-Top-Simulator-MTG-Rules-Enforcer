@@ -12,7 +12,7 @@ const FORMATS = [
   { key: "casualcommander", name: "Casual Commander", mode: "commander", shape: "casual", list: false, restricted: null, reason: null },
   { key: "commander", name: "Commander", mode: "commander", shape: "commander", list: true, restricted: null, reason: "not a tournament card" },
   { key: "duel", name: "Duel Commander", mode: "commander", shape: "commander", list: true, restricted: "commander", reason: "not a tournament card" },
-  { key: "paupercommander", name: "Pauper Commander", mode: "commander", shape: "commander", list: true, restricted: null, reason: "not a common, or an uncommon commander" },
+  { key: "paupercommander", name: "Pauper Commander", mode: "commander", shape: "commander", list: true, restricted: null, reason: "not printed at common", commanderNotChecked: true },
   { key: "predh", name: "PreDH", mode: "commander", shape: "commander", list: true, restricted: null, reason: "not from its sets" },
   { key: "casual60", name: "Casual 60-card", mode: "standard", shape: "sixty", list: false, restricted: null, reason: null },
   { key: "standard", name: "Standard", mode: "standard", shape: "sixty", list: true, restricted: null, reason: "not from its sets" },
@@ -98,7 +98,11 @@ function formatProblems(key, opts, cards, commanders = [], sideboard = []) {
       const asCommander = [...new Set(commanders)].filter((n) => st.get(n) === "r");
       if (asCommander.length) { problems.push(`restricted in ${f.name} (not as your commander): ${few(asCommander)}`); restrictedHit = true; }
     }
-    const outside = names.filter((n) => st.get(n) === "n");
+    // (Pauper Commander's commander is an uncommon creature, which Scryfall calls not legal there: checked 2026-11-18
+    // on Tatyova, Benthic Druid. Its 99 are checked; whether the commander is an uncommon is not, §3.3. A banned one
+    // still is.)
+    const cmdOnly = f.commanderNotChecked ? new Set(commanders.filter((n) => !cards.includes(n))) : new Set();
+    const outside = names.filter((n) => st.get(n) === "n" && !cmdOnly.has(n));
     if (outside.length) problems.push(`not legal in ${f.name} (${f.reason}): ${few(outside)}`);
     const unknown = names.filter((n) => st.get(n) == null);
     if (unknown.length) warnings.push(`not in the ${f.name} card data, so not checked: ${few(unknown)}`);

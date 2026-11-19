@@ -8369,7 +8369,8 @@ function engineHello(again)
   if again then
     m = { again = true, stamp = engineStamp(), keepRewind = true, tokenRuns = true, mode = engineModeSent ~= nil and engineModeSent() or nil }
   else
-    m = { stamp = engineStamp(), keepRewind = true, tokenRuns = true, mode = engineModeSent ~= nil and engineModeSent() or nil }
+    -- (formats: the bridge sends the Banned list count and the formats with no list, in Casual Commander too)
+    m = { stamp = engineStamp(), keepRewind = true, tokenRuns = true, formats = true, mode = engineModeSent ~= nil and engineModeSent() or nil }
   end
   if ENGINE_TABLE_SEATS ~= nil then m.tableSeats = ENGINE_TABLE_SEATS end
   if engineRulesInto ~= nil then engineRulesInto(m) end -- (the format and its switches: nothing for Casual Commander)

@@ -87,7 +87,8 @@ function copyLimits(cardsDir) {
       const name = /^Name:(.+)$/m.exec(t)?.[1].trim();
       if (!name) continue;
       if (/^K:A deck can have any number of cards named CARDNAME\.\s*$/m.test(t)) out[name] = "any";
-      else { const n = /^K:DeckLimit:(\d+)\s*$/m.exec(t); if (n) out[name] = Number(n[1]); }
+      // ("K:DeckLimit:7:A deck can have up to seven cards named CARDNAME.": the reminder after the number)
+      else { const n = /^K:DeckLimit:(\d+)(?::|\s*$)/m.exec(t); if (n) out[name] = Number(n[1]); }
     }
   };
   walk(cardsDir);
@@ -111,10 +112,10 @@ function buildFormats() {
     console.log(`${fmt.name || name}: ${f.sets.length} sets${f.missingSets.length ? ` (no edition file: ${f.missingSets.join(", ")})` : ""}, ${f.legal.length} legal names, ${f.banned.length} banned`);
     if (f.missingSets.length) process.exitCode = 1;
   }
-  // (only the cards some built format allows: the bridge needs no others)
-  const allowed = new Set(Object.values(formats).flatMap((f) => f.legal));
+  // (every card's: the format checks use them for every format, not only the formats built here. Keeping only
+  // Standard's left Relentless Rats, Seven Dwarves and Nazgûl out, so a Commander or Modern deck of them was refused)
   const limits = {};
-  for (const [n, v] of Object.entries(copyLimits(path.join(res, "cardsfolder")))) { const c = index[norm(n)] || n; if (allowed.has(c)) limits[c] = v; }
+  for (const [n, v] of Object.entries(copyLimits(path.join(res, "cardsfolder")))) limits[index[norm(n)] || n] = v;
   console.log(`copy limits other than 4: ${Object.entries(limits).map(([n, v]) => `${n} (${v})`).join(", ") || "none"}`);
   const out = path.join(root, "bridge", "forge-formats.json");
   fs.writeFileSync(out, JSON.stringify({ built: new Date().toISOString(), forge: commit, copyLimits: limits, formats }, null, 1) + "\n");

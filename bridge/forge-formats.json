@@ -1,12 +1,23 @@
 {
- "built": "2026-11-13T23:39:56.298Z",
+ "built": "2026-11-19T03:20:00.263Z",
  "forge": "e7d2b93ba",
  "copyLimits": {
   "Cid, Timeless Artificer": "any",
+  "Dragon's Approach": "any",
+  "Gleemox": 0,
   "Hare Apparent": "any",
+  "Nazgûl": 9,
+  "Once More with Feeling": 1,
+  "Persistent Petitioners": "any",
+  "Rat Colony": "any",
+  "Relentless Rats": "any",
+  "Seven Dwarves": 7,
+  "Shadowborn Apostle": "any",
   "Slime Against Humanity": "any",
   "Tempest Hawk": "any",
-  "Sphinx's Approach": "any"
+  "Templar Knight": "any",
+  "Sphinx's Approach": "any",
+  "Vazal, the Compleat": 1
  },
  "formats": {
   "Standard": {
