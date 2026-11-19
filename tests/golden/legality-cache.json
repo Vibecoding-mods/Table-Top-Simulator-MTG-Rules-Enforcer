@@ -1,0 +1,163 @@
+{
+ "source": "scryfall",
+ "updatedAt": "2026-11-18T10:01:54.000+00:00",
+ "hash": "94e229b73d37090bc56c1a84d003db7b467671a3",
+ "keys": [
+  "commander",
+  "duel",
+  "paupercommander",
+  "predh",
+  "standard",
+  "pioneer",
+  "modern",
+  "legacy",
+  "vintage",
+  "pauper",
+  "premodern",
+  "oldschool",
+  "historic",
+  "timeless",
+  "alchemy"
+ ],
+ "formats": {
+  "commander": {
+   "banned": [
+    "Black Lotus",
+    "Emrakul, the Aeons Torn",
+    "Mana Crypt"
+   ],
+   "restricted": []
+  },
+  "duel": {
+   "banned": [
+    "Black Lotus",
+    "Emrakul, the Aeons Torn",
+    "Mana Crypt",
+    "Sol Ring"
+   ],
+   "restricted": []
+  },
+  "paupercommander": {
+   "banned": [],
+   "restricted": []
+  },
+  "predh": {
+   "banned": [
+    "Black Lotus",
+    "Mana Crypt"
+   ],
+   "restricted": []
+  },
+  "standard": {
+   "banned": [],
+   "restricted": []
+  },
+  "pioneer": {
+   "banned": [
+    "Alrund's Epiphany"
+   ],
+   "restricted": []
+  },
+  "modern": {
+   "banned": [
+    "Up the Beanstalk"
+   ],
+   "restricted": []
+  },
+  "legacy": {
+   "banned": [
+    "Black Lotus",
+    "Emrakul, the Aeons Torn",
+    "Mana Crypt",
+    "Sol Ring"
+   ],
+   "restricted": []
+  },
+  "vintage": {
+   "banned": [],
+   "restricted": [
+    "Black Lotus",
+    "Brainstorm",
+    "Mana Crypt",
+    "Sol Ring"
+   ]
+  },
+  "pauper": {
+   "banned": [
+    "Delver of Secrets"
+   ],
+   "restricted": []
+  },
+  "premodern": {
+   "banned": [
+    "Brainstorm"
+   ],
+   "restricted": []
+  },
+  "oldschool": {
+   "banned": [],
+   "restricted": [
+    "Black Lotus"
+   ]
+  },
+  "historic": {
+   "banned": [],
+   "restricted": []
+  },
+  "timeless": {
+   "banned": [],
+   "restricted": []
+  },
+  "alchemy": {
+   "banned": [],
+   "restricted": []
+  }
+ },
+ "cards": {
+  "a-alrund's epiphany": "nnnnnnnnnnnnlll",
+  "alrund's epiphany": "llnnnblllnnnlln",
+  "black lotus": "bbnbnnnbrnnrnnn",
+  "bonecrusher giant": "llnnnllllnnnlll",
+  "bonecrusher giant // stomp": "llnnnllllnnnlll",
+  "brainstorm": "llllnnnlrlbllln",
+  "delver of secrets": "llllnnlllbnnlln",
+  "delver of secrets // insectile aberration": "llllnnlllbnnlln",
+  "emrakul, the aeons torn": "bbnlnnlblnnnlln",
+  "fire": "llllnnllllnnnnn",
+  "fire // ice": "llllnnllllnnnnn",
+  "grizzly bears": "llllnllllllllln",
+  "ice": "llllnnllllnnnnn",
+  "insectile aberration": "llllnnlllbnnlln",
+  "jotun grunt": "llllnnnllllnnnn",
+  "lightning bolt": "llllnnlllllnlln",
+  "mana crypt": "bbnbnnnbrnnnnnn",
+  "mox lotus": "nnnnnnnnnnnnnnn",
+  "sol ring": "lbnlnnnbrnnnnnn",
+  "stomp": "llnnnllllnnnlll",
+  "thassa's oracle": "llnnnllllnnnlll",
+  "up the beanstalk": "lllnllblllnnlll"
+ },
+ "identity": {
+  "a-alrund's epiphany": "U",
+  "alrund's epiphany": "U",
+  "black lotus": "",
+  "bonecrusher giant // stomp": "R",
+  "brainstorm": "U",
+  "delver of secrets // insectile aberration": "U",
+  "emrakul, the aeons torn": "",
+  "fire // ice": "UR",
+  "grizzly bears": "G",
+  "jotun grunt": "W",
+  "lightning bolt": "R",
+  "mana crypt": "",
+  "mox lotus": "",
+  "sol ring": "",
+  "thassa's oracle": "U",
+  "up the beanstalk": "G"
+ },
+ "stats": {
+  "read": 19,
+  "kept": 16,
+  "skipped": 2
+ }
+}

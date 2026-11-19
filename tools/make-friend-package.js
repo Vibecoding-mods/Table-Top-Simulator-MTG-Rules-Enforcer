@@ -53,7 +53,7 @@ const PROJECT = "mtg-table"; // the package's compose project: containers mtg-ta
 const IMAGES = { relay: "mtg-relay:exile", node: "mtg-forge-node:exile" };
 // What the bridge reads beside its code (path.join(__dirname, ...) in bridge.js). The image cache is git-ignored and
 // rebuilt from Scryfall when missing, so it is shipped when there is one.
-const BRIDGE_DATA = ["forge-cards.json", "token-scripts.json", "forge-planes.json", "forge-formats.json"];
+const BRIDGE_DATA = ["forge-cards.json", "token-scripts.json", "forge-planes.json", "forge-formats.json", "forge-legality.json"];
 const BRIDGE_CACHE = ["image-cache-klrmngr.json"];
 // The folders of JSON files the bridge reads through home.data(), copied whole (the repo's path = the package's;
 // tests/test_home_paths.js checks every home.data() folder is here or stack/): decks, Manabrew's, "mtg debug" scenarios
