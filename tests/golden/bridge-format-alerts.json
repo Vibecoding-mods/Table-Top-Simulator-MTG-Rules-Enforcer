@@ -149,7 +149,7 @@
  },
  "standard": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Standard.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Standard: Hired Claw, Master of Barbs\n- not legal in Standard (not from its sets): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Standard card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Standard.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Standard: Hired Claw, Master of Barbs\n- not legal in Standard (not from its sets): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not on the Standard list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -161,7 +161,7 @@
  },
  "standard (switches off)": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Standard.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Standard (not from its sets): Shock\nAlso: not in the Standard card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Standard.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Standard (not from its sets): Shock\nAlso: not on the Standard list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -173,7 +173,7 @@
  },
  "pioneer": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Pioneer.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Pioneer: Hired Claw, Master of Barbs\n- not legal in Pioneer (not from its sets): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Pioneer card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Pioneer.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Pioneer: Hired Claw, Master of Barbs\n- not legal in Pioneer (not from its sets): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not on the Pioneer list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -185,7 +185,7 @@
  },
  "pioneer (switches off)": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Pioneer.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Pioneer (not from its sets): Shock\nAlso: not in the Pioneer card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Pioneer.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Pioneer (not from its sets): Shock\nAlso: not on the Pioneer list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -197,7 +197,7 @@
  },
  "modern": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Modern.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Modern: Hired Claw, Master of Barbs\n- not legal in Modern (not from its sets): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Modern card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Modern.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Modern: Hired Claw, Master of Barbs\n- not legal in Modern (not from its sets): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not on the Modern list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -209,7 +209,7 @@
  },
  "modern (switches off)": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Modern.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Modern (not from its sets): Shock\nAlso: not in the Modern card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Modern.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Modern (not from its sets): Shock\nAlso: not on the Modern list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -221,7 +221,7 @@
  },
  "legacy": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Legacy.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Legacy: Hired Claw, Master of Barbs\n- not legal in Legacy (not a tournament card): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Legacy card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Legacy.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Legacy: Hired Claw, Master of Barbs\n- not legal in Legacy (not a tournament card): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not on the Legacy list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -233,7 +233,7 @@
  },
  "legacy (switches off)": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Legacy.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Legacy (not a tournament card): Shock\nAlso: not in the Legacy card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Legacy.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Legacy (not a tournament card): Shock\nAlso: not on the Legacy list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -245,7 +245,7 @@
  },
  "vintage": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Vintage.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Vintage: Hired Claw, Master of Barbs\n- restricted in Vintage (1 copy each): 4× Burst Lightning\n- not legal in Vintage (not a tournament card): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button), or turn restricted cards off (Restricted cards button).\nAlso: not in the Vintage card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Vintage.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Vintage: Hired Claw, Master of Barbs\n- restricted in Vintage (1 copy each): 4× Burst Lightning\n- not legal in Vintage (not a tournament card): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button), or turn restricted cards off (Restricted cards button).\nAlso: not on the Vintage list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -257,7 +257,7 @@
  },
  "vintage (switches off)": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Vintage.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Vintage (not a tournament card): Shock\nAlso: not in the Vintage card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Vintage.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Vintage (not a tournament card): Shock\nAlso: not on the Vintage list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -269,7 +269,7 @@
  },
  "pauper": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Pauper.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Pauper: Hired Claw, Master of Barbs\n- not legal in Pauper (not a common): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Pauper card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Pauper.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Pauper: Hired Claw, Master of Barbs\n- not legal in Pauper (not a common): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not on the Pauper list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -281,7 +281,7 @@
  },
  "pauper (switches off)": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Pauper.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Pauper (not a common): Shock\nAlso: not in the Pauper card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Pauper.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Pauper (not a common): Shock\nAlso: not on the Pauper list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -293,7 +293,7 @@
  },
  "premodern": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Premodern.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Premodern: Hired Claw, Master of Barbs\n- not legal in Premodern (not from its sets): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Premodern card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Premodern.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Premodern: Hired Claw, Master of Barbs\n- not legal in Premodern (not from its sets): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not on the Premodern list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -305,31 +305,7 @@
  },
  "premodern (switches off)": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Premodern.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Premodern (not from its sets): Shock\nAlso: not in the Premodern card data, so not checked: Starting Town",
-  "report": {
-   "t": "deckReport",
-   "request": 7,
-   "ready": [],
-   "checked": [
-    "Blue"
-   ]
-  }
- },
- "oldschool": {
-  "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Old School.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Old School: Hired Claw, Master of Barbs\n- restricted in Old School (1 copy each): 4× Burst Lightning\n- not legal in Old School (not from its sets): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button), or turn restricted cards off (Restricted cards button).\nAlso: not in the Old School card data, so not checked: Starting Town",
-  "report": {
-   "t": "deckReport",
-   "request": 7,
-   "ready": [],
-   "checked": [
-    "Blue"
-   ]
-  }
- },
- "oldschool (switches off)": {
-  "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Old School.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Old School (not from its sets): Shock\nAlso: not in the Old School card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Premodern.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Premodern (not from its sets): Shock\nAlso: not on the Premodern list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -341,7 +317,7 @@
  },
  "historic": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Historic.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Historic: Hired Claw, Master of Barbs\n- not legal in Historic (not on MTG Arena): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Historic card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Historic.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Historic: Hired Claw, Master of Barbs\n- not legal in Historic (not on MTG Arena): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not on the Historic list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -353,7 +329,7 @@
  },
  "historic (switches off)": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Historic.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Historic (not on MTG Arena): Shock\nAlso: not in the Historic card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Historic.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Historic (not on MTG Arena): Shock\nAlso: not on the Historic list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -365,7 +341,7 @@
  },
  "timeless": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Timeless.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Timeless: Hired Claw, Master of Barbs\n- restricted in Timeless (1 copy each): 4× Burst Lightning\n- not legal in Timeless (not on MTG Arena): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button), or turn restricted cards off (Restricted cards button).\nAlso: not in the Timeless card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Timeless.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Timeless: Hired Claw, Master of Barbs\n- restricted in Timeless (1 copy each): 4× Burst Lightning\n- not legal in Timeless (not on MTG Arena): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button), or turn restricted cards off (Restricted cards button).\nAlso: not on the Timeless list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -377,7 +353,7 @@
  },
  "timeless (switches off)": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Timeless.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Timeless (not on MTG Arena): Shock\nAlso: not in the Timeless card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Timeless.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Timeless (not on MTG Arena): Shock\nAlso: not on the Timeless list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -389,7 +365,7 @@
  },
  "alchemy": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Alchemy.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Alchemy: Hired Claw, Master of Barbs\n- not legal in Alchemy (not on MTG Arena): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Alchemy card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Alchemy.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Alchemy: Hired Claw, Master of Barbs\n- not legal in Alchemy (not on MTG Arena): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not on the Alchemy list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -401,7 +377,7 @@
  },
  "alchemy (switches off)": {
   "ready": false,
-  "said": "[MTG] Blue (Izzet Phoenix): not ready for Alchemy.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Alchemy (not on MTG Arena): Shock\nAlso: not in the Alchemy card data, so not checked: Starting Town",
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Alchemy.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Alchemy (not on MTG Arena): Shock\nAlso: not on the Alchemy list (a newer card?), so not checked: Starting Town",
   "report": {
    "t": "deckReport",
    "request": 7,
