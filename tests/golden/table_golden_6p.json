@@ -188,7 +188,7 @@
      "f20 \"setPosition\" obj:cff11d V(45.5,-30,11)",
      "f20 \"setInvisibleTo\" obj:4e8c7b {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
      "f20 \"setPosition\" obj:4e8c7b V(-49.525,-30,28.34)",
-     "f30 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"keepRewind\\\\\\\":true,\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"hello\\\\\\\",\\\\\\\"tableSeats\\\\\\\":[\\\\\\\"White\\\\\\\",\\\\\\\"Red\\\\\\\",\\\\\\\"Yellow\\\\\\\",\\\\\\\"Green\\\\\\\",\\\\\\\"Blue\\\\\\\",\\\\\\\"Purple\\\\\\\"],\\\\\\\"tokenRuns\\\\\\\":true}\\\",\\\"t\\\":\\\"hello\\\"}\""
+     "f30 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"formats\\\\\\\":true,\\\\\\\"keepRewind\\\\\\\":true,\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"hello\\\\\\\",\\\\\\\"tableSeats\\\\\\\":[\\\\\\\"White\\\\\\\",\\\\\\\"Red\\\\\\\",\\\\\\\"Yellow\\\\\\\",\\\\\\\"Green\\\\\\\",\\\\\\\"Blue\\\\\\\",\\\\\\\"Purple\\\\\\\"],\\\\\\\"tokenRuns\\\\\\\":true}\\\",\\\"t\\\":\\\"hello\\\"}\""
     ]
    },
    {
