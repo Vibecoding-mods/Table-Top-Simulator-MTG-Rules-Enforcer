@@ -217,6 +217,13 @@ async function check(h, e, extra = {}) {
       }
     }
   });
+  // a card the engine doesn't know still counts in the deck's size: 99 + the commander, one of them unknown, is 100, not
+  // "99 cards" (2026-11-19, a Star Trek card the bridge's list didn't have yet)
+  await run(async (h) => {
+    const r = await check(h, entry(withCards(KYKAR_99, { "Arcane Signet": 0, "Zzyx Not A Real Card": 1 }, "Island", 99), [KYKAR_CMD], "Kykar"), { mode: "commander" });
+    ok("size: an unknown card is named", /the engine doesn't know 1 card\(s\): Zzyx Not A Real Card/.test(r.said), r.said);
+    ok("size: and still counted (no '99 cards')", !/\b99 cards\b/.test(r.said), r.said);
+  });
   if (process.env.UPDATE) fs.writeFileSync(GOLDEN, `${JSON.stringify(alerts, null, 1)}\n`);
   const want = fs.existsSync(GOLDEN) ? JSON.parse(fs.readFileSync(GOLDEN, "utf8")) : {};
   for (const k of Object.keys(alerts)) same(`alert golden: ${k}`, alerts[k], want[k]);

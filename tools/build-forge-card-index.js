@@ -221,7 +221,10 @@ END{if(n)print s "\\t" out}`;
     }
   }
   const out = path.join(__dirname, "..", "bridge", "forge-cards.json");
-  fs.writeFileSync(out, JSON.stringify({ built: new Date().toISOString(), cards, index }));
+  // (engineBuild: the build this tree's patches make, tools/engine-build-id.js; deploy.js rebuilds the list whenever it
+  // differs, so a new engine's cards are never "unknown to the engine" at READY. 2026-11-19: the Star Trek import went
+  // out with a list from 2026-10-17 and refused Anthropological Mission)
+  fs.writeFileSync(out, JSON.stringify({ built: new Date().toISOString(), engineBuild: require("./engine-build-id").engineBuildId(), cards, index }));
   console.log(`${cards} cards, ${Object.keys(index).length} lookup names → ${out}`);
 }
 
