@@ -27,11 +27,15 @@ const META_URL = "https://api.scryfall.com/bulk-data/oracle-cards";
 const HEADERS = { Accept: "application/json;q=0.9,*/*;q=0.8", "User-Agent": "mtg-tts-bridge/0.1" };
 const DAY_MS = 24 * 3600 * 1000;
 const OLD_MS = 7 * DAY_MS;
+const MIN_CARDS = 10000; // a whole oracle_cards file has ~37,000 (2026-11-18): far fewer is a download cut short
+const WORKER_MS = 10 * 60 * 1000; // the download and reduction take ~7 s; past this the worker is stopped
 
 // the bridge's name normalisation (bridge.js normName)
 const normName = (s) => String(s || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[’‘`]/g, "'")
-  .replace(/\s+/g, " ").trim().toLowerCase();
-const frontFace = (s) => String(s || "").split(" // ")[0];
+  .replace(/æ/gi, "ae").replace(/œ/gi, "oe").replace(/\s+/g, " ").trim().toLowerCase(); // (Æ, Œ don't decompose: "Æther Vial" is "Aether Vial")
+// a deck list's split-card spellings ("Fire /// Ice" from Arena, "Fire/Ice", "Fire / Ice") as Scryfall's "Fire // Ice"
+const slashes = (s) => String(s || "").replace(/\s*\/+\s*/g, " // ");
+const frontFace =(s) => String(s || "").split(" // ")[0];
 
 // ───── the reduction: oracle_cards lines -> the cache shape (§4.3) ─────
 function newReduction() {
@@ -119,7 +123,7 @@ function readData(file, what) {
 const dayOf = (iso) => (typeof iso === "string" && /^\d{4}-\d\d-\d\d/.test(iso) ? iso.slice(0, 10) : null);
 function view(data, source) {
   const keys = data ? data.keys : [];
-  const has = (k) => !!data && keys.includes(k) && !!data.formats[k];
+  const has = (k) => !!data && KEYS.includes(k) && keys.includes(k) && !!data.formats[k]; // (KEYS: a dropped key stays dropped)
   const date = data ? dayOf(source === "scryfall" ? data.updatedAt : data.date) : null;
   return {
     source: data ? source : null,
@@ -130,7 +134,7 @@ function view(data, source) {
     status(format, name) {
       if (!has(format)) return null;
       const i = keys.indexOf(format);
-      for (const n of [normName(name), normName(frontFace(name))]) {
+      for (const n of [normName(name), normName(slashes(name)), normName(frontFace(slashes(name)))]) {
         const s = Object.hasOwn(data.cards, n) ? data.cards[n] : null;
         if (s) return s[i];
       }
@@ -142,6 +146,7 @@ function view(data, source) {
     },
     missing() { return KEYS.filter((k) => !has(k)); },
     updatedAt: data && source === "scryfall" ? data.updatedAt : null,
+    cardCount: data ? Object.keys(data.cards).length : 0,
   };
 }
 function loadLegality() {
@@ -190,6 +195,7 @@ async function checkOnce({ force }) {
   if (!force && lastCheck && s.now() - lastCheck < DAY_MS) return { changed: false, summary: `Ban lists: checked today (${sourceWords()}).` };
   lastCheck = s.now();
   const fail = (why, waitMs) => {
+    lastCheck = 0; // (tried again at the next hourly tick, not a day later)
     retryAt = s.now() + (waitMs || 0);
     s.log(`ban lists: refresh failed (${why}); the cache stays as it was`);
     return { changed: false, summary: `Ban lists: couldn't reach Scryfall (${why}); still ${sourceWords()}.`, failed: true };
@@ -209,15 +215,18 @@ async function checkOnce({ force }) {
   const tmpFile = `${s.cacheFile}.${process.pid}.tmp`;
   let done;
   try {
+    fs.mkdirSync(path.dirname(s.cacheFile), { recursive: true }); // (before the worker writes the temp file there)
     done = await s.runWorker({ url, headers: HEADERS, outFile: tmpFile, updatedAt: meta.updated_at });
   } catch (e) { try { fs.unlinkSync(tmpFile); } catch { /* none written */ } return fail(e.message || String(e), e.status === 429 ? e.waitMs || 3600 * 1000 : 0); }
   const fresh = readData(tmpFile, "the download");
-  if (!fresh || !done || fresh.hash !== done.hash || !Object.keys(fresh.cards).length) {
-    try { fs.unlinkSync(tmpFile); } catch { /* gone */ }
-    return fail("the reduced file didn't check out");
-  }
-  fs.mkdirSync(path.dirname(s.cacheFile), { recursive: true });
-  fs.renameSync(tmpFile, s.cacheFile);
+  const drop = () => { try { fs.unlinkSync(tmpFile); } catch { /* gone */ } };
+  if (!fresh || !done || fresh.hash !== done.hash || !Object.keys(fresh.cards).length) { drop(); return fail("the reduced file didn't check out"); }
+  // (a download cut short at a line end parses cleanly: far fewer cards than before, or than Magic has, is not used)
+  const kept = Object.keys(fresh.cards).length;
+  if (kept < (s.minCards ?? MIN_CARDS) || kept < before.cardCount * 0.8) { drop(); return fail(`the download had only ${kept} cards`); }
+  // (a game that started during the download keeps the lists it started with)
+  if (s.busy()) { drop(); lastCheck = 0; return { changed: false, summary: "Ban lists: a game started; the check waits for its end.", waiting: true }; }
+  try { fs.renameSync(tmpFile, s.cacheFile); } catch (e) { drop(); return fail(`the cache file couldn't be replaced (${e.code || e.message})`); }
   current = null;
   const after = loadLegality();
   if (after.hash === before.hash) return { changed: false, summary: `Ban lists: up to date (${sourceWords(after)}).` };
@@ -232,9 +241,19 @@ function refreshLegality({ force = false } = {}) {
   return running;
 }
 
+// the temp files of a refresh cut off by a bridge stop (<cache>.<pid>.tmp)
+function sweepTempFiles() {
+  const c = settings().cacheFile;
+  const pre = path.basename(c) + ".";
+  let names = [];
+  try { names = fs.readdirSync(path.dirname(c)); } catch { return; }
+  for (const n of names) if (n.startsWith(pre) && n.endsWith(".tmp")) { try { fs.unlinkSync(path.join(path.dirname(c), n)); } catch { /* in use */ } }
+}
+
 // The daily check (§4.2.2): one tick an hour; a check is due a day after the last one, waits while a game runs, and a
 // tick never starts a second while one is under way. Returns a stop function.
 function startLegalityTimer({ everyMs = 3600 * 1000 } = {}) {
+  sweepTempFiles();
   const tick = () => { if (!running && !settings().busy()) refreshLegality().catch((e) => settings().log(`ban lists: ${e.message}`)); };
   const t = setInterval(tick, everyMs);
   if (t.unref) t.unref();
@@ -247,9 +266,14 @@ function runInWorkerThread(job) {
   const { Worker } = require("worker_threads");
   return new Promise((resolve, reject) => {
     const w = new Worker(path.join(__dirname, "legality-worker.js"), { workerData: job });
-    w.once("message", (m) => (m && m.ok ? resolve(m) : reject(Object.assign(new Error(m?.error || "worker failed"), { status: m?.status, waitMs: m?.waitMs }))));
-    w.once("error", reject);
-    w.once("exit", (code) => { if (code) reject(new Error(`worker exited ${code}`)); });
+    // (settled once: an answer, an error, an exit without an answer, or the time limit, which stops the worker)
+    let settled = false;
+    const end = (f, v) => { if (settled) return; settled = true; clearTimeout(timer); f(v); };
+    const timer = setTimeout(() => { end(reject, new Error("the download took too long")); w.terminate(); }, WORKER_MS);
+    if (timer.unref) timer.unref();
+    w.once("message", (m) => (m && m.ok ? end(resolve, m) : end(reject, Object.assign(new Error(m?.error || "worker failed"), { status: m?.status, waitMs: m?.waitMs }))));
+    w.once("error", (e) => end(reject, e));
+    w.once("exit", (code) => end(reject, new Error(`worker exited ${code} without an answer`)));
   });
 }
 

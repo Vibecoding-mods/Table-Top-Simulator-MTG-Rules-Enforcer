@@ -32,8 +32,8 @@ const MUTANTS = [
     "  const forge = readData(s.forgeFile, \"Forge's list\");\n  if (forge) return (current = view(forge, \"forge\"));\n  const cache = readData(s.cacheFile, \"the cache\");\n  if (cache) return (current = view(cache, \"scryfall\"));", T1, "load: the cache first"],
   ["a corrupt cache not logged", LEG, "    if (e.code !== \"ENOENT\") settings().log(", "    if (false) settings().log(", T1, "load: the corrupt cache is logged"],
   ["the cache's shape not checked", LEG, "  if (!ok) { settings().log(", "  if (!j) { settings().log(", T1, "load: a cache whose status strings don't fit its keys falls back"],
-  ["no front-face lookup", LEG, "for (const n of [normName(name), normName(frontFace(name))]) {", "for (const n of [normName(name)]) {", T1, "status: a split card by 'A // B', a half, or 'A // something'"],
-  ["names not lower-cased", LEG, ".replace(/\\s+/g, \" \").trim().toLowerCase();\nconst frontFace", ".replace(/\\s+/g, \" \").trim();\nconst frontFace", T1, "status: case and spacing don't matter"],
+  ["no front-face lookup", LEG, "for (const n of [normName(name), normName(slashes(name)), normName(frontFace(slashes(name)))]) {", "for (const n of [normName(name), normName(slashes(name))]) {", T1, "status: a split card by 'A // B', a half, or 'A // something'"],
+  ["names not lower-cased", LEG, ".replace(/\\s+/g, \" \").trim().toLowerCase(); // (Æ", ".replace(/\\s+/g, \" \").trim(); // (Æ", T1, "status: case and spacing don't matter"],
   ["an unknown format read as not legal", LEG, "      if (!has(format)) return null;\n      const i = keys.indexOf(format);", "      if (!has(format)) return \"n\";\n      const i = keys.indexOf(format);", T1, "status: an unknown format, or one with no list, is null"],
   ["old data not said", LEG, "const OLD_MS = 7 * DAY_MS;", "const OLD_MS = 70 * DAY_MS;", T1, "words: older than 7 days says so"],
   ["list hands out the data itself", LEG, "return { banned: (data.formats[format].banned || []).slice(),", "return { banned: (data.formats[format].banned || []),", T1, "list: a copy (the caller can't change the data)"],
@@ -42,7 +42,7 @@ const MUTANTS = [
   ["the same updated_at downloaded again", LEG, "  if (before.source === \"scryfall\" && before.updatedAt === meta.updated_at) return", "  if (false) return", T3, "same updated_at: no download"],
   ["the hash not compared", LEG, "  if (after.hash === before.hash) return { changed: false,", "  if (false) return { changed: false,", T3, "same hash: downloaded, not changed, nobody told"],
   ["the listeners not told", LEG, "  for (const cb of listeners) { try { cb(after, summary); }", "  for (const cb of []) { try { cb(after, summary); }", T3, "newer: the listeners are told once, with the new data and the summary"],
-  ["a broken gzip accepted", WRK, "  if (broken) throw new Error(`the download broke off: ${broken.message}`);\n", "", T3, "failure (a truncated gzip): the cache untouched"],
+  ["a broken gzip accepted", WRK, "  if (broken) throw new Error(`the download broke off: ${broken.message}`);\n", "", T3, "failure (a truncated gzip): said, and nothing changed"], // (the card floor also keeps the cache; the reason given is what's checked)
   ["a file ending mid-card accepted", WRK, "  if (lastBad) throw new Error(\"the file ended mid-card\");\n", "", T3, "failure (a file that ends mid-card): the cache untouched"],
   ["the download's status not checked", WRK, "  if (!r.ok || !r.body) throw", "  if (!r.body) throw", T3, "failure (the download 503): said, and nothing changed"],
   ["no gunzip", WRK, "      if (buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b) {", "      if (false) {", T3, "newer: the hash changed"],
@@ -58,7 +58,16 @@ const MUTANTS = [
   ["hello's own format not used", BR, "if (!m.again && tableKnowsFormats(m)) sendBanlist(banlistFormat(m));", "if (!m.again && tableKnowsFormats(m)) sendBanlist();", T1, "bridge: hello with a format sends banlist once"],
   ["{format} answered with banlist, not the names", BR, "  toTTS(legality.banlistNamesMessage(format));\n}", "  sendBanlist(format);\n}", T1, "bridge: {format} answers banlistNames"],
   ["the refresh request ignored", BR, "  if (m.refresh) {\n    chat(\"[MTG] Ban lists: checking Scryfall ...\", m.color);", "  if (false) {\n    chat(\"[MTG] Ban lists: checking Scryfall ...\", m.color);", T1, "bridge: refresh tells the host it checks, then that the lists are up to date"],
-  ["a change not said to the table", BR, "function onBanlistChanged(l, summary) { chat(`[MTG] ${summary}`); sendBanlist(); }", "function onBanlistChanged(l, summary) { }", T1, "bridge: a refresh that changed the lists says so to everyone"],
+  ["a change not said to the table", BR, "function onBanlistChanged(l, summary) { chat(`[MTG] ${summary}`); if (tableHasFormats) sendBanlist(); }", "function onBanlistChanged(l, summary) { }", T1, "bridge: a refresh that changed the lists says so to everyone"],
+  // (the review fixes of 2026-11-18)
+  ["a changed list not resent to a table that knows formats", BR, "      if (tableKnowsFormats(m)) tableHasFormats = true;\n", "", T1, "bridge: a refresh that changed the lists resends banlist to a table that knows formats (hello, resend, answer)"],
+  ["a changed list sent to an older table", BR, "if (tableHasFormats) sendBanlist(); }", "sendBanlist(); }", T1, "bridge: a changed refresh sends an older table (no format in its hello) only the answer"],
+  ["Æ not spelled Ae", LEG, ".replace(/æ/gi, \"ae\")", "", T1, "status: an 'Æ' name is found by Scryfall's 'Ae' spelling"],
+  ["Arena's 'A /// B' not read", LEG, "normName(slashes(name)), normName(frontFace(slashes(name)))", "normName(frontFace(name))", T1, "status: a split card as Arena writes it ('A /// B'), or 'A/B', or 'A / B'"],
+  ["a failed check waits a day", LEG, "    lastCheck = 0; // (tried again at the next hourly tick, not a day later)\n", "", T3, "short download: the next hourly check tries again (not a day later)"],
+  ["a short download replaces the cache", LEG, "  if (kept < (s.minCards ?? MIN_CARDS) || kept < before.cardCount * 0.8)", "  if (false)", T3, "short download: refused, the cache stays, no temp file left"],
+  ["no card floor without a cache", LEG, "kept < (s.minCards ?? MIN_CARDS) || ", "", T3, "short download: with no cache, a few cards are still not a whole download"],
+  ["a game started mid-download gets the new lists", LEG, "  if (s.busy()) { drop(); lastCheck = 0;", "  if (false) { drop(); lastCheck = 0;", T3, "game started mid-download: the cache stays, the check waits, no temp file left"],
 ];
 
 const sha = (f) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
