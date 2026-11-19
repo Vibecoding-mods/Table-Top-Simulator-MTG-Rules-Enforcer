@@ -1,0 +1,414 @@
+{
+ "casualcommander": {
+  "ready": true,
+  "said": "[MTG] Blue (Kykar): ready. 100 cards + commander Kykar, Wind's Fury; every card is known to the engine.\nCheck: 101 cards (Commander decks are 100 including the commander); more than one copy of: 2× Arcane Signet (fine only if the card allows it)",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [
+    "Blue"
+   ],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "casualcommander (switches off)": {
+  "ready": true,
+  "said": "[MTG] Blue (Kykar): ready. 100 cards + commander Kykar, Wind's Fury; every card is known to the engine.\nCheck: 101 cards (Commander decks are 100 including the commander); more than one copy of: 2× Arcane Signet (fine only if the card allows it)",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [
+    "Blue"
+   ],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "commander": {
+  "ready": false,
+  "said": "[MTG] Blue (Kykar): not ready for Commander.\n- 101 cards: Commander decks are exactly 100 cards, the commander included\n- more than one copy of: 2× Arcane Signet (Commander decks are singleton; basic lands excepted)\n- banned in Commander: Arcane Signet\n- not legal in Commander (not a tournament card): Akroma's Will\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "commander (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Kykar): not ready for Commander.\n- 101 cards: Commander decks are exactly 100 cards, the commander included\n- more than one copy of: 2× Arcane Signet (Commander decks are singleton; basic lands excepted)\n- not legal in Commander (not a tournament card): Akroma's Will",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "duel": {
+  "ready": false,
+  "said": "[MTG] Blue (Kykar): not ready for Duel Commander.\n- 101 cards: Duel Commander decks are exactly 100 cards, the commander included\n- more than one copy of: 2× Arcane Signet (Duel Commander decks are singleton; basic lands excepted)\n- banned in Duel Commander: Arcane Signet\n- restricted in Duel Commander (not as your commander): Kykar, Wind's Fury\n- not legal in Duel Commander (not a tournament card): Akroma's Will\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button), or turn restricted cards off (Restricted cards button).",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "duel (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Kykar): not ready for Duel Commander.\n- 101 cards: Duel Commander decks are exactly 100 cards, the commander included\n- more than one copy of: 2× Arcane Signet (Duel Commander decks are singleton; basic lands excepted)\n- not legal in Duel Commander (not a tournament card): Akroma's Will",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "paupercommander": {
+  "ready": false,
+  "said": "[MTG] Blue (Kykar): not ready for Pauper Commander.\n- 101 cards: Pauper Commander decks are exactly 100 cards, the commander included\n- more than one copy of: 2× Arcane Signet (Pauper Commander decks are singleton; basic lands excepted)\n- banned in Pauper Commander: Arcane Signet\n- not legal in Pauper Commander (not a common, or an uncommon commander): Akroma's Will\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "paupercommander (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Kykar): not ready for Pauper Commander.\n- 101 cards: Pauper Commander decks are exactly 100 cards, the commander included\n- more than one copy of: 2× Arcane Signet (Pauper Commander decks are singleton; basic lands excepted)\n- not legal in Pauper Commander (not a common, or an uncommon commander): Akroma's Will",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "predh": {
+  "ready": false,
+  "said": "[MTG] Blue (Kykar): not ready for PreDH.\n- 101 cards: PreDH decks are exactly 100 cards, the commander included\n- more than one copy of: 2× Arcane Signet (PreDH decks are singleton; basic lands excepted)\n- banned in PreDH: Arcane Signet\n- not legal in PreDH (not from its sets): Akroma's Will\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "predh (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Kykar): not ready for PreDH.\n- 101 cards: PreDH decks are exactly 100 cards, the commander included\n- more than one copy of: 2× Arcane Signet (PreDH decks are singleton; basic lands excepted)\n- not legal in PreDH (not from its sets): Akroma's Will",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "casual60": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Casual 60-card.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "casual60 (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Casual 60-card.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "standard": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Standard.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Standard: Hired Claw, Master of Barbs\n- not legal in Standard (not from its sets): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Standard card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "standard (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Standard.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Standard (not from its sets): Shock\nAlso: not in the Standard card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "pioneer": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Pioneer.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Pioneer: Hired Claw, Master of Barbs\n- not legal in Pioneer (not from its sets): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Pioneer card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "pioneer (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Pioneer.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Pioneer (not from its sets): Shock\nAlso: not in the Pioneer card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "modern": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Modern.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Modern: Hired Claw, Master of Barbs\n- not legal in Modern (not from its sets): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Modern card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "modern (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Modern.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Modern (not from its sets): Shock\nAlso: not in the Modern card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "legacy": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Legacy.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Legacy: Hired Claw, Master of Barbs\n- not legal in Legacy (not a tournament card): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Legacy card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "legacy (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Legacy.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Legacy (not a tournament card): Shock\nAlso: not in the Legacy card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "vintage": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Vintage.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Vintage: Hired Claw, Master of Barbs\n- restricted in Vintage (1 copy each): 4× Burst Lightning\n- not legal in Vintage (not a tournament card): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button), or turn restricted cards off (Restricted cards button).\nAlso: not in the Vintage card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "vintage (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Vintage.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Vintage (not a tournament card): Shock\nAlso: not in the Vintage card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "pauper": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Pauper.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Pauper: Hired Claw, Master of Barbs\n- not legal in Pauper (not a common): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Pauper card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "pauper (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Pauper.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Pauper (not a common): Shock\nAlso: not in the Pauper card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "premodern": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Premodern.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Premodern: Hired Claw, Master of Barbs\n- not legal in Premodern (not from its sets): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Premodern card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "premodern (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Premodern.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Premodern (not from its sets): Shock\nAlso: not in the Premodern card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "oldschool": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Old School.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Old School: Hired Claw, Master of Barbs\n- restricted in Old School (1 copy each): 4× Burst Lightning\n- not legal in Old School (not from its sets): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button), or turn restricted cards off (Restricted cards button).\nAlso: not in the Old School card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "oldschool (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Old School.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Old School (not from its sets): Shock\nAlso: not in the Old School card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "historic": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Historic.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Historic: Hired Claw, Master of Barbs\n- not legal in Historic (not on MTG Arena): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Historic card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "historic (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Historic.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Historic (not on MTG Arena): Shock\nAlso: not in the Historic card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "timeless": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Timeless.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Timeless: Hired Claw, Master of Barbs\n- restricted in Timeless (1 copy each): 4× Burst Lightning\n- not legal in Timeless (not on MTG Arena): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button), or turn restricted cards off (Restricted cards button).\nAlso: not in the Timeless card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "timeless (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Timeless.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Timeless (not on MTG Arena): Shock\nAlso: not in the Timeless card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "alchemy": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Alchemy.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- banned in Alchemy: Hired Claw, Master of Barbs\n- not legal in Alchemy (not on MTG Arena): Shock\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nAlso: not in the Alchemy card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ },
+ "alchemy (switches off)": {
+  "ready": false,
+  "said": "[MTG] Blue (Izzet Phoenix): not ready for Alchemy.\n- more than 4 copies of: 5× Nova Hellkite (basic lands excepted)\n- not legal in Alchemy (not on MTG Arena): Shock\nAlso: not in the Alchemy card data, so not checked: Starting Town",
+  "report": {
+   "t": "deckReport",
+   "request": 7,
+   "ready": [],
+   "checked": [
+    "Blue"
+   ]
+  }
+ }
+}
