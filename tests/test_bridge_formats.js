@@ -66,7 +66,7 @@ async function check(h, e, extra = {}) {
   same("formatKey: as typed or sent", [" Modern", "DUEL", "pauper commander", "old_school", "brawl", null].map(R.formatKey), ["modern", "duel", "paupercommander", "oldschool", null, null]);
   same("formatWords", ["duel", "paupercommander", "predh", "casual60", "oldschool", "nope"].map(R.formatWords), ["Duel Commander", "Pauper Commander", "PreDH", "Casual 60-card", "Old School", "Casual Commander"]);
   same("notLegalReason: §5.3's words", Object.fromEntries(R.FORMATS.map((f) => [f.key, R.notLegalReason(f.key)])), {
-    casualcommander: null, commander: "not a tournament card", duel: "not a tournament card", paupercommander: "not a common, or an uncommon commander", predh: "not from its sets",
+    casualcommander: null, commander: "not a tournament card", duel: "not a tournament card", paupercommander: "not printed at common", predh: "not from its sets",
     casual60: null, standard: "not from its sets", pioneer: "not from its sets", modern: "not from its sets", legacy: "not a tournament card", vintage: "not a tournament card",
     pauper: "not a common", premodern: "not from its sets", oldschool: "not from its sets", historic: "not on MTG Arena", timeless: "not on MTG Arena", alchemy: "not on MTG Arena" });
   same("few: 8 names, then how many more", R.few(["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]), "a, b, c, d, e, f, g, h, and 2 more");
@@ -131,6 +131,33 @@ async function check(h, e, extra = {}) {
     r = fp("modern", { status: st({ Ponder: "b", Brainstorm: "b" }) }, n60(["Ponder", "Brainstorm"]));
     same("modern: the closing line for a banned problem", r.footer, "Ban list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).");
   }
+
+  // ── review fixes (2026-11-18): the real copy limits, Pauper Commander's commander, a seat joining after a refresh ──
+  await run(async (h) => {
+    h.B._setLegality(stub({}));
+    // (the limits are forge-formats.json's, every card's: they held only Standard's five, so these decks were refused;
+    // "Nazgul" as a deck list may spell it, the limit under "Nazgûl")
+    const rats = entry(withCards(KYKAR_99, { "Relentless Rats": 30, "Seven Dwarves": 7, Nazgul: 9 }, "Island", 99), [KYKAR_CMD], "Kykar rats");
+    const r = await check(h, rats, { format: "commander" });
+    ok("commander: 30 Relentless Rats, 7 Seven Dwarves and 9 Nazgul are not 'more than one copy'", !/more than one copy/.test(r.said), r.said);
+    const over = entry(withCards(KYKAR_99, { "Seven Dwarves": 8 }, "Island", 99), [KYKAR_CMD], "Kykar dwarves");
+    const o = await check(h, over, { format: "commander" });
+    ok("commander: an 8th Seven Dwarves is still too many", /more than one copy of: 8× Seven Dwarves/.test(o.said), o.said);
+    h.B._setLegality(stub({ paupercommander: { "Kykar, Wind's Fury": "n", "Arcane Signet": "n" } }));
+    const p = await check(h, entry(KYKAR_99, [KYKAR_CMD], "Kykar"), { format: "paupercommander" });
+    ok("pauper commander: an uncommon commander ('not legal' on Scryfall) is not a problem; a 99 card is",
+      !/not legal in Pauper Commander[^\n]*Kykar/.test(p.said) && /not legal in Pauper Commander \(not printed at common\): Arcane Signet/.test(p.said), p.said);
+  });
+  await run(async (h) => {
+    h.B._setLegality(stub({}, { hash: "old" }));
+    say(h, "format", { color: "White", format: "commander", mode: "commander" });
+    const r = await check(h, entry(KYKAR_99, [KYKAR_CMD], "Kykar"), { format: "commander" });
+    ok("joining after a refresh: the deck is ready under the old hash", r.ready && /\|old$/.test(r.deck?.rules || ""), r.deck?.rules);
+    h.B._onLegalityChanged(stub({}, { hash: "new" }));
+    ok("joining after a refresh: a deck that still passes carries the new hash", /\|new$/.test(h.B._readyDecks.Blue?.rules || ""), h.B._readyDecks.Blue?.rules);
+    same("joining after a refresh: a seat joining the game started under the old hash keeps its checked deck",
+      h.B._readyForGame ? h.B._readyForGame("Blue", "commander|true|true|old") : "no _readyForGame hook", true);
+  });
 
   // ── an older table: no format = today's checks, no rules recorded ──
   await run(async (h) => {

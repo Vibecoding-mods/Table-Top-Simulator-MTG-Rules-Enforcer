@@ -74,6 +74,11 @@ const MUTATIONS = [
   ["ai list: not checked under the format", B, "const problems = fr ? deckFormatCheck(fr, main, cmd, side).problems : standardProblems(main, cmd, side);", "const problems = standardProblems(main, cmd, side);", "ai list: checked under the format"],
   ["presets: not filtered by the format", B, "  if (gameMode.format && formatRules.formatOf(gameMode.format).mode === mode) {\n    const key = rulesKey();", "  if (false) {\n    const key = rulesKey();", "presets: the format's check filters them"],
   ["format: the new format's banlist not sent", B, "  tableHasFormats = true;\n  sendBanlist(banlistFormat(m));\n}", "  tableHasFormats = true;\n}", "format: each change sends the table that format's banlist (its count, the formats with none)"],
+  // (the review fixes of 2026-11-18)
+  ["limits: by the exact name (no 'Nazgul' for 'Nazgûl')", B, "limit: (n) => limits.get(normName(n)) };", "limit: (n) => limits.get(n) };", "commander: 30 Relentless Rats, 7 Seven Dwarves and 9 Nazgul are not 'more than one copy'"],
+  ["limits: Standard's only", B, "  if (!copyLimitMap) copyLimitMap = new Map(Object.entries(forgeFormat(\"Standard\")?.limits || {})", "  if (!copyLimitMap) copyLimitMap = new Map(Object.entries(forgeFormat(\"Standard\")?.limits || {}).filter(([n]) => forgeFormat(\"Standard\").legal.has(n))", "commander: 30 Relentless Rats, 7 Seven Dwarves and 9 Nazgul are not 'more than one copy'"],
+  ["pauper commander: the commander checked as a common", F, "&& !cmdOnly.has(n));", ");", "pauper commander: an uncommon commander ('not legal' on Scryfall) is not a problem; a 99 card is"],
+  ["joining: the list's hash compared", B, "noHash(readyDecks[c].rules || readyDecks[c].mode || \"commander\") === noHash(rules);", "(readyDecks[c].rules || readyDecks[c].mode || \"commander\") === rules;", "joining after a refresh: a seat joining the game started under the old hash keeps its checked deck"],
 ];
 
 const pattern = process.argv.slice(2).find((a) => !a.startsWith("--"));

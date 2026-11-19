@@ -77,7 +77,7 @@
  },
  "paupercommander": {
   "ready": false,
-  "said": "[MTG] Blue (Kykar): not ready for Pauper Commander.\n- 101 cards: Pauper Commander decks are exactly 100 cards, the commander included\n- more than one copy of: 2× Arcane Signet (Pauper Commander decks are singleton; basic lands excepted)\n- banned in Pauper Commander: Arcane Signet\n- not legal in Pauper Commander (not a common, or an uncommon commander): Akroma's Will\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).",
+  "said": "[MTG] Blue (Kykar): not ready for Pauper Commander.\n- 101 cards: Pauper Commander decks are exactly 100 cards, the commander included\n- more than one copy of: 2× Arcane Signet (Pauper Commander decks are singleton; basic lands excepted)\n- banned in Pauper Commander: Arcane Signet\n- not legal in Pauper Commander (not printed at common): Akroma's Will\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).",
   "report": {
    "t": "deckReport",
    "request": 7,
@@ -89,7 +89,7 @@
  },
  "paupercommander (switches off)": {
   "ready": false,
-  "said": "[MTG] Blue (Kykar): not ready for Pauper Commander.\n- 101 cards: Pauper Commander decks are exactly 100 cards, the commander included\n- more than one copy of: 2× Arcane Signet (Pauper Commander decks are singleton; basic lands excepted)\n- not legal in Pauper Commander (not a common, or an uncommon commander): Akroma's Will",
+  "said": "[MTG] Blue (Kykar): not ready for Pauper Commander.\n- 101 cards: Pauper Commander decks are exactly 100 cards, the commander included\n- more than one copy of: 2× Arcane Signet (Pauper Commander decks are singleton; basic lands excepted)\n- not legal in Pauper Commander (not printed at common): Akroma's Will",
   "report": {
    "t": "deckReport",
    "request": 7,
