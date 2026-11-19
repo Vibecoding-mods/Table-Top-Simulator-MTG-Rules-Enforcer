@@ -18,6 +18,7 @@ const turnOf = (gv, id) => (teams2hg.sharesTurns(gv) ? teams2hg.isTurnOf(gv, id)
 // game not who's partner either (a partner's spell is the team's own, not one to answer)
 const notOurs = (gv, ctl, who) => ctl !== who && !teams2hg.turnPartners(gv, ctl, who);
 const home = require("./home"); // where the data and logs are (MTG_HOME, MTG_LOG_DIR; unset: the repo)
+const legality = require("./legality"); // the ban lists: Scryfall's, cached under tmp/, else Forge's (docs/format-banlist-spec.md §4)
 
 const arg = (name, def) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -1057,6 +1058,7 @@ function onFormat(m) {
   const before = gameMode.mode;
   noteMode(m);
   if (gameMode.mode !== before) aiSeatsOffMode(gameMode.mode);
+  sendBanlist(banlistFormat(m)); // (the table's Banned list button and tab, for the new format)
 }
 // (the table said it to everyone; the Forge AI seats set for the other mode are said here, they play a built-in deck,
 // deckForMode; a harmless bot keeps its own)
@@ -1120,25 +1122,17 @@ function standardProblems(cards, commanders = [], sideboard = []) {
 // ── The formats' ban lists (format-banlist-spec §6.3). The data is bridge/legality.js's (piece A), read when first
 // needed; without it, Standard is checked against Forge's own list (forge-formats.json) and another format's list is
 // said not checked. A refresh that changes the list re-checks the ready decks (onLegalityChanged).
-let legality; // undefined: not read yet; null: none
-function legalityNow() {
-  if (legality === undefined) {
-    legality = null;
-    try {
-      const L = require("./legality");
-      legality = L.loadLegality() || null;
-      if (typeof L.onLegalityChanged === "function") L.onLegalityChanged((l) => guarded("ban list refresh", () => onLegalityChanged(l)));
-    } catch (e) { if (e?.code !== "MODULE_NOT_FOUND") log(`ban list data: ${e.message}`); }
-  }
-  return legality;
-}
+let banData; // the data a refresh handed over (onLegalityChanged), or a test's; undefined: legality.js's own
+const legalityNow = () => (banData !== undefined ? banData : legality.loadLegality() || null);
 // the list a format's decks are checked against: { status, source, date, hash }, or null (a Casual format, or no data)
 function listFor(key) {
   const f = formatRules.formatOf(key);
   if (!f.list) return null;
   const l = legalityNow();
   if (l && typeof l.status === "function" && (typeof l.has !== "function" || l.has(f.key))) {
-    return { status: (k, n) => l.status(k, n), source: l.source || null, date: l.date || null, hash: String(l.hash ?? "") };
+    // (the data in words, legality.js's: "Scryfall, 2026-11-18", "Forge, 2026-09-21", with "(old: offline?)")
+    const words = /^(scryfall|forge)$/.test(l.source) ? legality.sourceWords(l) : [l.source, l.date].filter(Boolean).join(", ");
+    return { status: (k, n) => l.status(k, n), source: words || null, date: null, hash: String(l.hash ?? "") };
   }
   if (f.key === "standard") {
     const s = forgeFormat("Standard");
@@ -1179,7 +1173,7 @@ function notReadyText(label, words, problems, warnings, footer, more = "") {
 // A refresh changed the list (legality.js's onLegalityChanged): every deck readied under a format is checked again. One
 // that now fails is no longer ready (its alert, and a red Ready button); one that passes is ready under the new hash.
 function onLegalityChanged(l) {
-  legality = l || null;
+  banData = l || null;
   legalStandard.clear();
   const dropped = [];
   for (const c of Object.keys(readyDecks)) {
@@ -13297,6 +13291,9 @@ function onTTS(m) {
     case "check":
       noteCheck(m);
       break;
+    case "banlist":
+      onBanlist(m);
+      break;
     case "hello":
       tableStamp = m.stamp ?? null;
       tableKeepsRewind = m.keepRewind === true;
@@ -13310,6 +13307,7 @@ function onTTS(m) {
       if (game?.started && game.fromTable) resendToTable(); // the table was reloaded mid-game
       // (a table that drew nothing yet asks again: the greeting once is enough)
       if (!m.again) chat(`[MTG] Bridge connected (relay ${RELAY}). Type "mtg help".`);
+      if (!m.again && tableKnowsFormats(m)) sendBanlist(banlistFormat(m)); // (the ban list data for the table's format, and the formats with none)
       if (game) for (const s of game.seats.values()) { scheduleView(s); }
       break;
     case "start": {
@@ -15018,6 +15016,38 @@ const debugServer = http.createServer((req, res) => {
   } else { res.writeHead(404); res.end(); }
 });
 
+// ───── The ban lists (docs/format-banlist-spec.md §4.2, §6.3): the table's "banlist" messages, the daily check ─────
+// The format the table last said (piece B keeps it in gameMode.format); none said is Casual Commander, which has no list.
+const banlistFormat = (m) => String(m?.format || gameMode.format || "casualcommander").trim().toLowerCase();
+// a table script that knows formats says one in its hello (an older one doesn't, and is sent nothing new)
+const tableKnowsFormats = (m) => m.format !== undefined || m.formats === true;
+function sendBanlist(format = banlistFormat()) { toTTS(legality.banlistMessage(format)); }
+// {t:"banlist", color, refresh:true} (the host's button or "mtg banlist refresh": the table checks it is the host),
+// then the answer; {t:"banlist", color, format}: that format's names, for the table's Notebook tab
+function onBanlist(m) {
+  if (m.refresh) {
+    chat("[MTG] Ban lists: checking Scryfall ...", m.color);
+    legality.refreshLegality({ force: true })
+      .then((r) => { if (!r.changed) chat(`[MTG] ${r.summary}`, m.color); sendBanlist(banlistFormat(m)); })
+      .catch((e) => { log(`ban lists: ${e.message}`); chat(`[MTG] Ban lists: the check failed (${e.message}).`, m.color); });
+    return;
+  }
+  const format = banlistFormat(m);
+  if (!legality.loadLegality().has(format)) { sendBanlist(format); return; }
+  toTTS(legality.banlistNamesMessage(format));
+}
+// a refresh that changed the lists: everyone is told, and the table gets the new version (piece B re-checks READY decks)
+function onBanlistChanged(l, summary) { chat(`[MTG] ${summary}`); sendBanlist(); }
+legality.onLegalityChanged(onBanlistChanged);
+// (and the decks readied under a format are checked again, piece B)
+legality.onLegalityChanged((l) => guarded("ban list refresh", () => onLegalityChanged(l)));
+function startBanlists() {
+  legality.configure({ log, busy: () => !!game?.started });
+  const l = legality.loadLegality();
+  log(`ban lists: ${legality.sourceWords(l)}${l.source ? `, ${legality.KEYS.length - l.missing().length} formats` : ""}`);
+  legality.startLegalityTimer();
+}
+
 if (require.main === module) {
   debugServer.listen(DEBUG_PORT, "127.0.0.1").on("error", (e) => log(`debug port ${DEBUG_PORT} unavailable: ${e.message}`));
   server.listen(TTS_IN, "127.0.0.1", () => log(`Bridge listening for TTS on ${TTS_IN}; relay ${RELAY}, room "${ROOM}". Load tts/mtg-board.lua in TTS.`));
@@ -15025,6 +15055,7 @@ if (require.main === module) {
   process.on("SIGINT", () => { if (game) { game.closing = true; for (const s of allSeats()) s.close(); } setTimeout(() => process.exit(0), 200); });
   resumeGame();
   setInterval(() => { guarded("save game", saveResume); guarded("fix watchdog", fixWatchdog); }, 5000);
+  startBanlists();
 } else {
   // Loaded by a test (tests/bridge-harness.js): the logic without servers. `game` is set through _setGame.
   module.exports = {
@@ -15038,7 +15069,8 @@ if (require.main === module) {
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _loopMap: loopMap, _loopCands: loopCands, _loopSig: loopSig, _customArt: customArt, artProblem, isCustomArt,
     fixOps, phaseNumber, fxFacts, gameEndWords, mutateWords, fewNames, NUMBER_PICK_MAX, FEW_NAMES, _effectMarks: effectMarks, DAMAGE_PICK_MAX, _ttsStats: ttsStats, _saveLargest: saveLargest, _noteBoard: noteBoard,
     standardProblems, modeWords, loadPreset, STANDARD_DECKS, _gameMode: gameMode,
-    rulesKey, rulesWords, presetsFor, gameOverLine, _onLegalityChanged: (l) => onLegalityChanged(l), _setLegality: (l) => { legality = l; legalStandard.clear(); },
+    rulesKey, rulesWords, presetsFor, gameOverLine, _onLegalityChanged: (l) => onLegalityChanged(l), _setLegality: (l) => { banData = l; legalStandard.clear(); },
+    _onBanlist: onBanlist, _onBanlistChanged: onBanlistChanged, _legality: legality, // the ban lists (docs/format-banlist-spec.md §6.3)
     onGifMessage, onGifKey, _gifs: gifs, _gifFavs: gifFavs, // GIF frames
   };
 }
