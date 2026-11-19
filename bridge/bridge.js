@@ -13157,6 +13157,7 @@ function onTTS(m) {
       if (game?.started && game.fromTable) resendToTable(); // the table was reloaded mid-game
       // (a table that drew nothing yet asks again: the greeting once is enough)
       if (!m.again) chat(`[MTG] Bridge connected (relay ${RELAY}). Type "mtg help".`);
+      if (tableKnowsFormats(m)) tableHasFormats = true;
       if (!m.again && tableKnowsFormats(m)) sendBanlist(banlistFormat(m)); // (the ban list data for the table's format, and the formats with none)
       if (game) for (const s of game.seats.values()) { scheduleView(s); }
       break;
@@ -14884,7 +14885,8 @@ function onBanlist(m) {
   toTTS(legality.banlistNamesMessage(format));
 }
 // a refresh that changed the lists: everyone is told, and the table gets the new version (piece B re-checks READY decks)
-function onBanlistChanged(l, summary) { chat(`[MTG] ${summary}`); sendBanlist(); }
+let tableHasFormats = false; // a hello said format / formats: an older table script is sent no "banlist" after a refresh
+function onBanlistChanged(l, summary) { chat(`[MTG] ${summary}`); if (tableHasFormats) sendBanlist(); }
 legality.onLegalityChanged(onBanlistChanged);
 function startBanlists() {
   legality.configure({ log, busy: () => !!game?.started });

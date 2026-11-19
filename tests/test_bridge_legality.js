@@ -103,6 +103,14 @@ const write = (name, data) => { const f = path.join(dir, name); realWrite(f, typ
     same("status: accents and curly quotes are the bridge's normName", [l.status("legacy", "Jotun Grunt"), l.status("commander", "Thassa’s Oracle")], ["l", "l"]);
     same("status: a split card by 'A // B', a half, or 'A // something'", [l.status("modern", "Fire // Ice"), l.status("modern", "Ice"), l.status("modern", "Fire // Anything")], ["l", "l", "l"]);
     same("status: a DFC by its front face (the engine's name) or its back", [l.status("pauper", "Delver of Secrets"), l.status("pauper", "Insectile Aberration")], ["b", "b"]);
+    same("status: a split card as Arena writes it ('A /// B'), or 'A/B', or 'A / B'", [l.status("modern", "Fire /// Ice"), l.status("modern", "Fire/Ice"), l.status("modern", "Fire / Ice")], ["l", "l", "l"]);
+    {
+      const vial = reduceLines([JSON.stringify({ name: "Aether Vial", layout: "normal", legalities: legal({ pauper: "not_legal" }) })]);
+      use({ cacheFile: write("vial.json", vial) });
+      const v = L.loadLegality();
+      same("status: an 'Æ' name is found by Scryfall's 'Ae' spelling", [v.status("modern", "Æther Vial"), v.status("modern", "æther vial"), v.status("pauper", "Æther Vial")], ["l", "l", "n"]);
+      use({ cacheFile, forgeFile });
+    }
     same("status: an adventure by its front", l.status("pauper", "Bonecrusher Giant"), "n");
     same("status: an un-card is not legal in Commander", l.status("commander", "Mox Lotus"), "n");
     same("status: an unknown card is null (not checked, not 'not legal')", l.status("modern", "Some Card Printed Tomorrow"), null);
@@ -185,7 +193,7 @@ const write = (name, data) => { const f = path.join(dir, name); realWrite(f, typ
       h.B._legality.onLegalityChanged(h.B._onBanlistChanged); // (this bridge copy's own, as the bridge registers it at load)
       // (the worker's own download is test 3's: here the reduction is written with the real fs the harness hides)
       const runWorker = async (job) => { const red = reduceLines(lines, job.updatedAt); realWrite(job.outFile, JSON.stringify(red)); return { ok: true, hash: red.hash }; };
-      h.B._legality.configure({ cacheFile: file, forgeFile, log: () => {}, busy: () => false, now: () => Date.parse("2026-11-19T12:00:00Z"), fetch: stub, runWorker });
+      h.B._legality.configure({ cacheFile: file, forgeFile, minCards: 1, log: () => {}, busy: () => false, now: () => Date.parse("2026-11-19T12:00:00Z"), fetch: stub, runWorker });
     };
     const settle = async (h) => { for (let i = 0; i < 20; i++) { await new Promise((r) => realImmediate(r)); await h.flush(); } };
     await run(async (h) => {
@@ -204,7 +212,14 @@ const write = (name, data) => { const f = path.join(dir, name); realWrite(f, typ
       const chats = h.effects.filter((e) => e.tts?.t === "chat").map((e) => [e.tts.color || null, e.tts.text]);
       ok("bridge: a refresh that changed the lists says so to everyone",
         chats.some(([c, t]) => !c && t === "[MTG] Ban lists updated (Scryfall, 2026-11-19): Modern +1 banned."), JSON.stringify(chats));
-      same("bridge: a refresh that changed the lists resends banlist", sent(h, "banlist").length, 2);
+      same("bridge: a changed refresh sends an older table (no format in its hello) only the answer", sent(h, "banlist").length, 1);
+    });
+    await run(async (h) => {
+      say(h, "hello", { t: "hello", color: "White", format: "modern" });
+      refreshWorld(h, "2026-11-19T10:00:00Z", (c) => { c.formats.modern.banned = []; });
+      say(h, "banlist", { t: "banlist", color: "White", refresh: true, format: "modern" });
+      await settle(h);
+      same("bridge: a refresh that changed the lists resends banlist to a table that knows formats (hello, resend, answer)", sent(h, "banlist").length, 3);
     });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

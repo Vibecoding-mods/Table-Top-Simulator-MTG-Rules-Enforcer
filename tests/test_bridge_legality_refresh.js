@@ -44,7 +44,7 @@ function world({ updatedAt = "2026-11-19T10:00:00.000+00:00", body = zlib.gzipSy
     return new Response(body, { status: 200 });
   };
   L._reset();
-  L.configure({ cacheFile, forgeFile: path.join(dir, "no-forge.json"), fetch: w.fetch, now: () => w.now, log: (s) => w.logs.push(s), busy: () => w.busy,
+  L.configure({ cacheFile, minCards: 1, forgeFile: path.join(dir, "no-forge.json"), fetch: w.fetch, now: () => w.now, log: (s) => w.logs.push(s), busy: () => w.busy,
     runWorker: (job) => W.downloadAndReduce({ ...job, fetch: w.fetch }) });
   L.onLegalityChanged((l, summary) => w.changed.push({ hash: l.hash, summary }));
   return w;
@@ -139,6 +139,27 @@ const tmpLeft = (w) => fs.readdirSync(dir).filter((f) => f.startsWith(path.basen
     r = await L.refreshLegality();
     same("mid-game: after the game the check runs", [w.downloads, r.changed], [1, false]);
 
+    // ── a game that starts during the download keeps the lists it started with ──
+    w = world({ cache: older() });
+    L.configure({ runWorker: async (job) => { const d = await W.downloadAndReduce({ ...job, fetch: w.fetch }); w.busy = true; return d; } });
+    r = await L.refreshLegality({ force: true });
+    ok("game started mid-download: the cache stays, the check waits, no temp file left",
+      r.waiting && !r.changed && L.loadLegality().updatedAt === "2026-11-18T10:01:54.000+00:00" && w.changed.length === 0 && tmpLeft(w).length === 0, `${JSON.stringify(r)} ${tmpLeft(w)}`);
+
+    // ── a download cut short never replaces a good cache ──
+    w = world({ cache: older(), body: zlib.gzipSync(FIXTURE.split("\n").slice(0, 2).join("\n") + "\n") });
+    r = await L.refreshLegality({ force: true });
+    ok("short download: refused, the cache stays, no temp file left",
+      r.failed && /only \d+ cards/.test(r.summary) && L.loadLegality().updatedAt === "2026-11-18T10:01:54.000+00:00" && tmpLeft(w).length === 0, `${JSON.stringify(r)} ${tmpLeft(w)}`);
+    w.now += 61 * 60 * 1000;
+    w.asked.length = 0;
+    await L.refreshLegality();
+    same("short download: the next hourly check tries again (not a day later)", w.asked.length > 0, true);
+    w = world({ cache: null });
+    L.configure({ minCards: 10000 });
+    r = await L.refreshLegality({ force: true });
+    ok("short download: with no cache, a few cards are still not a whole download", r.failed && /only \d+ cards/.test(r.summary) && L.loadLegality().source === null, JSON.stringify(r));
+
     // ── once a day unless forced ──
     w = world({ updatedAt: "2026-11-18T10:01:54.000+00:00", cache: older() });
     await L.refreshLegality();
@@ -198,7 +219,7 @@ const tmpLeft = (w) => fs.readdirSync(dir).filter((f) => f.startsWith(path.basen
     const port = server.address().port;
     L._reset();
     const cacheFile = path.join(dir, "thread-cache.json");
-    L.configure({ cacheFile, forgeFile: path.join(dir, "no-forge.json"), now: () => T0, log: () => {}, busy: () => false,
+    L.configure({ cacheFile, minCards: 1, forgeFile: path.join(dir, "no-forge.json"), now: () => T0, log: () => {}, busy: () => false,
       fetch: (u, o) => fetch(String(u) === L.META_URL ? `http://127.0.0.1:${port}/meta` : u, o) });
     const { runWorker } = L._defaults(); // (a fresh bridge's: a worker_threads Worker running bridge/legality-worker.js)
     ok("thread: the default runs a worker thread", runWorker === L.runInWorkerThread, runWorker.name);
