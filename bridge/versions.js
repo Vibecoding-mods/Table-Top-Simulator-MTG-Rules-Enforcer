@@ -11,7 +11,7 @@ const home = require("./home");
 const ROOT = path.join(__dirname, "..");
 const MANIFEST = home.data("stack", "deployed.json");
 const COMPOSE = home.data("stack", "compose.yml");
-const BRIDGE_FILES = ["bridge.js", "state-delta.js", "presets.js", "versions.js", "editor-forward.js", "home.js", "gifs.js", "teams.js", "accomplishments.js"].map((f) => path.join(__dirname, f));
+const BRIDGE_FILES = ["bridge.js", "state-delta.js", "presets.js", "versions.js", "editor-forward.js", "home.js", "gifs.js", "teams.js", "accomplishments.js", "legality.js", "legality-worker.js"].map((f) => path.join(__dirname, f));
 // the table script's source: tools/make-engine-copy.js appends both to the table's Global (engine-json.lua is the JSON
 // decoder, 2026-11-05)
 const TABLE_SOURCE = [path.join(ROOT, "tools", "engine-renderer.lua"), path.join(ROOT, "tools", "engine-json.lua")];
