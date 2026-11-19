@@ -407,6 +407,61 @@ New module `bridge/legality.js` (pure, testable without network) plus `bridge/le
   games' goldens stay byte-identical.
 - Deploying: Global only (`tools/patch-save.js`); no object script changes, so no wiping push.
 
+### 6.5 C decided (the table, piece C, built 2026-11-18)
+
+Where §6.1-6.4 left a choice, piece C chose as below. A and B match these shapes.
+
+**Format keys.** Scryfall's legality keys, plus two of ours for the Casual formats: `casualcommander` (the default)
+and `casual60`. The table's list and its button order (`ENGINE_FORMATS`, `tools/engine-renderer.lua`): casualcommander,
+commander, duel, paupercommander, predh, casual60, standard, pioneer, modern, legacy, vintage, pauper, premodern,
+oldschool, historic, timeless, alchemy. Game mode: the first five `commander`, the rest `standard`. Restricted switch:
+vintage, oldschool, timeless (1 copy each) and duel (not as a commander). B's `FORMATS` uses the same keys; the table
+does not read the list from the bridge.
+
+**Table → bridge.** In every message `banned` and `restricted` are booleans, `true` = enforced (the default).
+- `format`: `{color, format, mode, banned, restricted}`, on every change of the format or of a switch. It **replaces**
+  the old `mode` message (the table no longer sends `mode` on its own). `mode` is in it, so the bridge's
+  `case "format"` can be `noteMode(m)`.
+- `hello`, `decks`, `start`: `format`, `banned`, `restricted` beside `mode`, **only when the format is not
+  casualcommander**. Casual Commander sends exactly today's messages.
+- `banlist`: `{color, refresh: true}` from `mtg banlist refresh` (host-checked on the table). `{color, format}` (no
+  `refresh`) when someone presses Banned list and the Notebook doesn't hold that format's current list: the bridge
+  answers with `banlist` and `banlistNames` for that format.
+- `mtg mode standard` / `mtg mode commander` (kept) pick the Standard / the Casual Commander format.
+
+**Bridge → table.**
+- `banlist`: `{format, source, date, counts: {banned, restricted}, missing: [keys]}`.
+  - `source`: `"scryfall"` or `"forge"` (the table capitalises it).
+  - `date`: the text shown after it, "2026-11-18". The bridge puts any "(old: offline?)" into `date` itself.
+  - `missing` (optional): when present it replaces the table's whole set of formats with no list. The Format button
+    skips them both ways; typed, they are refused: "Duel Commander needs its ban list: the bridge hasn't downloaded it
+    yet (mtg banlist refresh)."
+  - Counts are kept per format, so the bridge may send any format's.
+- `banlistNames`: `{format, source, date, banned: [names], restricted: [names]}`. The table writes it only when
+  `format` is the table's current format. It sorts the names itself and takes the counts from them.
+- `deckReport`, `chat`: unchanged. A format problem is one more line in the bridge's "not ready" chat; the
+  `deckReport` turns the button red as today.
+
+**What the player sees.**
+- The Format button keeps the Game mode button's click function name (`onMtgSetupMode`) and spot. Its label is
+  `Format\n<name>`. The font shrinks for a name over 14 letters.
+- Banned cards (`onMtgSetupBanned`): only for a format with a list. Restricted cards (`onMtgSetupRestricted`): only
+  for the four formats above. A switch the host turned off is drawn yellow, a house rule.
+- Banned list (`onMtgSetupBanlist`): always shown. Its label is `Banned list\nModern: 52` (a colon, not a middle dot,
+  for the font; the banned count only), `Banned list\nNone` in a Casual format, and `?` before the bridge's count
+  arrives.
+- The Notebook tab is titled **"Banned list"** for every format (§6.2's "Banned: Modern" was one fixed title).
+  Its body:
+  - first line "Modern: 52 banned (Scryfall, 2026-11-18).";
+  - then "Banned (52):" with one name a line;
+  - then, if any, "Restricted (N, 1 copy each):" (Duel Commander: ", not as a commander").
+- The change line: "[MTG] Host set the format: Modern (60+ cards, at most 4 of a card, no commander; 20 life; banned
+  cards not allowed; ban list Scryfall, 2026-11-18). Everyone presses READY again." The ban list part is there once
+  the bridge has sent that format's `banlist`.
+  - Duel Commander and Pauper Commander add "its own starting life isn't played yet: 40, as Commander".
+  - A switch change says the same line.
+  - Mid-game the change is "for the next game", and the game's READYs stay.
+
 ## 7. Multiplayer
 
 - **Who picks:** the host (host, admin or promoted, as every other setup switch). Everyone sees the Format, Banned
