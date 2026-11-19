@@ -11,8 +11,10 @@ const path = require("path");
 const crypto = require("crypto");
 
 // Scryfall's legality keys we offer (§3.1). casualcommander and casual60 have no list: has() is false for them.
+// Not oldschool: Scryfall's Old School data calls Black Lotus and Ancestral Recall not legal and has 323 legal cards in
+// all (checked 2026-11-18), and Forge has no list for it, so has("oldschool") is false and the table skips it.
 const KEYS = ["commander", "duel", "paupercommander", "predh", "standard", "pioneer", "modern", "legacy", "vintage", "pauper",
-  "premodern", "oldschool", "historic", "timeless", "alchemy"];
+  "premodern", "historic", "timeless", "alchemy"];
 const WORDS = { commander: "Commander", duel: "Duel Commander", paupercommander: "Pauper Commander", predh: "PreDH", standard: "Standard",
   pioneer: "Pioneer", modern: "Modern", legacy: "Legacy", vintage: "Vintage", pauper: "Pauper", premodern: "Premodern",
   oldschool: "Old School", historic: "Historic", timeless: "Timeless", alchemy: "Alchemy" };
