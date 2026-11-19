@@ -153,6 +153,9 @@ async function check(h, e, extra = {}) {
     same("format: the switches as sent", { ...G }, { mode: "standard", format: "vintage", banned: false, restricted: false });
     say(h, "format", { color: "White", format: "duel", mode: "commander" });
     same("format: Duel Commander, switches unsaid are on", { ...G }, { mode: "commander", format: "duel", banned: true, restricted: true });
+    await h.flush();
+    same("format: each change sends the table that format's banlist (its count, the formats with none)",
+      h.effects.filter((e) => e.tts?.t === "banlist").map((e) => e.tts.format), ["modern", "vintage", "duel"]);
     say(h, "hello", { stamp: 1 });
     same("hello with no format: back to Casual Commander", { ...G }, { mode: "commander", format: null, banned: true, restricted: true });
     say(h, "hello", { stamp: 1, format: "pioneer", mode: "standard", banned: false });

@@ -1058,6 +1058,10 @@ function onFormat(m) {
   const before = gameMode.mode;
   noteMode(m);
   if (gameMode.mode !== before) aiSeatsOffMode(gameMode.mode);
+  // (only the Format button's table sends "format": its Banned list button shows the new format's count, and the
+  // Format button skips the formats with no list)
+  tableHasFormats = true;
+  sendBanlist(banlistFormat(m));
 }
 // (the table said it to everyone; the Forge AI seats set for the other mode are said here, they play a built-in deck,
 // deckForMode; a harmless bot keeps its own)
