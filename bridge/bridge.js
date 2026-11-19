@@ -8,6 +8,7 @@ const path = require("path");
 const { execFile } = require("child_process");
 const delta = require("./state-delta");
 const versions = require("./versions");
+const formatRules = require("./format-rules"); // the formats and their deck check (docs/format-banlist-spec.md §3, §5)
 const teams2hg = require("./teams"); // the team modes: Two-Headed Giant, 2v2, Juggernaut (docs/game-modes-spec.md §4-§6)
 // Whether it is player id's turn on board gv: the active player's, and in a Two-Headed Giant Level 2 game ("sharedTurns",
 // CR 805.4) the active player's partner's too. Every "is it my turn" check of the bridge reads this; outside a
@@ -17,6 +18,7 @@ const turnOf = (gv, id) => (teams2hg.sharesTurns(gv) ? teams2hg.isTurnOf(gv, id)
 // game not who's partner either (a partner's spell is the team's own, not one to answer)
 const notOurs = (gv, ctl, who) => ctl !== who && !teams2hg.turnPartners(gv, ctl, who);
 const home = require("./home"); // where the data and logs are (MTG_HOME, MTG_LOG_DIR; unset: the repo)
+const legality = require("./legality"); // the ban lists: Scryfall's, cached under tmp/, else Forge's (docs/format-banlist-spec.md §4)
 
 const arg = (name, def) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -724,6 +726,10 @@ function onSideboardAnswer(color, picks) {
     const bad = main.length < MAIN_MIN ? `That swap leaves ${main.length} cards in your main deck: it needs ${MAIN_MIN} or more.`
       : side.length > SIDE_MAX ? `That swap leaves ${side.length} cards in your sideboard: at most ${SIDE_MAX}.` : null;
     if (bad) { chat(`[MTG] ${bad} Nothing was changed.`, color); return askSideboard(color); }
+    // (a format's game: the new deck under the game's rules, format-banlist-spec §7)
+    const gr = rulesOf(game?.rules);
+    const fbad = gr ? deckFormatCheck(gr, main.map(cardName), [], side.map(cardName)).problems : [];
+    if (fbad.length) { chat(`[MTG] That swap isn't legal in ${formatRules.formatWords(gr.format)}: ${fbad.join("; ")}. Nothing was changed.`, color); return askSideboard(color); }
     const outNames = [...outSet].map((i) => cardName(d.main[i])), inNames = [...inSet].map((i) => cardName(d.side[i]));
     d.main = main; d.side = side;
     if (!outNames.length && !inNames.length) return sideboardDone(color, `${matchName(color)} keeps their deck for game ${n} (${deckWords(d)}).`);
@@ -1013,7 +1019,9 @@ const MODES = {
 };
 // the bot decks of a mode when nothing else was chosen (decks/standard_*.json: real lists, each file says where from)
 const STANDARD_DECKS = ["standard_rakdos_ingris", "standard_mono_green_landfall", "standard_orzhov_soul_sisters", "standard_dimir_aggro"];
-const gameMode = { mode: "commander" }; // the next games' mode, as the table last said
+// the next games' mode, as the table last said; format: the table's Format (null: Casual Commander, or an older table's
+// Standard, today's checks), banned / restricted: its two switches, true when enforced (format-banlist-spec §6.1)
+const gameMode = { mode: "commander", format: null, banned: true, restricted: true };
 // a mode name as typed or sent ("Standard", " commander"), or null
 const modeOf = (x) => { const k = String(x ?? "").trim().toLowerCase(); return Object.hasOwn(MODES, k) ? k : null; };
 const defaultDecksOf = (mode) => (mode === "standard" ? STANDARD_DECKS : DEFAULT_DECKS);
@@ -1024,17 +1032,40 @@ function modeWords(mode, players) {
 }
 // the table's mode, from a message the table sends it with (hello, decks, start, mode). The table sends it only for
 // Standard, so a message without one is Commander (an older table script, a reloaded table, a test's start).
+// A message with a format (the Format button's table, format-banlist-spec §6.1) says the mode by it, and its switches
+// (sent only as false, when off); Casual Commander is said by sending no format.
 function noteMode(m) {
-  const k = modeOf(m?.mode) || "commander";
+  const fk = formatRules.formatKey(m?.format);
+  const k = fk ? formatRules.formatOf(fk).mode : modeOf(m?.mode) || "commander";
   if (k !== gameMode.mode) { log(`game mode: ${k}`); gameMode.mode = k; }
+  const f = fk && fk !== formatRules.DEFAULT_FORMAT ? fk : null;
+  const banned = !f || m.banned !== false, restricted = !f || m.restricted !== false;
+  if (f !== gameMode.format || banned !== gameMode.banned || restricted !== gameMode.restricted) {
+    gameMode.format = f; gameMode.banned = banned; gameMode.restricted = restricted;
+    log(`format: ${rulesWords(rulesKey())}`);
+  }
   return gameMode.mode;
 }
 function onMode(m) {
   const k = modeOf(m.mode);
   if (!k) return chat("[MTG] Use:  mtg mode standard  or  mtg mode commander", m.color);
   noteMode(m);
-  // (the table said it to everyone; the Forge AI seats set for the other mode are said here, they play a built-in deck,
-  // deckForMode; a harmless bot keeps its own)
+  aiSeatsOffMode(k);
+}
+// "format" (the table's Format button and switches, host-checked there): the table says it to everyone and clears every
+// READY; a deck readied before is not ready for these rules anyway (readyFor)
+function onFormat(m) {
+  const before = gameMode.mode;
+  noteMode(m);
+  if (gameMode.mode !== before) aiSeatsOffMode(gameMode.mode);
+  // (only the Format button's table sends "format": its Banned list button shows the new format's count, and the
+  // Format button skips the formats with no list)
+  tableHasFormats = true;
+  sendBanlist(banlistFormat(m));
+}
+// (the table said it to everyone; the Forge AI seats set for the other mode are said here, they play a built-in deck,
+// deckForMode; a harmless bot keeps its own)
+function aiSeatsOffMode(k) {
   const off = TABLE_COLORS.filter((c) => aiSeatChoice[c]?.kind === "forge" && (aiSeatChoice[c].deck.deck.format || "commander") !== MODES[k].deck);
   if (off.length) chat(`[MTG] In ${MODES[k].words} the AI seat${off.length > 1 ? "s" : ""} ${off.join(", ")} set with a ${k === "standard" ? "Commander" : "Standard"} deck play${off.length > 1 ? "" : "s"} a built-in ${MODES[k].words} deck instead (mtg ai <colour> forge <deck> to choose).`);
 }
@@ -1089,6 +1120,91 @@ function standardProblems(cards, commanders = [], sideboard = []) {
   const outside = names.filter((n) => !f.banned.has(n) && !f.legal.has(n));
   if (outside.length) problems.push(`not in Standard's sets (${f.sets.join(" ")}): ${few(outside)}`);
   return problems;
+}
+
+// ── The formats' ban lists (format-banlist-spec §6.3). The data is bridge/legality.js's (piece A), read when first
+// needed; without it, Standard is checked against Forge's own list (forge-formats.json) and another format's list is
+// said not checked. A refresh that changes the list re-checks the ready decks (onLegalityChanged).
+let legalData; // undefined: not read yet; null: none
+function legalityNow() {
+  if (legalData === undefined) {
+    legalData = null;
+    try {
+      const L = require("./legality");
+      legalData = L.loadLegality() || null;
+      if (typeof L.onLegalityChanged === "function") L.onLegalityChanged((l) => guarded("ban list refresh", () => onLegalityChanged(l)));
+    } catch (e) { if (e?.code !== "MODULE_NOT_FOUND") log(`ban list data: ${e.message}`); }
+  }
+  return legalData;
+}
+// the list a format's decks are checked against: { status, source, date, hash }, or null (a Casual format, or no data)
+function listFor(key) {
+  const f = formatRules.formatOf(key);
+  if (!f.list) return null;
+  const l = legalityNow();
+  if (l && typeof l.status === "function" && (typeof l.has !== "function" || l.has(f.key))) {
+    return { status: (k, n) => l.status(k, n), source: l.source || null, date: l.date || null, hash: String(l.hash ?? "") };
+  }
+  if (f.key === "standard") {
+    const s = forgeFormat("Standard");
+    if (s) return { status: (k, n) => (s.banned.has(n) ? "b" : s.legal.has(n) ? "l" : "n"), source: "Forge", date: null, hash: "forge" };
+  }
+  return null;
+}
+// a deck's problems under rules { format, banned, restricted } (formatRules.formatProblems), and the list's hash
+// the cards with a copy limit other than 4 ("any", Seven Dwarves 7, Nazgûl 9), by normName: a deck list's "Nazgul"
+// finds Forge's "Nazgûl". Every format reads them (forge-formats.json keeps every card's, not Standard's only).
+let copyLimitMap = null;
+function copyLimitsByName() {
+  if (!copyLimitMap) copyLimitMap = new Map(Object.entries(forgeFormat("Standard")?.limits || {}).map(([n, v]) => [normName(n), v]));
+  return copyLimitMap;
+}
+function deckFormatCheck(r, cards, commanders = [], sideboard = []) {
+  const L = listFor(r.format);
+  const limits = copyLimitsByName();
+  const opts = { banned: r.banned, restricted: r.restricted, status: L?.status, source: L?.source, date: L?.date,
+    isBasic: (n) => BASICS.has(normName(n)), limit: (n) => limits.get(normName(n)) };
+  return { ...formatRules.formatProblems(r.format, opts, cards, commanders, sideboard), hash: L?.hash ?? "" };
+}
+// the rules a deck is checked under, in one string: "<format>|<banned>|<restricted>|<hash>" (a Casual format's hash
+// is empty: no list); with no format, the mode ("commander", "standard": today's checks)
+function rulesKey(g = gameMode) {
+  return g.format ? `${g.format}|${g.banned !== false}|${g.restricted !== false}|${listFor(g.format)?.hash ?? ""}` : g.mode;
+}
+const rulesOf = (key) => {
+  const [format, banned, restricted, hash] = String(key || "").split("|");
+  return key && String(key).includes("|") ? { format, banned: banned !== "false", restricted: restricted !== "false", hash: hash || "" } : null;
+};
+// "Modern", "Modern (banned cards allowed)", "Casual Commander"
+function rulesWords(key) {
+  const r = rulesOf(key);
+  if (!r) return key === "standard" ? "Standard" : formatRules.formatWords(formatRules.DEFAULT_FORMAT);
+  const f = formatRules.formatOf(r.format);
+  const off = [f.list && !r.banned ? "banned cards allowed" : null,
+    f.restricted && !r.restricted ? (f.restricted === "commander" ? "restricted commanders allowed" : "restricted cards at the normal limit") : null].filter(Boolean);
+  return `${f.name}${off.length ? ` (${off.join(", ")})` : ""}`;
+}
+// the not-ready alert (§5.2): the problems, the list's line, then the rest
+function notReadyText(label, words, problems, warnings, footer, more = "") {
+  return `[MTG] ${label}: not ready${words ? ` for ${words}` : ""}.\n- ${problems.join("\n- ")}${footer ? `\n${footer}` : ""}${warnings.length ? `\nAlso: ${warnings.join("; ")}` : ""}${more}`;
+}
+// A refresh changed the list (legality.js's onLegalityChanged): every deck readied under a format is checked again. One
+// that now fails is no longer ready (its alert, and a red Ready button); one that passes is ready under the new hash.
+function onLegalityChanged(l) {
+  legalData = l || null;
+  legalStandard.clear();
+  const dropped = [];
+  for (const c of Object.keys(readyDecks)) {
+    const d = readyDecks[c], r = rulesOf(d.rules);
+    if (!r) continue;
+    const fc = deckFormatCheck(r, d.cards, d.commanders, d.sideboard || []);
+    if (!fc.problems.length) { d.rules = `${r.format}|${r.banned}|${r.restricted}|${fc.hash}`; continue; }
+    delete readyDecks[c];
+    dropped.push(c);
+    chat(notReadyText(`${c} (${d.deckName})`, formatRules.formatWords(r.format), fc.problems, fc.warnings, fc.footer, "\nThe ban list was updated since your READY: change the deck and press READY again."), c);
+    log(`${c} deck no longer ready for ${formatRules.formatWords(r.format)}: the ban list changed`);
+  }
+  if (dropped.length) toTTS({ t: "deckReport", request: -1, ready: [], checked: dropped });
 }
 
 // Cards printed in another language (2026-11-12: a deck's "アクローマの意志" and "嵐の伝導者、ラル" were unknown to the
@@ -1328,8 +1444,11 @@ function addOtherFace(images, other, front) {
   if (other.custom) list.unshift(e); else list.push(e);
 }
 
-function checkDeck(color, entry, mode = gameMode.mode) {
+function checkDeck(color, entry, mode = gameMode.mode, g = gameMode) {
   const std = mode === "standard"; // (Standard: no commander, every card in Forge's Standard list, standardProblems)
+  // (a format from the table's Format button: its own check, deckFormatCheck; none: today's Commander or Standard)
+  const fr = g.format && formatRules.formatOf(g.format).mode === mode ? { format: g.format, banned: g.banned !== false, restricted: g.restricted !== false } : null;
+  const F = fr ? formatRules.formatOf(fr.format) : null;
   const index = forgeIndex();
   const unknown = [];
   const commanders = [];
@@ -1385,21 +1504,34 @@ function checkDeck(color, entry, mode = gameMode.mode) {
   if (unknown.length) problems.push(`the engine doesn't know ${unknown.length} card(s): ${unknown.slice(0, 8).join(", ")}${unknown.length > 8 ? `, and ${unknown.length - 8} more` : ""}. Swap them out or fix the names`);
   // (the Card Importer puts a list's sideboard in the Notebook, not in the deck: the player imports it as its own deck
   // and puts it on their graveyard spot, entry.sideboard; checked with the main deck, 15 at most and 4 of a card across both)
-  if (std && asList(entry.library).length) problems.push(...standardProblems(cards, commanders, sideboard));
-  const warnings = [];
-  if (!std && asList(entry.library).length && total !== 100) warnings.push(`${total} cards (Commander decks are 100 including the commander)`);
-  if (!std && extras.length) warnings.push(`more than one copy of: ${extras.slice(0, 5).join(", ")}${extras.length > 5 ? " ..." : ""} (fine only if the card allows it)`);
+  if (std && !fr && asList(entry.library).length) problems.push(...standardProblems(cards, commanders, sideboard));
+  const fc = fr && asList(entry.library).length ? deckFormatCheck(fr, cards, commanders, sideboard) : null;
+  if (fc) problems.push(...fc.problems);
+  const warnings = [...(fc?.warnings || [])];
+  if (!std && !fr && asList(entry.library).length && total !== 100) warnings.push(`${total} cards (Commander decks are 100 including the commander)`);
+  if (!std && !fr && extras.length) warnings.push(`more than one copy of: ${extras.slice(0, 5).join(", ")}${extras.length > 5 ? " ..." : ""} (fine only if the card allows it)`);
 
   const label = `${color}${entry.deckName ? ` (${entry.deckName})` : ""}`;
   const names = [...translated].map(([p, n]) => `${p} → ${n}`);
   const foreign = names.length ? `\nForeign names: ${names.slice(0, 8).join(", ")}${names.length > 8 ? `, and ${names.length - 8} more` : ""}` : "";
   if (problems.length) {
     delete readyDecks[color];
-    chat(`[MTG] ${label}: not ready${std ? " for Standard" : ""}.\n- ${problems.join("\n- ")}${warnings.length ? `\nAlso: ${warnings.join("; ")}` : ""}${foreign}${artSaid}`, color);
+    if (fr) chat(notReadyText(label, F.name, problems, warnings, fc?.footer, `${foreign}${artSaid}`), color);
+    else chat(`[MTG] ${label}: not ready${std ? " for Standard" : ""}.\n- ${problems.join("\n- ")}${warnings.length ? `\nAlso: ${warnings.join("; ")}` : ""}${foreign}${artSaid}`, color);
     return false;
   }
-  readyDecks[color] = { deckName: entry.deckName || `${color}'s deck`, cards, commanders, images, mode, ...(std ? { sideboard } : {}) };
+  readyDecks[color] = { deckName: entry.deckName || `${color}'s deck`, cards, commanders, images, mode, ...(std ? { sideboard } : {}),
+    ...(fr ? { rules: `${fr.format}|${fr.banned}|${fr.restricted}|${fc.hash}` } : {}) };
   checkDeckImages(images);
+  if (fr) {
+    const allowed = fc.allowedBanned.length ? ` (banned cards allowed by the host: ${formatRules.few(fc.allowedBanned)})` : "";
+    const legal = F.list && !fc.warnings.length ? ` and legal in ${F.name}` : "";
+    const sb = std && sideboard.length ? ` Sideboard: ${sideboard.length} cards (from your graveyard spot), for sideboarding between the games of a best of three.` : "";
+    const what = std ? `${cards.length} cards` : `${cards.length} cards + commander ${commanders.join(" & ")}`;
+    chat(`[MTG] ${label}: ready for ${F.name}${allowed}. ${what}; every card is known to the engine${legal}.${sb}${warnings.length ? `\nCheck: ${warnings.join("; ")}` : ""}${foreign}${artSaid}`, color);
+    log(`${color} deck ready for ${rulesWords(readyDecks[color].rules)}: ${total} cards${std ? "" : `, commander ${commanders.join(" & ")}`}${sideboard.length ? `, sideboard ${sideboard.length}` : ""}`);
+    return true;
+  }
   if (std) {
     // (the sideboard said to its owner only: this chat goes to that colour, and the log names no card)
     const sb = sideboard.length ? ` Sideboard: ${sideboard.length} cards (from your graveyard spot), for sideboarding between the games of a best of three.` : "";
@@ -1467,8 +1599,20 @@ function listCommanderPresets() { return listPresets("commander"); }
 const legalStandard = new Map();
 function presetsFor(mode) {
   const ids = listPresets(MODES[mode].deck);
-  if (mode !== "standard") return ids;
   const names = (list) => (list || []).map((c) => c.identity.name);
+  // (a format's: the presets its check passes, format-banlist-spec §3.3; kept per rules, a refresh clears them)
+  if (gameMode.format && formatRules.formatOf(gameMode.format).mode === mode) {
+    const key = rulesKey();
+    return ids.filter((id) => {
+      if (!legalStandard.has(`${key}|${id}`)) {
+        const d = loadPreset(id).deck;
+        const cmd = mode === "standard" ? [] : names(d.commanders);
+        legalStandard.set(`${key}|${id}`, deckFormatCheck(gameMode, names(d.cards), cmd, names(d.sideboard)).problems.length === 0);
+      }
+      return legalStandard.get(`${key}|${id}`);
+    });
+  }
+  if (mode !== "standard") return ids;
   return ids.filter((id) => {
     if (!legalStandard.has(id)) {
       const d = loadPreset(id).deck;
@@ -1488,8 +1632,16 @@ function deckForMode(d, mode, k = 0, harmless = false) {
   const ids = defaultDecksOf(mode);
   return loadPreset(ids[k % ids.length]);
 }
-// whether colour c's checked deck is one for a game of `mode` (a deck checked before modes existed counts as Commander)
-const readyFor = (c, mode = "commander") => !!readyDecks[c] && (readyDecks[c].mode || "commander") === mode;
+// whether colour c's checked deck was checked under `rules` (rulesKey: a format's, with its switches and list hash; or
+// with no format the mode, and a deck checked before modes existed counts as Commander)
+const readyFor = (c, rules = "commander") => !!readyDecks[c] && (readyDecks[c].rules || readyDecks[c].mode || "commander") === rules;
+// a seat joining the started game: its deck as checked at Start. The format and switches must match, not the list's
+// hash: a refresh between Start and the seat joining re-checked the deck (onLegalityChanged), so one still here passed
+// under the new list and carries the new hash; comparing the hash would hand that player a built-in deck instead
+const noHash = (rules) => String(rules || "").split("|").slice(0, 3).join("|");
+const readyForGame = (c, rules = game.rules || game.mode) => !!readyDecks[c] && noHash(readyDecks[c].rules || readyDecks[c].mode || "commander") === noHash(rules);
+// the game log's last line: why, and a format's game names its rules ("Game over: Blue won (Modern)")
+const gameOverLine = (why) => `${why ? `Game over: ${why}` : "Game over"}${game?.rules ? ` (${rulesWords(game.rules)})` : ""}`;
 // what a Standard game adds to the table's "started" message and the resume file; nothing for Commander
 const modeField = () => (game?.mode === "standard" ? { mode: "standard" } : {});
 
@@ -1597,8 +1749,9 @@ function standardListDeck(list, name) {
   const cmd = commanders.map(known).filter(Boolean), main = cards.map(known).filter(Boolean), side = sideboard.map(known).filter(Boolean);
   const names = [...new Set(unknown)];
   if (names.length) return { error: `the engine doesn't know ${names.length} card(s): ${names.slice(0, 8).join(", ")}${names.length > 8 ? ", ..." : ""}` };
-  const problems = standardProblems(main, cmd, side);
-  if (problems.length) return { error: `not a Standard deck: ${problems.join("; ")}` };
+  const fr = gameMode.format && formatRules.formatOf(gameMode.format).mode === "standard" ? gameMode : null;
+  const problems = fr ? deckFormatCheck(fr, main, cmd, side).problems : standardProblems(main, cmd, side);
+  if (problems.length) return { error: `not a${fr ? ` ${formatRules.formatWords(fr.format)}` : " Standard"} deck: ${problems.join("; ")}` };
   const deckName = String(name || "").replace(/\[[^\]]*\]/g, "").trim().slice(0, 60) || "Standard deck (deck list)";
   return { deck: engineDeckFromTable({ deckName, cards: main, commanders: [], sideboard: side, mode: "standard" }), source: "list" };
 }
@@ -2190,6 +2343,7 @@ function saveResume() {
       // (each deck's own pictures: every Plains keeps its printing after a restart, imagesFor)
       pictures: game.pictures, ...(customArt.off ? { artOff: true } : {}), // (and the host's "mtg art off", onArt)
       ...modeField(), // (a Standard game stays one: the table hides the commander pieces, startGame's mode)
+      ...(game.rules ? { rules: game.rules } : {}), // (a format's game keeps its rules: the game-over line, sideboarding)
       ...(game.teamMode ? { teamMode: game.teamMode } : {}), // (a team game's mode: the board's Juggernaut, teamsField)
       // (who went out when, and each library as last seen in the game: a true deck-out is still said after a restart,
       // noteOuts; and the printed P/T seen for each name, so a copy's badge stays as it was, notePrinted)
@@ -2276,8 +2430,26 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   const sideboarding = matchWaiting();
   if (sideboarding) { chat(`[MTG] Not started: ${sideboarding}. The question is on their panel (Keep deck, if nothing changes).`); return; }
   const std = mode === "standard";
+  // (the rules the decks must have been checked under: the table's format, its switches and list, or the mode)
+  const deckRules = mode === gameMode.mode ? rulesKey() : mode;
   // (a deck checked for the other mode is no deck for this one: checked again with Ready)
-  const notReady = requireReady ? seatList.filter((c) => !readyFor(c, mode)) : [];
+  const notReady = requireReady ? seatList.filter((c) => !readyFor(c, deckRules)) : [];
+  // (under a format: a deck checked under other rules is said as such, format-banlist-spec §6.3)
+  const formatGame = !!rulesOf(deckRules);
+  const stale = notReady.filter((c) => readyDecks[c] && (formatGame || rulesOf(readyDecks[c].rules)));
+  if (stale.length) {
+    const was = (c) => {
+      const k = readyDecks[c].rules || readyDecks[c].mode || "commander";
+      return rulesWords(k) === rulesWords(deckRules) ? `${c}'s deck was checked against an older ${rulesWords(deckRules)} ban list` : `${c}'s deck was checked for ${rulesWords(k)}`;
+    };
+    chat(`[MTG] Not started: ${stale.map(was).join("; ")}; the format is now ${rulesWords(deckRules)}: press READY again.`);
+    return;
+  }
+  if (notReady.length && formatGame) {
+    const fw = formatRules.formatOf(rulesOf(deckRules).format);
+    chat(`[MTG] Not started: ${notReady.join(", ")} still need \"mtg ready\" for ${fw.name} (${fw.shape === "sixty" ? `import a deck of 60 or more ${fw.name} cards into your library zone; no commander` : "import your deck, put your commander on the command zone"}).`);
+    return;
+  }
   if (notReady.length && std) { chat(`[MTG] Not started: ${notReady.join(", ")} still need \"mtg ready\" for Standard (import a deck of 60 or more Standard cards into your library zone; no commander).`); return; }
   if (notReady.length) { chat(`[MTG] Not started: ${notReady.join(", ")} still need \"mtg ready\" (import your deck, put your commander on the command zone).`); return; }
   // (the colours set as AI seats that nobody sits at: an AI player each, in every game, see aiSeatChoice)
@@ -2314,7 +2486,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
     archGame = { color: a.color, names, chosen: !!a.schemes };
     for (const n of new Set(names)) cachedImage(n);
   }
-  const aiTable = aiSeats.filter((c) => readyFor(c, mode) && !preset.includes(c)).slice(0, bots - preset.length); // (empty seats' ready decks, in order: see below)
+  const aiTable = aiSeats.filter((c) => readyFor(c, deckRules) && !preset.includes(c)).slice(0, bots - preset.length); // (empty seats' ready decks, in order: see below)
   // (a debug scenario with "planechase" turns it on for this game with its own planes, debugPlanechase)
   const dbgPlanes = fromTable ? debugPlanechase(seatList) : null;
   const pool = dbgPlanes ? planarPool(total, dbgPlanes.names) : planechase.on ? planarPool(total) : null;
@@ -2324,7 +2496,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   for (const n of pool?.names || []) cachedImage(n);
   saveLargest(); // (a game started over the last one: the last one's largest state is kept first)
   game = { seats: new Map(), bots, total, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false, fromTable, setupAt: Date.now(), pendingPlays: [],
-    friendly: friendlyCount(friendly), mode,
+    friendly: friendlyCount(friendly), mode, ...(formatGame ? { rules: deckRules } : {}),
     teams: teams || null, // (a team mode: sent to the engine as gameConfig before StartGame, onRoomUpdate)
     ...(teams ? { teamMode, ...(teamMode === "juggernaut" ? { jugg } : {}), ...(archGame ? { arch: archGame } : {}), ...(teamMode === "2hg" && turns === "shared" ? { teamTurns: "shared" } : {}) } : {}),
     // (Planechase: the planar pool, sent in the first seated player's deck, onRoomUpdate)
@@ -2336,7 +2508,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
     // (each in this game's mode: a deck set for the other mode gives way to a built-in one, deckForMode)
     harmlessWanted: preset.filter((c) => aiSeatChoice[c].kind === "harmless").map((c, k) => ({ color: c, deck: deckForMode(aiSeatChoice[c].deck, mode, k, true) })),
     forgeSeats: preset.filter((c) => aiSeatChoice[c].kind === "forge").map((c, k) => ({ color: c, deck: deckForMode(aiSeatChoice[c].deck, mode, k) })) };
-  for (const c of aiSeats) if (!readyFor(c, mode) && !preset.includes(c)) chat(`[MTG] The deck in ${c}'s seat isn't ready${std ? " for Standard" : ""} (see above); that AI plays a built-in deck.`);
+  for (const c of aiSeats) if (!readyFor(c, deckRules) && !preset.includes(c)) chat(`[MTG] The deck in ${c}'s seat isn't ready${std ? " for Standard" : ""} (see above); that AI plays a built-in deck.`);
   const builtIn = defaultDecksOf(mode);
   // ("mtg deck" chose a deck of the other mode: the mode's own built-in deck instead, either way)
   const ownDeck = (c) => (deckChoice[c] && presetsFor(mode).includes(deckChoice[c]) ? deckChoice[c] : null);
@@ -2347,8 +2519,10 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   const harmlessN = game.harmlessWanted.length, forgeN = forgeBotCount();
   chat(`[MTG] Setting up${std ? ` ${teams ? "Standard" : modeWords(mode, total)}` : ""}: ${seatList.join(", ")}${forgeN ? ` + ${forgeN} Forge AI` : ""}${harmlessN ? ` + ${harmlessN} harmless bot${harmlessN > 1 ? "s" : ""}` : ""}...`);
   if (preset.length) chat(`[MTG] AI seats: ${aiSeatsText(preset)}.`);
+  // (the host chose the AI decks: not checked against the format's lists, said once, format-banlist-spec §3.3)
+  if (formatGame && bots > aiTable.length && formatRules.formatOf(rulesOf(deckRules).format).list) chat(`[MTG] AI decks are not checked against ${formatRules.formatWords(rulesOf(deckRules).format)}'s ban list.`);
   if (teams) chat(`[MTG] ${teams2hg.setupWords(teamMode, teams, jugg, std, game.teamTurns || null, game.arch ? { color: game.arch.color, schemes: game.arch.chosen ? game.arch.names : null } : null)}`);
-  log(`setup: seats ${seatList.join(", ")}, bots ${bots}, relay ${RELAY}`);
+  log(`setup: seats ${seatList.join(", ")}, bots ${bots}, relay ${RELAY}${formatGame ? `, format ${rulesWords(deckRules)}` : ""}`);
 }
 
 // Only the room's controller may start the game or add AI players; sending from any other seat is refused with
@@ -2366,7 +2540,7 @@ function onRoomUpdate(seat, room) {
   if (me && !seat.joined) {
     seat.joined = true;
     // (a match game's deck: game 1's registered, a later game's as the last sideboarding left it, matchDeck)
-    const d = matchDeck(seat.color, seat.deck || (readyFor(seat.color, game.mode) ? engineDeckFromTable(readyDecks[seat.color]) : loadPreset(seat.deckId)));
+    const d = matchDeck(seat.color, seat.deck || (readyForGame(seat.color) ? engineDeckFromTable(readyDecks[seat.color]) : loadPreset(seat.deckId)));
     const planes = game.planes && seat.color === game.planeSeat && !seat.harmless ? game.planes : null;
     seat.send({ type: "SetDeckSelection", deck_name: d.deckName, deck: planes ? { ...d.deck, planes: planes.map(planeDeckCard) } : d.deck, commander_name: d.commanderName });
     if (planes) chat(`[MTG] Planechase: ${planes.length} planes and phenomena dealt to the planar decks.`);
@@ -12381,7 +12555,7 @@ function onPrompt(seat, prompt) {
       if (!told?.has(seat.color)) chat(why ? `[MTG] Game over: ${why}.` : `[MTG] Game over.`, seat.color);
       told?.add(seat.color);
       // (and in the game log, once: White's loss to an empty library under Reforge the Soul ended it unsaid, hp-15 gap)
-      if (game && !game.over) gameLogLine(why ? `Game over: ${why}` : "Game over");
+      if (game && !game.over) gameLogLine(gameOverLine(why));
       if (game) game.over = true;
       // (a "Repeat ×N" of anyone's ends with it, said)
       if (game) for (const s of game.seats.values()) loopEnd(s, "the game ended");
@@ -13140,6 +13314,9 @@ function onTTS(m) {
     case "check":
       noteCheck(m);
       break;
+    case "banlist":
+      onBanlist(m);
+      break;
     case "hello":
       tableStamp = m.stamp ?? null;
       tableKeepsRewind = m.keepRewind === true;
@@ -13153,6 +13330,8 @@ function onTTS(m) {
       if (game?.started && game.fromTable) resendToTable(); // the table was reloaded mid-game
       // (a table that drew nothing yet asks again: the greeting once is enough)
       if (!m.again) chat(`[MTG] Bridge connected (relay ${RELAY}). Type "mtg help".`);
+      if (tableKnowsFormats(m)) tableHasFormats = true;
+      if (!m.again && tableKnowsFormats(m)) sendBanlist(banlistFormat(m)); // (the ban list data for the table's format, and the formats with none)
       if (game) for (const s of game.seats.values()) { scheduleView(s); }
       break;
     case "start": {
@@ -13386,6 +13565,9 @@ function onTTS(m) {
       break;
     case "mode": // "mtg mode standard|commander" and the mode button (host, checked on the table)
       onMode(m);
+      break;
+    case "format": // the Format button and its two switches (host, checked on the table): format-banlist-spec §6.1
+      onFormat(m);
       break;
     case "winner":
       onWinner(m.color, m.by);
@@ -14858,6 +15040,37 @@ const debugServer = http.createServer((req, res) => {
   } else { res.writeHead(404); res.end(); }
 });
 
+// ───── The ban lists (docs/format-banlist-spec.md §4.2, §6.3): the table's "banlist" messages, the daily check ─────
+// The format the table last said (piece B keeps it in gameMode.format); none said is Casual Commander, which has no list.
+const banlistFormat = (m) => String(m?.format || gameMode.format || "casualcommander").trim().toLowerCase();
+// a table script that knows formats says one in its hello (an older one doesn't, and is sent nothing new)
+const tableKnowsFormats = (m) => m.format !== undefined || m.formats === true;
+function sendBanlist(format = banlistFormat()) { toTTS(legality.banlistMessage(format)); }
+// {t:"banlist", color, refresh:true} (the host's button or "mtg banlist refresh": the table checks it is the host),
+// then the answer; {t:"banlist", color, format}: that format's names, for the table's Notebook tab
+function onBanlist(m) {
+  if (m.refresh) {
+    chat("[MTG] Ban lists: checking Scryfall ...", m.color);
+    legality.refreshLegality({ force: true })
+      .then((r) => { if (!r.changed) chat(`[MTG] ${r.summary}`, m.color); sendBanlist(banlistFormat(m)); })
+      .catch((e) => { log(`ban lists: ${e.message}`); chat(`[MTG] Ban lists: the check failed (${e.message}).`, m.color); });
+    return;
+  }
+  const format = banlistFormat(m);
+  if (!legality.loadLegality().has(format)) { sendBanlist(format); return; }
+  toTTS(legality.banlistNamesMessage(format));
+}
+// a refresh that changed the lists: everyone is told, and the table gets the new version (piece B re-checks READY decks)
+let tableHasFormats = false; // a hello said format / formats: an older table script is sent no "banlist" after a refresh
+function onBanlistChanged(l, summary) { chat(`[MTG] ${summary}`); if (tableHasFormats) sendBanlist(); }
+legality.onLegalityChanged(onBanlistChanged);
+function startBanlists() {
+  legality.configure({ log, busy: () => !!game?.started });
+  const l = legality.loadLegality();
+  log(`ban lists: ${legality.sourceWords(l)}${l.source ? `, ${legality.KEYS.length - l.missing().length} formats` : ""}`);
+  legality.startLegalityTimer();
+}
+
 if (require.main === module) {
   debugServer.listen(DEBUG_PORT, "127.0.0.1").on("error", (e) => log(`debug port ${DEBUG_PORT} unavailable: ${e.message}`));
   server.listen(TTS_IN, "127.0.0.1", () => log(`Bridge listening for TTS on ${TTS_IN}; relay ${RELAY}, room "${ROOM}". Load tts/mtg-board.lua in TTS.`));
@@ -14865,6 +15078,7 @@ if (require.main === module) {
   process.on("SIGINT", () => { if (game) { game.closing = true; for (const s of allSeats()) s.close(); } setTimeout(() => process.exit(0), 200); });
   resumeGame();
   setInterval(() => { guarded("save game", saveResume); guarded("fix watchdog", fixWatchdog); }, 5000);
+  startBanlists();
 } else {
   // Loaded by a test (tests/bridge-harness.js): the logic without servers. `game` is set through _setGame.
   module.exports = {
@@ -14878,6 +15092,8 @@ if (require.main === module) {
     _aiSeatChoice: aiSeatChoice, _startResolving: startResolving, _loopMap: loopMap, _loopCands: loopCands, _loopSig: loopSig, _customArt: customArt, artProblem, isCustomArt,
     fixOps, phaseNumber, fxFacts, gameEndWords, mutateWords, fewNames, NUMBER_PICK_MAX, FEW_NAMES, _effectMarks: effectMarks, DAMAGE_PICK_MAX, _ttsStats: ttsStats, _saveLargest: saveLargest, _noteBoard: noteBoard,
     standardProblems, modeWords, loadPreset, STANDARD_DECKS, _gameMode: gameMode,
+    _onBanlist: onBanlist, _onBanlistChanged: onBanlistChanged, _legality: legality, // the ban lists (docs/format-banlist-spec.md §6.3)
+    rulesKey, rulesWords, presetsFor, gameOverLine, _readyForGame: readyForGame, _onLegalityChanged: (l) => onLegalityChanged(l), _setLegality: (l) => { legalData = l; legalStandard.clear(); },
     onGifMessage, onGifKey, _gifs: gifs, _gifFavs: gifFavs, // GIF frames
   };
 }

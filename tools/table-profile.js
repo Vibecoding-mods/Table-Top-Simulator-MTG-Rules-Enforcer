@@ -25,9 +25,11 @@ const ROLES = ["playmat", "libraryZone", "graveyard", "mulliganButton", "untapBu
 //     and reminder cards and Planechase; not the west importers or the playmat enabler (0ae315) at z -12..-18, which
 //     stay as on the 4-player table. They start at |x| 45, not 44: White's and Green's made tracker rows reach 44.6;
 //     nothing of the table's lies between 44 and 45.3.
-//   spots: the Game mode, Free mulligans and Teams buttons (MODE_SPOT, FRIENDLY_SPOT, TEAMS_SPOT in the renderer),
-//     world x, y, z on the west strip. On the 6-player table 2 further out than on the 4-player one: a button there is
-//     3.2 deep across the strip, and Green's column (x -41.8) and its tracker row (to -45.2) come nearer the end.
+//   spots: the Format (the old Game mode spot), Free mulligans and Teams buttons (MODE_SPOT, FRIENDLY_SPOT, TEAMS_SPOT
+//     in the renderer), world x, y, z on the west strip. On the 6-player table 2 further out than on the 4-player one: a
+//     button there is 3.2 deep across the strip, and Green's column (x -41.8) and its tracker row (to -45.2) come nearer
+//     the end. banned, restricted, banlist: the Banned cards / Restricted cards / Banned list buttons on the east strip,
+//     the west strip's mirror (docs/format-banlist-spec.md §6.1; not yet seen on the real tables).
 //   makeCmdDamage: a table without commander-damage trackers gets the 4-player table's (make-engine-copy.js copies
 //     them from the host's 4-player Workshop file at build time; the 6-player table's own bags hold an older script):
 //     each victim's row of one per attacker, `step` apart along the victim's own left-to-right, centred on its life
@@ -36,10 +38,12 @@ const ROLES = ["playmat", "libraryZone", "graveyard", "mulliganButton", "untapBu
 const TABLES = [
   { id: "2296042369", seats: 4, whitePlaymat: "8b3401",
     clutterBoxes: [{ x: [-56, -44], z: [-8.5, 32] }, { x: [44, 56], z: [-26, 8.5] }],
-    spots: { mode: [-47, 1.1, -2.5], friendly: [-47, 1.1, 7.5], teams: [-47, 1.1, 17.5] } },
+    spots: { mode: [-47, 1.1, -2.5], friendly: [-47, 1.1, 7.5], teams: [-47, 1.1, 17.5],
+      banned: [47, 1.1, 2.5], restricted: [47, 1.1, -7.5], banlist: [47, 1.1, -17.5] } },
   { id: "2293586471", seats: 6, whitePlaymat: "7cffe1",
     clutterBoxes: [{ x: [-56, -45], z: [-8.5, 33] }, { x: [45, 56], z: [-33, 8.5] }],
-    spots: { mode: [-49, 1.1, -2.5], friendly: [-49, 1.1, 7.5], teams: [-49, 1.1, 17.5] },
+    spots: { mode: [-49, 1.1, -2.5], friendly: [-49, 1.1, 7.5], teams: [-49, 1.1, 17.5],
+      banned: [49, 1.1, 2.5], restricted: [49, 1.1, -7.5], banlist: [49, 1.1, -17.5] },
     makeCmdDamage: { step: 1.4, z: 3 } },
 ];
 
