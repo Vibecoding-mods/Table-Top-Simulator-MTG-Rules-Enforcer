@@ -321,7 +321,7 @@ The resume files are `logs\bridge-game.json` and `tmp\bridge-game.json` (friend)
 
 Locked: `images-load`, `stack-restart`, `bridge-restart` (`Fixes.LocksDuringGame`, `Logic.cs:45-48`), the **Restart engine**
 menu item, an update's install, the save update, the image load. Never locked: Start Docker Desktop, Open TTS, Start the
-bridge (it only runs when nothing runs), Try again, Show the program, the logs folder, Limit Docker's CPU use. **Stop everything**
+bridge (it only runs when nothing runs), Try again, Show the program, the logs folder, Docker: 2 / 3 / 4 cores. **Stop everything**
 is allowed during a game only after a second confirmation (`confirmLocked`, `WebUi.cs:783-790`).
 
 "Players" in the banner come from `/state` `players` and `ai` (`Logic.PlayersText` `Logic.cs:220`; the bridge's side is
@@ -394,8 +394,11 @@ Action ids (`WebUi.cs:770-821`): `fix:<row>:<fix>`, `restart-engine`, `stop-ever
 `update-now`, `update-later`. A fix id must match the button the row currently shows, or it is refused ("That button has
 changed"). Pressing the action last accepted again while it is still queued or running is "Already running"
 (`WebUi.cs:767-768`). **Show the program** runs `taskmgr.exe /0 /startup` and re-queues the Bridge step (`WebUi.cs:835-841`).
-**Limit Docker's CPU use** writes `processors=2`, `memory=8GB` into `[wsl2]` of `%USERPROFILE%\.wslconfig` after copying it to
-`.wslconfig.bak-<stamp>`; it never restarts WSL (`WebUi.cs:890-901`, `Logic.SetWslLimits` `Logic.cs:547`).
+**Docker: 2 / 3 / 4 cores** (three buttons since 2026-11-20; before, one "Limit Docker's CPU use" for 2, whose id `wsl-limits`
+still means 2) write `processors=N`, `memory=8GB` into `[wsl2]` of `%USERPROFILE%\.wslconfig` after copying it to
+`.wslconfig.bak-<stamp>`; they never restart WSL (`WebUi.Wsl`, `Logic.SetWslLimits`). The one the file has now reads "(now)" and is
+greyed out (`Logic.WslProcessors`); a count above the PC's logical cores is refused. More cores: the engine keeps up on a big board
+(a 2-core engine took 371 ms a question on average, 2.5 s at worst, on a 60-token board on 2026-11-20); fewer: TTS has more to itself.
 
 ### 8.2 Guards
 Host must be `127.0.0.1:<port>` or `localhost:<port>` (DNS rebinding); an Origin, when sent, must be that origin;
@@ -410,7 +413,7 @@ nonce CSP with `default-src 'none'` (`WebUi.cs:195-210, 541-549`).
 Dark theme, no CDN or fonts, inline script and style. Layout (`WebPage.cs:126-191`): header with the worst light in words;
 banners (companion not running, busy, page error, **Game in progress**, observe, update); **Start steps** (the six rows: dot, name,
 word, sentence, time, the row's one button); a hint line; **Actions** (the menu: Restart engine, Stop everything, Open logs folder,
-Limit Docker's CPU use…); **Table tools: AI seats, debug tools and GIF frames** (collapsed, §10; the GIPHY key box and its "Get a GIPHY key" steps: docs/gif-frames-spec.md); a collapsible **Log** tail; a footer with
+Docker: 2 / 3 / 4 cores); **Table tools: AI seats, debug tools and GIF frames** (collapsed, §10; the GIPHY key box and its "Get a GIPHY key" steps: docs/gif-frames-spec.md); a collapsible **Log** tail; a footer with
 versions. Polls `/api/status` every 2.5 s (30 s in a hidden tab), aborts a poll after 6 s; two misses in a row show "Companion
 busy, retrying", misses past 10 s show "Companion not running"; a stale token reloads the page at most once per 15 s
 (`WebPage.cs:201-204`). Buttons are disabled while their request is in flight. A script error shows a red banner and polling
@@ -673,7 +676,7 @@ also copies the old exe into `backup\<old version>\companion\MTG Companion.exe`,
 | `bridge.log` (20 MB then `.1`) | `logs\` or `tmp\bridge-live.log` | the bridge's stdout/stderr, `[bridge exited with code N; restarting in 3 s]` lines |
 | `log-trim.stamp`, `log-archive\table-log-YYYY-MM-DD.log.gz`, `<log>.old` | `logs\` or `tmp\` (`.old` also in `bridge\`, home) | the 14-day log trim (§7.1): its last run, the archived game history (kept forever), one previous roll of each other log |
 | `update-journal.json`, `updates\`, `backup\`, `revert-undo\` | package folder | update and revert bookkeeping (`revert-undo\` only while a revert runs) |
-| `.wslconfig` (+ `.bak-<stamp>`) | `%USERPROFILE%` | only on the **Limit Docker's CPU use** button |
+| `.wslconfig` (+ `.bak-<stamp>`) | `%USERPROFILE%` | only on the **Docker: N cores** buttons |
 | `TS_Save_N.json` (+ `.png`) | TTS Saves folder | only the table save step |
 
 ## 13. Tests

@@ -70,6 +70,12 @@ relying on it.
 **A card shows as unknown, or my deck counts 99 cards.**
 Update to the newest release. The card list now rebuilds itself whenever the engine changes.
 
+**The engine gets slow late in a game with a big board.**
+Forge re-checks every permanent each time you get priority, so a board with dozens of tokens and Treasures takes much longer
+per click (on 2 cores: about 30 ms each at the start of a game, about 370 ms and up to 2.5 s with 60 tokens out). Give Docker more
+cores: **Docker: 3 cores** or **Docker: 4 cores** under Actions. It counts after WSL restarts (restart the PC, or between games
+quit Docker Desktop and run `wsl --shutdown`). Fewer cores leave TTS more to itself: go back to 2 if TTS stutters or crashes.
+
 **A GIF frame is a white square (Steam Deck, Mac or Linux).**
 Type `mtg gifs still` in TTS chat: that player sees still pictures instead of the video.
 

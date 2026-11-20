@@ -612,12 +612,32 @@ namespace MtgCompanion
             }
         }
 
-        string WslConfirm()
+        string WslConfirm(int cores)
         {
             string now = Probes.ReadText(WslFile);
-            return "Optional. Docker runs the engine in a Linux VM (WSL) that may use every CPU core, and Tabletop Simulator then has to share them. On a PC with 4–8 cores, giving Docker only 2 cores keeps TTS smoother; the engine thinks a little slower.\n\n"
-                + "This writes processors=2 and memory=8GB into the [wsl2] section of " + WslFile + " (other lines are kept; a copy of the old file is saved beside it). It affects every WSL program on this PC, not only Docker, and takes effect the next time WSL restarts. Nothing restarts now.\n\n"
-                + "Current file: " + (now == null ? "none" : Logic.Clip(now.Trim(), 400)) + "\n\nWrite the limit?";
+            return "Docker runs the engine in a Linux VM (WSL), and Tabletop Simulator shares the PC's CPU cores with it. More cores for Docker: the engine keeps up on a big board (dozens of tokens, many triggers). Fewer: TTS has more to itself and runs smoother. This PC has " + Environment.ProcessorCount + " logical cores.\n\n"
+                + "This writes processors=" + cores + " and memory=8GB into the [wsl2] section of " + WslFile + " (other lines are kept; a copy of the old file is saved beside it). It affects every WSL program on this PC, not only Docker, and takes effect the next time WSL restarts (restart the PC, or between games quit Docker Desktop and run wsl --shutdown). Nothing restarts now.\n\n"
+                + "Current file: " + (now == null ? "none" : Logic.Clip(now.Trim(), 400)) + "\n\nGive Docker " + cores + " cores?";
+        }
+
+        // the Docker cores buttons (2026-11-20): one per choice; the one the file has now is greyed out and marked
+        List<object> WslButtons()
+        {
+            var now = Logic.WslProcessors(Probes.ReadText(WslFile));
+            var list = new List<object>();
+            foreach (int n in Logic.WslCoreChoices)
+            {
+                bool current = now == n, fits = n <= Environment.ProcessorCount;
+                list.Add(new Dictionary<string, object>
+                {
+                    { "id", "wsl-cores-" + n }, { "label", "Docker: " + n + " cores" + (current ? " (now)" : "") }, { "enabled", !c.Observe && !current && fits },
+                    { "title", c.Observe ? ObserveText : current ? "Docker has " + n + " cores now (in .wslconfig; it counts from the next WSL restart)."
+                        : !fits ? "This PC has only " + Environment.ProcessorCount + " logical cores."
+                        : n == 2 ? "2 cores: TTS runs smoother; the engine slows down on a big board." : n + " cores: the engine keeps up better on a big board; TTS has fewer cores to itself." },
+                    { "confirm", c.Observe || current || !fits ? null : WslConfirm(n) }, { "confirmLocked", false },
+                });
+            }
+            return list;
         }
 
         List<object> Menu(bool locked, Game g)
@@ -647,12 +667,7 @@ namespace MtgCompanion
                 {
                     { "id", "open-logs" }, { "label", "Open logs folder" }, { "enabled", true }, { "title", c.L.LogsDir }, { "confirm", null }, { "confirmLocked", false },
                 },
-                new Dictionary<string, object>
-                {
-                    { "id", "wsl-limits" }, { "label", "Limit Docker's CPU use…" }, { "enabled", !c.Observe },
-                    { "title", c.Observe ? ObserveText : "Optional: gives Docker 2 cores so TTS runs smoother." }, { "confirm", c.Observe ? null : WslConfirm() }, { "confirmLocked", false },
-                },
-            };
+            }.Concat(WslButtons()).ToList();
         }
 
         static List<string> LogTail(int lines)
@@ -828,8 +843,10 @@ namespace MtgCompanion
                 case "open-logs":
                     try { OpenFolder(c.L.LogsDir); return Done("Opened " + c.L.LogsDir + "."); }
                     catch (Exception e) { return No("Couldn't open the logs folder: " + e.Message); }
-                case "wsl-limits":
-                    return Wsl();
+                case "wsl-limits": // (the one button before 2026-11-20: 2 cores)
+                case "wsl-cores-2": return Wsl(2);
+                case "wsl-cores-3": return Wsl(3);
+                case "wsl-cores-4": return Wsl(4);
                 case "update-check":
                 {
                     if (c.Observe) return No(ObserveText);
@@ -933,15 +950,16 @@ namespace MtgCompanion
                 : "The bridge couldn't be asked (" + (h.Error ?? ("HTTP " + h.Status)) + ").";
         }
 
-        ActResult Wsl()
+        ActResult Wsl(int cores)
         {
             if (c.Observe) return No(ObserveText);
+            if (cores > Environment.ProcessorCount) return No("This PC has only " + Environment.ProcessorCount + " logical cores.");
             try
             {
                 string now = Probes.ReadText(WslFile);
                 if (now != null) File.Copy(WslFile, WslFile + ".bak-" + DateTime.Now.ToString("yyyyMMdd-HHmm"), true);
-                File.WriteAllText(WslFile, Logic.SetWslLimits(now, 2, "8GB"));
-                Log.Write("wrote " + WslFile + " (processors=2, memory=8GB), on a status-page click");
+                File.WriteAllText(WslFile, Logic.SetWslLimits(now, cores, "8GB"));
+                Log.Write("wrote " + WslFile + " (processors=" + cores + ", memory=8GB), on a status-page click");
                 return Done("Saved. It takes effect after WSL restarts (restart the PC, or quit Docker Desktop and run \"wsl --shutdown\" yourself).");
             }
             catch (Exception e) { return No("Couldn't write it: " + e.Message); }

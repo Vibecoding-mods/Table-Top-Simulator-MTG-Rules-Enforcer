@@ -254,6 +254,18 @@ namespace MtgCompanion
                 Check("the log: a known action is written, an unknown id never is", logged.Contains("status page: wsl-limits") && !logged.Contains("evil"), logged);
             }
             finally { try { File.Delete(Log.File); } catch { } Log.File = keepLog; }
+            // (the Docker cores buttons, 2026-11-20: 3 and 4 as well as 2; the one in the file is marked and greyed out)
+            if (Environment.ProcessorCount >= 4)
+            {
+                Send(w, Post(w, "{\"id\":\"wsl-cores-4\"}", w.Token));
+                Check("Docker cores: 4 writes processors=4", Logic.WslProcessors(Probes.ReadText(w.WslFile)) == 4, Probes.ReadText(w.WslFile));
+                var cores = J.Arr(J.Parse(Send(w, Get(w, "/api/status", w.Token)).Body) as Dictionary<string, object>, "menu").Where(m => J.Str(m, "id").StartsWith("wsl-cores-")).ToList();
+                Check("Docker cores: the 4 button says (now) and is greyed out; 2 and 3 can be pressed", cores.Count == 3 && J.Str(cores[2], "label") == "Docker: 4 cores (now)" && !J.Bool(cores[2], "enabled") && J.Bool(cores[0], "enabled") && J.Bool(cores[1], "enabled"), J.Write(cores));
+                Send(w, Post(w, "{\"id\":\"wsl-cores-3\"}", w.Token));
+                Check("Docker cores: then 3 writes processors=3", Logic.WslProcessors(Probes.ReadText(w.WslFile)) == 3, Probes.ReadText(w.WslFile));
+            }
+            Check("WslProcessors: none, the [wsl2] line, another section's ignored, not a number", Logic.WslProcessors(null) == null && Logic.WslProcessors("[wsl2]\r\nmemory=8GB\r\nprocessors = 3\r\n") == 3
+                && Logic.WslProcessors("[other]\nprocessors=5\n[wsl2]\nmemory=8GB\n") == null && Logic.WslProcessors("[wsl2]\nprocessors=many\n") == null);
             try { File.Delete(w.WslFile); } catch { }
             Check("GET /api/action: 405", Send(w, Get(w, "/api/action", w.Token)).Status == 405);
             Check("POST /api/status: 405", Send(w, "POST /api/status HTTP/1.1\r\nHost: 127.0.0.1:48790\r\n" + WebUi.TokenHeader + ": " + w.Token + "\r\nContent-Length: 0\r\n\r\n").Status == 405);
@@ -290,7 +302,7 @@ namespace MtgCompanion
             var game = J.Get(s, "game");
             Check("status: game none, unlocked", J.Str(game, "kind") == "none" && !J.Bool(game, "locked") && J.Get(game, "lockText") == null, J.Write(game));
             var menu = J.Arr(s, "menu");
-            Check("status: the menu: start-engine, restart-engine, stop-everything, open-logs, wsl-limits", menu != null && string.Join(",", menu.Select(m => J.Str(m, "id"))) == "start-engine,restart-engine,stop-everything,open-logs,wsl-limits", menu == null ? null : string.Join(",", menu.Select(m => J.Str(m, "id"))));
+            Check("status: the menu: start-engine, restart-engine, stop-everything, open-logs, Docker 2/3/4 cores", menu != null && string.Join(",", menu.Select(m => J.Str(m, "id"))) == "start-engine,restart-engine,stop-everything,open-logs,wsl-cores-2,wsl-cores-3,wsl-cores-4", menu == null ? null : string.Join(",", menu.Select(m => J.Str(m, "id"))));
             Check("status: started: Start engine stays enabled but isn't the gold one", J.Bool(menu[0], "enabled") && !J.Bool(menu[0], "primary") && J.Str(menu[0], "label") == "Start engine", J.Write(menu[0]));
             Check("status: versions, a log with lines, the update section (friend mode)", J.Has(s, "versions") && J.Str(J.Get(s, "versions"), "companion") != null && J.Arr(J.Get(s, "log"), "lines") != null && J.Get(s, "update") is Dictionary<string, object>);
             StoppedStatus(c, w);

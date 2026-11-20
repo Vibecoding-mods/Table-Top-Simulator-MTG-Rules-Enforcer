@@ -681,6 +681,27 @@ namespace MtgCompanion
 
         // ───────────────────────────── WSL limits (optional button) ─────────────────────────────
 
+        // The cores the Docker limit buttons offer (the user, 2026-11-20: 2 kept TTS safe; 3 and 4 speed up a big board)
+        public static readonly int[] WslCoreChoices = { 2, 3, 4 };
+
+        // processors= in the [wsl2] section, or null (no file, no section, no line, not a number)
+        public static int? WslProcessors(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return null;
+            bool inWsl2 = false;
+            foreach (var raw in text.Replace("\r\n", "\n").Split('\n'))
+            {
+                var l = raw.Trim();
+                if (l.StartsWith("[")) { inWsl2 = l.Equals("[wsl2]", StringComparison.OrdinalIgnoreCase); continue; }
+                if (!inWsl2) continue;
+                int eq = l.IndexOf('=');
+                if (eq < 0 || !l.Substring(0, eq).Trim().Equals("processors", StringComparison.OrdinalIgnoreCase)) continue;
+                int n;
+                return int.TryParse(l.Substring(eq + 1).Trim(), out n) && n > 0 ? (int?)n : null;
+            }
+            return null;
+        }
+
         // Sets processors= and memory= in the [wsl2] section, keeping every other line and the file's line ends
         public static string SetWslLimits(string text, int cores, string memory)
         {

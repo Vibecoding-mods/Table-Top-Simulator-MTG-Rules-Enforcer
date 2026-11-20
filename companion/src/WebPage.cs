@@ -490,7 +490,7 @@ var MtgPage = (function () {
     'update-check': 'Check for updates: asks the project’s releases whether a newer package is out, and says what it changes (the table, the app, the engine). Nothing is installed until you press Update now. A release you went back from with Revert is offered again.',
     'update-revert': 'Revert: goes back to the version before the last update, from the copy the update kept (it asks first). It puts back what that update changed: the table, the app, the engine. The bridge stops for about a minute; during a game it waits, and goes back 2 minutes after the game ends. The automatic check then skips the release you went back from; Check for updates offers it again. Greyed out when no earlier version is kept.'
   };
-  var MENU_ICONS = { 'start-engine': 'play', 'restart-engine': 'restart', 'stop-everything': 'stop', 'open-logs': 'folder', 'wsl-limits': 'cpu', 'update-now': 'download', 'update-later': 'clock', 'update-check': 'search', 'update-revert': 'untap' };
+  var MENU_ICONS = { 'start-engine': 'play', 'restart-engine': 'restart', 'stop-everything': 'stop', 'open-logs': 'folder', 'wsl-limits': 'cpu', 'wsl-cores-2': 'cpu', 'wsl-cores-3': 'cpu', 'wsl-cores-4': 'cpu', 'update-now': 'download', 'update-later': 'clock', 'update-check': 'search', 'update-revert': 'untap' };
   var UPDATE_BUSY = 'an update is being checked, downloaded or installed.';
   // (by the fix id after 'fix:<row>:'; the tip starts with the button's own label)
   var FIX_TIPS = {
