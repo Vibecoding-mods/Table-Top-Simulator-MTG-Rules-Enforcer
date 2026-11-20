@@ -108,6 +108,7 @@ namespace MtgCompanion
             Check("no ids in version.json: present is enough", v.Light == Light.Green, v);
             v = Logic.DecideImages(new ImageFacts { Friend = false, RelayId = R });
             Check("home, missing: red, build-images.sh, never loads", v.Light == Light.Red && v.Text.Contains("build-images.sh") && v.Action == null, v);
+            Check("home, missing: a source-code download is sent to the Releases page", v.Text.Contains("Releases page") && v.Text.Contains("MTG-Table zip"), v);
             v = Logic.DecideImages(new ImageFacts { Friend = false, RelayId = R, NodeId = "sha256:2222222222222222", WantRelay = R, WantNode = N });
             Check("home, not the deployed image: amber", v.Light == Light.Amber && v.Action == null, v);
             Check("SameId: short prefix of 12+", Logic.SameId("ef61822078a0", N));

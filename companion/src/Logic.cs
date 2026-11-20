@@ -349,7 +349,7 @@ namespace MtgCompanion
             if (!f.Friend)
             {
                 if (f.RelayId == null || f.NodeId == null)
-                    return new Verdict(Light.Red, "The engine images aren't built. In Git Bash: bash engine/build-images.sh (about 20 minutes), then press Try again.")
+                    return new Verdict(Light.Red, "No engine images. This looks like the source code (GitHub's green Code button): get the MTG-Table zip from the Releases page instead. Hosts building from source, in Git Bash: bash engine/build-images.sh (about 20 minutes), then Try again.")
                         .WithFix(Fixes.Retry, "Try again");
                 if (!relayOk || !nodeOk)
                     return new Verdict(Light.Amber, "Present (" + ids + "), but not the images in stack\\deployed.json (node tools/deploy.js).");

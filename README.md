@@ -8,6 +8,9 @@ click your library, use the table's buttons), while the **Forge** rules engine r
 
 Think MTG Arena's rules on a free-form tabletop.
 
+> **To play: download the `MTG-Table-<date>-<hash>.zip` from the [Releases page](https://github.com/Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer/releases/latest)**,
+> not the green **Code → Download ZIP** button (that is the source code, without the engine). Steps: [The easy way](#the-easy-way-the-one-click-package).
+
 Made with [Claude Code](https://claude.com/claude-code): the code, tests and docs in this repository were written with
 Anthropic's AI coding assistant, directed and play-tested by the project's owner.
 
@@ -112,7 +115,8 @@ The PC that runs the engine (the host). Friends who only join need just Tabletop
 
 1. Install Docker Desktop as above, start it once, and accept its terms. Let it update WSL if it asks.
 2. Subscribe to the table on the Workshop and start TTS once.
-3. Download the latest `MTG-Table-<date>-<hash>.zip` from this repository's **Releases** page.
+3. Download the latest `MTG-Table-<date>-<hash>.zip` from this repository's **Releases** page (under Assets; not
+   "Source code" and not the green Code button, which have no engine).
 4. Unzip it anywhere and double-click **MTG Companion.exe**, then press **Start engine**.
    - Windows may warn that the app is unsigned: choose **More info → Run anyway**.
    - The first start loads the engine into Docker and takes a few minutes. It makes the table from your Workshop copy
