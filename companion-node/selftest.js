@@ -117,6 +117,7 @@ function images() {
   check("no ids in version.json: present is enough", L.decideImages({ friend: true, tarPath: "x.tar", relayId: R, nodeId: N }).light === Light.Green);
   v = L.decideImages({ friend: false, relayId: R });
   check("home, missing: red, build-images.sh, never loads", v.light === Light.Red && v.text.includes("build-images.sh") && !v.action, v);
+  check("home, missing: a source-code download is sent to the Releases page (2026-11-19, a friend's Download ZIP)", v.text.includes("Releases page") && v.text.includes("MTG-Table zip"), v);
   check("SameId: short prefix of 12+", L.sameId("ef61822078a0", N));
   check("SameId: under 12 hex must be equal", !L.sameId("ef6182", N));
   check("SameId: different", !L.sameId(R, N));

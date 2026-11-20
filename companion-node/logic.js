@@ -263,7 +263,7 @@ function decideImages(f) {
   const nodeOk = !!f.nodeId && (!f.wantNode || sameId(f.nodeId, f.wantNode));
   const ids = `relay ${shortId(f.relayId)}, engine ${shortId(f.nodeId)}`;
   if (!f.friend) {
-    if (!f.relayId || !f.nodeId) return verdict(Light.Red, "The engine images aren't built. Run bash engine/build-images.sh (about 20 minutes), then press Try again.", { fix: Fixes.Retry, label: "Try again" });
+    if (!f.relayId || !f.nodeId) return verdict(Light.Red, "No engine images. This looks like the source code (GitHub's green Code button): get the MTG-Table zip from the Releases page instead. Hosts building from source: bash engine/build-images.sh (about 20 minutes), then Try again.", { fix: Fixes.Retry, label: "Try again" });
     if (!relayOk || !nodeOk) return verdict(Light.Amber, `Present (${ids}), but not the images in stack/deployed.json (node tools/deploy.js).`);
     return verdict(Light.Green, `Present (${ids}).`);
   }
