@@ -52,10 +52,10 @@ Also: `companion/app.manifest` (asInvoker, so it never asks for admin), `compani
 | Compose project | `mtg-table` | `stack` |
 | Logs | `logs\companion.log`, `logs\bridge.log` | `tmp\companion.log`, `tmp\bridge-live.log` |
 | Starts the bridge by | `MTG Companion.exe --bridge-loop` (§5.5) | `tools\start-bridge.ps1` |
-| Table save step | installs the save into TTS's Saves folder | skipped, grey: "you keep your own save" |
+| Table save step | installs the save into TTS's Saves folder | skipped, grey: "tools/deploy.js installs the save ..., so this app leaves it alone. Nothing is wrong." |
 | Self-update | yes (§11) | no: "the repo updates with git" (`Controller.cs:211-215`) |
 | Compose up | `up -d` | `up -d --no-recreate` (`Controller.cs:696`) |
-| Expected versions from | `version.json` | `stack\deployed.json` (`Controller.cs:169`) |
+| Expected versions from | `version.json` | `stack\deployed.json` (`Controller.cs:169`), read again whenever its write time changes (`RefreshDeployed`, each worker turn, since 2026-11-20: tools/deploy.js rewrites it while the app runs); a bridge that answers but isn’t the expected one after the 45 s start wait stays amber, not “didn’t start” |
 
 All paths: `Layout.Make` (`Logic.cs:76-110`). `--home DIR` overrides the folder (`Logic.cs:124-129`).
 

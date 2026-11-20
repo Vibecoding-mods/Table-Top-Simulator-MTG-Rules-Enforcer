@@ -391,6 +391,64 @@ body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; fi
       <p class='toast' id='tt-toast' role='status' aria-live='polite'></p>
     </div>
   </details>
+
+  <details id='helpbox' class='card'>
+    <summary id='helpbox-sum'><span class='sum-ico' data-icon='log' aria-hidden='true'></span><span>Help: common problems</span></summary>
+    <p class='sum-help'>A red light says what is wrong and has one button that fixes it: press that first. The full list is on GitHub: docs/TROUBLESHOOTING.md in the project’s repository (Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer).</p>
+    <div class='tt'>
+      <details class='tt-help' id='help-bridge'>
+        <summary id='help-bridge-sum'>Bridge: “Running, but it isn’t the deployed bridge”</summary>
+        <ul><li>An older bridge is running. Press <b>Restart the bridge</b> between games.</li>
+        <li>Still there after a restart: this companion is older than the deploy. Quit it from the tray icon and start it again.</li></ul>
+      </details>
+      <details class='tt-help' id='help-save'>
+        <summary id='help-save-sum'>Table save is grey: “Not checked” (home mode)</summary>
+        <ul><li>Nothing is wrong. On the project’s own PC, <b>node tools/deploy.js</b> installs the save, so the companion leaves it alone.</li>
+        <li>In a release package the companion installs and checks the save itself.</li></ul>
+      </details>
+      <details class='tt-help' id='help-images'>
+        <summary id='help-images-sum'>“No engine images”</summary>
+        <ul><li>This is the source code (GitHub’s green Code button). Download the <b>MTG-Table zip</b> from the project’s <b>Releases</b> page instead.</li></ul>
+      </details>
+      <details class='tt-help' id='help-oldcopy'>
+        <summary id='help-oldcopy-sum'>The new companion showed the old window</summary>
+        <ul><li>An older copy from another folder is still running. Answer <b>Yes</b> when the new one asks to close it, or quit the old one from its tray icon first.</li></ul>
+      </details>
+      <details class='tt-help' id='help-docker'>
+        <summary id='help-docker-sum'>Docker won’t start</summary>
+        <ul><li>Start Docker Desktop and wait until it runs; accept its terms and WSL update.</li>
+        <li>“Not allowed to use Docker”: sign out of Windows and back in.</li>
+        <li>“Virtualization is off”: turn on SVM (AMD) or VT-x (Intel) in the BIOS.</li></ul>
+      </details>
+      <details class='tt-help' id='help-stack'>
+        <summary id='help-stack-sum'>Engine stack red after sleep, or setup stuck</summary>
+        <ul><li>Press <b>Restart relay and room</b>. If a game was being set up, type <b>mtg reset</b> in TTS chat first.</li></ul>
+      </details>
+      <details class='tt-help' id='help-port'>
+        <summary id='help-port-sum'>Bridge: port 39998 is taken</summary>
+        <ul><li>Close the TTS extension of VS Code or Atom (it uses the same port), then press <b>Start the bridge</b>.</li></ul>
+      </details>
+      <details class='tt-help' id='help-tts'>
+        <summary id='help-tts-sum'>TTS is amber: load the table</summary>
+        <ul><li>In TTS: Create, Multiplayer (Singleplayer to play alone), Games, Save &amp; Load, then the rules-engine table.</li></ul>
+      </details>
+      <details class='tt-help' id='help-game'>
+        <summary id='help-game-sum'>In the game: unknown cards, white GIF squares</summary>
+        <ul><li>Unknown cards or a 99-card deck: update to the newest release.</li>
+        <li>GIF frames white (Steam Deck, Mac, Linux): type <b>mtg gifs still</b> in TTS chat.</li></ul>
+      </details>
+      <details class='tt-help' id='help-update'>
+        <summary id='help-update-sum'>How do I update?</summary>
+        <ul><li>When a release is out, the update box at the top says <b>Update available</b>: press <b>Update now</b>. <b>Check for updates</b> checks right away; <b>Revert</b> goes back one version.</li>
+        <li>It never installs during a game. The project’s own PC (home mode) updates with git instead.</li></ul>
+      </details>
+      <details class='tt-help' id='help-stuck'>
+        <summary id='help-stuck-sum'>Still stuck</summary>
+        <ul><li>Quit the companion from the tray and start it again.</li>
+        <li>Then press <b>Open logs folder</b> and send the files there to whoever gave you this.</li></ul>
+      </details>
+    </div>
+  </details>
   </section>
   </div>
 </main>
@@ -606,6 +664,18 @@ var MtgPage = (function () {
     'tt-gif-save': 'Save key: hands the key to the bridge, which keeps it on this PC and tells the table its GIF frames are on.',
     'tt-gif-remove': 'Remove key: deletes the saved key; the table’s GIF frames go away.',
     'tt-gif-help-sum': 'Get a GIPHY key: the steps on developers.giphy.com, for the host only (players need none). Choose API, not SDK.',
+    'helpbox-sum': 'Help: the usual problems and their fixes. Read only: nothing here changes anything. The full list is docs/TROUBLESHOOTING.md on GitHub.',
+    'help-bridge-sum': 'Opens: what to do when the bridge light says the running bridge is an older one.',
+    'help-save-sum': 'Opens: why the Table save light is grey on the project’s own PC.',
+    'help-images-sum': 'Opens: what to do when there are no engine images (the source code was downloaded).',
+    'help-oldcopy-sum': 'Opens: what to do when an older companion is still running.',
+    'help-docker-sum': 'Opens: what to do when Docker Desktop won’t start.',
+    'help-stack-sum': 'Opens: what to do when the engine stopped answering after sleep, or setup is stuck.',
+    'help-port-sum': 'Opens: what to do when another program holds the bridge’s port.',
+    'help-tts-sum': 'Opens: how to load the table in TTS.',
+    'help-game-sum': 'Opens: fixes for unknown cards and white GIF squares.',
+    'help-update-sum': 'Opens: how updates work here.',
+    'help-stuck-sum': 'Opens: what to do when nothing above helped.',
     'tt-debug': 'Debug tools: switches them on or off on the bridge, and the whole table is told in chat. They are off at every bridge start. Switching them off cancels a debug change still waiting for its vote.',
     'tt-player': 'Player: whom the debug tool changes. Only players still in the running game are listed.',
     'tt-n': 'Number: the mana to add (1 to 99), the life total to set (0 to 999), or the cards to draw or mill (1 to 99).',

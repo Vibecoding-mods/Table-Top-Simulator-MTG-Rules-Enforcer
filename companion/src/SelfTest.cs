@@ -169,6 +169,38 @@ namespace MtgCompanion
             var timedOut = Logic.StackTimedOut("room busy");
             Check("engine wait: the red text names the wait in minutes", timedOut.Contains("within " + (Logic.StackWaitSeconds / 60) + " minutes: room busy"), timedOut);
             SequenceWiring();
+            DeployedReread();
+        }
+
+        // Home mode: tools/deploy.js rewrites stack\deployed.json while the app runs (2026-11-20: an app started 5 days
+        // earlier still wanted the old bridge, called the new one wrong, and its restart "didn't start")
+        static void DeployedReread()
+        {
+            var tmp = Path.Combine(Path.GetTempPath(), "mtg-companion-selftest-" + Guid.NewGuid().ToString("N").Substring(0, 6));
+            try
+            {
+                var l = Layout.Make(Mode.Home, tmp);
+                Directory.CreateDirectory(Path.GetDirectoryName(l.DeployedFile));
+                File.WriteAllText(l.DeployedFile, "{\"table\": \"t1\", \"bridge\": \"old11111\"}");
+                var c = new Controller(l, false, Path.Combine(tmp, "saves"), Path.Combine(tmp, "state"), "x.exe");
+                Check("deployed: read at launch", c.Want("bridge") == "old11111", c.Want("bridge"));
+                c.RefreshDeployed();
+                Check("deployed: unchanged file, same answer", c.Want("bridge") == "old11111", c.Want("bridge"));
+                File.WriteAllText(l.DeployedFile, "{\"table\": \"t2\", \"bridge\": \"new22222\"}");
+                File.SetLastWriteTimeUtc(l.DeployedFile, DateTime.UtcNow.AddMinutes(1));
+                c.WorkOnce(() => { });
+                Check("deployed: a deploy while the app runs is read on the next turn (bridge and table)", c.Want("bridge") == "new22222" && c.Want("table") == "t2" && c.VersionText.Contains("new22222"), c.Want("bridge") + " / " + c.VersionText);
+                File.WriteAllText(l.DeployedFile, "{\"table\": \"t3\", \"brid");
+                File.SetLastWriteTimeUtc(l.DeployedFile, DateTime.UtcNow.AddMinutes(2));
+                c.RefreshDeployed();
+                Check("deployed: a half-written file is not used (the last good one stays)", c.Want("bridge") == "new22222", c.Want("bridge"));
+                File.WriteAllText(l.DeployedFile, "{\"table\": \"t3\", \"bridge\": \"new33333\"}");
+                File.SetLastWriteTimeUtc(l.DeployedFile, DateTime.UtcNow.AddMinutes(3));
+                c.RefreshDeployed();
+                Check("deployed: ... and is read once it is whole", c.Want("bridge") == "new33333", c.Want("bridge"));
+            }
+            catch (Exception e) { Check("deployed: re-read ran", false, e.Message); }
+            finally { try { Directory.Delete(tmp, true); } catch { } }
         }
 
         // The Controller's own wiring of the two rules: the worker's turns (WorkOnce) on a Controller whose worker thread
