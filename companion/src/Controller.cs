@@ -198,6 +198,7 @@ namespace MtgCompanion
         readonly Dictionary<int, DateTime> busyLogged = new Dictionary<int, DateTime>();
         bool forceFresh, forceLoad, everythingStopped, ttsLaunched; // (everythingStopped: the menu's Stop everything; the watcher pauses)
         object version, deployed;
+        DateTime deployedAt;
         string dockerCli, dockerDesktop, saveName, relayKey;
         bool dockerViaCli; DateTime lastCliInfo = DateTime.MinValue; bool lastCliOk;
         HttpResult versionsCache; DateTime versionsAt = DateTime.MinValue, loginAt = DateTime.MinValue, imagesAt = DateTime.MinValue;
@@ -228,7 +229,7 @@ namespace MtgCompanion
         {
             L = l; Observe = observe; SavesDir = savesDir; StateDir = stateDir; ExePath = exePath;
             ReloadPackage();
-            if (!L.Friend) Rows[StepSave].V = new Verdict(Light.Grey, "Home mode: you keep your own save (" + saveName + ").");
+            if (!L.Friend) Rows[StepSave].V = new Verdict(Light.Grey, "Home mode: tools/deploy.js installs the save (" + saveName + "), so this app leaves it alone. Nothing is wrong.");
             if (L.Friend && !Observe)
             {
                 upd = new Updater(L, StateDir, ExePath, UpdateBase);
@@ -276,6 +277,7 @@ namespace MtgCompanion
         void ReloadPackage()
         {
             version = L.Friend ? J.Parse(Probes.ReadText(L.VersionFile)) : null;
+            deployedAt = DeployedStamp();
             deployed = J.Parse(Probes.ReadText(L.DeployedFile));
             relayKey = Logic.RelayKey(Probes.ReadText(L.EnvFile));
             ReadServer();
@@ -284,7 +286,25 @@ namespace MtgCompanion
             if (version != null)
                 VersionText = "Package " + (J.Str(version, "release") ?? "built " + (J.Str(version, "built") ?? "?")) + ", commit " + (J.Str(version, "gitCommit") ?? "?") + ", table " + (J.Str(version, "table") ?? "?") + ", bridge " + (J.Str(version, "bridge") ?? "?");
             else if (deployed != null)
-                VersionText = "Home mode, deployed table " + (J.Str(deployed, "table") ?? "?") + ", bridge " + (J.Str(deployed, "bridge") ?? "?");
+                VersionText = HomeVersionText();
+        }
+
+        string HomeVersionText() { return "Home mode, deployed table " + (J.Str(deployed, "table") ?? "?") + ", bridge " + (J.Str(deployed, "bridge") ?? "?"); }
+
+        DateTime DeployedStamp() { try { return File.GetLastWriteTimeUtc(L.DeployedFile); } catch { return DateTime.MinValue; } }
+
+        // stack\deployed.json again when it changed on disk: in home mode tools/deploy.js rewrites it while the app runs,
+        // and a copy read at launch would call the newly deployed bridge and images wrong (and a restarted bridge "didn't start")
+        internal void RefreshDeployed()
+        {
+            var t = DeployedStamp();
+            if (t == deployedAt) return;
+            var d = J.Parse(Probes.ReadText(L.DeployedFile));
+            if (d == null) return; // (half written: the next turn reads it)
+            deployedAt = t;
+            deployed = d;
+            if (version == null) VersionText = HomeVersionText();
+            Log.Write("stack\\deployed.json changed: read again (bridge " + (J.Str(d, "bridge") ?? "?") + ", table " + (J.Str(d, "table") ?? "?") + ")");
         }
 
         // server.json (or --server) again; the Engine stack row is named for the mode. Never logs the key.
@@ -580,6 +600,7 @@ namespace MtgCompanion
         // tick). The self-test drives this with a fake watcher, the worker thread never started.
         internal bool WorkOnce(Action watch)
         {
+            Safe(RefreshDeployed, "deployed.json");
             Action a = null;
             lock (q) if (work.Count > 0) a = work.Dequeue();
             if (a != null)
@@ -766,7 +787,7 @@ namespace MtgCompanion
                     stoppedAt = step;
                     SetPhase("Stopped at step " + step + " (" + Names[step - 1] + "): see the red light");
                     for (int k = step; k < 6; k++) Rows[k].V = new Verdict(Light.Grey, "Waiting for " + Names[step - 1] + ".");
-                    if (!L.Friend) Rows[StepSave].V = new Verdict(Light.Grey, "Home mode: you keep your own save (" + saveName + ").");
+                    if (!L.Friend) Rows[StepSave].V = new Verdict(Light.Grey, "Home mode: tools/deploy.js installs the save (" + saveName + "), so this app leaves it alone. Nothing is wrong.");
                     Fire();
                     return;
                 }
@@ -1173,7 +1194,7 @@ namespace MtgCompanion
 
         bool DoSave()
         {
-            if (!L.Friend) { Set(StepSave, new Verdict(Light.Grey, "Home mode: you keep your own save (" + saveName + ").")); return true; }
+            if (!L.Friend) { Set(StepSave, new Verdict(Light.Grey, "Home mode: tools/deploy.js installs the save (" + saveName + "), so this app leaves it alone. Nothing is wrong.")); return true; }
             // the table: made here from the host's own Workshop copy (the package ships none)
             var tried = Logic.WorkshopCandidates(SavesDir, SteamDir == null ? null : SteamDir(), WorkshopId);
             string workshop = tried.FirstOrDefault(File.Exists);
@@ -1315,6 +1336,8 @@ namespace MtgCompanion
                 if (v.Light == Light.Red) { Set(StepBridge, v); return false; }
                 if ((DateTime.UtcNow - t0).TotalSeconds > 45)
                 {
+                    // it runs and answers, only not the expected version: say that, not "didn't start"
+                    if (v.Light == Light.Amber) { Set(StepBridge, v); return true; }
                     var tail = (Probes.Tail(L.BridgeLog, 4000) ?? "").Replace("\r", "").Split('\n').Where(s => s.Trim().Length > 0).Reverse().Take(5).Reverse();
                     var why = string.Join(" | ", tail);
                     string hint = why.Contains("EADDRINUSE") ? " A port it needs is taken by another program." : "";

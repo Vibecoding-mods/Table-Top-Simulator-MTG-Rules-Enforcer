@@ -123,7 +123,8 @@ The PC that runs the engine (the host). Friends who only join need just Tabletop
      and installs it as a TTS save. The lights turn green when it's ready.
 5. In Tabletop Simulator, load **MTG Table (rules engine)** from your saves.
 
-`README-FRIEND.txt` in the zip has the details and what to do if a light stays red. The rest of this page is for hosts
+`README-FRIEND.txt` in the zip has the details. A light stays red, or something else is wrong? See
+**[Troubleshooting and FAQ](docs/TROUBLESHOOTING.md)** (the companion has a short version under **Help**). The rest of this page is for hosts
 who build and run everything themselves.
 
 ## What you need (host only)

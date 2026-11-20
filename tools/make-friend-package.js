@@ -441,6 +441,8 @@ Each red light says what is wrong and has one button that fixes it. The usual on
 - TTS: red when the table loaded in TTS isn't this package's. Load "${SAVE_NAME}" again (step 2 above).
 Fix buttons that restart things are locked while a game is on, so a fix never ends a game by surprise.
 Still stuck: close the companion, start it again. Then send the files in the "logs" folder to whoever gave you this.
+More problems and fixes: the companion's "Help: common problems" box, or docs/TROUBLESHOOTING.md in the project's
+GitHub repository.
 
 
 OPTIONAL: PLAY ON A FRIEND'S ENGINE (OWN SERVER)

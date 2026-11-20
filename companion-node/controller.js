@@ -62,21 +62,39 @@ class Controller {
     this.update = { status: "idle", current: null, available: null, notes: null, progress: -1, deferred: false, later: false, error: null, lastCheck: null, text: "" };
     this.updateBusy = false;
     this.reloadPackage();
-    if (!this.L.friend) this.rows[Step.Save].v = verdict(Light.Grey, `Home mode: you keep your own save (${this.saveName}).`);
+    if (!this.L.friend) this.rows[Step.Save].v = verdict(Light.Grey, `Home mode: tools/deploy.js installs the save (${this.saveName}), so this app leaves it alone. Nothing is wrong.`);
   }
 
   // the package's files: at start (and after an update replaced them)
   reloadPackage() {
     const l = this.L;
     this.version = l.friend ? L.parseJson(probes.readText(l.versionFile)) : null;
+    this.deployedAt = this.deployedStamp();
     this.deployed = L.parseJson(probes.readText(l.deployedFile));
     this.relayKey = P.engineKey(process.env.MANABREW_SERVER_KEY, L.relayKey(probes.readText(l.envFile)));
     this.saveName = l.friend ? (L.readSaveName(probes.readHead(l.tableJson, 8192)) || L.DefaultSaveName) : "Mock MTGA 4 player";
     if (l.friend) l.imagesTar = L.findImagesTar(l.home, probes.exists, (d) => { try { return fs.readdirSync(d).map((f) => path.posix.join(d, f)); } catch { return []; } });
     const v = this.version, d = this.deployed;
     if (v) this.versionText = `Package ${L.str(v, "release") || `built ${L.str(v, "built") || "?"}`}, commit ${L.str(v, "gitCommit") || "?"}, table ${L.str(v, "table") || "?"}, bridge ${L.str(v, "bridge") || "?"}`;
-    else if (d) this.versionText = `Home mode, deployed table ${L.str(d, "table") || "?"}, bridge ${L.str(d, "bridge") || "?"}`;
+    else if (d) this.versionText = this.homeVersionText();
     this.update.current = this.versionShort();
+  }
+
+  homeVersionText() { const d = this.deployed; return `Home mode, deployed table ${L.str(d, "table") || "?"}, bridge ${L.str(d, "bridge") || "?"}`; }
+
+  deployedStamp() { try { return fs.statSync(this.L.deployedFile).mtimeMs; } catch { return 0; } }
+
+  // stack/deployed.json again when it changed on disk: in home mode tools/deploy.js rewrites it while the app runs,
+  // and a copy read at launch would call the newly deployed bridge and images wrong
+  refreshDeployed() {
+    const t = this.deployedStamp();
+    if (t === this.deployedAt) return;
+    const d = L.parseJson(probes.readText(this.L.deployedFile));
+    if (!d) return; // (half written: the next turn reads it)
+    this.deployedAt = t;
+    this.deployed = d;
+    if (!this.version) this.versionText = this.homeVersionText();
+    Log.write(`stack/deployed.json changed: read again (bridge ${L.str(d, "bridge") || "?"}, table ${L.str(d, "table") || "?"})`);
   }
 
   versionShort() {
@@ -115,6 +133,7 @@ class Controller {
   // One turn: a queued press, else a queued start-sequence run, else the watcher and the carry-on check. true: it ran
   // a press or a run (go round again at once); false: it watched.
   async workOnce(watch) {
+    try { this.refreshDeployed(); } catch (e) { Log.write(`deployed.json: ${e.message}`); }
     const a = this.work.shift();
     if (a) {
       this.cancel = false;
@@ -247,7 +266,7 @@ class Controller {
         this.stoppedAt = step;
         this.setPhase(`Stopped at step ${step} (${Names[step - 1]}): see the red light`);
         for (let k = step; k < 6; k++) this.rows[k].v = verdict(Light.Grey, `Waiting for ${Names[step - 1]}.`);
-        if (!this.L.friend) this.rows[Step.Save].v = verdict(Light.Grey, `Home mode: you keep your own save (${this.saveName}).`);
+        if (!this.L.friend) this.rows[Step.Save].v = verdict(Light.Grey, `Home mode: tools/deploy.js installs the save (${this.saveName}), so this app leaves it alone. Nothing is wrong.`);
         this.fire();
         return;
       }
@@ -498,7 +517,7 @@ class Controller {
   }
 
   async doSave() {
-    if (!this.L.friend) { this.set(Step.Save, verdict(Light.Grey, `Home mode: you keep your own save (${this.saveName}).`)); return true; }
+    if (!this.L.friend) { this.set(Step.Save, verdict(Light.Grey, `Home mode: tools/deploy.js installs the save (${this.saveName}), so this app leaves it alone. Nothing is wrong.`)); return true; }
     const where = this.findSaves();
     this.savesDir = where.dir;
     const notYet = L.savesFolderVerdict(where.found, where.tried);
@@ -633,6 +652,8 @@ class Controller {
       if (v.light === Light.Green || (v.light === Light.Amber && !started)) { this.set(Step.Bridge, v); return true; }
       if (v.light === Light.Red) { this.set(Step.Bridge, v); return false; }
       if (Date.now() - t0 > 45000) {
+        // it runs and answers, only not the expected version: say that, not "didn't start"
+        if (v.light === Light.Amber) { this.set(Step.Bridge, v); return true; }
         const tailLines = String(probes.tail(this.L.bridgeLog, 4000) || "").replace(/\r/g, "").split("\n").filter((s) => s.trim()).slice(-5);
         const why = tailLines.join(" | ");
         const hint = why.includes("EADDRINUSE") ? " A port it needs is taken by another program." : "";

@@ -1207,11 +1207,38 @@ async function serverWiring() {
   }
 }
 
+// home mode: tools/deploy.js rewrites stack/deployed.json while the app runs; the next turn reads it again
+async function deployedReread() {
+  section("stack/deployed.json read again when it changes (home mode)");
+  const { Controller } = require("./controller");
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "mtg-companion-selftest-"));
+  try {
+    const layout = L.makeLayout("home", tmp.split(path.sep).join("/"));
+    fs.mkdirSync(path.dirname(layout.deployedFile), { recursive: true });
+    const put = (text, min) => { fs.writeFileSync(layout.deployedFile, text); const t = new Date(Date.now() + min * 60000); fs.utimesSync(layout.deployedFile, t, t); };
+    put('{"table": "t1", "bridge": "old11111"}', 0);
+    const engine = { o: {}, cli: null, runtime: null, detect: async () => ({}), bridgeEnv: () => ({}), startDesktop: () => false };
+    const c = new Controller({ layout, observe: false, savesDir: path.join(tmp, "saves"), stateDir: path.join(tmp, "state"), appDir: __dirname, platform: "linux", arch: "x64", engine, bridgeUrl: "http://127.0.0.1:9" });
+    check("deployed: read at launch", c.want("bridge") === "old11111", c.want("bridge"));
+    put('{"table": "t2", "bridge": "new22222"}', 1);
+    c.checkPending = false;
+    await c.workOnce(async () => {});
+    check("deployed: a deploy while the app runs is read on the next turn (bridge and table)", c.want("bridge") === "new22222" && c.want("table") === "t2" && c.versionText.includes("new22222"), { b: c.want("bridge"), t: c.versionText });
+    put('{"table": "t3", "brid', 2);
+    c.refreshDeployed();
+    check("deployed: a half-written file is not used (the last good one stays)", c.want("bridge") === "new22222", c.want("bridge"));
+    put('{"table": "t3", "bridge": "new33333"}', 3);
+    c.refreshDeployed();
+    check("deployed: ... and is read once it is whole", c.want("bridge") === "new33333", c.want("bridge"));
+  } catch (e) { check("deployed: re-read ran", false, e.stack || e.message); }
+  finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}
+
 async function main(outFile) {
   out = []; fails = 0; passes = 0;
   modes(); sequence(); docker(); images(); stack(); ports(); bridge(); gameLock(); saves(); tts(); misc(); update();
   startEngineRules(); ownServer();
-  await parser(); await wiring(); await launchStartsNothing(); await watcherBeforeStart(); await saveFiles(); await workshopTable(); await server(); await notStartedStatus();
+  await parser(); await wiring(); await launchStartsNothing(); await watcherBeforeStart(); await saveFiles(); await workshopTable(); await server(); await notStartedStatus(); await deployedReread();
   try { await serverWiring(); } catch (e) { check("own server wiring: ran to the end", false, e.stack || e.message); }
   shim();
   out.push(`${passes} passed, ${fails} failed`);
