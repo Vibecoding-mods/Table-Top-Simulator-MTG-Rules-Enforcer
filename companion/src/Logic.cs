@@ -116,6 +116,22 @@ namespace MtgCompanion
         public const string DockerUrl = "https://www.docker.com/products/docker-desktop/";
         public const string RelayImage = "mtg-relay:exile", NodeImage = "mtg-forge-node:exile";
         public const string Room = "tts-commander";
+
+        // The exe of a running companion that isn't this one: another folder, an older download (2026-11-19: a friend's first
+        // copy kept running, and the new one only showed the old window). null: none, or only this exe's own processes.
+        public static string OtherCompanion(string ourExe, IEnumerable<string> running)
+        {
+            foreach (var p in running)
+                if (!string.IsNullOrEmpty(p) && !string.Equals(Path.GetFullPath(p), Path.GetFullPath(ourExe), StringComparison.OrdinalIgnoreCase)) return p;
+            return null;
+        }
+        public static string OtherCompanionText(string other, string ours)
+        {
+            return "Another MTG Companion is already running, from a different folder:\r\n" + Path.GetDirectoryName(other)
+                + "\r\n\r\nThis one is in:\r\n" + Path.GetDirectoryName(ours)
+                + "\r\n\r\nClose the other one and use this one?\r\nYes: close it now (and its bridge). No: show the other one.";
+        }
+
         public const string DefaultSaveName = "MTG Table (rules engine)";
 
         // Friend mode when version.json sits beside the exe; home mode when the exe is inside the repo (built to

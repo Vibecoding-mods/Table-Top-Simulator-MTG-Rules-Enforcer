@@ -542,6 +542,20 @@ namespace MtgCompanion
             return ids;
         }
 
+        // The running MTG Companion processes, id and exe path (any copy, any folder; the release names it MTG.Companion.exe)
+        public static List<KeyValuePair<int, string>> Companions()
+        {
+            var out_ = new List<KeyValuePair<int, string>>();
+            try
+            {
+                using (var s = new ManagementObjectSearcher("SELECT ProcessId, ExecutablePath FROM Win32_Process WHERE Name = 'MTG Companion.exe' OR Name = 'MTG.Companion.exe'"))
+                    foreach (ManagementObject o in s.Get())
+                        using (o) out_.Add(new KeyValuePair<int, string>(Convert.ToInt32(o["ProcessId"]), o["ExecutablePath"] as string));
+            }
+            catch (Exception e) { Log.Write("listing the running companions failed: " + e.Message); }
+            return out_;
+        }
+
         public static void Kill(IEnumerable<int> pids)
         {
             if (pids == null) return;

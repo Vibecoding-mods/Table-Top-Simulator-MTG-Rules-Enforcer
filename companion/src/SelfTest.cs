@@ -109,6 +109,14 @@ namespace MtgCompanion
             v = Logic.DecideImages(new ImageFacts { Friend = false, RelayId = R });
             Check("home, missing: red, build-images.sh, never loads", v.Light == Light.Red && v.Text.Contains("build-images.sh") && v.Action == null, v);
             Check("home, missing: a source-code download is sent to the Releases page", v.Text.Contains("Releases page") && v.Text.Contains("MTG-Table zip"), v);
+            {
+                string ours = @"C:\Users\x\Downloads\MTG-Table-2026-11-19\MTG Companion.exe", old = @"C:\Users\x\Downloads\Rules-Enforcer-main\MTG.Companion.exe";
+                Check("other copy: only this exe running (its bridge loop too) is no other", Logic.OtherCompanion(ours, new[] { ours, ours.ToUpperInvariant() }) == null, null);
+                Check("other copy: nothing running is no other", Logic.OtherCompanion(ours, new string[0]) == null, null);
+                Check("other copy: an exe in another folder is named", Logic.OtherCompanion(ours, new[] { ours, null, old }) == old, null);
+                string t = Logic.OtherCompanionText(old, ours);
+                Check("other copy: the question names both folders and what Yes and No do", t.Contains("Rules-Enforcer-main") && t.Contains("MTG-Table-2026-11-19") && t.Contains("Yes: close it") && t.Contains("No: show the other"), t);
+            }
             v = Logic.DecideImages(new ImageFacts { Friend = false, RelayId = R, NodeId = "sha256:2222222222222222", WantRelay = R, WantNode = N });
             Check("home, not the deployed image: amber", v.Light == Light.Amber && v.Action == null, v);
             Check("SameId: short prefix of 12+", Logic.SameId("ef61822078a0", N));
