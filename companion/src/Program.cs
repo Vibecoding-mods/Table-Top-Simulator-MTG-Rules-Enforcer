@@ -276,7 +276,22 @@ namespace MtgCompanion
                 bool first;
                 mutex = new Mutex(true, @"Local\MtgTtsCompanion", out first);
                 show = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\MtgTtsCompanionShow");
-                if (!first) { show.Set(); return 0; } // (the running one shows its window)
+                if (!first)
+                {
+                    // (the running one shows its window, unless it is another copy: then ask, Logic.OtherCompanion)
+                    var running = Probes.Companions();
+                    string other = Logic.OtherCompanion(exe, running.Select(r => r.Value));
+                    if (other == null || MessageBox.Show(Logic.OtherCompanionText(other, exe), "MTG Companion", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) { show.Set(); return 0; }
+                    Log.Write("closing the other companion at " + other);
+                    Probes.Kill(running.Where(r => string.Equals(r.Value, other, StringComparison.OrdinalIgnoreCase)).Select(r => r.Key));
+                    Probes.Kill(Probes.FindProcesses("node.exe", Path.GetDirectoryName(other), "bridge.js"));
+                    try { first = mutex.WaitOne(15000); } catch (AbandonedMutexException) { first = true; }
+                    if (!first)
+                    {
+                        MessageBox.Show("The other MTG Companion didn't close. Right-click its tray icon, choose Quit, then open this one again.", "MTG Companion", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return 0;
+                    }
+                }
             }
 
             Controller.UpdateBase = Updates.TestBaseOk(ub) ? ub : null;
