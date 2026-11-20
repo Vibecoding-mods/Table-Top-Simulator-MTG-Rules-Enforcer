@@ -8883,6 +8883,30 @@ function countWords(min, max, noun) {
 // Forge's counter codes as players say them ("P1P1" -> "+1/+1 counter", "BURDEN" -> "burden counter")
 const COUNTER_WORDS = { P1P1: "+1/+1 counter", M1M1: "-1/-1 counter", P1P0: "+1/+0 counter", P0P1: "+0/+1 counter", M0M1: "-0/-1 counter", M1M0: "-1/-0 counter", M2M1: "-2/-1 counter", P2P2: "+2/+2 counter" };
 const counterWords = (label) => COUNTER_WORDS[label] || (/^[A-Z][A-Z0-9_]{2,}$/.test(label) ? `${label.toLowerCase().replace(/_/g, " ")} counter` : null);
+// Proliferate, picked for the player (the user's rule, 2026-11-20): one more of each kind is chosen for them when it
+// helps them and left for them to click when it hurts them; they can still click either way. A counter kind is good or
+// bad for whoever has it (a permanent's controller, or the player); a kind not in these lists (time, doom, fate...)
+// helps nobody for sure and is never picked. An entity helps the deciding player when the counters' sum is good for an
+// ally (them or a teammate) or bad for an opponent; a tie (a +1/+1 and a -1/-1 counter) isn't picked.
+const COUNTERS_GOOD = new Set(["P1P1", "P1P0", "P0P1", "P2P2", "LOYALTY", "SHIELD", "ENERGY", "EXPERIENCE", "TICKET", "LORE",
+  "QUEST", "LEVEL", "CHARGE", "STORAGE", "OIL", "DIVINITY", "FADE", "VERSE", "DEFENSE", "FLYING", "FIRST_STRIKE", "DOUBLE_STRIKE",
+  "DEATHTOUCH", "HEXPROOF", "INDESTRUCTIBLE", "LIFELINK", "MENACE", "REACH", "TRAMPLE", "VIGILANCE", "HASTE"]);
+const COUNTERS_BAD = new Set(["M1M1", "M0M1", "M1M0", "M2M1", "M2M2", "POISON", "RAD", "STUN", "AGE", "INFECTION", "BLAZE", "BOUNTY"]);
+function proliferateHelps(counters, ally) {
+  let sum = 0;
+  for (const [k, n] of Object.entries(counters || {})) {
+    if (!n) continue;
+    const key = String(k).toUpperCase();
+    sum += COUNTERS_GOOD.has(key) ? 1 : COUNTERS_BAD.has(key) ? -1 : 0;
+  }
+  return ally ? sum > 0 : sum < 0;
+}
+// The deciding player and their teammates (Two-Headed Giant's team; a game without teams: the player alone).
+function alliesOf(slot, gv) {
+  const me = (gv.players || []).find((p) => p.id === slot);
+  return new Set(me ? teams2hg.teamOf(me, gv).map((q) => q.id).concat(slot) : [slot]);
+}
+const PROLIFERATE_NOTE = "Picked for you: the ones where another counter helps you. Click one to change it (an opponent's +1/+1, or your own poison, if you want).";
 // The last pass over every question (Arena's style: short, plain, the card's name in front, verbs on the buttons):
 // "CARDNAME" -> the card, "player-view-0" -> the player, Forge's Accept / Decline -> Yes / No, double spaces.
 function arenaWords(ui, src, seatSlot) {
@@ -11595,6 +11619,16 @@ function onPrompt(seat, prompt) {
       // (Forge's own step, when its description names it, over a purpose read from the whole text: see FORGE_STEPS)
       const stepSaid = src && forgeStepWords(String(input.presentation?.description || ""), { src, input, words, cardText: String(cardText || "") });
       if (stepSaid) Object.assign(ui, stepSaid);
+      // (proliferate: what helps you comes picked, see proliferateHelps)
+      if (/^Choose any number of permanents and\/or players for proliferate$/i.test(String(input.presentation?.description || "").trim()) && Array.isArray(ui.options)) {
+        const allies = alliesOf(seat.slot, gv);
+        const card = new Map(input.cards.map((c) => [c.id, c]));
+        for (const o of ui.options) {
+          const c = card.get(o.id) || byId[o.id];
+          if (c && proliferateHelps(c.counters, allies.has(c.controllerId ?? seat.slot))) o.on = true;
+        }
+        ui.note = ui.text = PROLIFERATE_NOTE;
+      }
       // (Enlist's attackers, asked with no card: "Choose cards (up to 1)" over Yavimaya Steelcrusher, hp-16 gap)
       if (/^Choose attackers to enlist$/i.test(String(input.presentation?.description || "").trim())) {
         Object.assign(ui, { title: `Enlist: which of your attackers enlist${input.max > 1 ? "" : "s"} a creature?`,
@@ -11766,6 +11800,37 @@ function onPrompt(seat, prompt) {
       // (a council's vote, "each player votes for a nonland permanent you don't control": Council's Judgment read "choose
       // one" over "Burning-Tree Emissary (106)", Forge's object numbers in, hp-20 gap)
       // (a thing voted for has its article; word votes, "votes for time or money", are said below)
+      // (proliferate with a player who has counters: the harness asks it as a list of names, Forge's own order, the
+      // players with counters first and then the permanents, each "<zone> <name> (<number>)". Each line is matched back:
+      // the players in seat order, a permanent by its name among the battlefield's permanents with counters; what helps
+      // you comes picked, see proliferateHelps. A name that matches permanents that don't agree isn't picked.)
+      const prolifLabels = input.options.map((o) => String(o.label ?? ""));
+      if (/\bproliferate\b/i.test(String(prompt.sourceAbilityText || "")) && (input.minTotal ?? 0) === 0 && input.maxTotal === input.options.length
+        && prolifLabels.some((l) => !/\(\d+\)$/.test(l))) {
+        const allies = alliesOf(seat.slot, gv);
+        const seatNo = (id) => Number(String(id).replace(/\D/g, "")) || 0;
+        const withCounters = (x) => Object.values(x?.counters || {}).some(Boolean);
+        const players = (gv.players || []).filter(withCounters).sort((p, q) => seatNo(p.id) - seatNo(q.id));
+        const field = (gv.zones || []).filter((z) => z.zone === "battlefield").flatMap((z) => z.cards || []).filter(withCounters);
+        const counterList = (c) => Object.entries(c || {}).filter(([, n]) => n).map(([k, n]) => `${n} ${counterWords(k.toUpperCase()) || `${k.toLowerCase()} counter`}${n === 1 ? "" : "s"}`).join(", ");
+        let pi = 0;
+        const options = prolifLabels.map((l, i) => {
+          if (!/\(\d+\)$/.test(l)) {
+            const p = players[pi++];
+            if (!p) return { id: i, label: l };
+            return { id: i, label: `${p.id === seat.slot ? "You" : nameOf(p.id)} [${counterList(p.counters)}]`, ...(proliferateHelps(p.counters, allies.has(p.id)) ? { on: true } : {}) };
+          }
+          const name = l.replace(/\s*\(\d+\)$/, "");
+          let same = field.filter((c) => c.identity?.name === name);
+          if (!same.length) same = field.filter((c) => c.identity?.name === name.replace(/^\S+\s+/, ""));
+          if (!same.length) return { id: i, label: name };
+          const helps = same.map((c) => proliferateHelps(c.counters, allies.has(c.controllerId ?? seat.slot)));
+          return { id: i, label: same.length === 1 ? cardLabel(same[0]) : `${same[0].identity.name}`, ...(helps.every(Boolean) ? { on: true } : {}) };
+        });
+        ui = { title: `${src ? `${src}: ` : ""}give which another counter (proliferate)?`, mode: "multi", min: 0, max: input.maxTotal, options, text: PROLIFERATE_NOTE, note: PROLIFERATE_NOTE };
+        toOutput = (a) => ({ type: "selectionDecision", chosenIndices: a.map(Number) });
+        break;
+      }
       const councilVote = String(prompt.sourceAbilityText || "").match(/\beach player votes for an? ([^.]+?)(?:\.|$)/i)?.[1];
       if (src && councilVote) {
         ui = { title: `${src}: vote for which ${councilVote}?`, mode: "multi", min: input.minTotal, max: input.maxTotal,

@@ -4267,6 +4267,39 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
     add(promptCase("purpose: 'put one of them into your hand'", myMain(D2.board), cards("Some Impulse", "Look at the top four cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.", "Some Impulse"), [["engine-card-75"]]));
     const TANGLE = "At the beginning of each player's upkeep, that player taps an untapped artifact, creature, or land they control for each fade counter on Tangle Wire.";
     add(promptCase("purpose: Tangle Wire's taps, the count kept", myMain(D2.board), { ...cards("Tangle Wire", TANGLE, "Tangle Wire"), input: { ...cards("Tangle Wire", TANGLE, "Tangle Wire").input, min: 2, max: 2 } }, [["engine-card-75", "engine-card-35"]]));
+    // (proliferate picks what helps the player, 2026-11-20: their +1/+1 and an opponent's -1/-1 and poison come picked;
+    // their own -1/-1 and poison, an opponent's +1/+1, a tie and a kind that is neither are left for them to click)
+    {
+      const PROLIF = "Choose any number of permanents and/or players for proliferate";
+      const bf = (b, owner) => b.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === owner).cards;
+      const board = () => {
+        const b = myMain(D2.board);
+        const [m1, m2, m3] = bf(b, "player-0"), [o1, o2, o3] = bf(b, "player-1");
+        Object.assign(m1, { counters: { P1P1: 2 } }); Object.assign(m2, { counters: { M1M1: 1 } }); Object.assign(m3, { counters: { P1P1: 1, M1M1: 1 } });
+        Object.assign(o1, { counters: { P1P1: 3 } }); Object.assign(o2, { counters: { M1M1: 2 } }); Object.assign(o3, { counters: { TIME: 2 } });
+        return b;
+      };
+      const ids = ["engine-card-22", "engine-card-64", "engine-card-65", "engine-card-192", "engine-card-126", "engine-card-195"];
+      const b0 = board();
+      const all = [...bf(b0, "player-0").slice(0, 3), ...bf(b0, "player-1").slice(0, 3)];
+      add(promptCase("proliferate: what helps you comes picked (cards only)", b0, { ...prompt("chooseCards", { min: 0, max: 6, cards: all, presentation: { title: "Vraska, Betrayal's Sting", description: PROLIF } }),
+        sourceCard: { id: "engine-card-501", identity: { name: "Vraska, Betrayal's Sting" } }, sourceAbilityText: "0: You draw a card and you lose 1 life. Proliferate." }));
+      add(promptCase("proliferate: the picks can be changed, the answer is what is chosen", board(), { ...prompt("chooseCards", { min: 0, max: 6, cards: all, presentation: { title: "Vraska, Betrayal's Sting", description: PROLIF } }),
+        sourceCard: { id: "engine-card-501", identity: { name: "Vraska, Betrayal's Sting" } }, sourceAbilityText: "0: You draw a card and you lose 1 life. Proliferate." }, [[ids[0], ids[3]]]));
+      // (a player with counters: the harness's list of names, players first)
+      const withPoison = () => {
+        const b = board();
+        b.gameView.players.find((p) => p.id === "player-0").counters = { POISON: 3 };
+        b.gameView.players.find((p) => p.id === "player-1").counters = { POISON: 4, ENERGY: 0 };
+        return b;
+      };
+      const bp = withPoison();
+      const labels = ["Blue", "Red", ...[...bf(bp, "player-0").slice(0, 3), ...bf(bp, "player-1").slice(0, 3)].map((c) => `Battlefield ${c.identity.name} (${c.id.replace(/\D/g, "")})`)];
+      const sel = { ...prompt("chooseFromSelection", { minTotal: 0, maxTotal: labels.length, options: labels.map((label) => ({ label })), presentation: { title: "Karn's Bastion" } }),
+        sourceCard: { id: "engine-card-502", identity: { name: "Karn's Bastion" } }, sourceAbilityText: "{4}, {T}: Proliferate." };
+      add(promptCase("proliferate: players with counters: your poison isn't picked, an opponent's is", bp, sel));
+      add(promptCase("proliferate: players with counters: the answer is the indices chosen", withPoison(), sel, [["1", "2"]]));
+    }
     add(promptCase("purpose: proliferate's choice", myMain(D2.board), { ...cards("Vraska, Betrayal's Sting", "0: You draw a card and you lose 1 life. Proliferate.", "Vraska, Betrayal's Sting", 0), input: { ...cards("Vraska", "x", "x").input, min: 0, max: 2, presentation: { title: "Vraska, Betrayal's Sting" } } }, [["engine-card-75"]]));
     // (Analyze the Pollen: two searches, which one depends on the evidence: no answer)
     add(promptCase("purpose: two different searches: unchanged", myMain(D2.board), cards("Analyze the Pollen", "Search your library for a basic land card. If evidence was collected, instead search your library for a creature or land card. Reveal that card, put it into your hand, then shuffle.", "Analyze the Pollen", 0), [["engine-card-75"]]));
