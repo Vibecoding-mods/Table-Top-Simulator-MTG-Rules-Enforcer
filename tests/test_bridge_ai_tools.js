@@ -148,8 +148,9 @@ const LIST = "Commander\n1 Neheb, the Worthy\n\nDeck\n1x Lightning Bolt (M10) 14
     frame(red.ws, { type: "StateUpdate", state: { kind: "prompt", forPlayer: "player-2", prompt: { promptId: 6, input: { type: "mulligan" } } } });
     frame(red.ws, { type: "StateUpdate", state: { kind: "prompt", forPlayer: "player-0", prompt: { promptId: 7, input: { type: "gameOver" } } } });
     await h.flush();
-    same("its answers: keep, pass; none for another seat's question or the game's end", relay(h).slice(before).filter((r) => r.state?.kind === "response").map((r) => [r.state.fromPlayer, r.state.promptId, r.state.action.type, r.state.action.output]),
-      [["player-0", 4, "mulligan", { type: "mulliganDecision", keep: true }], ["player-0", 0, "chooseAction", { type: "pass" }]]);
+    // (its priority: a held pass to its own cleanup, through combat and the stack, so the engine skips its priorities)
+    same("its answers: keep, a held pass; none for another seat's question or the game's end", relay(h).slice(before).filter((r) => r.state?.kind === "response").map((r) => [r.state.fromPlayer, r.state.promptId, r.state.action.type, r.state.action.output]),
+      [["player-0", 4, "mulligan", { type: "mulliganDecision", keep: true }], ["player-0", 0, "chooseAction", { type: "pass", until: { playerId: "player-0", phase: "cleanup", throughCombat: true }, exhaustStack: true }]]);
     ok("its questions never reach the table", !h.effects.some((e) => e.tts?.t === "prompt"), "a prompt went to the table");
     const logs = () => h.effects.filter((e) => e.log != null).map((e) => e.log).join("\n");
     frame(red.ws, { type: "StateUpdate", state: { kind: "prompt", forPlayer: "player-0", prompt: { promptId: 9, input: { type: "somethingNew" } } } });

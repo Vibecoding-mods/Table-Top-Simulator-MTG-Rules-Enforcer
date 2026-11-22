@@ -2257,7 +2257,10 @@ class HarmlessSeat extends Seat {
     if (env.kind === "error") { log(`${this.color} (harmless): engine rejected an answer: ${JSON.stringify(env.error).slice(0, 300)}`); return; }
     if (env.kind !== "prompt") return; // (its own board is never read)
     const p = env.prompt || {};
-    if (p.kind === "priority") return this.answer(0, "chooseAction", { type: "pass" });
+    // (a held pass, to its own cleanup step through combat and through the stack that is there: the engine passes its
+    // priorities itself, skipping their board snapshots, and asks again only when something new goes on the stack;
+    // tests/live_bigboard_bench.js --hold, 2026-11-22: a 110-card board went from 249 to 197 ms a click)
+    if (p.kind === "priority") return this.answer(0, "chooseAction", { type: "pass", until: { playerId: this.slot, phase: "cleanup", throughCombat: true }, exhaustStack: true });
     if (p.input?.type === "gameOver") return; // (the people's seats say it)
     const out = harmlessAnswer(p.input);
     if (out) this.answer(p.promptId, p.input.type, out);
