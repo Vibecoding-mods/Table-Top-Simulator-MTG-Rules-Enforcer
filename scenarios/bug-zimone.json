@@ -1,0 +1,8 @@
+{
+  "label": "Zimone and Dina (2026-11-22 friend game: the 'you may put a land from your hand onto the battlefield tapped' didn't work): sac a Grizzly Bears, draw, then the land; 8 lands so it repeats",
+  "lands": 8,
+  "keepHand": false,
+  "hand": ["Forest", "Island", "Swamp"],
+  "battlefield": ["Zimone and Dina", "Grizzly Bears", "Llanowar Elves"],
+  "life": 40
+}

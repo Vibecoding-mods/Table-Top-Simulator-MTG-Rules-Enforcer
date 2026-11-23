@@ -200,6 +200,8 @@ anyone into your server's games.
 - **Cards you may play from exile or your graveyard** (flashback, foretell, Tibalt, adventure...) sit in a glowing
   row on the near strip of your own mat (below your lands); private ones (foretold) are in the small second hand zone. Drag one onto the battlefield to
   play it.
+- **The top of your library, when a card lets you look at it** (Bolas's Citadel, The Reality Chip...): it is in your
+  second hand zone, only you see it. It glows when you can play it now; without the glow you can only look at it.
 - **Cards exiled by a permanent** (Banishing Light, O-Ring...) lie half-size under that permanent.
 - **Your own face-down cards** (a hideaway card under Mosswort Bridge, a morph, a foretold card): point at the card,
   or at the land it lies under, and its face shows on your screen, left of the ability box ("Face down under Mosswort

@@ -1,0 +1,8 @@
+{
+  "label": "Bolas's Citadel (2026-11-22 friend game: Blue couldn't see the top card or cast it by paying life): top is Lightning Bolt, then Island, then Counterspell",
+  "lands": 6,
+  "keepHand": false,
+  "battlefield": ["Bolas's Citadel"],
+  "library": ["Counterspell", "Island", "Lightning Bolt"],
+  "life": 40
+}

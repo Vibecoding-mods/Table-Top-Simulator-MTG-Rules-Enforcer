@@ -2648,6 +2648,31 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       ok("library top: one every other seat sees stays public", pub && pub.pv === undefined && pub.ec === "{0}", JSON.stringify(pub));
       ok("library top: with no other human seat, private", alone?.pv === true, JSON.stringify(alone));
     }
+    // Bolas's Citadel: "look at the top card of your library any time". A top its owner may look at but not play now (a
+    // sorcery on another player's turn, a land after the land drop) is in the row look-only (lk), private, no badge: it
+    // showed Blue nothing, friend game 2026-11-22. Two or more listed library cards (a look at several) aren't added,
+    // nor another player's top, nor a hidden one
+    {
+      const top = (id, name, extra = {}) => C(id, name, "player-0", { types: ["Sorcery"], mayPlay: false, visibility: "visible", manaCost: "{2}{R}", ...extra });
+      // (every row's playable cards: a card in the wrong seat's row counts too)
+      const rowWith = async (cards, owner = "player-0") => {
+        const bv = view("player-0"), wv = view("player-1");
+        zone(bv.gameView, "library", owner).cards = cards;
+        const t = await board(bv, wv);
+        return [...(rowOf(t, "Blue").playable || []), ...(rowOf(t, "White").playable || [])];
+      };
+      const look = (await rowWith([top("engine-card-961", "Blasphemous Act")])).find((c) => c.id === "engine-card-961");
+      ok("Citadel: a top it may only look at is in the row, look-only", look?.lk === 1, JSON.stringify(look));
+      ok("Citadel: look-only is private, without a cost badge", look?.pv === true && look.ec === undefined, JSON.stringify(look));
+      const plays = (await rowWith([top("engine-card-962", "Lightning Bolt", { types: ["Instant"], mayPlay: true })])).filter((c) => c.id === "engine-card-962");
+      ok("Citadel: a top it may play is in the row once, not look-only", plays.length === 1 && plays[0].lk === undefined, JSON.stringify(plays));
+      const two = await rowWith([top("engine-card-963", "Opt"), top("engine-card-964", "Ponder")]);
+      ok("Citadel: two listed library cards (a look at several) aren't added", !ids(two).some((id) => id === "engine-card-963" || id === "engine-card-964"), JSON.stringify(ids(two)));
+      const hid = await rowWith([top("engine-card-965", "Opt", { visibility: "hidden" })]);
+      ok("Citadel: a hidden top isn't added", !ids(hid).includes("engine-card-965"), JSON.stringify(ids(hid)));
+      const theirs = await rowWith([C("engine-card-966", "Opt", "player-1", { types: ["Instant"], mayPlay: false, visibility: "visible" })], "player-1");
+      ok("Citadel: another player's visible top isn't added", !ids(theirs).includes("engine-card-966"), JSON.stringify(ids(theirs)));
+    }
     // Faithless Looting in its owner's graveyard, castable by flashback: its playable entry says "Flashback {2}{R}" as its
     // graveyard entry does (it said nothing, and the table's self-check called its hover text wrong all game: Lingering
     // Souls and Faithless Looting, 2026-11-08/09 game, tmp/table-check.log)

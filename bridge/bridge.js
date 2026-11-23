@@ -3910,6 +3910,13 @@ function playableOf(own, toCard, slot) {
     // (with its zone: a flashback card's entry carries "Flashback {cost}" as its graveyard entry does, or the table drew
     // it without, and its self-check called the hover text wrong, Lingering Souls 2026-11-08)
     for (const c of z.cards || []) if (c.mayPlay && c.visibility !== "hidden") out.push(toCard(c, z.zone));
+    // (and the top it may only look at: Bolas's Citadel's "look at the top card any time" showed Blue nothing while the
+    // top was a card it couldn't play then, friend game 2026-11-22; lk: look-only, the table gives it no playable glow.
+    // A library lists only the cards its owner sees: one card is the top, more is a look at several (a scry) and is left
+    // to its own question; a top every seat sees, Courser of Kruphix's, lies revealed on the library already: only a private look)
+    const only = z.zone === "library" && mine && (z.cards || []).length === 1 ? z.cards[0] : null;
+    const look = only && !only.mayPlay && only.visibility === "visible" && only.identity?.name ? toCard(only, z.zone) : null;
+    if (look?.pv) out.push({ ...look, lk: 1 });
   }
   return out;
 }
@@ -8459,7 +8466,11 @@ function yesNoWords(title, src, input) {
     // (and "put a land card from among them into your hand": Six's milled cards read "look in your graveyard and exile for
     // a card?", hp-03 #4)
     const among = String(input.abilityText || "").match(/\byou may put an? ((?:[\w-]+ ){0,2})card from among them into your hand\b/i);
-    q = named ? `Search your library for ${named[1]}?` : among ? `Put a ${among[1]}card from among them into your hand?` : `Look in your ${m[1]} for a card?`;
+    // (and "you may put a land card from your hand onto the battlefield tapped": Zimone and Dina's "Search your hand?" read
+    // "look in your hand for a card?", which doesn't say it is the land: reported as "wasn't letting" a player put the
+    // land in, friend game 2026-11-22; the engine itself worked, live check the same day)
+    const fromHand = /^hand$/i.test(m[1]) && String(input.abilityText || "").match(/\byou may put (an? (?:[\w-]+ ){0,2}card) from your hand onto the battlefield( tapped)?/i);
+    q = named ? `Search your library for ${named[1]}?` : among ? `Put a ${among[1]}card from among them into your hand?` : fromHand ? `Put ${fromHand[1]} from your hand onto the battlefield${fromHand[2] || ""}?` : `Look in your ${m[1]} for a card?`;
   } else if (/If a commander is in a graveyard or in exile/i.test(q)) {
     q = src ? `Put ${src} back in the command zone?` : "Put your commander back in the command zone?"; yes = "Command zone"; no = "Leave it";
   } else if ((m = q.match(/^Pay ((?:Put|Remove|Sacrifice|Exile|Discard|Tap|Untap|Return|Reveal)\b.*?)\??$/))) {

@@ -4393,7 +4393,7 @@ function engineRender(m)
   -- a face-down card that may be played only through its permanent (a hideaway card: Mosswort Bridge's needs creatures
   -- with total power 10) doesn't glow as playable; a foretold one does (playtest 2026-10-26)
   local onlyVia = {}
-  for _, pl in ipairs(m.players or {}) do for _, c in ipairs(pl.playable or {}) do if c.fd and not c.fo then onlyVia[c.id] = true end end end
+  for _, pl in ipairs(m.players or {}) do for _, c in ipairs(pl.playable or {}) do if (c.fd and not c.fo) or c.lk then onlyVia[c.id] = true end end end -- (lk: a library top you may only look at, no glow)
   for id, o in pairs(engineObjs) do
     local want = stackGlow[id] and "stack" or combat[id] or (engineSpecial[id] == "playable" and not onlyVia[id] and "playable" or nil)
     if engineStackGlow[id] ~= want and o ~= nil and not o.isDestroyed() then
