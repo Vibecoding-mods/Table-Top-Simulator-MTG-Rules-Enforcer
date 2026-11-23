@@ -8424,11 +8424,12 @@ Wait.frames(function()
       stashed[guid] = { pos = Vector(st.pos[1], st.pos[2], st.pos[3]), rot = Vector(st.rot[1], st.rot[2], st.rot[3]), lock = st.lock }
     end
   end
-  -- (players this table promoted before the reload: engine mode is off now, so they are demoted)
+  -- (players this table promoted before the reload, remembered; then every seated player promoted, engine mode on or
+  -- off: enginePromoteSeated in make-engine-copy.js)
   if ok and type(saved) == "table" and type(saved.enginePromoted) == "string" and ENGINE_PROMOTED ~= nil then
     for sid in saved.enginePromoted:gmatch("[^,]+") do ENGINE_PROMOTED[sid] = true end
-    if enginePromoteSeated ~= nil then pcall(enginePromoteSeated) end
   end
+  if enginePromoteSeated ~= nil then pcall(enginePromoteSeated) end
   if ok and type(saved) == "table" and (saved.engineFx == "on" or saved.engineFx == "low" or saved.engineFx == "off") then engineFxMode = saved.engineFx end
   sweepEngineCards()
   restoreStash()
@@ -12967,7 +12968,8 @@ function engineGif.chat(message, pl)
   local rest = G.trim(message:sub(at))
   local low = string.lower(rest)
   local c = pl.color
-  local isHost = pl.host or pl.admin or pl.promoted
+  -- (as engineChat's: a player the table promoted, enginePromoteSeated, is not a host here)
+  local isHost = pl.host or ((pl.admin or pl.promoted) and not (ENGINE_PROMOTED or {})[tostring(pl.steam_id)])
   local function tellMe(t) pl.broadcast("[MTG] " .. t, { 1, 0.85, 0.4 }) end
   if cmd == "gifs" then
     if low == "hide" or low == "show" then

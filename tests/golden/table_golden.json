@@ -13756,6 +13756,7 @@
      "f20 \"setPosition\" obj:43391b V(-45.5,-30,-1.4)",
      "f20 \"setInvisibleTo\" obj:4e8c7b {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
      "f20 \"setPosition\" obj:4e8c7b V(-49.585,-30,24.57)",
+     "f30 \"Player.promote\" \"White\" \"true\"",
      "f30 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"formats\\\\\\\":true,\\\\\\\"keepRewind\\\\\\\":true,\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"hello\\\\\\\",\\\\\\\"tokenRuns\\\\\\\":true}\\\",\\\"t\\\":\\\"hello\\\"}\""
     ]
    },
@@ -13771,7 +13772,6 @@
      "f36 \"spawnObject\" \"BlockSquare\" obj:s00001 V(0,0.95,0)",
      "f36 \"createButton\" obj:8b3401 \"READY?\" \"0.85,0.68,0.12\" \"at -0.05,0.10,0.63 scale 0.0676\"",
      "f36 \"createButton\" obj:56cd9d \"READY?\" \"0.85,0.68,0.12\" \"at 0.17,0.10,0.62 scale 0.0676\"",
-     "f36 \"Player.promote\" \"White\" \"true\"",
      "f36 \"setPosition\" obj:540e21 V(-60,-30,0)",
      "f36 \"setLock\" obj:ee33ec true",
      "f36 \"setPosition\" obj:ee33ec V(0,-30,0)",
@@ -14487,7 +14487,6 @@
      "f806 \"setPosition\" obj:3b07ae V(13,0.86,-26.54)",
      "f806 \"setPosition\" obj:e0a3bc V(13,0.86,26.54)",
      "f806 \"createButton\" obj:s00001 \"Engine: off\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f806 \"Player.promote\" \"White\" \"false\"",
      "f806 \"setPosition\" obj:540e21 V(-60,0.732,0)",
      "f806 \"setPosition\" obj:ee33ec V(0,200,0)",
      "f806 \"setLock\" obj:ee33ec false",
@@ -14697,7 +14696,6 @@
      "f818 \"UI.setAttribute\" \"eng_scoopask_Red\" \"active\" \"false\"",
      "f818 \"UI.setAttribute\" \"eng_scoopask_Yellow\" \"active\" \"false\"",
      "f818 \"UI.setAttribute\" \"eng_scoopask_Blue\" \"active\" \"false\"",
-     "f818 \"Player.promote\" \"White\" \"true\"",
      "f818 \"setPosition\" obj:540e21 V(-60,-30,0)",
      "f818 \"setLock\" obj:ee33ec true",
      "f818 \"setPosition\" obj:ee33ec V(0,-30,0)",
@@ -14830,7 +14828,6 @@
     "fx": [
      "f824 \"broadcastToAll\" \"[MTG] Engine mode OFF: the table works as normal.\"",
      "f824 \"createButton\" obj:s00001 \"Engine: off\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
-     "f824 \"Player.promote\" \"White\" \"false\"",
      "f824 \"setPosition\" obj:540e21 V(-60,0.732,0)",
      "f824 \"setPosition\" obj:ee33ec V(0,200,0)",
      "f824 \"setLock\" obj:ee33ec false",

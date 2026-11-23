@@ -372,18 +372,22 @@ function setEngineMode(on)
   enginePromoteSeated()
 end
 
--- While engine mode is on, every seated player is promoted (TTS's own host-like permissions: delete, move and lock
--- anything), so a player can clear their own deck or fix the table without the host. Only players the table promoted
--- are demoted again: when engine mode goes off or they leave their seat. A player the host promoted stays promoted.
--- The list survives a reload (onSave in engine-renderer.lua): engine mode is off after one, so they are demoted then.
--- They do not get the host-only "mtg" commands (engineChat's isHost). A player who disconnects is dropped from the
--- list the next time this runs while they are back and not promoted.
+-- Every seated player is promoted (TTS's own host-like permissions: delete, move and lock anything), engine mode on or
+-- off, so a player can set up, clear their own deck or fix the table without the host. The original table did this with
+-- its Auto Player Promoter (cd83de, which promotes everyone on load and on join), and the engine copy removes that
+-- object (table-profile.js ENCODER_MODULES); promoting only while engine mode was on left every friend unpromoted from
+-- a load or a reset (engine mode off) to the next Start, and their Delete and moves on their own decks did nothing
+-- (the user, 2026-11-13 and 2026-11-23: "people can't move or delete their cards before game starts", before and after
+-- New game). Only players the table promoted are demoted again, when they leave their seat. A player the host
+-- promoted stays promoted. The list survives a reload (onSave in engine-renderer.lua). They do not get the host-only
+-- "mtg" commands (engineChat's isHost). A player who disconnects is dropped from the list the next time this runs
+-- while they are back and not promoted.
 -- (The user, 2026-11-14: "allow the other players the same privileges the host has when the engine is on".)
 ENGINE_PROMOTED = {} -- steam_id -> true: promoted by this table, not by the host
 function enginePromoteSeated()
   for _, pl in ipairs(Player.getPlayers()) do
     local sid = tostring(pl.steam_id)
-    local want = ENGINE_MODE and pl.seated and data[pl.color] ~= nil
+    local want = pl.seated and data[pl.color] ~= nil
     if want and not (pl.host or pl.admin or pl.promoted) then
       pl.promote() -- (TTS's promote() toggles; the guard above makes it a promote)
       ENGINE_PROMOTED[sid] = true
