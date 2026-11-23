@@ -4811,6 +4811,7 @@ end
 -- other players. Auto-resolve sits in the dock's row, right of the tabs (docs/engine-ui-spec.md 3).
 local function rewindXml(c)
   return '<Button id="eng_autores_' .. c .. '" onClick="onMtgAutoResolve" visibility="' .. c .. '" width="150" height="30" rectAlignment="UpperLeft" offsetXY="468 -140" color="#1A1A1A" textColor="#ffffff" fontSize="14" tooltip="Pass priority by itself: on other players\' turns, or until a phase you pick" active="false">Auto-resolve: off...</Button>\n'
+    .. '<Button id="eng_tax_' .. c .. '" onClick="onMtgTax" visibility="' .. c .. '" width="132" height="30" rectAlignment="UpperLeft" offsetXY="724 -140" color="#1A1A1A" textColor="#ffffff" fontSize="14" active="false"> </Button>\n'
     .. '<Panel id="eng_vote_' .. c .. '" visibility="' .. c .. '" width="600" height="146" rectAlignment="UpperCenter" offsetXY="0 -120" color="#161616F0" active="false">'
     .. '<Text id="eng_votetext_' .. c .. '" width="580" height="84" rectAlignment="UpperCenter" offsetXY="0 -6" fontSize="18" color="#FFFFFF" alignment="MiddleCenter"> </Text>'
     .. '<HorizontalLayout width="440" height="40" rectAlignment="LowerCenter" offsetXY="0 10" spacing="16" childForceExpandWidth="true">'
@@ -6748,6 +6749,28 @@ function engineAutoResolveDraw(c, over)
   setAttr("eng_autores_" .. c, "color", (engineAutoResolve[c] or skip) and "#2e7d32" or ENGINE_THEME.dock)
   if not inGame then engineAutoListOpen[c] = nil end
   engineAutoListDraw()
+  engineTaxDraw(c, inGame)
+end
+-- Taxes (2026-11-22, the user's request): your answer to another player's "unless you pay" question (Rhystic Study,
+-- Smothering Tithe, Esper Sentinel), the button right of Fix; a click goes ask -> always pay -> never pay -> ask. The
+-- bridge answers for you (bridge.js taxAuto); this table keeps the setting and sends it with every hello.
+engineTaxAuto = {}
+ENGINE_TAX_NEXT = { ask = "pay", pay = "no", no = "ask" }
+ENGINE_TAX_LABEL = { ask = "Taxes: ask", pay = "Taxes: always pay", no = "Taxes: never pay" }
+function engineTaxDraw(c, inGame)
+  local mode = engineTaxAuto[c] or "ask"
+  setAttr("eng_tax_" .. c, "active", inGame and "true" or "false")
+  setText("eng_tax_" .. c, ENGINE_TAX_LABEL[mode])
+  setAttr("eng_tax_" .. c, "width", mode == "ask" and "132" or "160")
+  setAttr("eng_tax_" .. c, "color", mode == "ask" and ENGINE_THEME.dock or (mode == "pay" and "#2e7d32" or "#8e2a2a"))
+end
+function onMtgTax(player, value, id)
+  local c = player.color
+  if id ~= "eng_tax_" .. c then return end
+  local mode = ENGINE_TAX_NEXT[engineTaxAuto[c] or "ask"]
+  engineTaxAuto[c] = mode ~= "ask" and mode or nil
+  engineSend("taxauto", { color = c, mode = mode })
+  engineTaxDraw(c, true)
 end
 function engineSetAutoResolve(c, on)
   engineAutoResolve[c] = on or nil
@@ -8374,6 +8397,7 @@ function engineHello(again)
   end
   if ENGINE_TABLE_SEATS ~= nil then m.tableSeats = ENGINE_TABLE_SEATS end
   if engineRulesInto ~= nil then engineRulesInto(m) end -- (the format and its switches: nothing for Casual Commander)
+  if engineTaxAuto ~= nil and next(engineTaxAuto) ~= nil then m.tax = engineTaxAuto end -- (the Taxes settings, engineTaxDraw)
   engineSend("hello", m)
 end
 

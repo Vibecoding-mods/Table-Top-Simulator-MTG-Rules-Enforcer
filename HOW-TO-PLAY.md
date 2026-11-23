@@ -278,6 +278,15 @@ An opponent's spell or ability on the stack ends an "Until" so you can answer, a
 - **Stop: start of turn / combat / end of turn, and Hold** (in the panel) — where the game waits for you on other
   players' turns.
 
+Right of Fix..., **Taxes** answers another player's "unless you pay" questions for you (Rhystic Study, Smothering
+Tithe, Esper Sentinel, ...). Click it to step through:
+
+- **Taxes: ask** — you are asked as usual.
+- **Taxes: always pay** (green) — you pay, with Auto-pay. If Auto-pay can't pay it, you are shown the payment.
+- **Taxes: never pay** (red) — you decline.
+
+Each answer is said in chat. Your own cards' "unless you pay" (Mystic Remora's upkeep) are always asked.
+
 ## When something goes wrong
 
 - **Undo...** (bottom right): **Rewind to...** lists the newest 12 points (upkeep, main phase, attacks and second

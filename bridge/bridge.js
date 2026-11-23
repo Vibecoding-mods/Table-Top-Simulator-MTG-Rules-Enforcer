@@ -427,6 +427,12 @@ const deckChoice = {}; // color → preset id
 // color → true: the player's Auto-resolve toggle (2026-10-23): on other players' turns priority passes by itself, even
 // with an instant or a sacrifice outlet in hand (no "Resolve" to press each time). Kept from game to game.
 const autoResolve = {};
+// color → "pay" | "no": the player's Taxes button (2026-11-22): another player's "unless you pay" question (Rhystic
+// Study, Smothering Tithe, Esper Sentinel, Mystic Remora's draw) answered by itself, Pay and then Auto-pay, or No; unset
+// asks as before. Kept from game to game; the table says it again with every hello, so a restarted bridge takes it up.
+const taxAuto = {};
+const TAX_WORDS = { ask: "ask me each time", pay: "always pay another player's tax (Rhystic Study, Smothering Tithe...), with Auto-pay", no: "never pay another player's tax" };
+function setTaxAuto(color, mode) { taxAuto[color] = mode === "pay" || mode === "no" ? mode : undefined; }
 const aiDeckChoice = []; // preset ids for the AI players, in order ("mtg aideck <id>")
 
 function loadPreset(id) {
@@ -10500,6 +10506,7 @@ function onPrompt(seat, prompt) {
   const title = input.presentation?.title || { chooseFromSelection: "Choose", chooseCards: "Choose", chooseBoardTargets: "Choose a target", chooseNumber: "Choose a number", chooseColor: "Choose a color", chooseBoolean: "Yes or no?", revealCards: "Revealed", reorder: "Put these in order" }[type] || type;
   let ui;
   let toOutput;
+  let tax = null; // (another player's "unless you pay" question: { card, name }, answered by the Taxes setting)
   // (a copy's new target: what keeping its targets answers, see offerKeepTargets)
   let copyKeep = null;
   if (type !== "payManaCost") { seat.autoPayFailedFor = null; seat.smartPay = null; }
@@ -11333,6 +11340,8 @@ function onPrompt(seat, prompt) {
           ...(u ? { show: u.ids.filter((id) => imgOf(byId[id])).map((id) => ({ n: cname(id), img: imgOf(byId[id]) })) } : {}),
           ...(otherwiseDo === "library" ? { text: `Chosen: ${names}. Each one you don't pay for goes back on top of your library. Or drag one of them onto your library.` }
             : otherwiseDo === "sacrifice" ? { text: `Or drag ${src} to your graveyard to sacrifice it.` } : xv ? { text: `${xv.why}: ${xv.n}.` } : {}) };
+        const taxCtl = byId[prompt.sourceCard?.id]?.controllerId ?? prompt.sourceCard?.controllerId;
+        if (!u && !paysFor && prompt.sourceCard?.id && taxCtl != null && taxCtl !== seat.slot) tax = { card: prompt.sourceCard.id, name: src };
         toOutput = (a) => {
           if (u && a[0] !== "yes") u.awaitingPick = true;
           // (Pay: the payment that follows is the player's own, paid from the pool by itself, see payManaCost; Springheart
@@ -12686,6 +12695,14 @@ function onPrompt(seat, prompt) {
     ui.options = [...quick, ...ui.options.filter((o) => !String(o.id).startsWith("__")).sort((x, y) => String(x.label ?? "").localeCompare(String(y.label ?? ""), undefined, { numeric: true }))];
   }
   if (type !== "chooseBlockers" && type !== "chooseAttackers") addQuickPicks(ui);
+  // the Taxes setting: another player's tax answered unseen, and Pay's payment made with Auto-pay (taxAnswer)
+  if (tax && !forP && taxAuto[seat.color] && taxAnswer(seat, prompt.promptId, type, ui, toOutput, tax)) return;
+  const taxPay = seat.taxPay;
+  seat.taxPay = null;
+  if (taxPay && type === "payManaCost" && (input.cardId === taxPay.card || (input.cardName || src) === taxPay.name)) {
+    if ((ui.options || []).some((o) => o.id === "__auto")) { seat.respond(prompt.promptId, type, toOutput(["__auto"])); return; }
+    chat(`[MTG] Taxes: Auto-pay can't pay for ${taxPay.name} here. Tap sources yourself, or Cancel to not pay.`, seat.color);
+  }
   // a repeated yes/no answered "×N": this question is its next one, answered alike unseen; any other question shown to
   // the player ends it first (offerRepeat, repeatFits)
   const rep = seat.repeatAnswer;
@@ -12717,7 +12734,7 @@ function onPrompt(seat, prompt) {
     seat.respond(prompt.promptId, type, toOutput(auto.map(String)));
     return;
   }
-  seat.prompt = { promptId: prompt.promptId, type, toOutput, input, sentAt: performance.now(), picks: [], ui, forP };
+  seat.prompt = { promptId: prompt.promptId, type, toOutput, input, sentAt: performance.now(), picks: [], ui, forP, ...(tax && !forP ? { tax } : {}) };
   if (process.env.MTG_TRACE) log(`prompt ${seat.color} #${prompt.promptId}: ${type} "${ui.title}"`);
   if (seat.tripsOpen) { seat.tripsOpen = false; noteSample(ttsStats.trips, "after an answer", seat.trips); }
   // (forColor: the colour of the player a seat controls that this question is for, actingFor; the table's pass button
@@ -12806,6 +12823,17 @@ function setTimer(on, seconds) {
 // (askUnder) closed by anything but its own answer gives its card back (refused: the table turned or moved it at the
 // gesture, and nothing else redraws it until the next board; review 2026-11-06). answered: the open question itself was
 // answered (onAnswer), so its card goes ahead.
+// Another player's tax answered by the player's Taxes setting: Pay (its payment made next with Auto-pay, seat.taxPay)
+// or No. False when the question has no such answer (it is then shown as usual).
+function taxAnswer(seat, promptId, type, ui, toOutput, tax) {
+  const mode = taxAuto[seat.color];
+  const opt = (ui.options || []).find((o) => o.id === (mode === "pay" ? "yes" : "no"));
+  if (!opt) return false;
+  seat.taxPay = mode === "pay" ? tax : null;
+  chat(`[MTG] Taxes (auto): ${String(ui.title || tax.name).replace(/\?$/, "")}: ${opt.label}.`, seat.color);
+  seat.respond(promptId, type, toOutput([opt.id]));
+  return true;
+}
 function closePrompt(seat, answered = false) {
   const back = !answered && seat.prompt?.under?.returns;
   if (back) toTTS({ t: "refused", color: seat.color, id: back });
@@ -13387,6 +13415,7 @@ function onTTS(m) {
       onBanlist(m);
       break;
     case "hello":
+      if (isPlain(m.tax)) for (const [c, mode] of Object.entries(m.tax)) setTaxAuto(c, mode); // (the Taxes settings, the table's)
       tableStamp = m.stamp ?? null;
       tableKeepsRewind = m.keepRewind === true;
       tableTokenRuns = m.tokenRuns === true;
@@ -13475,6 +13504,17 @@ function onTTS(m) {
       startTrips(m.color);
       onIntent(m);
       break;
+    case "taxauto": {
+      // the Taxes button: "ask", "pay" or "no" (taxAuto); a tax question already open is answered at once
+      setTaxAuto(m.color, m.mode);
+      const mode = taxAuto[m.color] || "ask";
+      log(`${m.color}: taxes ${mode}`);
+      chat(`[MTG] Taxes: ${TAX_WORDS[mode]}.`, m.color);
+      const seat = game?.seats.get(m.color);
+      const p = seat?.prompt;
+      if (p?.tax && taxAuto[m.color] && taxAnswer(seat, p.promptId, p.type, p.ui, p.toOutput, p.tax)) closePrompt(seat, true);
+      break;
+    }
     case "autoresolve": {
       autoResolve[m.color] = m.on ? true : undefined;
       log(`${m.color}: auto-resolve ${m.on ? "on" : "off"}`);

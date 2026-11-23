@@ -26,6 +26,7 @@ Per seat (`<C>` is the colour). "Top-left rows" are at x 16, y -140 (row 1) and 
 | `eng_setpanel_<C>` | My effects / My sounds / Table animations | drops under row 1 |
 | `eng_autores_<C>` | "Auto-resolve: off...": opens the shared `eng_autolist` | top-left row 2 |
 | `eng_fixcall_<C>` | "Fix...": asks the others to fix the board by hand (M7) | top-left row 2 |
+| `eng_tax_<C>` | "Taxes: ask / always pay / never pay": answers other players' "unless you pay" (bridge `taxauto`) | top-left row 2, right of Fix |
 | `eng_fixp_<C>` | the fix panel (text and Yes / Edit the board / No) | top centre |
 | `eng_undo_<C>` | "Undo...": opens `eng_undolist_<C>` | top-left row 2 |
 | `eng_undolist_<C>` | up to 8 restore points (`eng_undopt_<C>_<k>`) and Close | drops under row 2 |
