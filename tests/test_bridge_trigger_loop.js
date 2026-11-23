@@ -214,6 +214,21 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     const w2 = await prio(h, white, board({ stack: [blood(3)] }));
     ok("No (priority): no Accept button after", white.prompt?.promptId === w2 && !optIds(white).includes("__tlaccept"), optIds(white).join(","));
   });
+  // (the loop ends the game: how many times it ran said, before "Game over")
+  await run(async (h) => {
+    const { seat, white } = setup(h);
+    const mark = h.effects.length;
+    await begin(h, seat, white, "__tl:all");
+    await say(h, "answer", { promptId: "__tloop", choice: ["__tl:all"] }, "White");
+    await pass(h, seat, white, 3, { pick: false });
+    await pass(h, seat, white, 4, { pick: false });
+    await ask(h, seat, board(), { type: "gameOver" });
+    const c = chats(h, mark);
+    const at = c.indexOf("[MTG] The loop stopped after 2 times (Sanguine Bond → Exquisite Blood): the game ended.");
+    ok("game over: the loop's count said", at >= 0, c.join(" | "));
+    ok("game over: before Game over", at >= 0 && c.findIndex((x) => x.startsWith("[MTG] Game over")) > at, c.join(" | "));
+    ok("game over: the run cleared", !h.B._getGame().tloop);
+  });
   // (two of the same trigger on the stack at once, Soul's Attendant for two creatures entering, then more one at a time:
   // a batch, never a loop)
   await run(async (h) => {

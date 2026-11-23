@@ -2161,6 +2161,7 @@ class Seat {
         // reason, not an empty library, playtest 2026-10-27; who conceded, never an empty library, live 2026-11-08; "a
         // draw" for a board the engine says is over, Kykar #16)
         const why = gameEndWords(gv);
+        tloopEnd("the game ended"); // (a loop of triggers that ended it: how many times it ran)
         // (else the bare fact: the relay sends this for every game that ends, a normal end too ("room reset to lobby"),
         // and every concession ended with "Game aborted.", which reads as a crash, live 2026-11-08)
         chat(why ? `[MTG] Game over: ${why}.` : "[MTG] The game has ended.");
@@ -12882,6 +12883,8 @@ function onPrompt(seat, prompt) {
       // (why, as far as the board tells it, and "a draw" with no winner: see gameEndWords)
       const why = gameEndWords(gv);
       // (once to each player: the question comes again)
+      // (a loop of triggers that ended the game: how many times it ran, said first)
+      tloopEnd("the game ended");
       const told = game ? (game.overSaid ??= new Set()) : null;
       if (!told?.has(seat.color)) chat(why ? `[MTG] Game over: ${why}.` : `[MTG] Game over.`, seat.color);
       told?.add(seat.color);
