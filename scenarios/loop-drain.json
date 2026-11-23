@@ -1,0 +1,18 @@
+{
+  "label": "a forced trigger loop (the loop shortcut, 2026-11-23): Sanguine Bond + Exquisite Blood, started by casting Sovereign's Bite (each opponent loses 3 life, you gain 3)",
+  "lands": {
+    "Swamp": 8
+  },
+  "keepHand": false,
+  "hand": [
+    "Sovereign's Bite"
+  ],
+  "battlefield": [
+    "Sanguine Bond",
+    "Exquisite Blood"
+  ],
+  "life": 40,
+  "opponents": {
+    "life": 20
+  }
+}

@@ -225,6 +225,18 @@ anyone into your server's games.
   own triggers still go on the stack and their questions are still asked. It ends when the loop ends or stops or the
   step changes. **Stop** on your panel (or `mtg stop`) turns it off at once and asks your next priority, so you can
   still respond and stop the loop.
+- **A loop of triggers** (Sanguine Bond + Exquisite Blood, a burn or drain loop that keeps triggering by itself; rule
+  732.4): once the same trigger has gone on the stack 3 times in one step, its controller's next question from those
+  cards asks first: **"Sanguine Bond → Exquisite Blood keep triggering: run the loop how many times?"** Pick ×10, ×100,
+  ×1000, **All (until it ends)**, **How many…**, or **Answer as usual**. Then answer the question once (the target, say);
+  the same answer is given each pass after, and your own priority over the loop is passed. Every other player sees
+  **"Blue's loop ×100: accept it?"** on their panel (or **Accept Blue's loop ×100…** in their priority, after End
+  turn): **Accept ×100**, **Accept fewer…** (a number up to the total) or **No**. Once accepted, your priority is
+  passed while only the loop's triggers are on the stack, for that many passes; the loop runs as far as the smallest
+  number anyone accepted. If you said No you are asked at every priority as usual, and you may respond. It ends, and
+  the chat says how many times it ran, when that many passes are done, someone puts something else on the stack, the
+  step changes, its question changes, the game ends, or someone types `mtg stop`. It isn't offered again in the same
+  step. When an AI runs the loop, your priority offers **Pass for this loop…** (×10, ×100, ×1000, All, How many…).
 - **Long lists** (a creature type, a big search): the last button says **More...** and shows the next page; the
   search box narrows the list. A question that lets you pick any number of cards offers **All (N)** and **None**.
   Scrying or surveilling more than 5 cards offers **All on top**, **All on the bottom** or **All into the graveyard**.
@@ -419,7 +431,7 @@ Each answer is said in chat. Your own cards' "unless you pay" (Mystic Remora's u
 | `mtg reset` | host: end the game and give the imported decks back (anyone seated once the game is over) |
 | `mtg undo [N]` / `mtg vote yes/no` | rewind, and the vote on it (the player who asked: `mtg vote no` takes it back) |
 | `mtg repeat <n>` | after one pass of a loop by hand, back to the same board, repeat it n more times (up to 1000); the same as the Repeat ×N button. Anyone may respond, and that stops it |
-| `mtg stop` | stop a long run of triggers resolving by itself (your next priority with something on the stack is asked); it also stops a Repeat ×N |
+| `mtg stop` | stop a long run of triggers resolving by itself (your next priority with something on the stack is asked); it also stops a Repeat ×N or a loop of triggers |
 | `mtg refresh` | your hand, your question and your panels drawn again (after a lag-out, or a question that never showed) |
 | `mtg hold` / `mtg hold off` | keep priority once after something goes on the stack, to respond to your own trigger or with an ability (or press Hold); over your own spell you are asked anyway when you hold a spell to cast |
 | `mtg skip <phase>` / `mtg skip off` | the Auto-resolve list's "Until" choices, typed: upkeep, draw, main, combat, blockers, damage, main2, end, mine |

@@ -10405,6 +10405,239 @@ function loopPicker(seat, offer) {
     });
   }, { back: "Back" });
 }
+// ── A loop of triggers nobody chooses to stop (Sanguine Bond + Exquisite Blood, a burn or drain loop): the shortcut
+// (CR 732.2, 732.4; the user 2026-11-23: "if the same triggers trigger multiple times in a loop add the x triggers so
+// that many happens without doing it manually. Give the opponents a button to accept x amount within the total or all
+// triggers"). Seen live the same day: each pass of Sanguine Bond + Exquisite Blood asked White "Sanguine Bond: choose a
+// player to lose life" again (one choice, AI 1), and an opponent who could respond is asked at each trigger.
+// The same trigger (its card and ability text) going on the stack TLOOP_AT times in one step, the loop's triggers all one
+// player's, is a loop (tloopFound). Then:
+//  - its controller's next question from a loop card first asks "Run the loop how many times?" (×10, ×100, ×1000, All,
+//    How many…, or answer as usual); a number starts the run (tloopBegin): that question is asked once more, and its
+//    answer is given again to the same question of the loop's cards each pass (tloopOwn), with no prompt
+//  - every other person sees the proposal and gets, at their priority (and on their panel when nothing is open),
+//    "Accept the loop…": all of it, fewer (a number up to the total), or No; with no proposal (an AI's loop) "Pass for
+//    this loop…" with ×10 … All. An accepted seat's priority is passed while only the loop's triggers are on the stack,
+//    as many passes of the loop as it accepted; the run itself ends at the smallest number accepted
+//  - it ends, said to everyone, when that many passes are done, a spell or ability not the loop's goes on the stack
+//    (someone responded), the step changes, the game ends, the engine's runaway question comes, or "mtg stop"
+//   game.tloopSeen: { turn, step, ids: stack items counted, counts: sig -> how many went on, ctl: sig -> controller,
+//     names: sig -> card name }
+//   game.tloop: { sigs, srcs: the loop's cards, lead: the sig counted as one pass, ctl, name, total (Infinity: All),
+//     at: the lead's count at the start, done, turn, step, stackAt, acc: colour -> passes accepted (0: No), answers:
+//     question key -> option ids, proposed: the controller chose the total }
+const TLOOP_AT = 3;
+const TLOOP_PROMPT = "__tloop"; // (the panel's question id for a seat with nothing open: its buttons are answered under it)
+const tloopSig = (s) => `${s.sourceId}|${s.sourceAbilityText || ""}`;
+const tloopIsTrig = (s) => !!s && (s.isTrigger || /^(When|Whenever|At)\b/.test(String(s.sourceAbilityText || "")));
+const tloopKey = (prompt, ui) => `${prompt.sourceCard?.id}|${prompt.input?.type}|${ui.title}`;
+// (an answer kept for the run: never one of the bridge's own buttons)
+const tloopKeep = (tl, key, toOutput) => (a) => { if (tl && !String(a[0] ?? "").startsWith("__")) tl.answers.set(key, [...a]); return toOutput(a); };
+const tloopWord = (n) => (n === Infinity ? "until it ends" : `×${n}`);
+// The new stack items of this board counted (each once), and the run's passes with them
+function tloopTrack(gv) {
+  if (!game || !gv) return;
+  let seen = game.tloopSeen;
+  if (!seen || seen.turn !== gv.turn || seen.step !== gv.step) seen = game.tloopSeen = { turn: gv.turn, step: gv.step, ids: new Set(), counts: new Map(), ctl: new Map(), names: new Map(), batch: new Set() };
+  // (the same trigger on the stack twice at once is a batch, Soul's Attendant for three creatures entering: never a loop)
+  const onStack = new Map();
+  for (const s of gv.stack || []) if (tloopIsTrig(s)) onStack.set(tloopSig(s), (onStack.get(tloopSig(s)) || 0) + 1);
+  for (const [k, n] of onStack) if (n > 1) seen.batch.add(k);
+  for (const s of gv.stack || []) {
+    if (seen.ids.has(s.id) || !tloopIsTrig(s)) continue;
+    seen.ids.add(s.id);
+    const k = tloopSig(s);
+    seen.counts.set(k, (seen.counts.get(k) || 0) + 1);
+    seen.ctl.set(k, s.controllerId);
+    seen.names.set(k, s.identity?.name || "a trigger");
+  }
+  const tl = game.tloop;
+  if (tl) tl.done = (seen.counts.get(tl.lead) || 0) - tl.at;
+}
+// The loop on this board: the triggers that went on TLOOP_AT - 1 times or more this step, all one player's, one of them
+// TLOOP_AT times; null when there is none
+function tloopFound(gv) {
+  const seen = game?.tloopSeen;
+  if (!seen || seen.turn !== gv.turn || seen.step !== gv.step) return null;
+  const many = [...seen.counts].filter(([, n]) => n >= TLOOP_AT - 1);
+  const lead = many.filter(([k, n]) => n >= TLOOP_AT && !seen.batch.has(k)).sort((a, b) => b[1] - a[1])[0];
+  if (!lead) return null;
+  const ctl = seen.ctl.get(lead[0]);
+  const sigs = many.map(([k]) => k).filter((k) => seen.ctl.get(k) === ctl);
+  const names = [...new Set(sigs.map((k) => seen.names.get(k)))];
+  return { sigs: new Set(sigs), srcs: new Set(sigs.map((k) => k.split("|")[0])), lead: lead[0], ctl, at: lead[1], name: names.slice(0, 3).join(" → ") };
+}
+// The seat of a player when a person sits there (an AI player has none)
+const tloopSeatOf = (slot) => (game ? [...game.seats.values()].find((s) => s.slot === slot) || null : null);
+// The run's length: the total, or the smallest number a seat accepted
+function tloopLimit(tl) {
+  return Math.min(tl.total, ...Object.values(tl.acc).filter((n) => n > 0));
+}
+// Why the run can't go on at this board: null when it can
+function tloopStops(tl, gv) {
+  if (gv.turn !== tl.turn || gv.step !== tl.step) return "the step changed";
+  const other = (gv.stack || []).find((s) => !tl.stackAt.has(s.id) && !tl.sigs.has(tloopSig(s)));
+  if (other) return `${other.identity?.name || "something"} (${nameOf(other.controllerId)}) went on the stack`;
+  if (tl.done > tloopLimit(tl)) return ""; // (done counts the pass under way)
+  return null;
+}
+// The run ends, said to everyone once, and every panel it put up is cleared
+function tloopEnd(why = "") {
+  const tl = game?.tloop;
+  if (!tl) return;
+  game.tloop = null;
+  game.tloopNo = `${tl.turn}|${tl.step}|${tl.lead}`; // (not offered again in this step)
+  const done = Math.min(tl.done, tloopLimit(tl));
+  const n = done === 1 ? "once" : `${done} times`;
+  chat(why ? `[MTG] The loop stopped after ${n} (${tl.name}): ${why}.` : `[MTG] The loop ran ${n} (${tl.name}).`);
+  for (const s of game.seats.values()) tloopPanel(s);
+}
+// A run starts (by the controller's count, or a seat's "Pass for this loop" on another's): said to everyone
+function tloopBegin(found, gv, total, proposed, by) {
+  game.tloop = { sigs: found.sigs, srcs: found.srcs, lead: found.lead, ctl: found.ctl, name: found.name, total, at: found.at, done: 0,
+    turn: gv.turn, step: gv.step, stackAt: new Set((gv.stack || []).map((s) => s.id)), acc: {}, answers: new Map(), proposed };
+  if (proposed) chat(`[MTG] ${nameOf(found.ctl)} runs the loop ${tloopWord(total)} (${found.name}). The others are asked to accept it, or fewer; anyone may respond when they get priority, and that stops it.`);
+  else chat(`[MTG] ${nameOf(by.slot)} passes for ${nameOf(found.ctl)}'s loop ${tloopWord(total)} (${found.name}).`);
+  for (const s of game.seats.values()) if (s !== by) tloopPanel(s);
+  return game.tloop;
+}
+// A seat's acceptance: n passes (Infinity: all of it), 0: No; said to everyone; the run ends if it is now done
+function tloopAccept(seat, n) {
+  const tl = game?.tloop;
+  if (!tl) return;
+  n = Math.min(n, tl.total);
+  tl.acc[seat.color] = n;
+  chat(n > 0 ? `[MTG] ${nameOf(seat.slot)} accepts the loop ${tloopWord(n)}${tl.total !== Infinity && n < tl.total ? ` (of ${tl.total})` : ""}.`
+    : `[MTG] ${nameOf(seat.slot)} doesn't accept the loop: they are asked at their priority as usual.`);
+  tloopPanel(seat);
+}
+// How a seat may accept: the buttons, under a question (askUnder) or on its panel; each answer is an id below
+function tloopAcceptUi(seat, tl, found) {
+  const total = tl ? tl.total : Infinity;
+  const title = tl?.proposed ? `${nameOf(tl.ctl)}'s loop ${tloopWord(tl.total)}: accept it?` : `${nameOf((tl || found).ctl)}'s loop: pass for it?`;
+  const opts = tl?.proposed
+    ? [{ id: "__tl:all", label: tl.total === Infinity ? "Accept all" : `Accept ×${tl.total}` }, { id: "__tl:some", label: "Accept fewer…" }, { id: "__tl:no", label: "No" }]
+    : [...[10, 100, LOOP_MAX].map((n) => ({ id: `__tl:${n}`, label: `×${n}` })), { id: "__tl:all", label: "All" }, { id: "__tl:some", label: "How many…" }];
+  return { title, mode: "single", kind: "loop", min: 1, max: 1, options: opts,
+    text: `${(tl || found).name}. Accepted, your priority is passed while only these triggers are on the stack, for that many passes of the loop${total !== Infinity ? ` (up to ${total})` : ""}. You may still respond when asked, and that stops it.` };
+}
+// A seat's answer to tloopAcceptUi: what it means (a number, Infinity, 0 for No, "some" for the number question, or null)
+function tloopPick(id) {
+  const v = String(id || "").replace(/^__tl:/, "");
+  return v === "all" ? Infinity : v === "no" ? 0 : v === "some" ? "some" : Number(v) > 0 ? Number(v) : null;
+}
+// The panel of a person with no question open while a run waits for their answer (TLOOP_PROMPT); cleared otherwise
+function tloopPanel(seat) {
+  if (!game || seat.prompt || seat.loop) return;
+  const tl = game.tloop;
+  const want = tl && seat.slot !== tl.ctl && tl.proposed && !(seat.color in tl.acc);
+  const key = want ? `${tl.lead}|${tl.total}` : null;
+  if (key === (seat.tloopShown ?? null)) return;
+  seat.tloopShown = key;
+  toTTS(want ? { t: "prompt", color: seat.color, promptId: TLOOP_PROMPT, ...tloopAcceptUi(seat, tl) } : { t: "prompt", color: seat.color, promptId: null });
+}
+// The panel's answer (TLOOP_PROMPT): All / No at once; "Accept fewer…" asks the number on the panel
+function tloopPanelAnswer(seat, choice) {
+  const tl = game?.tloop;
+  if (tl && seat?.tloopShown === "some") { seat.tloopShown = null; tloopPanelNumber(seat, choice); return; }
+  const v = tloopPick(asList(choice)[0]);
+  if (!tl || !seat || v === null) { if (seat) { seat.tloopShown = null; tloopPanel(seat); } return; }
+  if (v === "some") {
+    seat.tloopShown = "some";
+    const max = tl.total === Infinity ? LOOP_MAX : tl.total;
+    toTTS({ t: "prompt", color: seat.color, promptId: TLOOP_PROMPT, title: `Accept ${nameOf(tl.ctl)}'s loop how many times? (1 to ${max})`, mode: "number", kind: "number", min: 0, max, default: Math.min(10, max),
+      text: "0 is No: you are asked at your priority as usual." });
+    return;
+  }
+  tloopAccept(seat, v);
+}
+// The panel's number (the "Accept fewer…" question) comes as a plain choice
+function tloopPanelNumber(seat, choice) {
+  const n = Math.max(0, Math.floor(Number(asList(choice)[0])) || 0);
+  const tl = game?.tloop;
+  if (!tl) return;
+  tloopAccept(seat, Math.min(n, tl.total));
+}
+// The controller's question from a loop card, before the run: "Run the loop how many times?" first; the question
+// itself after (answered once more by hand, then given again each pass). { ui, toOutput } to ask.
+function tloopOffer(seat, prompt, gv, ui, toOutput, forP) {
+  if (!game || game.tloop || forP || !prompt.sourceCard?.id || !ui?.options?.length) return { ui, toOutput };
+  const found = tloopFound(gv);
+  if (!found || found.ctl !== seat.slot || !found.srcs.has(prompt.sourceCard.id)) return { ui, toOutput };
+  if (game.tloopNo === `${gv.turn}|${gv.step}|${found.lead}`) return { ui, toOutput };
+  const start = (n) => { const tl = tloopBegin(found, gv, n, true, seat); return next(ui, tloopKeep(tl, tloopKey(prompt, ui), toOutput)); };
+  const ask = { title: `${found.name} keep triggering: run the loop how many times?`, mode: "single", min: 1, max: 1, kind: "loop",
+    text: `${found.at} times so far this step. The others are asked to accept it, or fewer. Then answer this question once: the same answer is given each time after. Anyone may respond when they get priority, and that stops it.`,
+    options: [...[10, 100, LOOP_MAX].map((n) => ({ id: `__tl:${n}`, label: `×${n}` })), { id: "__tl:all", label: "All (until it ends)" }, { id: "__tl:some", label: "How many…" }, { id: "__tl:no", label: "Answer as usual" }] };
+  return { ui: ask, toOutput: (a) => {
+    const v = tloopPick(a[0]);
+    if (v === "some") return next({ title: `Run the loop how many times? (1 to ${LOOP_MAX})`, mode: "number", kind: "number", min: 0, max: LOOP_MAX, default: 10, onTimeout: "0", text: "0 answers as usual." },
+      (b) => { const n = Math.min(LOOP_MAX, Math.floor(Number(b[0])) || 0); if (n >= 1) return start(n); game.tloopNo = `${gv.turn}|${gv.step}|${found.lead}`; return next(ui, toOutput); });
+    if (v === 0 || v === null) { game.tloopNo = `${gv.turn}|${gv.step}|${found.lead}`; return next(ui, toOutput); }
+    return start(v);
+  } };
+}
+// The controller's question during the run: answered as before, unseen (true); the run ends first when it can't go on,
+// and a question it has no answer for yet is asked and its answer kept (toOutput wrapped)
+function tloopOwn(seat, prompt, gv, ui, toOutput, forP) {
+  const tl = game?.tloop;
+  if (!tl || forP || seat.slot !== tl.ctl || !tl.srcs.has(prompt.sourceCard?.id)) return { answered: false, toOutput };
+  const why = tloopStops(tl, gv);
+  if (why !== null) { tloopEnd(why); return { answered: false, toOutput }; }
+  const key = tloopKey(prompt, ui);
+  const ids = tl.answers.get(key);
+  const have = new Set((ui.options || []).map((o) => String(o.id)));
+  if (ids && ids.every((id) => have.has(String(id)))) {
+    seat.respond(prompt.promptId, prompt.input?.type, toOutput(ids));
+    return { answered: true, toOutput };
+  }
+  if (ids) { tloopEnd("its question changed"); return { answered: false, toOutput }; }
+  return { answered: false, toOutput: tloopKeep(tl, key, toOutput) };
+}
+// A seat's priority during the run: passed (true) when it accepted and only the loop's triggers are new on the stack;
+// the controller's own too
+function tloopPasses(seat, gv, forP) {
+  const tl = game?.tloop;
+  if (!tl || forP) return false;
+  const why = tloopStops(tl, gv);
+  if (why !== null) { tloopEnd(why); return false; }
+  const top = (gv.stack || [])[(gv.stack || []).length - 1];
+  if (!top || !tl.sigs.has(tloopSig(top))) return false;
+  if (seat.slot === tl.ctl) return true;
+  const acc = tl.acc[seat.color];
+  return acc > 0 && tl.done <= acc;
+}
+// A person's priority while a loop runs or is found (not their own): "Accept the loop…" / "Pass for this loop…" after
+// End turn; its buttons under the priority question (askUnder). { ui, toOutput } wrapped.
+function tloopPriorityOffer(seat, gv, ui, toOutput, forP) {
+  if (!game || forP) return toOutput;
+  const tl = game.tloop;
+  const found = tl ? null : tloopFound(gv);
+  const loop = tl || found;
+  if (!loop || loop.ctl === seat.slot || (tl && seat.color in tl.acc)) return toOutput;
+  if (!tl && game.tloopNo === `${gv.turn}|${gv.step}|${found.lead}`) return toOutput;
+  if (!(gv.stack || []).some((s) => loop.sigs.has(tloopSig(s)))) return toOutput;
+  const label = tl?.proposed ? `Accept ${nameOf(tl.ctl)}'s loop ${tloopWord(tl.total)}…` : "Pass for this loop…";
+  const at = ui.options.findIndex((o) => o.id === "__endturn");
+  ui.options.splice(at >= 0 ? at + 1 : ui.options.length, 0, { id: "__tlaccept", label });
+  return (a) => {
+    if (a[0] !== "__tlaccept") return toOutput(a);
+    const ask = tloopAcceptUi(seat, game.tloop, found);
+    return askUnder(seat, ask, (b) => {
+      const v = tloopPick(b[0]);
+      // (an AI's loop: the run starts with this seat's answer, all of it, its end the number this seat accepts)
+      const runOf = () => game.tloop || (found ? tloopBegin(found, gv, Infinity, false, seat) : null);
+      const max = game.tloop && game.tloop.total !== Infinity ? game.tloop.total : LOOP_MAX;
+      if (v === "some") return next({ title: `How many passes of the loop? (1 to ${max})`, mode: "number", kind: "number", min: 0, max, default: Math.min(10, max), onTimeout: "0", text: "0 goes back to your priority." },
+        (c) => { const n = Math.min(max, Math.floor(Number(c[0])) || 0); if (n < 1 || !runOf()) return backUnder(seat); tloopAccept(seat, n); return { type: "pass" }; });
+      if (v === null) return backUnder(seat);
+      if (v === 0) { if (game.tloop) tloopAccept(seat, 0); return backUnder(seat); }
+      if (!runOf()) return backUnder(seat);
+      tloopAccept(seat, v);
+      return { type: "pass" };
+    }, { back: "Back" });
+  };
+}
 // The players a seat controls now (Forge's controlledBy: Mindslaver's turn, Opposition Agent's search).
 function ruledBy(gv, slot) {
   return (gv.players || []).filter((p) => p.id !== slot && p.controlledBy === slot).map((p) => p.id);
@@ -10469,6 +10702,7 @@ function onPrompt(seat, prompt) {
   const input = prompt.input || {};
   const type = input.type;
   const gv = seat.board?.state?.gameView || {};
+  tloopTrack(gv); // (a loop of triggers: the new stack items counted, tloopFound)
   const byId = cardIndex(gv);
   // (a look at the top cards, not shown (see revealCards): the pick from among them shows them; with no such pick next,
   // nothing among them could be taken, and what was seen is said instead)
@@ -10593,6 +10827,12 @@ function onPrompt(seat, prompt) {
       const stopNow = stopsChain(seat, gv);
       // "No responses for this loop" (loopQuietOn): passed while another seat's repeat runs; a controlled player's is asked
       if (!forP && loopQuietLive(seat)) {
+        seat.respond(prompt.promptId, type, { type: "pass" });
+        if (seat.prompt) closePrompt(seat);
+        return;
+      }
+      // a loop of triggers this seat accepted (or runs): passed while only its triggers are on the stack (tloopPasses)
+      if (!stopNow && tloopPasses(seat, gv, forP)) {
         seat.respond(prompt.promptId, type, { type: "pass" });
         if (seat.prompt) closePrompt(seat);
         return;
@@ -10799,6 +11039,8 @@ function onPrompt(seat, prompt) {
         const base = toOutput;
         toOutput = (a) => (a[0] === "__quiet" ? (loopQuietOn(seat), { type: "pass" }) : base(a));
       }
+      // "Accept Blue's loop ×100…" / "Pass for this loop…" while a loop of triggers runs or is found (tloopPriorityOffer)
+      toOutput = tloopPriorityOffer(seat, gv, ui, toOutput, forP);
       break;
     }
     case "payManaCost":
@@ -12714,6 +12956,13 @@ function onPrompt(seat, prompt) {
     if ((ui.options || []).some((o) => o.id === "__auto")) { seat.respond(prompt.promptId, type, toOutput(["__auto"])); return; }
     chat(`[MTG] Taxes: Auto-pay can't pay for ${taxPay.name} here. Tap sources yourself, or Cancel to not pay.`, seat.color);
   }
+  // a loop of triggers: its controller's question answered as before during the run (tloopOwn), or the run offered
+  // first (tloopOffer)
+  if (game?.tloop && RUNAWAY_TITLE === String(input.presentation?.title || "")) tloopEnd("the engine's runaway limit asks first");
+  const own = tloopOwn(seat, prompt, gv, ui, toOutput, forP);
+  if (own.answered) return;
+  toOutput = own.toOutput;
+  ({ ui, toOutput } = tloopOffer(seat, prompt, gv, ui, toOutput, forP));
   // a repeated yes/no answered "×N": this question is its next one, answered alike unseen; any other question shown to
   // the player ends it first (offerRepeat, repeatFits)
   const rep = seat.repeatAnswer;
@@ -12854,6 +13103,8 @@ function closePrompt(seat, answered = false) {
   // (another seat's loop under way: its "No responses" panel back at once, loopQuietShow)
   seat.quietShown = null;
   loopQuietShow(seat);
+  seat.tloopShown = null; // (and a loop of triggers waiting for this seat's answer: its panel, tloopPanel)
+  tloopPanel(seat);
 }
 
 function refuse(seat, cardId, reason) {
@@ -13576,6 +13827,8 @@ function onTTS(m) {
       if (!seat) { chat("[MTG] Stop: no game running.", m.color); break; }
       // (a "Repeat ×N" under way ends now; the next priority with something on the stack is asked)
       if (seat.loop) { seat.stopChain = true; loopEnd(seat, "you typed mtg stop"); break; }
+      // (a loop of triggers under way: ends now for everyone, and this seat's next priority is asked)
+      if (game.tloop) { seat.stopChain = true; tloopEnd(`${nameOf(seat.slot)} typed mtg stop`); break; }
       // (another seat's loop passed on, loopQuietOn: off now, and the next priority with something on the stack is asked)
       if (loopQuietOff(seat)) { chat("[MTG] Stop: your next priority with something on the stack is asked; responding stops the loop.", m.color); break; }
       if (seat.prompt?.type === "chooseAction") { chat("[MTG] Stop: it is already your priority.", m.color); break; }
@@ -13611,6 +13864,8 @@ function onTTS(m) {
         if (seat && !(pick === "__quiet" ? loopQuietOn(seat) : pick === "__quietstop" && loopQuietOff(seat))) loopQuietShow(seat);
         break;
       }
+      // (the panel's "accept the loop" buttons and its number, tloopPanel)
+      if (m.promptId === TLOOP_PROMPT) { tloopPanelAnswer(game?.seats.get(m.color), m.choice); break; }
       startTrips(m.color);
       onAnswer(m.color, m.promptId, m.choice);
       break;
@@ -14956,6 +15211,7 @@ function checkRestored(seat) {
   log(`${seat.color}: the game was rewound (turn ${wasTurn} -> ${turn} ${gv.step}${pointsBack ? `, restore points ${wasNewest} -> ${newest}` : ""}${voteBack ? `, vote ${approved} approved` : ""})`);
   if (seat.prompt) closePrompt(seat);
   seat.clearFollowUps();
+  if (game.tloop) { game.tloop = null; game.tloopSeen = null; } // (a loop of triggers is forgotten, unsaid: the rewind is said)
   game.pendingPlays = (game.pendingPlays || []).filter((e) => e.ctl !== seat.slot);
   if (seat === leadSeat()) {
     chat(`[MTG] Rewound to turn ${gv.turn} (${rewindStep(gv.step)}).`);
