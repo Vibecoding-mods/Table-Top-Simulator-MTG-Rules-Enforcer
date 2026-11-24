@@ -1,0 +1,5205 @@
+[
+ {
+  "name": "surface",
+  "result": [
+   [
+    "apply",
+    "function",
+    2
+   ],
+   [
+    "fingerprint",
+    "function",
+    1
+   ]
+  ]
+ },
+ {
+  "name": "apply undef <- undef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply undef <- null",
+  "result": null
+ },
+ {
+  "name": "apply undef <- num",
+  "result": 7
+ },
+ {
+  "name": "apply undef <- zero",
+  "result": 0
+ },
+ {
+  "name": "apply undef <- false",
+  "result": false
+ },
+ {
+  "name": "apply undef <- emptyStr",
+  "result": ""
+ },
+ {
+  "name": "apply undef <- str",
+  "result": "x"
+ },
+ {
+  "name": "apply undef <- arr",
+  "result": [
+   9
+  ]
+ },
+ {
+  "name": "apply undef <- emptyArr",
+  "result": []
+ },
+ {
+  "name": "apply undef <- emptyObj",
+  "result": {}
+ },
+ {
+  "name": "apply undef <- lit",
+  "result": {
+   "a": 1
+  }
+ },
+ {
+  "name": "apply undef <- litNull",
+  "result": null
+ },
+ {
+  "name": "apply undef <- litUndef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply undef <- litArr",
+  "result": [
+   1
+  ]
+ },
+ {
+  "name": "apply undef <- litWithOthers",
+  "result": 1
+ },
+ {
+  "name": "apply undef <- litNested",
+  "result": {
+   "a": {
+    "z": 1
+   }
+  }
+ },
+ {
+  "name": "apply undef <- merge",
+  "result": {
+   "a": 2,
+   "f": 3
+  }
+ },
+ {
+  "name": "apply undef <- mergeDeep",
+  "result": {
+   "b": {
+    "c": 9
+   }
+  }
+ },
+ {
+  "name": "apply undef <- mergeNullKeeps",
+  "result": {
+   "b": null
+  }
+ },
+ {
+  "name": "apply undef <- deleteKeys",
+  "result": {}
+ },
+ {
+  "name": "apply undef <- deleteNotArray",
+  "result": {}
+ },
+ {
+  "name": "apply undef <- deleteAndSet",
+  "result": {
+   "a": 5
+  }
+ },
+ {
+  "name": "apply undef <- deleteNested",
+  "result": {
+   "b": {}
+  }
+ },
+ {
+  "name": "apply undef <- keyedEdit",
+  "result": [
+   {
+    "n": 20
+   }
+  ]
+ },
+ {
+  "name": "apply undef <- keyedAdd",
+  "result": [
+   {
+    "id": "z",
+    "n": 26
+   }
+  ]
+ },
+ {
+  "name": "apply undef <- keyedAddNoId",
+  "result": [
+   {
+    "n": 1
+   }
+  ]
+ },
+ {
+  "name": "apply undef <- keyedNotObj",
+  "result": []
+ },
+ {
+  "name": "apply undef <- keyedLit",
+  "result": [
+   {
+    "id": "a",
+    "fresh": true
+   }
+  ]
+ },
+ {
+  "name": "apply undef <- keyedNullPatch",
+  "result": [
+   null
+  ]
+ },
+ {
+  "name": "apply undef <- removeOnly",
+  "result": {}
+ },
+ {
+  "name": "apply undef <- removeAll",
+  "result": {}
+ },
+ {
+  "name": "apply undef <- removeUnknown",
+  "result": {}
+ },
+ {
+  "name": "apply undef <- order",
+  "result": []
+ },
+ {
+  "name": "apply undef <- orderPartial",
+  "result": []
+ },
+ {
+  "name": "apply undef <- orderUnknown",
+  "result": []
+ },
+ {
+  "name": "apply undef <- orderNonString",
+  "result": []
+ },
+ {
+  "name": "apply undef <- orderDup",
+  "result": []
+ },
+ {
+  "name": "apply undef <- orderNotArray",
+  "result": []
+ },
+ {
+  "name": "apply undef <- keyedAndOrder",
+  "result": [
+   {
+    "id": "z"
+   }
+  ]
+ },
+ {
+  "name": "apply undef <- removeAndKeyedSame",
+  "result": [
+   {
+    "n": 100
+   }
+  ]
+ },
+ {
+  "name": "apply undef <- zoneEdit",
+  "result": [
+   {
+    "ids": [
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply undef <- zoneRemove",
+  "result": {}
+ },
+ {
+  "name": "apply undef <- emptyKeyRemove",
+  "result": {}
+ },
+ {
+  "name": "apply undef <- emptyKeyEdit",
+  "result": [
+   {
+    "x": 1
+   }
+  ]
+ },
+ {
+  "name": "apply undef <- nestedPlayers",
+  "result": {
+   "players": [
+    {
+     "life": 19,
+     "counters": {
+      "poison": 2
+     }
+    }
+   ],
+   "turn": 4
+  }
+ },
+ {
+  "name": "apply undef <- nestedPlayersAdd",
+  "result": {
+   "players": [
+    {
+     "id": "p3",
+     "life": 20
+    }
+   ]
+  }
+ },
+ {
+  "name": "apply undef <- protoPatch",
+  "result": {
+   "toString": 2,
+   "constructor": {
+    "y": 2
+   }
+  }
+ },
+ {
+  "name": "apply undef <- protoProto",
+  "result": {}
+ },
+ {
+  "name": "apply undef <- dollarOther",
+  "result": {
+   "$x": 1
+  }
+ },
+ {
+  "name": "apply undef <- removeInList",
+  "result": {
+   "other": 1
+  }
+ },
+ {
+  "name": "apply null <- undef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply null <- null",
+  "result": null
+ },
+ {
+  "name": "apply null <- num",
+  "result": 7
+ },
+ {
+  "name": "apply null <- zero",
+  "result": 0
+ },
+ {
+  "name": "apply null <- false",
+  "result": false
+ },
+ {
+  "name": "apply null <- emptyStr",
+  "result": ""
+ },
+ {
+  "name": "apply null <- str",
+  "result": "x"
+ },
+ {
+  "name": "apply null <- arr",
+  "result": [
+   9
+  ]
+ },
+ {
+  "name": "apply null <- emptyArr",
+  "result": []
+ },
+ {
+  "name": "apply null <- emptyObj",
+  "result": {}
+ },
+ {
+  "name": "apply null <- lit",
+  "result": {
+   "a": 1
+  }
+ },
+ {
+  "name": "apply null <- litNull",
+  "result": null
+ },
+ {
+  "name": "apply null <- litUndef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply null <- litArr",
+  "result": [
+   1
+  ]
+ },
+ {
+  "name": "apply null <- litWithOthers",
+  "result": 1
+ },
+ {
+  "name": "apply null <- litNested",
+  "result": {
+   "a": {
+    "z": 1
+   }
+  }
+ },
+ {
+  "name": "apply null <- merge",
+  "result": {
+   "a": 2,
+   "f": 3
+  }
+ },
+ {
+  "name": "apply null <- mergeDeep",
+  "result": {
+   "b": {
+    "c": 9
+   }
+  }
+ },
+ {
+  "name": "apply null <- mergeNullKeeps",
+  "result": {
+   "b": null
+  }
+ },
+ {
+  "name": "apply null <- deleteKeys",
+  "result": {}
+ },
+ {
+  "name": "apply null <- deleteNotArray",
+  "result": {}
+ },
+ {
+  "name": "apply null <- deleteAndSet",
+  "result": {
+   "a": 5
+  }
+ },
+ {
+  "name": "apply null <- deleteNested",
+  "result": {
+   "b": {}
+  }
+ },
+ {
+  "name": "apply null <- keyedEdit",
+  "result": [
+   {
+    "n": 20
+   }
+  ]
+ },
+ {
+  "name": "apply null <- keyedAdd",
+  "result": [
+   {
+    "id": "z",
+    "n": 26
+   }
+  ]
+ },
+ {
+  "name": "apply null <- keyedAddNoId",
+  "result": [
+   {
+    "n": 1
+   }
+  ]
+ },
+ {
+  "name": "apply null <- keyedNotObj",
+  "result": []
+ },
+ {
+  "name": "apply null <- keyedLit",
+  "result": [
+   {
+    "id": "a",
+    "fresh": true
+   }
+  ]
+ },
+ {
+  "name": "apply null <- keyedNullPatch",
+  "result": [
+   null
+  ]
+ },
+ {
+  "name": "apply null <- removeOnly",
+  "result": {}
+ },
+ {
+  "name": "apply null <- removeAll",
+  "result": {}
+ },
+ {
+  "name": "apply null <- removeUnknown",
+  "result": {}
+ },
+ {
+  "name": "apply null <- order",
+  "result": []
+ },
+ {
+  "name": "apply null <- orderPartial",
+  "result": []
+ },
+ {
+  "name": "apply null <- orderUnknown",
+  "result": []
+ },
+ {
+  "name": "apply null <- orderNonString",
+  "result": []
+ },
+ {
+  "name": "apply null <- orderDup",
+  "result": []
+ },
+ {
+  "name": "apply null <- orderNotArray",
+  "result": []
+ },
+ {
+  "name": "apply null <- keyedAndOrder",
+  "result": [
+   {
+    "id": "z"
+   }
+  ]
+ },
+ {
+  "name": "apply null <- removeAndKeyedSame",
+  "result": [
+   {
+    "n": 100
+   }
+  ]
+ },
+ {
+  "name": "apply null <- zoneEdit",
+  "result": [
+   {
+    "ids": [
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply null <- zoneRemove",
+  "result": {}
+ },
+ {
+  "name": "apply null <- emptyKeyRemove",
+  "result": {}
+ },
+ {
+  "name": "apply null <- emptyKeyEdit",
+  "result": [
+   {
+    "x": 1
+   }
+  ]
+ },
+ {
+  "name": "apply null <- nestedPlayers",
+  "result": {
+   "players": [
+    {
+     "life": 19,
+     "counters": {
+      "poison": 2
+     }
+    }
+   ],
+   "turn": 4
+  }
+ },
+ {
+  "name": "apply null <- nestedPlayersAdd",
+  "result": {
+   "players": [
+    {
+     "id": "p3",
+     "life": 20
+    }
+   ]
+  }
+ },
+ {
+  "name": "apply null <- protoPatch",
+  "result": {
+   "toString": 2,
+   "constructor": {
+    "y": 2
+   }
+  }
+ },
+ {
+  "name": "apply null <- protoProto",
+  "result": {}
+ },
+ {
+  "name": "apply null <- dollarOther",
+  "result": {
+   "$x": 1
+  }
+ },
+ {
+  "name": "apply null <- removeInList",
+  "result": {
+   "other": 1
+  }
+ },
+ {
+  "name": "apply num <- undef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply num <- null",
+  "result": null
+ },
+ {
+  "name": "apply num <- num",
+  "result": 7
+ },
+ {
+  "name": "apply num <- zero",
+  "result": 0
+ },
+ {
+  "name": "apply num <- false",
+  "result": false
+ },
+ {
+  "name": "apply num <- emptyStr",
+  "result": ""
+ },
+ {
+  "name": "apply num <- str",
+  "result": "x"
+ },
+ {
+  "name": "apply num <- arr",
+  "result": [
+   9
+  ]
+ },
+ {
+  "name": "apply num <- emptyArr",
+  "result": []
+ },
+ {
+  "name": "apply num <- emptyObj",
+  "result": {}
+ },
+ {
+  "name": "apply num <- lit",
+  "result": {
+   "a": 1
+  }
+ },
+ {
+  "name": "apply num <- litNull",
+  "result": null
+ },
+ {
+  "name": "apply num <- litUndef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply num <- litArr",
+  "result": [
+   1
+  ]
+ },
+ {
+  "name": "apply num <- litWithOthers",
+  "result": 1
+ },
+ {
+  "name": "apply num <- litNested",
+  "result": {
+   "a": {
+    "z": 1
+   }
+  }
+ },
+ {
+  "name": "apply num <- merge",
+  "result": {
+   "a": 2,
+   "f": 3
+  }
+ },
+ {
+  "name": "apply num <- mergeDeep",
+  "result": {
+   "b": {
+    "c": 9
+   }
+  }
+ },
+ {
+  "name": "apply num <- mergeNullKeeps",
+  "result": {
+   "b": null
+  }
+ },
+ {
+  "name": "apply num <- deleteKeys",
+  "result": {}
+ },
+ {
+  "name": "apply num <- deleteNotArray",
+  "result": {}
+ },
+ {
+  "name": "apply num <- deleteAndSet",
+  "result": {
+   "a": 5
+  }
+ },
+ {
+  "name": "apply num <- deleteNested",
+  "result": {
+   "b": {}
+  }
+ },
+ {
+  "name": "apply num <- keyedEdit",
+  "result": [
+   {
+    "n": 20
+   }
+  ]
+ },
+ {
+  "name": "apply num <- keyedAdd",
+  "result": [
+   {
+    "id": "z",
+    "n": 26
+   }
+  ]
+ },
+ {
+  "name": "apply num <- keyedAddNoId",
+  "result": [
+   {
+    "n": 1
+   }
+  ]
+ },
+ {
+  "name": "apply num <- keyedNotObj",
+  "result": []
+ },
+ {
+  "name": "apply num <- keyedLit",
+  "result": [
+   {
+    "id": "a",
+    "fresh": true
+   }
+  ]
+ },
+ {
+  "name": "apply num <- keyedNullPatch",
+  "result": [
+   null
+  ]
+ },
+ {
+  "name": "apply num <- removeOnly",
+  "result": {}
+ },
+ {
+  "name": "apply num <- removeAll",
+  "result": {}
+ },
+ {
+  "name": "apply num <- removeUnknown",
+  "result": {}
+ },
+ {
+  "name": "apply num <- order",
+  "result": []
+ },
+ {
+  "name": "apply num <- orderPartial",
+  "result": []
+ },
+ {
+  "name": "apply num <- orderUnknown",
+  "result": []
+ },
+ {
+  "name": "apply num <- orderNonString",
+  "result": []
+ },
+ {
+  "name": "apply num <- orderDup",
+  "result": []
+ },
+ {
+  "name": "apply num <- orderNotArray",
+  "result": []
+ },
+ {
+  "name": "apply num <- keyedAndOrder",
+  "result": [
+   {
+    "id": "z"
+   }
+  ]
+ },
+ {
+  "name": "apply num <- removeAndKeyedSame",
+  "result": [
+   {
+    "n": 100
+   }
+  ]
+ },
+ {
+  "name": "apply num <- zoneEdit",
+  "result": [
+   {
+    "ids": [
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply num <- zoneRemove",
+  "result": {}
+ },
+ {
+  "name": "apply num <- emptyKeyRemove",
+  "result": {}
+ },
+ {
+  "name": "apply num <- emptyKeyEdit",
+  "result": [
+   {
+    "x": 1
+   }
+  ]
+ },
+ {
+  "name": "apply num <- nestedPlayers",
+  "result": {
+   "players": [
+    {
+     "life": 19,
+     "counters": {
+      "poison": 2
+     }
+    }
+   ],
+   "turn": 4
+  }
+ },
+ {
+  "name": "apply num <- nestedPlayersAdd",
+  "result": {
+   "players": [
+    {
+     "id": "p3",
+     "life": 20
+    }
+   ]
+  }
+ },
+ {
+  "name": "apply num <- protoPatch",
+  "result": {
+   "toString": 2,
+   "constructor": {
+    "y": 2
+   }
+  }
+ },
+ {
+  "name": "apply num <- protoProto",
+  "result": {}
+ },
+ {
+  "name": "apply num <- dollarOther",
+  "result": {
+   "$x": 1
+  }
+ },
+ {
+  "name": "apply num <- removeInList",
+  "result": {
+   "other": 1
+  }
+ },
+ {
+  "name": "apply str <- undef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply str <- null",
+  "result": null
+ },
+ {
+  "name": "apply str <- num",
+  "result": 7
+ },
+ {
+  "name": "apply str <- zero",
+  "result": 0
+ },
+ {
+  "name": "apply str <- false",
+  "result": false
+ },
+ {
+  "name": "apply str <- emptyStr",
+  "result": ""
+ },
+ {
+  "name": "apply str <- str",
+  "result": "x"
+ },
+ {
+  "name": "apply str <- arr",
+  "result": [
+   9
+  ]
+ },
+ {
+  "name": "apply str <- emptyArr",
+  "result": []
+ },
+ {
+  "name": "apply str <- emptyObj",
+  "result": {}
+ },
+ {
+  "name": "apply str <- lit",
+  "result": {
+   "a": 1
+  }
+ },
+ {
+  "name": "apply str <- litNull",
+  "result": null
+ },
+ {
+  "name": "apply str <- litUndef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply str <- litArr",
+  "result": [
+   1
+  ]
+ },
+ {
+  "name": "apply str <- litWithOthers",
+  "result": 1
+ },
+ {
+  "name": "apply str <- litNested",
+  "result": {
+   "a": {
+    "z": 1
+   }
+  }
+ },
+ {
+  "name": "apply str <- merge",
+  "result": {
+   "a": 2,
+   "f": 3
+  }
+ },
+ {
+  "name": "apply str <- mergeDeep",
+  "result": {
+   "b": {
+    "c": 9
+   }
+  }
+ },
+ {
+  "name": "apply str <- mergeNullKeeps",
+  "result": {
+   "b": null
+  }
+ },
+ {
+  "name": "apply str <- deleteKeys",
+  "result": {}
+ },
+ {
+  "name": "apply str <- deleteNotArray",
+  "result": {}
+ },
+ {
+  "name": "apply str <- deleteAndSet",
+  "result": {
+   "a": 5
+  }
+ },
+ {
+  "name": "apply str <- deleteNested",
+  "result": {
+   "b": {}
+  }
+ },
+ {
+  "name": "apply str <- keyedEdit",
+  "result": [
+   {
+    "n": 20
+   }
+  ]
+ },
+ {
+  "name": "apply str <- keyedAdd",
+  "result": [
+   {
+    "id": "z",
+    "n": 26
+   }
+  ]
+ },
+ {
+  "name": "apply str <- keyedAddNoId",
+  "result": [
+   {
+    "n": 1
+   }
+  ]
+ },
+ {
+  "name": "apply str <- keyedNotObj",
+  "result": []
+ },
+ {
+  "name": "apply str <- keyedLit",
+  "result": [
+   {
+    "id": "a",
+    "fresh": true
+   }
+  ]
+ },
+ {
+  "name": "apply str <- keyedNullPatch",
+  "result": [
+   null
+  ]
+ },
+ {
+  "name": "apply str <- removeOnly",
+  "result": {}
+ },
+ {
+  "name": "apply str <- removeAll",
+  "result": {}
+ },
+ {
+  "name": "apply str <- removeUnknown",
+  "result": {}
+ },
+ {
+  "name": "apply str <- order",
+  "result": []
+ },
+ {
+  "name": "apply str <- orderPartial",
+  "result": []
+ },
+ {
+  "name": "apply str <- orderUnknown",
+  "result": []
+ },
+ {
+  "name": "apply str <- orderNonString",
+  "result": []
+ },
+ {
+  "name": "apply str <- orderDup",
+  "result": []
+ },
+ {
+  "name": "apply str <- orderNotArray",
+  "result": []
+ },
+ {
+  "name": "apply str <- keyedAndOrder",
+  "result": [
+   {
+    "id": "z"
+   }
+  ]
+ },
+ {
+  "name": "apply str <- removeAndKeyedSame",
+  "result": [
+   {
+    "n": 100
+   }
+  ]
+ },
+ {
+  "name": "apply str <- zoneEdit",
+  "result": [
+   {
+    "ids": [
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply str <- zoneRemove",
+  "result": {}
+ },
+ {
+  "name": "apply str <- emptyKeyRemove",
+  "result": {}
+ },
+ {
+  "name": "apply str <- emptyKeyEdit",
+  "result": [
+   {
+    "x": 1
+   }
+  ]
+ },
+ {
+  "name": "apply str <- nestedPlayers",
+  "result": {
+   "players": [
+    {
+     "life": 19,
+     "counters": {
+      "poison": 2
+     }
+    }
+   ],
+   "turn": 4
+  }
+ },
+ {
+  "name": "apply str <- nestedPlayersAdd",
+  "result": {
+   "players": [
+    {
+     "id": "p3",
+     "life": 20
+    }
+   ]
+  }
+ },
+ {
+  "name": "apply str <- protoPatch",
+  "result": {
+   "toString": 2,
+   "constructor": {
+    "y": 2
+   }
+  }
+ },
+ {
+  "name": "apply str <- protoProto",
+  "result": {}
+ },
+ {
+  "name": "apply str <- dollarOther",
+  "result": {
+   "$x": 1
+  }
+ },
+ {
+  "name": "apply str <- removeInList",
+  "result": {
+   "other": 1
+  }
+ },
+ {
+  "name": "apply arr <- undef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply arr <- null",
+  "result": null
+ },
+ {
+  "name": "apply arr <- num",
+  "result": 7
+ },
+ {
+  "name": "apply arr <- zero",
+  "result": 0
+ },
+ {
+  "name": "apply arr <- false",
+  "result": false
+ },
+ {
+  "name": "apply arr <- emptyStr",
+  "result": ""
+ },
+ {
+  "name": "apply arr <- str",
+  "result": "x"
+ },
+ {
+  "name": "apply arr <- arr",
+  "result": [
+   9
+  ]
+ },
+ {
+  "name": "apply arr <- emptyArr",
+  "result": []
+ },
+ {
+  "name": "apply arr <- emptyObj",
+  "result": {}
+ },
+ {
+  "name": "apply arr <- lit",
+  "result": {
+   "a": 1
+  }
+ },
+ {
+  "name": "apply arr <- litNull",
+  "result": null
+ },
+ {
+  "name": "apply arr <- litUndef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply arr <- litArr",
+  "result": [
+   1
+  ]
+ },
+ {
+  "name": "apply arr <- litWithOthers",
+  "result": 1
+ },
+ {
+  "name": "apply arr <- litNested",
+  "result": {
+   "a": {
+    "z": 1
+   }
+  }
+ },
+ {
+  "name": "apply arr <- merge",
+  "result": {
+   "a": 2,
+   "f": 3
+  }
+ },
+ {
+  "name": "apply arr <- mergeDeep",
+  "result": {
+   "b": {
+    "c": 9
+   }
+  }
+ },
+ {
+  "name": "apply arr <- mergeNullKeeps",
+  "result": {
+   "b": null
+  }
+ },
+ {
+  "name": "apply arr <- deleteKeys",
+  "result": [
+   2,
+   2
+  ]
+ },
+ {
+  "name": "apply arr <- deleteNotArray",
+  "result": [
+   2,
+   2
+  ]
+ },
+ {
+  "name": "apply arr <- deleteAndSet",
+  "result": [
+   2,
+   2
+  ]
+ },
+ {
+  "name": "apply arr <- deleteNested",
+  "result": {
+   "b": {}
+  }
+ },
+ {
+  "name": "apply arr <- keyedEdit",
+  "result": [
+   2,
+   2,
+   {
+    "n": 20
+   }
+  ]
+ },
+ {
+  "name": "apply arr <- keyedAdd",
+  "result": [
+   2,
+   2,
+   {
+    "id": "z",
+    "n": 26
+   }
+  ]
+ },
+ {
+  "name": "apply arr <- keyedAddNoId",
+  "result": [
+   2,
+   2,
+   {
+    "n": 1
+   }
+  ]
+ },
+ {
+  "name": "apply arr <- keyedNotObj",
+  "result": [
+   2,
+   2
+  ]
+ },
+ {
+  "name": "apply arr <- keyedLit",
+  "result": [
+   2,
+   2,
+   {
+    "id": "a",
+    "fresh": true
+   }
+  ]
+ },
+ {
+  "name": "apply arr <- keyedNullPatch",
+  "result": [
+   2,
+   2,
+   null
+  ]
+ },
+ {
+  "name": "apply arr <- removeOnly",
+  "result": [
+   2,
+   2
+  ]
+ },
+ {
+  "name": "apply arr <- removeAll",
+  "result": [
+   2,
+   2
+  ]
+ },
+ {
+  "name": "apply arr <- removeUnknown",
+  "result": [
+   2,
+   2
+  ]
+ },
+ {
+  "name": "apply arr <- order",
+  "result": []
+ },
+ {
+  "name": "apply arr <- orderPartial",
+  "result": []
+ },
+ {
+  "name": "apply arr <- orderUnknown",
+  "result": []
+ },
+ {
+  "name": "apply arr <- orderNonString",
+  "result": []
+ },
+ {
+  "name": "apply arr <- orderDup",
+  "result": []
+ },
+ {
+  "name": "apply arr <- orderNotArray",
+  "result": [
+   2,
+   2
+  ]
+ },
+ {
+  "name": "apply arr <- keyedAndOrder",
+  "result": [
+   {
+    "id": "z"
+   }
+  ]
+ },
+ {
+  "name": "apply arr <- removeAndKeyedSame",
+  "result": [
+   2,
+   2,
+   {
+    "n": 100
+   }
+  ]
+ },
+ {
+  "name": "apply arr <- zoneEdit",
+  "result": [
+   2,
+   2,
+   {
+    "ids": [
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply arr <- zoneRemove",
+  "result": [
+   2,
+   2
+  ]
+ },
+ {
+  "name": "apply arr <- emptyKeyRemove",
+  "result": []
+ },
+ {
+  "name": "apply arr <- emptyKeyEdit",
+  "result": [
+   {
+    "x": 1
+   },
+   {
+    "x": 1
+   }
+  ]
+ },
+ {
+  "name": "apply arr <- nestedPlayers",
+  "result": {
+   "players": [
+    {
+     "life": 19,
+     "counters": {
+      "poison": 2
+     }
+    }
+   ],
+   "turn": 4
+  }
+ },
+ {
+  "name": "apply arr <- nestedPlayersAdd",
+  "result": {
+   "players": [
+    {
+     "id": "p3",
+     "life": 20
+    }
+   ]
+  }
+ },
+ {
+  "name": "apply arr <- protoPatch",
+  "result": {
+   "toString": 2,
+   "constructor": {
+    "y": 2
+   }
+  }
+ },
+ {
+  "name": "apply arr <- protoProto",
+  "result": {}
+ },
+ {
+  "name": "apply arr <- dollarOther",
+  "result": {
+   "$x": 1
+  }
+ },
+ {
+  "name": "apply arr <- removeInList",
+  "result": [
+   2,
+   2
+  ]
+ },
+ {
+  "name": "apply empty <- undef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply empty <- null",
+  "result": null
+ },
+ {
+  "name": "apply empty <- num",
+  "result": 7
+ },
+ {
+  "name": "apply empty <- zero",
+  "result": 0
+ },
+ {
+  "name": "apply empty <- false",
+  "result": false
+ },
+ {
+  "name": "apply empty <- emptyStr",
+  "result": ""
+ },
+ {
+  "name": "apply empty <- str",
+  "result": "x"
+ },
+ {
+  "name": "apply empty <- arr",
+  "result": [
+   9
+  ]
+ },
+ {
+  "name": "apply empty <- emptyArr",
+  "result": []
+ },
+ {
+  "name": "apply empty <- emptyObj",
+  "result": {}
+ },
+ {
+  "name": "apply empty <- lit",
+  "result": {
+   "a": 1
+  }
+ },
+ {
+  "name": "apply empty <- litNull",
+  "result": null
+ },
+ {
+  "name": "apply empty <- litUndef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply empty <- litArr",
+  "result": [
+   1
+  ]
+ },
+ {
+  "name": "apply empty <- litWithOthers",
+  "result": 1
+ },
+ {
+  "name": "apply empty <- litNested",
+  "result": {
+   "a": {
+    "z": 1
+   }
+  }
+ },
+ {
+  "name": "apply empty <- merge",
+  "result": {
+   "a": 2,
+   "f": 3
+  }
+ },
+ {
+  "name": "apply empty <- mergeDeep",
+  "result": {
+   "b": {
+    "c": 9
+   }
+  }
+ },
+ {
+  "name": "apply empty <- mergeNullKeeps",
+  "result": {
+   "b": null
+  }
+ },
+ {
+  "name": "apply empty <- deleteKeys",
+  "result": {}
+ },
+ {
+  "name": "apply empty <- deleteNotArray",
+  "result": {}
+ },
+ {
+  "name": "apply empty <- deleteAndSet",
+  "result": {
+   "a": 5
+  }
+ },
+ {
+  "name": "apply empty <- deleteNested",
+  "result": {
+   "b": {}
+  }
+ },
+ {
+  "name": "apply empty <- keyedEdit",
+  "result": [
+   {
+    "n": 20
+   }
+  ]
+ },
+ {
+  "name": "apply empty <- keyedAdd",
+  "result": [
+   {
+    "id": "z",
+    "n": 26
+   }
+  ]
+ },
+ {
+  "name": "apply empty <- keyedAddNoId",
+  "result": [
+   {
+    "n": 1
+   }
+  ]
+ },
+ {
+  "name": "apply empty <- keyedNotObj",
+  "result": []
+ },
+ {
+  "name": "apply empty <- keyedLit",
+  "result": [
+   {
+    "id": "a",
+    "fresh": true
+   }
+  ]
+ },
+ {
+  "name": "apply empty <- keyedNullPatch",
+  "result": [
+   null
+  ]
+ },
+ {
+  "name": "apply empty <- removeOnly",
+  "result": {}
+ },
+ {
+  "name": "apply empty <- removeAll",
+  "result": {}
+ },
+ {
+  "name": "apply empty <- removeUnknown",
+  "result": {}
+ },
+ {
+  "name": "apply empty <- order",
+  "result": []
+ },
+ {
+  "name": "apply empty <- orderPartial",
+  "result": []
+ },
+ {
+  "name": "apply empty <- orderUnknown",
+  "result": []
+ },
+ {
+  "name": "apply empty <- orderNonString",
+  "result": []
+ },
+ {
+  "name": "apply empty <- orderDup",
+  "result": []
+ },
+ {
+  "name": "apply empty <- orderNotArray",
+  "result": []
+ },
+ {
+  "name": "apply empty <- keyedAndOrder",
+  "result": [
+   {
+    "id": "z"
+   }
+  ]
+ },
+ {
+  "name": "apply empty <- removeAndKeyedSame",
+  "result": [
+   {
+    "n": 100
+   }
+  ]
+ },
+ {
+  "name": "apply empty <- zoneEdit",
+  "result": [
+   {
+    "ids": [
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply empty <- zoneRemove",
+  "result": {}
+ },
+ {
+  "name": "apply empty <- emptyKeyRemove",
+  "result": {}
+ },
+ {
+  "name": "apply empty <- emptyKeyEdit",
+  "result": [
+   {
+    "x": 1
+   }
+  ]
+ },
+ {
+  "name": "apply empty <- nestedPlayers",
+  "result": {
+   "players": [
+    {
+     "life": 19,
+     "counters": {
+      "poison": 2
+     }
+    }
+   ],
+   "turn": 4
+  }
+ },
+ {
+  "name": "apply empty <- nestedPlayersAdd",
+  "result": {
+   "players": [
+    {
+     "id": "p3",
+     "life": 20
+    }
+   ]
+  }
+ },
+ {
+  "name": "apply empty <- protoPatch",
+  "result": {
+   "toString": 2,
+   "constructor": {
+    "y": 2
+   }
+  }
+ },
+ {
+  "name": "apply empty <- protoProto",
+  "result": {}
+ },
+ {
+  "name": "apply empty <- dollarOther",
+  "result": {
+   "$x": 1
+  }
+ },
+ {
+  "name": "apply empty <- removeInList",
+  "result": {
+   "other": 1
+  }
+ },
+ {
+  "name": "apply obj <- undef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply obj <- null",
+  "result": null
+ },
+ {
+  "name": "apply obj <- num",
+  "result": 7
+ },
+ {
+  "name": "apply obj <- zero",
+  "result": 0
+ },
+ {
+  "name": "apply obj <- false",
+  "result": false
+ },
+ {
+  "name": "apply obj <- emptyStr",
+  "result": ""
+ },
+ {
+  "name": "apply obj <- str",
+  "result": "x"
+ },
+ {
+  "name": "apply obj <- arr",
+  "result": [
+   9
+  ]
+ },
+ {
+  "name": "apply obj <- emptyArr",
+  "result": []
+ },
+ {
+  "name": "apply obj <- emptyObj",
+  "result": {
+   "a": 1,
+   "b": {
+    "c": 2,
+    "d": [
+     1
+    ]
+   },
+   "e": null
+  }
+ },
+ {
+  "name": "apply obj <- lit",
+  "result": {
+   "a": 1
+  }
+ },
+ {
+  "name": "apply obj <- litNull",
+  "result": null
+ },
+ {
+  "name": "apply obj <- litUndef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply obj <- litArr",
+  "result": [
+   1
+  ]
+ },
+ {
+  "name": "apply obj <- litWithOthers",
+  "result": 1
+ },
+ {
+  "name": "apply obj <- litNested",
+  "result": {
+   "a": {
+    "z": 1
+   },
+   "b": {
+    "c": 2,
+    "d": [
+     1
+    ]
+   },
+   "e": null
+  }
+ },
+ {
+  "name": "apply obj <- merge",
+  "result": {
+   "a": 2,
+   "b": {
+    "c": 2,
+    "d": [
+     1
+    ]
+   },
+   "e": null,
+   "f": 3
+  }
+ },
+ {
+  "name": "apply obj <- mergeDeep",
+  "result": {
+   "a": 1,
+   "b": {
+    "c": 9,
+    "d": [
+     1
+    ]
+   },
+   "e": null
+  }
+ },
+ {
+  "name": "apply obj <- mergeNullKeeps",
+  "result": {
+   "a": 1,
+   "b": null,
+   "e": null
+  }
+ },
+ {
+  "name": "apply obj <- deleteKeys",
+  "result": {
+   "b": {
+    "c": 2,
+    "d": [
+     1
+    ]
+   },
+   "e": null
+  }
+ },
+ {
+  "name": "apply obj <- deleteNotArray",
+  "result": {
+   "a": 1,
+   "b": {
+    "c": 2,
+    "d": [
+     1
+    ]
+   },
+   "e": null
+  }
+ },
+ {
+  "name": "apply obj <- deleteAndSet",
+  "result": {
+   "b": {
+    "c": 2,
+    "d": [
+     1
+    ]
+   },
+   "e": null,
+   "a": 5
+  }
+ },
+ {
+  "name": "apply obj <- deleteNested",
+  "result": {
+   "a": 1,
+   "b": {
+    "d": [
+     1
+    ]
+   },
+   "e": null
+  }
+ },
+ {
+  "name": "apply obj <- keyedEdit",
+  "result": [
+   {
+    "n": 20
+   }
+  ]
+ },
+ {
+  "name": "apply obj <- keyedAdd",
+  "result": [
+   {
+    "id": "z",
+    "n": 26
+   }
+  ]
+ },
+ {
+  "name": "apply obj <- keyedAddNoId",
+  "result": [
+   {
+    "n": 1
+   }
+  ]
+ },
+ {
+  "name": "apply obj <- keyedNotObj",
+  "result": []
+ },
+ {
+  "name": "apply obj <- keyedLit",
+  "result": [
+   {
+    "id": "a",
+    "fresh": true
+   }
+  ]
+ },
+ {
+  "name": "apply obj <- keyedNullPatch",
+  "result": [
+   null
+  ]
+ },
+ {
+  "name": "apply obj <- removeOnly",
+  "result": {
+   "a": 1,
+   "e": null
+  }
+ },
+ {
+  "name": "apply obj <- removeAll",
+  "result": {
+   "e": null
+  }
+ },
+ {
+  "name": "apply obj <- removeUnknown",
+  "result": {
+   "a": 1,
+   "b": {
+    "c": 2,
+    "d": [
+     1
+    ]
+   },
+   "e": null
+  }
+ },
+ {
+  "name": "apply obj <- order",
+  "result": []
+ },
+ {
+  "name": "apply obj <- orderPartial",
+  "result": []
+ },
+ {
+  "name": "apply obj <- orderUnknown",
+  "result": []
+ },
+ {
+  "name": "apply obj <- orderNonString",
+  "result": []
+ },
+ {
+  "name": "apply obj <- orderDup",
+  "result": []
+ },
+ {
+  "name": "apply obj <- orderNotArray",
+  "result": []
+ },
+ {
+  "name": "apply obj <- keyedAndOrder",
+  "result": [
+   {
+    "id": "z"
+   }
+  ]
+ },
+ {
+  "name": "apply obj <- removeAndKeyedSame",
+  "result": [
+   {
+    "n": 100
+   }
+  ]
+ },
+ {
+  "name": "apply obj <- zoneEdit",
+  "result": [
+   {
+    "ids": [
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply obj <- zoneRemove",
+  "result": {
+   "a": 1,
+   "b": {
+    "c": 2,
+    "d": [
+     1
+    ]
+   },
+   "e": null
+  }
+ },
+ {
+  "name": "apply obj <- emptyKeyRemove",
+  "result": {
+   "a": 1,
+   "b": {
+    "c": 2,
+    "d": [
+     1
+    ]
+   },
+   "e": null
+  }
+ },
+ {
+  "name": "apply obj <- emptyKeyEdit",
+  "result": [
+   {
+    "x": 1
+   }
+  ]
+ },
+ {
+  "name": "apply obj <- nestedPlayers",
+  "result": {
+   "a": 1,
+   "b": {
+    "c": 2,
+    "d": [
+     1
+    ]
+   },
+   "e": null,
+   "players": [
+    {
+     "life": 19,
+     "counters": {
+      "poison": 2
+     }
+    }
+   ],
+   "turn": 4
+  }
+ },
+ {
+  "name": "apply obj <- nestedPlayersAdd",
+  "result": {
+   "a": 1,
+   "b": {
+    "c": 2,
+    "d": [
+     1
+    ]
+   },
+   "e": null,
+   "players": [
+    {
+     "id": "p3",
+     "life": 20
+    }
+   ]
+  }
+ },
+ {
+  "name": "apply obj <- protoPatch",
+  "result": {
+   "a": 1,
+   "b": {
+    "c": 2,
+    "d": [
+     1
+    ]
+   },
+   "e": null,
+   "toString": 2,
+   "constructor": {
+    "y": 2
+   }
+  }
+ },
+ {
+  "name": "apply obj <- protoProto",
+  "result": {
+   "a": 1,
+   "b": {
+    "c": 2,
+    "d": [
+     1
+    ]
+   },
+   "e": null
+  }
+ },
+ {
+  "name": "apply obj <- dollarOther",
+  "result": {
+   "a": 1,
+   "b": {
+    "c": 2,
+    "d": [
+     1
+    ]
+   },
+   "e": null,
+   "$x": 1
+  }
+ },
+ {
+  "name": "apply obj <- removeInList",
+  "result": {
+   "b": {
+    "c": 2,
+    "d": [
+     1
+    ]
+   },
+   "e": null,
+   "other": 1
+  }
+ },
+ {
+  "name": "apply cards <- undef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply cards <- null",
+  "result": null
+ },
+ {
+  "name": "apply cards <- num",
+  "result": 7
+ },
+ {
+  "name": "apply cards <- zero",
+  "result": 0
+ },
+ {
+  "name": "apply cards <- false",
+  "result": false
+ },
+ {
+  "name": "apply cards <- emptyStr",
+  "result": ""
+ },
+ {
+  "name": "apply cards <- str",
+  "result": "x"
+ },
+ {
+  "name": "apply cards <- arr",
+  "result": [
+   9
+  ]
+ },
+ {
+  "name": "apply cards <- emptyArr",
+  "result": []
+ },
+ {
+  "name": "apply cards <- emptyObj",
+  "result": {}
+ },
+ {
+  "name": "apply cards <- lit",
+  "result": {
+   "a": 1
+  }
+ },
+ {
+  "name": "apply cards <- litNull",
+  "result": null
+ },
+ {
+  "name": "apply cards <- litUndef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply cards <- litArr",
+  "result": [
+   1
+  ]
+ },
+ {
+  "name": "apply cards <- litWithOthers",
+  "result": 1
+ },
+ {
+  "name": "apply cards <- litNested",
+  "result": {
+   "a": {
+    "z": 1
+   }
+  }
+ },
+ {
+  "name": "apply cards <- merge",
+  "result": {
+   "a": 2,
+   "f": 3
+  }
+ },
+ {
+  "name": "apply cards <- mergeDeep",
+  "result": {
+   "b": {
+    "c": 9
+   }
+  }
+ },
+ {
+  "name": "apply cards <- mergeNullKeeps",
+  "result": {
+   "b": null
+  }
+ },
+ {
+  "name": "apply cards <- deleteKeys",
+  "result": [
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- deleteNotArray",
+  "result": [
+   {
+    "id": "a",
+    "n": 1
+   },
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- deleteAndSet",
+  "result": [
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- deleteNested",
+  "result": {
+   "b": {}
+  }
+ },
+ {
+  "name": "apply cards <- keyedEdit",
+  "result": [
+   {
+    "id": "a",
+    "n": 1
+   },
+   {
+    "id": "b",
+    "n": 20
+   },
+   {
+    "id": "c",
+    "n": 3
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- keyedAdd",
+  "result": [
+   {
+    "id": "a",
+    "n": 1
+   },
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   },
+   {
+    "id": "z",
+    "n": 26
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- keyedAddNoId",
+  "result": [
+   {
+    "id": "a",
+    "n": 1
+   },
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   },
+   {
+    "n": 1
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- keyedNotObj",
+  "result": [
+   {
+    "id": "a",
+    "n": 1
+   },
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- keyedLit",
+  "result": [
+   {
+    "id": "a",
+    "fresh": true
+   },
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- keyedNullPatch",
+  "result": [
+   null,
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- removeOnly",
+  "result": [
+   {
+    "id": "a",
+    "n": 1
+   },
+   {
+    "id": "c",
+    "n": 3
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- removeAll",
+  "result": []
+ },
+ {
+  "name": "apply cards <- removeUnknown",
+  "result": [
+   {
+    "id": "a",
+    "n": 1
+   },
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- order",
+  "result": [
+   {
+    "id": "c",
+    "n": 3
+   },
+   {
+    "id": "a",
+    "n": 1
+   },
+   {
+    "id": "b",
+    "n": 2
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- orderPartial",
+  "result": [
+   {
+    "id": "c",
+    "n": 3
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- orderUnknown",
+  "result": [
+   {
+    "id": "a",
+    "n": 1
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- orderNonString",
+  "result": [
+   {
+    "id": "a",
+    "n": 1
+   },
+   {
+    "id": "b",
+    "n": 2
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- orderDup",
+  "result": [
+   {
+    "id": "a",
+    "n": 1
+   },
+   {
+    "id": "a",
+    "n": 1
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- orderNotArray",
+  "result": [
+   {
+    "id": "a",
+    "n": 1
+   },
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- keyedAndOrder",
+  "result": [
+   {
+    "id": "z"
+   },
+   {
+    "id": "a",
+    "n": 1
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- removeAndKeyedSame",
+  "result": [
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   },
+   {
+    "n": 100
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- zoneEdit",
+  "result": [
+   {
+    "id": "a",
+    "n": 1
+   },
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   },
+   {
+    "ids": [
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- zoneRemove",
+  "result": [
+   {
+    "id": "a",
+    "n": 1
+   },
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- emptyKeyRemove",
+  "result": [
+   {
+    "id": "a",
+    "n": 1
+   },
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- emptyKeyEdit",
+  "result": [
+   {
+    "id": "a",
+    "n": 1
+   },
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   },
+   {
+    "x": 1
+   }
+  ]
+ },
+ {
+  "name": "apply cards <- nestedPlayers",
+  "result": {
+   "players": [
+    {
+     "life": 19,
+     "counters": {
+      "poison": 2
+     }
+    }
+   ],
+   "turn": 4
+  }
+ },
+ {
+  "name": "apply cards <- nestedPlayersAdd",
+  "result": {
+   "players": [
+    {
+     "id": "p3",
+     "life": 20
+    }
+   ]
+  }
+ },
+ {
+  "name": "apply cards <- protoPatch",
+  "result": {
+   "toString": 2,
+   "constructor": {
+    "y": 2
+   }
+  }
+ },
+ {
+  "name": "apply cards <- protoProto",
+  "result": {}
+ },
+ {
+  "name": "apply cards <- dollarOther",
+  "result": {
+   "$x": 1
+  }
+ },
+ {
+  "name": "apply cards <- removeInList",
+  "result": [
+   {
+    "id": "b",
+    "n": 2
+   },
+   {
+    "id": "c",
+    "n": 3
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- undef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply zones <- null",
+  "result": null
+ },
+ {
+  "name": "apply zones <- num",
+  "result": 7
+ },
+ {
+  "name": "apply zones <- zero",
+  "result": 0
+ },
+ {
+  "name": "apply zones <- false",
+  "result": false
+ },
+ {
+  "name": "apply zones <- emptyStr",
+  "result": ""
+ },
+ {
+  "name": "apply zones <- str",
+  "result": "x"
+ },
+ {
+  "name": "apply zones <- arr",
+  "result": [
+   9
+  ]
+ },
+ {
+  "name": "apply zones <- emptyArr",
+  "result": []
+ },
+ {
+  "name": "apply zones <- emptyObj",
+  "result": {}
+ },
+ {
+  "name": "apply zones <- lit",
+  "result": {
+   "a": 1
+  }
+ },
+ {
+  "name": "apply zones <- litNull",
+  "result": null
+ },
+ {
+  "name": "apply zones <- litUndef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply zones <- litArr",
+  "result": [
+   1
+  ]
+ },
+ {
+  "name": "apply zones <- litWithOthers",
+  "result": 1
+ },
+ {
+  "name": "apply zones <- litNested",
+  "result": {
+   "a": {
+    "z": 1
+   }
+  }
+ },
+ {
+  "name": "apply zones <- merge",
+  "result": {
+   "a": 2,
+   "f": 3
+  }
+ },
+ {
+  "name": "apply zones <- mergeDeep",
+  "result": {
+   "b": {
+    "c": 9
+   }
+  }
+ },
+ {
+  "name": "apply zones <- mergeNullKeeps",
+  "result": {
+   "b": null
+  }
+ },
+ {
+  "name": "apply zones <- deleteKeys",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- deleteNotArray",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- deleteAndSet",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- deleteNested",
+  "result": {
+   "b": {}
+  }
+ },
+ {
+  "name": "apply zones <- keyedEdit",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   },
+   {
+    "n": 20
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- keyedAdd",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   },
+   {
+    "id": "z",
+    "n": 26
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- keyedAddNoId",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   },
+   {
+    "n": 1
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- keyedNotObj",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- keyedLit",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   },
+   {
+    "id": "a",
+    "fresh": true
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- keyedNullPatch",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   },
+   null
+  ]
+ },
+ {
+  "name": "apply zones <- removeOnly",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- removeAll",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- removeUnknown",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- order",
+  "result": []
+ },
+ {
+  "name": "apply zones <- orderPartial",
+  "result": []
+ },
+ {
+  "name": "apply zones <- orderUnknown",
+  "result": []
+ },
+ {
+  "name": "apply zones <- orderNonString",
+  "result": []
+ },
+ {
+  "name": "apply zones <- orderDup",
+  "result": []
+ },
+ {
+  "name": "apply zones <- orderNotArray",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- keyedAndOrder",
+  "result": [
+   {
+    "id": "z"
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- removeAndKeyedSame",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   },
+   {
+    "n": 100
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- zoneEdit",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1,
+     2
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- zoneRemove",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- emptyKeyRemove",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- emptyKeyEdit",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   },
+   {
+    "x": 1
+   }
+  ]
+ },
+ {
+  "name": "apply zones <- nestedPlayers",
+  "result": {
+   "players": [
+    {
+     "life": 19,
+     "counters": {
+      "poison": 2
+     }
+    }
+   ],
+   "turn": 4
+  }
+ },
+ {
+  "name": "apply zones <- nestedPlayersAdd",
+  "result": {
+   "players": [
+    {
+     "id": "p3",
+     "life": 20
+    }
+   ]
+  }
+ },
+ {
+  "name": "apply zones <- protoPatch",
+  "result": {
+   "toString": 2,
+   "constructor": {
+    "y": 2
+   }
+  }
+ },
+ {
+  "name": "apply zones <- protoProto",
+  "result": {}
+ },
+ {
+  "name": "apply zones <- dollarOther",
+  "result": {
+   "$x": 1
+  }
+ },
+ {
+  "name": "apply zones <- removeInList",
+  "result": [
+   {
+    "zone": "hand",
+    "ownerId": "p1",
+    "ids": [
+     1
+    ]
+   },
+   {
+    "zone": "hand",
+    "ownerId": "p2",
+    "ids": []
+   },
+   {
+    "zone": "lib",
+    "ownerId": "p1",
+    "ids": [
+     9
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- undef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply mixed <- null",
+  "result": null
+ },
+ {
+  "name": "apply mixed <- num",
+  "result": 7
+ },
+ {
+  "name": "apply mixed <- zero",
+  "result": 0
+ },
+ {
+  "name": "apply mixed <- false",
+  "result": false
+ },
+ {
+  "name": "apply mixed <- emptyStr",
+  "result": ""
+ },
+ {
+  "name": "apply mixed <- str",
+  "result": "x"
+ },
+ {
+  "name": "apply mixed <- arr",
+  "result": [
+   9
+  ]
+ },
+ {
+  "name": "apply mixed <- emptyArr",
+  "result": []
+ },
+ {
+  "name": "apply mixed <- emptyObj",
+  "result": {}
+ },
+ {
+  "name": "apply mixed <- lit",
+  "result": {
+   "a": 1
+  }
+ },
+ {
+  "name": "apply mixed <- litNull",
+  "result": null
+ },
+ {
+  "name": "apply mixed <- litUndef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply mixed <- litArr",
+  "result": [
+   1
+  ]
+ },
+ {
+  "name": "apply mixed <- litWithOthers",
+  "result": 1
+ },
+ {
+  "name": "apply mixed <- litNested",
+  "result": {
+   "a": {
+    "z": 1
+   }
+  }
+ },
+ {
+  "name": "apply mixed <- merge",
+  "result": {
+   "a": 2,
+   "f": 3
+  }
+ },
+ {
+  "name": "apply mixed <- mergeDeep",
+  "result": {
+   "b": {
+    "c": 9
+   }
+  }
+ },
+ {
+  "name": "apply mixed <- mergeNullKeeps",
+  "result": {
+   "b": null
+  }
+ },
+ {
+  "name": "apply mixed <- deleteKeys",
+  "result": [
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": "b"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- deleteNotArray",
+  "result": [
+   {
+    "id": "a"
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": "b"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- deleteAndSet",
+  "result": [
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": "b"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- deleteNested",
+  "result": {
+   "b": {}
+  }
+ },
+ {
+  "name": "apply mixed <- keyedEdit",
+  "result": [
+   {
+    "id": "a"
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": "b",
+    "n": 20
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- keyedAdd",
+  "result": [
+   {
+    "id": "a"
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": "b"
+   },
+   {
+    "id": "z",
+    "n": 26
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- keyedAddNoId",
+  "result": [
+   {
+    "id": "a"
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": "b"
+   },
+   {
+    "n": 1
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- keyedNotObj",
+  "result": [
+   {
+    "id": "a"
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": "b"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- keyedLit",
+  "result": [
+   {
+    "id": "a",
+    "fresh": true
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": "b"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- keyedNullPatch",
+  "result": [
+   null,
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": "b"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- removeOnly",
+  "result": [
+   {
+    "id": "a"
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- removeAll",
+  "result": [
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- removeUnknown",
+  "result": [
+   {
+    "id": "a"
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": "b"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- order",
+  "result": [
+   {
+    "id": "a"
+   },
+   {
+    "id": "b"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- orderPartial",
+  "result": []
+ },
+ {
+  "name": "apply mixed <- orderUnknown",
+  "result": [
+   {
+    "id": "a"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- orderNonString",
+  "result": [
+   {
+    "id": "a"
+   },
+   {
+    "id": "b"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- orderDup",
+  "result": [
+   {
+    "id": "a"
+   },
+   {
+    "id": "a"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- orderNotArray",
+  "result": [
+   {
+    "id": "a"
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": "b"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- keyedAndOrder",
+  "result": [
+   {
+    "id": "z"
+   },
+   {
+    "id": "a"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- removeAndKeyedSame",
+  "result": [
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": "b"
+   },
+   {
+    "n": 100
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- zoneEdit",
+  "result": [
+   {
+    "id": "a"
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": "b"
+   },
+   {
+    "ids": [
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- zoneRemove",
+  "result": [
+   {
+    "id": "a"
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": "b"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- emptyKeyRemove",
+  "result": [
+   {
+    "id": "a"
+   },
+   {
+    "id": "b"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- emptyKeyEdit",
+  "result": [
+   {
+    "id": "a"
+   },
+   {
+    "id": 7,
+    "x": 1
+   },
+   {
+    "id": 7,
+    "x": 1
+   },
+   {
+    "id": 7,
+    "x": 1
+   },
+   {
+    "id": 7,
+    "x": 1
+   },
+   {
+    "id": 7,
+    "x": 1
+   },
+   {
+    "id": "b"
+   }
+  ]
+ },
+ {
+  "name": "apply mixed <- nestedPlayers",
+  "result": {
+   "players": [
+    {
+     "life": 19,
+     "counters": {
+      "poison": 2
+     }
+    }
+   ],
+   "turn": 4
+  }
+ },
+ {
+  "name": "apply mixed <- nestedPlayersAdd",
+  "result": {
+   "players": [
+    {
+     "id": "p3",
+     "life": 20
+    }
+   ]
+  }
+ },
+ {
+  "name": "apply mixed <- protoPatch",
+  "result": {
+   "toString": 2,
+   "constructor": {
+    "y": 2
+   }
+  }
+ },
+ {
+  "name": "apply mixed <- protoProto",
+  "result": {}
+ },
+ {
+  "name": "apply mixed <- dollarOther",
+  "result": {
+   "$x": 1
+  }
+ },
+ {
+  "name": "apply mixed <- removeInList",
+  "result": [
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": 7
+   },
+   {
+    "id": "b"
+   }
+  ]
+ },
+ {
+  "name": "apply nested <- undef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply nested <- null",
+  "result": null
+ },
+ {
+  "name": "apply nested <- num",
+  "result": 7
+ },
+ {
+  "name": "apply nested <- zero",
+  "result": 0
+ },
+ {
+  "name": "apply nested <- false",
+  "result": false
+ },
+ {
+  "name": "apply nested <- emptyStr",
+  "result": ""
+ },
+ {
+  "name": "apply nested <- str",
+  "result": "x"
+ },
+ {
+  "name": "apply nested <- arr",
+  "result": [
+   9
+  ]
+ },
+ {
+  "name": "apply nested <- emptyArr",
+  "result": []
+ },
+ {
+  "name": "apply nested <- emptyObj",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3
+  }
+ },
+ {
+  "name": "apply nested <- lit",
+  "result": {
+   "a": 1
+  }
+ },
+ {
+  "name": "apply nested <- litNull",
+  "result": null
+ },
+ {
+  "name": "apply nested <- litUndef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply nested <- litArr",
+  "result": [
+   1
+  ]
+ },
+ {
+  "name": "apply nested <- litWithOthers",
+  "result": 1
+ },
+ {
+  "name": "apply nested <- litNested",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3,
+   "a": {
+    "z": 1
+   }
+  }
+ },
+ {
+  "name": "apply nested <- merge",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3,
+   "a": 2,
+   "f": 3
+  }
+ },
+ {
+  "name": "apply nested <- mergeDeep",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3,
+   "b": {
+    "c": 9
+   }
+  }
+ },
+ {
+  "name": "apply nested <- mergeNullKeeps",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3,
+   "b": null
+  }
+ },
+ {
+  "name": "apply nested <- deleteKeys",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3
+  }
+ },
+ {
+  "name": "apply nested <- deleteNotArray",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3
+  }
+ },
+ {
+  "name": "apply nested <- deleteAndSet",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3,
+   "a": 5
+  }
+ },
+ {
+  "name": "apply nested <- deleteNested",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3,
+   "b": {}
+  }
+ },
+ {
+  "name": "apply nested <- keyedEdit",
+  "result": [
+   {
+    "n": 20
+   }
+  ]
+ },
+ {
+  "name": "apply nested <- keyedAdd",
+  "result": [
+   {
+    "id": "z",
+    "n": 26
+   }
+  ]
+ },
+ {
+  "name": "apply nested <- keyedAddNoId",
+  "result": [
+   {
+    "n": 1
+   }
+  ]
+ },
+ {
+  "name": "apply nested <- keyedNotObj",
+  "result": []
+ },
+ {
+  "name": "apply nested <- keyedLit",
+  "result": [
+   {
+    "id": "a",
+    "fresh": true
+   }
+  ]
+ },
+ {
+  "name": "apply nested <- keyedNullPatch",
+  "result": [
+   null
+  ]
+ },
+ {
+  "name": "apply nested <- removeOnly",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3
+  }
+ },
+ {
+  "name": "apply nested <- removeAll",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3
+  }
+ },
+ {
+  "name": "apply nested <- removeUnknown",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3
+  }
+ },
+ {
+  "name": "apply nested <- order",
+  "result": []
+ },
+ {
+  "name": "apply nested <- orderPartial",
+  "result": []
+ },
+ {
+  "name": "apply nested <- orderUnknown",
+  "result": []
+ },
+ {
+  "name": "apply nested <- orderNonString",
+  "result": []
+ },
+ {
+  "name": "apply nested <- orderDup",
+  "result": []
+ },
+ {
+  "name": "apply nested <- orderNotArray",
+  "result": []
+ },
+ {
+  "name": "apply nested <- keyedAndOrder",
+  "result": [
+   {
+    "id": "z"
+   }
+  ]
+ },
+ {
+  "name": "apply nested <- removeAndKeyedSame",
+  "result": [
+   {
+    "n": 100
+   }
+  ]
+ },
+ {
+  "name": "apply nested <- zoneEdit",
+  "result": [
+   {
+    "ids": [
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply nested <- zoneRemove",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3
+  }
+ },
+ {
+  "name": "apply nested <- emptyKeyRemove",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3
+  }
+ },
+ {
+  "name": "apply nested <- emptyKeyEdit",
+  "result": [
+   {
+    "x": 1
+   }
+  ]
+ },
+ {
+  "name": "apply nested <- nestedPlayers",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 19,
+     "counters": {
+      "poison": 2
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 4
+  }
+ },
+ {
+  "name": "apply nested <- nestedPlayersAdd",
+  "result": {
+   "players": [
+    {
+     "id": "p3",
+     "life": 20
+    },
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3
+  }
+ },
+ {
+  "name": "apply nested <- protoPatch",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3,
+   "toString": 2,
+   "constructor": {
+    "y": 2
+   }
+  }
+ },
+ {
+  "name": "apply nested <- protoProto",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3
+  }
+ },
+ {
+  "name": "apply nested <- dollarOther",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3,
+   "$x": 1
+  }
+ },
+ {
+  "name": "apply nested <- removeInList",
+  "result": {
+   "players": [
+    {
+     "id": "p1",
+     "life": 20,
+     "counters": {
+      "poison": 1
+     }
+    },
+    {
+     "id": "p2",
+     "life": 18
+    }
+   ],
+   "turn": 3,
+   "other": 1
+  }
+ },
+ {
+  "name": "apply protoKeys <- undef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply protoKeys <- null",
+  "result": null
+ },
+ {
+  "name": "apply protoKeys <- num",
+  "result": 7
+ },
+ {
+  "name": "apply protoKeys <- zero",
+  "result": 0
+ },
+ {
+  "name": "apply protoKeys <- false",
+  "result": false
+ },
+ {
+  "name": "apply protoKeys <- emptyStr",
+  "result": ""
+ },
+ {
+  "name": "apply protoKeys <- str",
+  "result": "x"
+ },
+ {
+  "name": "apply protoKeys <- arr",
+  "result": [
+   9
+  ]
+ },
+ {
+  "name": "apply protoKeys <- emptyArr",
+  "result": []
+ },
+ {
+  "name": "apply protoKeys <- emptyObj",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   }
+  }
+ },
+ {
+  "name": "apply protoKeys <- lit",
+  "result": {
+   "a": 1
+  }
+ },
+ {
+  "name": "apply protoKeys <- litNull",
+  "result": null
+ },
+ {
+  "name": "apply protoKeys <- litUndef",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "apply protoKeys <- litArr",
+  "result": [
+   1
+  ]
+ },
+ {
+  "name": "apply protoKeys <- litWithOthers",
+  "result": 1
+ },
+ {
+  "name": "apply protoKeys <- litNested",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   },
+   "a": {
+    "z": 1
+   }
+  }
+ },
+ {
+  "name": "apply protoKeys <- merge",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   },
+   "a": 2,
+   "f": 3
+  }
+ },
+ {
+  "name": "apply protoKeys <- mergeDeep",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   },
+   "b": {
+    "c": 9
+   }
+  }
+ },
+ {
+  "name": "apply protoKeys <- mergeNullKeeps",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   },
+   "b": null
+  }
+ },
+ {
+  "name": "apply protoKeys <- deleteKeys",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   }
+  }
+ },
+ {
+  "name": "apply protoKeys <- deleteNotArray",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   }
+  }
+ },
+ {
+  "name": "apply protoKeys <- deleteAndSet",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   },
+   "a": 5
+  }
+ },
+ {
+  "name": "apply protoKeys <- deleteNested",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   },
+   "b": {}
+  }
+ },
+ {
+  "name": "apply protoKeys <- keyedEdit",
+  "result": [
+   {
+    "n": 20
+   }
+  ]
+ },
+ {
+  "name": "apply protoKeys <- keyedAdd",
+  "result": [
+   {
+    "id": "z",
+    "n": 26
+   }
+  ]
+ },
+ {
+  "name": "apply protoKeys <- keyedAddNoId",
+  "result": [
+   {
+    "n": 1
+   }
+  ]
+ },
+ {
+  "name": "apply protoKeys <- keyedNotObj",
+  "result": []
+ },
+ {
+  "name": "apply protoKeys <- keyedLit",
+  "result": [
+   {
+    "id": "a",
+    "fresh": true
+   }
+  ]
+ },
+ {
+  "name": "apply protoKeys <- keyedNullPatch",
+  "result": [
+   null
+  ]
+ },
+ {
+  "name": "apply protoKeys <- removeOnly",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   }
+  }
+ },
+ {
+  "name": "apply protoKeys <- removeAll",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   }
+  }
+ },
+ {
+  "name": "apply protoKeys <- removeUnknown",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   }
+  }
+ },
+ {
+  "name": "apply protoKeys <- order",
+  "result": []
+ },
+ {
+  "name": "apply protoKeys <- orderPartial",
+  "result": []
+ },
+ {
+  "name": "apply protoKeys <- orderUnknown",
+  "result": []
+ },
+ {
+  "name": "apply protoKeys <- orderNonString",
+  "result": []
+ },
+ {
+  "name": "apply protoKeys <- orderDup",
+  "result": []
+ },
+ {
+  "name": "apply protoKeys <- orderNotArray",
+  "result": []
+ },
+ {
+  "name": "apply protoKeys <- keyedAndOrder",
+  "result": [
+   {
+    "id": "z"
+   }
+  ]
+ },
+ {
+  "name": "apply protoKeys <- removeAndKeyedSame",
+  "result": [
+   {
+    "n": 100
+   }
+  ]
+ },
+ {
+  "name": "apply protoKeys <- zoneEdit",
+  "result": [
+   {
+    "ids": [
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ {
+  "name": "apply protoKeys <- zoneRemove",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   }
+  }
+ },
+ {
+  "name": "apply protoKeys <- emptyKeyRemove",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   }
+  }
+ },
+ {
+  "name": "apply protoKeys <- emptyKeyEdit",
+  "result": [
+   {
+    "x": 1
+   }
+  ]
+ },
+ {
+  "name": "apply protoKeys <- nestedPlayers",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   },
+   "players": [
+    {
+     "life": 19,
+     "counters": {
+      "poison": 2
+     }
+    }
+   ],
+   "turn": 4
+  }
+ },
+ {
+  "name": "apply protoKeys <- nestedPlayersAdd",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   },
+   "players": [
+    {
+     "id": "p3",
+     "life": 20
+    }
+   ]
+  }
+ },
+ {
+  "name": "apply protoKeys <- protoPatch",
+  "result": {
+   "toString": 2,
+   "constructor": {
+    "x": 1,
+    "y": 2
+   }
+  }
+ },
+ {
+  "name": "apply protoKeys <- protoProto",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   }
+  }
+ },
+ {
+  "name": "apply protoKeys <- dollarOther",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   },
+   "$x": 1
+  }
+ },
+ {
+  "name": "apply protoKeys <- removeInList",
+  "result": {
+   "toString": 1,
+   "constructor": {
+    "x": 1
+   },
+   "other": 1
+  }
+ },
+ {
+  "name": "apply: a sequence",
+  "result": [
+   {
+    "players": [
+     {
+      "id": "p1",
+      "life": 20,
+      "counters": {
+       "poison": 1
+      }
+     },
+     {
+      "id": "p2",
+      "life": 18
+     }
+    ],
+    "turn": 5
+   },
+   {
+    "players": [
+     {
+      "id": "p1",
+      "life": 20,
+      "counters": {
+       "poison": 1
+      }
+     },
+     {
+      "id": "p2",
+      "life": 10
+     }
+    ],
+    "turn": 5
+   },
+   {
+    "players": [
+     {
+      "id": "p2",
+      "life": 10
+     }
+    ],
+    "turn": 5
+   },
+   {
+    "players": [
+     {
+      "id": "p2",
+      "life": 10
+     },
+     {
+      "id": "p1",
+      "life": 1
+     }
+    ],
+    "turn": 5
+   },
+   {
+    "players": [
+     {
+      "id": "p2",
+      "life": 10
+     },
+     {
+      "id": "p1",
+      "life": 1
+     }
+    ]
+   },
+   {
+    "reset": true
+   }
+  ]
+ },
+ {
+  "name": "fingerprint undef",
+  "threw": {
+   "type": "TypeError",
+   "message": "The first argument must be of type string or an instance of Buffer, ArrayBuffer, or Array or an Array-like Object. Received undefined"
+  }
+ },
+ {
+  "name": "fingerprint null",
+  "result": "5b9bc4ba528108e4"
+ },
+ {
+  "name": "fingerprint zero",
+  "result": "af63ad4c86019caf"
+ },
+ {
+  "name": "fingerprint negZero",
+  "result": "af63ad4c86019caf"
+ },
+ {
+  "name": "fingerprint num",
+  "result": "457d3818182e17b9"
+ },
+ {
+  "name": "fingerprint str",
+  "result": "d4640c17d7fb0440"
+ },
+ {
+  "name": "fingerprint unicode",
+  "result": "2cd06db834f93b40"
+ },
+ {
+  "name": "fingerprint emptyObj",
+  "result": "08f44b07b5901a25"
+ },
+ {
+  "name": "fingerprint emptyArr",
+  "result": "09612b07b5ecb5a5"
+ },
+ {
+  "name": "fingerprint objAB",
+  "result": "a0ebc03bdc71de7b"
+ },
+ {
+  "name": "fingerprint objBA",
+  "result": "a0ebc03bdc71de7b"
+ },
+ {
+  "name": "fingerprint nested",
+  "result": "6ff92377869b14ed"
+ },
+ {
+  "name": "fingerprint arrOrder",
+  "result": "6a12f12d4705a9b6"
+ },
+ {
+  "name": "fingerprint arrOrder2",
+  "result": "d4c9df12bb9107be"
+ },
+ {
+  "name": "fingerprint undefInObj",
+  "result": "f1dde74e2aaf04cd"
+ },
+ {
+  "name": "fingerprint undefInArr",
+  "result": "de7b0a6620699ddc"
+ },
+ {
+  "name": "fingerprint nan",
+  "result": "5b9bc4ba528108e4"
+ },
+ {
+  "name": "fingerprint bigNested",
+  "result": "b17c10b682be7761"
+ },
+ {
+  "name": "fingerprint date",
+  "result": "08f44b07b5901a25"
+ }
+]
