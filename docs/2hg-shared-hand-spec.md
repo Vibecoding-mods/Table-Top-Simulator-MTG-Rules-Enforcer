@@ -68,3 +68,9 @@ Steps for A:
 ## Questions for the user
 - A (TTS Teams, real cards) or C (a pictures panel)?
 - If A: may your partner also see your foretold and face-down cards? (If not, A needs extra work for those.)
+
+## Decided (the user, 2026-11-24)
+- **A, TTS Teams.**
+- **Partners may see each other's face-down and foretold cards too.** So risk 2 needs no extra work: the second hand
+  zone stays as it is.
+Still to do before calling it done: the live check with a second real player (risk 1).
