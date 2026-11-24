@@ -3869,5 +3869,38 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("suspend: the badge counts down", /\|1 Time\|/.test(v("bolt one")), v("bolt one"));
   ok("suspend: with no time counter left it goes back into the pile", v("bolt none") === "in pile", v("bolt none"));
 }
+// A counterspell's target (the bridge's "spell|<stack id>"): the spell's card on the stack glows green, the colour of
+// every target, and clicking it answers with that spell; an ability's "On the stack" card the same. Before 2026-11-24
+// nothing glowed and only the Engine panel could pick it (the user, 2026-11-24).
+{
+  const C = (n) => `engine-card-${n}`;
+  const last = JSON.parse([...s1.slice(0, 40)].reverse().find((m) => m.t === "table").json);
+  const b = JSON.parse(JSON.stringify(last));
+  b.cards = { ...(b.cards || {}), [C(971)]: { n: "Divination", f: "https://img.example/divination.jpg", ty: ["Sorcery"] },
+    [C(972)]: { n: "Counterspell", f: "https://img.example/counterspell.jpg", ty: ["Instant"] } };
+  b.stack = [{ id: "stack-91", n: "Divination", src: C(971), spell: true, ctl: "White", tx: "Draw two cards." },
+    { id: "stack-92", n: "Trigger", src: C(973), ctl: "White", tx: "When this enters, draw a card." }];
+  const board = { msg: { t: "table", json: JSON.stringify(b) }, frames: 60, mark: "board" };
+  const objOf = (gm) => `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${gm}" then o = x end end`;
+  const glow = (gm, mark) => q(objOf(gm) + ' if not o then return "none" end local h = o.__d.highlight return tostring((engineGlowing.Blue or {})[o] == true) .. "|" .. (h and string.format("%.2f,%.2f,%.2f", h[1] or h.r, h[2] or h.g, h[3] or h.b) or "none")', mark);
+  const click = (gm, mark) => q(objOf(gm) + ' onPlayerAction(Player.Blue, Player.Action.Select, { o }) onPlayerAction(Player.Blue, Player.Action.PickUp, { o }) __sim.frames(30) return "clicked"', mark);
+  const counter = (pid, opts) => ask({ promptId: pid, kind: "target", title: "Counterspell: counter which spell?", mode: "single", min: 1, max: 1, options: opts });
+  const sent = (r, mark) => fxOf(r, mark).filter((l) => l.includes("WebRequest") && l.includes("answer")).join(" ").split("\\").join("");
+  {
+    const r = run([board, glow(C(971), "before"), counter(9801, [{ id: "spell|stack-91", label: "Divination" }, { id: "spell|stack-92", label: "Trigger" }]),
+      glow(C(971), "offered"), glow("stack:stack-92", "ability"), q('return tostring(UI.getValue("eng_hint_Blue"))', "hint"), click(C(971), "click")]);
+    ok("counter target: precondition, the spell's card is on the stack and not a target yet", String(valueOf(r, "before")).startsWith("false|") && !r.errors.length, valueOf(r, "before") + " " + r.errors.slice(0, 3).join(" | "));
+    ok("counter target: the spell to counter glows green, the colour of every target", valueOf(r, "offered") === "true|0.30,1.00,0.40", valueOf(r, "offered"));
+    ok("counter target: an ability on the stack glows green too", valueOf(r, "ability") === "true|0.30,1.00,0.40", valueOf(r, "ability"));
+    ok("counter target: the hint says to click the glowing spell", /Click the glowing spell on the stack/.test(String(valueOf(r, "hint"))), valueOf(r, "hint"));
+    ok("counter target: clicking the spell answers with it", sent(r, "click").includes('"choice":["spell|stack-91"]'), sent(r, "click").slice(0, 300));
+  }
+  {
+    // a question that offers only the trigger: the spell's card stays as it was and its click answers nothing
+    const r = run([board, counter(9802, [{ id: "spell|stack-92", label: "Trigger" }]), glow(C(971), "not offered"), click(C(971), "click")]);
+    ok("counter target: a spell not offered doesn't glow", String(valueOf(r, "not offered")).startsWith("false|"), valueOf(r, "not offered"));
+    ok("counter target: a spell not offered answers nothing when clicked", !sent(r, "click").includes('"choice"'), sent(r, "click").slice(0, 300));
+  }
+}
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);

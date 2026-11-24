@@ -5460,8 +5460,9 @@ function engineUpdateCorner(color, p)
       -- (targets in a graveyard or exile come with a picture: more than the card row holds are picked in the Engine panel,
       -- which then opens; "Click a glowing card" showed with nothing glowing, hp-07 #41 2026-10-27)
       local pile = enginePileOnly(q)
-      -- (spells on the stack have no card to click: Counterspell said "Click a glowing card" with nothing glowing, hp-01 #5)
-      if spells and not cards and not players then hint = title .. "\nPick the spell in the Engine panel (Choices, top left)."
+      -- (a spell on the stack glows green and is clicked like a card, engineSpellObj; one with no card drawn, folded or
+      -- face down, is still in the panel. Before 2026-11-24 nothing glowed: hp-01 #5)
+      if spells and not cards and not players then hint = title .. "\nClick the glowing spell on the stack, or pick it in the Engine panel (Choices, top left)."
       elseif engineAnswerPlace(q) == "panel" then hint = title .. "\nThe cards are in a graveyard or exile: pick one in the Engine panel."
       -- (the cards pictures in the card row: nothing glows on the table, hp-07 re-test 2026-10-27; with players too, a
       -- life counter, suite review)
@@ -7820,7 +7821,7 @@ local function promptKind(p)
   local cards = 0
   for _, o in ipairs(p.options or {}) do
     local id = tostring(o.id)
-    if id:sub(1, 5) == "card|" or id:sub(1, 7) == "player|" then return "target" end
+    if id:sub(1, 5) == "card|" or id:sub(1, 7) == "player|" or id:sub(1, 6) == "spell|" then return "target" end
     if engineObjs[id] ~= nil then cards = cards + 1 end
   end
   -- choose cards (put on the bottom, discard, Brainstorm, Ponder's order...): click the cards themselves
@@ -7907,7 +7908,28 @@ end
 -- the late path was a copy that had already drifted by a check.)
 function engineGlowOption(color, kind, i, id)
   if kind == "cards" then glowCard(color, id, isSelected(color, i) and GLOW.targetPick or GLOW.attack)
-  elseif kind == "target" and startsWith(id, "card|") then glowCard(color, id:sub(6), isSelected(color, i) and GLOW.targetPick or GLOW.target) end
+  elseif kind == "target" and startsWith(id, "card|") then glowCard(color, id:sub(6), isSelected(color, i) and GLOW.targetPick or GLOW.target)
+  elseif kind == "target" and startsWith(id, "spell|") then glowObj(color, engineSpellObj(id:sub(7)), isSelected(color, i) and GLOW.targetPick or GLOW.target) end
+end
+-- The object that shows stack item `sid` on the table (a counterspell's target, "spell|<id>"): a spell's own card on
+-- the stack; an ability's "On the stack" card, else its source on the table (or the stack that source is folded
+-- into); one folded under its caster's "+N more" card, that card. nil when none is drawn.
+function engineSpellObj(sid)
+  for _, s in ipairs((lastTable and lastTable.stack) or {}) do
+    if tostring(s.id) == sid then
+      local src = s.src and tostring(s.src) or nil
+      local function live(o) if o ~= nil and not o.isDestroyed() then return o end return nil end
+      if s.spell and src then
+        local o = live(engineObjs[src])
+        if o ~= nil and (engineMeta[src] or {}).zone == "stack" then return o end
+      end
+      local o = live(engineObjs["stack:" .. sid])
+      if o == nil and not s.spell and src then o = live(engineObjs[src]) or live(engineObjs[engineGroupOf[src] or ""]) end
+      if o == nil and s.ctl then o = live(engineObjs["stack:more:" .. tostring(s.ctl)]) end
+      return o
+    end
+  end
+  return nil
 end
 -- A card whose object arrives after the question that names it (a token made a moment before the legend rule asked
 -- which one stays: only the other one glowed, playtest 2026-10-27): that question is drawn again on the next frame,
@@ -7974,7 +7996,7 @@ function enginePhase2Prompt(color)
         menued[color] = menued[color] or {}
         menued[color][obj] = true
       end
-    elseif kind == "cards" or (kind == "target" and startsWith(id, "card|")) then engineGlowOption(color, kind, i, id)
+    elseif kind == "cards" or (kind == "target" and (startsWith(id, "card|") or startsWith(id, "spell|"))) then engineGlowOption(color, kind, i, id)
     elseif kind == "target" and startsWith(id, "player|") then
       -- a player you can target: their life counter glows (click it); red once picked
       for _, pl in ipairs((lastTable and lastTable.players) or {}) do
@@ -8355,6 +8377,8 @@ clickGesture = function(color, obj)
   if kind == "target" then
     local i
     if id ~= nil then i = findOption(color, function(o) return o.id == "card|" .. id end) end
+    -- a spell or ability on the stack (a counterspell's target): the card that shows it there
+    if i == nil then i = findOption(color, function(o) return startsWith(o.id, "spell|") and engineSpellObj(tostring(o.id):sub(7)) == obj end) end
     if i == nil then
       -- a life tracker stands for its player
       for _, pl in ipairs((lastTable and lastTable.players) or {}) do
