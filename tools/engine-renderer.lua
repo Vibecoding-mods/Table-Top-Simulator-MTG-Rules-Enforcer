@@ -1865,6 +1865,7 @@ function engineCountersReset()
   end
   engineCountersShown = {}
   if engineStatusParkAll ~= nil then pcall(engineStatusParkAll) end -- (the status pieces go back under the table)
+  if engineManaParkAll ~= nil then pcall(engineManaParkAll) end -- (and the mana counters, engineManaCounters)
 end
 -- Where the marks go: one small box a mark, stacked down the inner corner of the player's mat under the heart
 -- (2026-11-10, the user: "have it [in the] corner of your playmat under your heart"; "you can add multiple boxes if
@@ -5901,7 +5902,10 @@ function enginePoolTotal(color)
 end
 function enginePoolChips(o, pl)
   if o == nil then return end
-  local list = enginePoolList(pl.pool)
+  -- (a table with the original's mana counters shows the pool on them instead, engineManaCounters: no chips there)
+  local pool = pl.pool
+  if engineManaOn() then pcall(engineManaCounters, o, pl) pool = nil end
+  local list = enginePoolList(pool)
   local sig, words = {}, {}
   for i, c in ipairs(list) do
     sig[i] = c.k .. c.n
@@ -5933,6 +5937,168 @@ function enginePoolChips(o, pl)
     end
   end
 end
+
+-- ───────── floating mana on the original table's mana counters (2026-11-24) ─────────
+-- The user: "use these objects from the og table to rep floating mana, if the floating mana leave at the end of turn
+-- make its opacity 0 the number caps out at 99 so if its above that clear the number spawn in a black text box of the
+-- real number". make-engine-copy keeps each colour's counter from the original's mana-counter bags, one per seat,
+-- parked under the table, locked, faded, without its script, and writes ENGINE_MANA_PIECES (per colour W U B R G C:
+-- the counter's scale, its parked y, its object per seat and where it parks). Where the table has them they take the
+-- chips' place (enginePoolChips draws none): a seat's six counters lie in the chips' row on its life counter, one fixed
+-- slot a colour in W U B R G C order (they don't shift as colours come and go), each scaled down to fit its slot
+-- (ENGINE_POOL_FIT's chip square: 300 button units, 0.625 tracker-local, 0.79 world on a 1.258 tracker, the slots
+-- 0.07 apart) and laid on the tracker's top face. A colour with mana: the counter shown (tint alpha 1, visible to all)
+-- with its number drawn as the original's script drew it (a dark shadow, then the light number; font 800 at scale 0.75
+-- in the counter's own frame, so it shrinks with the counter). Above ENGINE_MANA_FIT.max (the original's MAX_VALUE 99)
+-- that number goes and a black box with the real amount sits on the counter's lower half. A colour at 0 (the pool
+-- emptied at the end of a step or phase): opacity 0 (tint alpha 0, and invisible to every colour, as a parked status
+-- piece) and no number, left in its slot. Moved, never spawned (live-spawning many objects crashed TTS), and never
+-- interactable: the engine owns the amount, so nobody may drag or click-count one. Parked again when the game's counters
+-- go (engineCountersReset), when engine mode goes off, and on load.
+-- max: the most the counter's own number shows; box: the black box in the counter's footprint (its width, its height,
+-- its centre below the counter's centre, fractions of the footprint at scale 1); perLocal: button units in one local
+-- unit (as ENGINE_POOL_FIT's, measured on the tracker)
+ENGINE_MANA_FIT = { max = 99, box = { w = 0.9, h = 0.42, z = 0.26 }, perLocal = 480 }
+engineManaShown = {} -- counter guid -> { spot = its placing, n = amount, tip = hover }; nil while parked
+engineManaUnit = {}  -- counter guid -> its size { x, y, z } and its centre's height over its position { oy } at scale 1
+engineManaSeat = {}  -- "mana <seat>" -> the pool, name and tracker its six counters were last all placed for
+function engineManaOn() return ENGINE_MODE == true and type(ENGINE_MANA_PIECES) == "table" end
+-- colour k's counter entry for seat `color`, or nil
+function engineManaObj(k, color)
+  local p = type(ENGINE_MANA_PIECES) == "table" and ENGINE_MANA_PIECES[k] or nil
+  for _, e in ipairs((p and p.objs) or {}) do if e.seat == color then return e end end
+  return nil
+end
+-- a counter's size at scale 1, read once; nil while its model has no size yet (a custom model still loading)
+function engineManaFootprint(g, o)
+  if engineManaUnit[g] == nil then
+    local b, s = o.getBoundsNormalized(), o.getScale()
+    local sx, sy, sz = math.max(s.x, 0.01), math.max(s.y, 0.01), math.max(s.z, 0.01)
+    if b == nil or b.size == nil or b.size.x < 0.01 or b.size.z < 0.01 then return nil end
+    engineManaUnit[g] = { x = b.size.x / sx, y = b.size.y / sy, z = b.size.z / sz, oy = ((b.offset and b.offset.y) or 0) / sy }
+  end
+  return engineManaUnit[g]
+end
+-- slot i (1..6) on tracker o for counter c of colour piece p: { at, rotY, scale } (nil without a footprint). The slot
+-- is the chip's: x as enginePoolChips centres six chips on the heart, z ENGINE_POOL_FIT.z; turned with the tracker,
+-- so the number reads as the chips did; its bottom on the tracker's top face (the tracker's bounds).
+function engineManaSpot(o, i, p, g, c)
+  local unit = engineManaFootprint(g, c)
+  if unit == nil then return nil end
+  local fit = ENGINE_POOL_FIT
+  local row = #POOL_ORDER * fit.w + (#POOL_ORDER - 1) * fit.gap
+  local bx = (-row / 2 + (i - 1) * (fit.w + fit.gap) + fit.w / 2) / fit.perLocal
+  local p0, s = o.getPosition(), o.getScale()
+  local ry = o.getRotation().y or 0
+  local a = math.rad(ry)
+  local sc = p.scale * math.min(1, fit.w / fit.perLocal * s.x / math.max(unit.x * p.scale, 0.01), fit.h / fit.perLocal * s.z / math.max(unit.z * p.scale, 0.01))
+  local tb = o.getBounds()
+  local top = (tb and tb.center and tb.size) and (tb.center.y + tb.size.y / 2) or p0.y
+  -- (button x is drawn on the reader's right, world (-cos ry, sin ry); local z at (sin ry, cos ry), as engineStatusPlace)
+  return { at = { p0.x + s.x * bx * -math.cos(a) + s.z * fit.z * math.sin(a), top + (unit.y / 2 - unit.oy) * sc, p0.z + s.x * bx * math.sin(a) + s.z * fit.z * math.cos(a) },
+    rotY = ry % 360, scale = sc }
+end
+-- the amount on counter c: up to `max` as the original drew it, above that a black box with the real number
+function engineManaNumber(c, n, tip, g)
+  local fit = ENGINE_MANA_FIT
+  if n <= fit.max then
+    -- (the shadow, then the number with the hover's click area, at the original's spots; labels only)
+    c.createButton({ click_function = "enginePoolNoop", function_owner = Global, label = tostring(n), position = { -0.05, 0.1, 0.115 }, rotation = { 0, 0, 0 },
+      width = 0, height = 0, scale = { 0.75, 0.75, 0.75 }, font_size = 800, font_color = { 0.1, 0.1, 0.1 }, color = { 0, 0, 0, 0 }, tooltip = "" })
+    c.createButton({ click_function = "enginePoolNoop", function_owner = Global, label = tostring(n), position = { 0, 0.15, 0.065 }, rotation = { 0, 0, 0 },
+      width = 500, height = 500, scale = { 0.75, 0.75, 0.75 }, font_size = 800, font_color = { 0.9, 0.9, 0.9 }, color = { 0, 0, 0, 0 }, tooltip = tip })
+    return
+  end
+  local unit = engineManaUnit[g] or { x = 2, z = 2 }
+  local label = string.format("%d", math.floor(math.min(n, 1e15)))
+  local w, h = math.floor(unit.x * fit.box.w * fit.perLocal), math.floor(unit.z * fit.box.h * fit.perLocal)
+  -- (a letter is about 0.583 of the font wide, as engineMarksWidth reckons it)
+  local font = math.floor(math.min(h * 0.75, w / (#label * 0.583)))
+  c.createButton({ click_function = "enginePoolNoop", function_owner = Global, label = label, position = { 0, 0.2, unit.z * fit.box.z }, rotation = { 0, 0, 0 },
+    width = w, height = h, font_size = font, font_color = { 1, 1, 1 }, color = { 0, 0, 0, 1 }, tooltip = tip })
+end
+-- seat pl's six counters for its pool, each changed only where its slot, amount or hover changed; one pcall a colour.
+-- A board with the same pool and name as the last one this seat's six were all placed for does nothing at all
+-- (engineManaSeat, cleared whenever counters are parked).
+function engineManaCounters(o, pl)
+  local pool = type(pl.pool) == "table" and pl.pool or {}
+  local words, sig = {}, {}
+  for i, c in ipairs(enginePoolList(pool)) do
+    words[i] = c.n .. " " .. ENGINE_POOL_LOOK[c.k][3]
+    sig[i] = c.k .. c.n
+  end
+  local key = "mana " .. tostring(pl.color)
+  local label = table.concat(sig, " ") .. "|" .. tostring(pl.name or pl.color) .. "|" .. o.getGUID()
+  if engineManaSeat[key] == label then return end
+  local tip = "Floating mana in " .. tostring(pl.name or pl.color) .. "'s pool: " .. table.concat(words, ", ")
+    .. ".\nA pool empties at the end of each step and phase unless an effect keeps it. Everyone sees every pool."
+  local placed = 0
+  for i, k in ipairs(POOL_ORDER) do
+    local fine, done = pcall(engineManaSlot, o, pl.color, i, k, math.floor(tonumber(pool[k] or 0) or 0), tip)
+    if fine and done then placed = placed + 1 end
+  end
+  engineManaSeat[key] = placed == #POOL_ORDER and label or nil
+end
+-- colour k's counter of seat `color` in slot i with amount n; true once it is shown so (nil: no counter or no size yet)
+function engineManaSlot(o, color, i, k, n, tip)
+  local e = engineManaObj(k, color)
+  local c = e and getObjectFromGUID(e.g)
+  if c == nil then return nil end
+  local spot = engineManaSpot(o, i, ENGINE_MANA_PIECES[k], e.g, c)
+  if spot == nil then return nil end
+  local was = engineManaShown[e.g]
+  local key = string.format("%.3f %.3f %.3f %.1f %.4f", spot.at[1], spot.at[2], spot.at[3], spot.rotY, spot.scale)
+  if n <= 0 then tip = "" end
+  if was ~= nil and was.spot == key and was.n == n and was.tip == tip then return true end
+  c.interactable = false
+  if was == nil or was.spot ~= key then
+    c.setLock(true)
+    c.setScale({ spot.scale, spot.scale, spot.scale })
+    c.setRotation({ 0, spot.rotY, 0 })
+    c.setPosition(spot.at)
+  end
+  if was == nil or (was.n > 0) ~= (n > 0) then
+    local t = c.getColorTint()
+    c.setColorTint({ t.r, t.g, t.b, n > 0 and 1 or 0 })
+    c.setInvisibleTo(n > 0 and {} or engineEveryone())
+  end
+  if was == nil or was.n ~= n or was.tip ~= tip then
+    c.clearButtons()
+    if n > 0 then engineManaNumber(c, n, tip, e.g) end
+  end
+  engineManaShown[e.g] = { spot = key, n = n, tip = tip }
+  return true
+end
+-- every counter back under the table at its own spot, at its own scale, faded, hidden, without its number. mode nil:
+-- all of them; "unplaced": those no board put out (on load). One pcall a counter. One no board put out and already
+-- under the table (as make-engine-copy leaves them) is left as it is: a load or a reset calls nothing on the 24 (36 on
+-- six seats) counters a table at rest has parked.
+function engineManaParkAll(mode)
+  if type(ENGINE_MANA_PIECES) ~= "table" then return end
+  engineManaSeat = {} -- (a seat with one counter parked places all six again on its next board)
+  for _, k in ipairs(POOL_ORDER) do
+    local p = ENGINE_MANA_PIECES[k]
+    for _, e in ipairs((p and p.objs) or {}) do
+      if mode == nil or engineManaShown[e.g] == nil then pcall(engineManaPark, p, e) end
+    end
+  end
+end
+function engineManaPark(p, e)
+  local c = getObjectFromGUID(e.g)
+  local shown = engineManaShown[e.g] ~= nil
+  engineManaShown[e.g] = nil
+  if c == nil or (not shown and c.getPosition().y <= ENGINE_STATUS_FIT.above) then return end
+  c.interactable = false
+  c.setLock(true)
+  c.setInvisibleTo(engineEveryone())
+  local t = c.getColorTint()
+  c.setColorTint({ t.r, t.g, t.b, 0 })
+  c.clearButtons()
+  c.setScale({ p.scale, p.scale, p.scale })
+  c.setRotation({ 0, 0, 0 })
+  c.setPosition({ e.x, p.y, e.z })
+end
+Wait.frames(function() pcall(engineManaParkAll, "unplaced") end, 20)
 
 -- "Waiting for you: draw 1 ..." while moves are held for the player.
 local function pendingText(color)
@@ -9448,6 +9614,7 @@ function setEngineMode(on)
   engineTableButtons(false) -- (back for everyone; READY hides a player's own set again)
   engineHideForEngine(on)
   if not on and engineStatusParkAll ~= nil then pcall(engineStatusParkAll) end -- (the normal table never shows them)
+  if not on and engineManaParkAll ~= nil then pcall(engineManaParkAll) end -- (nor the mana counters)
   engineRenderPanels("none") -- (a new screen UI: engine mode leaves out two of the table's panels, engineTablePanels)
 end
 Wait.frames(function() engineTableButtons(false) engineHideForEngine(ENGINE_MODE) end, 20)

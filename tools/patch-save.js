@@ -2,7 +2,7 @@
 // everything the save holds out on purpose, and a push wipes the table. It compares the save's script with a fresh build
 // line by line and takes every difference except those tools/deploy-holds.json keeps out, then stamps the script's version.
 // Only the script's text in the file is replaced: a script it can't find there as one exact string stops it. The one
-// other change: the status pieces the built script moves (addPieces) are added when the save hasn't got them. TTS must
+// other change: the status pieces and mana counters the built script moves (addPieces) are added when the save hasn't got them. TTS must
 // be closed (a running TTS saves over the file).
 //   node tools/patch-save.js              what would change
 //   node tools/patch-save.js --write      change it (a copy goes to tmp/backup first)
@@ -86,7 +86,8 @@ function rewrite(raw, script) {
 }
 
 // The status pieces (docs/status-objects-spec.md) the save lacks, from the built table: the objects the built script's
-// ENGINE_STATUS_PIECES and ENGINE_DAY_NIGHT name (make-engine-copy writes both). A save from before them has none, and
+// ENGINE_STATUS_PIECES and ENGINE_DAY_NIGHT name (make-engine-copy writes both), and the mana counters its
+// ENGINE_MANA_PIECES names (manaGuids). A save from before them has none, and
 // the script alone would move nothing. Each is put at the front of ObjectStates as text, every other byte as it was;
 // one the save already has is left alone, and a GUID the save uses for anything else stops it. Pure: the tests drive it.
 function statusGuids(script) {
@@ -96,13 +97,21 @@ function statusGuids(script) {
   const day = /ENGINE_DAY_NIGHT = \{ states = \{ "(\w+)"/.exec(script.slice(at));
   return [...[...block.matchAll(/\bg = "(\w+)"/g)].map((m) => m[1]), ...(day ? [day[1]] : [])];
 }
+// The mana counters the built script's ENGINE_MANA_PIECES names (make-engine-copy, 2026-11-24): one per seat per colour,
+// added to a save that lacks them the same way as the status pieces
+function manaGuids(script) {
+  const at = script.indexOf("ENGINE_MANA_PIECES = {");
+  if (at < 0) return [];
+  const block = script.slice(at, script.indexOf("\n}\n", at));
+  return [...block.matchAll(/\bg = "(\w+)"/g)].map((m) => m[1]);
+}
 function addPieces(raw, built) {
   const save = JSON.parse(raw);
   const guidsIn = (list, out = new Set()) => { for (const o of list || []) { out.add(o.GUID); guidsIn(o.ContainedObjects, out); guidsIn(Object.values(o.States || {}), out); } return out; };
   const top = new Set((save.ObjectStates || []).map((o) => o.GUID));
   const everywhere = guidsIn(save.ObjectStates);
   const add = [];
-  for (const g of statusGuids(built.LuaScript || "")) {
+  for (const g of [...statusGuids(built.LuaScript || ""), ...manaGuids(built.LuaScript || "")]) {
     if (top.has(g)) continue;
     const o = built.ObjectStates.find((x) => x.GUID === g);
     if (!o) throw new Error(`the built table lists status piece ${g} but hasn't got it: nothing changed`);
@@ -165,7 +174,7 @@ function main(write) {
   }
 
   const pieces = addPieces(rewrite(raw, script), built);
-  if (pieces.added.length) console.log(`add   ${pieces.added.length} status pieces, parked under the table: ${pieces.added.join(", ")}`);
+  if (pieces.added.length) console.log(`add   ${pieces.added.length} status pieces and mana counters, parked under the table: ${pieces.added.join(", ")}`);
   const imp = importerScripts(pieces.raw, built);
   const out = imp.raw;
   if (imp.updated.length) console.log(`script ${imp.updated.join(", ")}: DeckCheck links added`);
@@ -192,4 +201,4 @@ function main(write) {
 }
 
 if (require.main === module) main(process.argv.includes("--write"));
-module.exports = { patch, hunks, heldBy, unheld, apply, stamped, rewrite, statusGuids, addPieces, importerScripts, ttsRunning, main, SAVE };
+module.exports = { patch, hunks, heldBy, unheld, apply, stamped, rewrite, statusGuids, manaGuids, addPieces, importerScripts, ttsRunning, main, SAVE };

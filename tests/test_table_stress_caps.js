@@ -119,11 +119,13 @@ const inMat = (o) => mats.some((m) => o.x >= m.x0 && o.x <= m.x1 && o.z >= m.z0 
 }
 
 // ───────── 2. the mana pool ─────────
+// (the chips, as a table without the original's mana counters shows them: ENGINE_MANA_PIECES nil first; the counters'
+// own cap, a black box past 99, is in tests/test_table_mana_counters.js)
 {
   const CHIPS = (mark) => q(`local out = {} for _, b in ipairs(getObjectFromGUID("${TRACKER.Blue}").getButtons() or {}) do if enginePoolIsChip(b) then out[#out + 1] = { label = b.label, tip = b.tooltip, w = b.width, f = b.font_size } end end return JSON.encode(out)`, mark);
   const STATUS = (mark) => q('return tostring(UI.getValue("eng_status_Blue"))', mark);
   const PRIO = ask({ promptId: 901, kind: "priority", title: "Your priority", mode: "single", options: [{ id: "__pass", label: "Next" }, { id: "__endturn", label: "End turn" }] });
-  const r = run([board({ blue: { pool: { G: 150, R: 6 } } }), PRIO, q('onMtgToggle(Player.Blue, nil, "eng_toggle_Blue") return "open"', "open"), CHIPS("150"), STATUS("status 150"),
+  const r = run([q("ENGINE_MANA_PIECES = nil return 0", "chips table"), board({ blue: { pool: { G: 150, R: 6 } } }), PRIO, q('onMtgToggle(Player.Blue, nil, "eng_toggle_Blue") return "open"', "open"), CHIPS("150"), STATUS("status 150"),
     board({ blue: { pool: { G: 5000 } } }), CHIPS("5000"), board({ blue: { pool: { G: 99 } } }), CHIPS("99"),
     board({ blue: { pool: { G: 999 } } }), CHIPS("999"), board({ blue: { pool: { G: 1000 } } }), CHIPS("1000")]);
   ok("pool: 999 is G999 (the most said as is)", ((json(r, "999") || [])[0] || {}).label === "G999", valueOf(r, "999"));

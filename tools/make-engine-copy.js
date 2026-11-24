@@ -1147,6 +1147,14 @@ const STATUS_PIECES = [
 const DAY_NIGHT = "4e8c7b"; // Day, its second state Night: table-wide, in the middle of the table
 const STATUS_PARK_Y = -30;  // under the table top, as the Pirate Cannon in engine mode
 const STATUS_KEEP = new Set([...STATUS_PIECES.map((p) => p.guid), DAY_NIGHT]);
+// Mana counters (2026-11-24, the user: "use these objects from the og table to rep floating mana"): the counter in each
+// of the original's six mana-counter bags at the -x end (an infinite bag; the counter is its one contained object),
+// one copy per seat per colour, parked under the table like the status pieces; the table puts them on the life counter
+// where the floating-mana chips were (engineManaCounters in engine-renderer.lua). The bags themselves go with the
+// clutter. Both tables have these six bags under the same GUIDs (checked 2026-11-24 on 2296042369 and 2293586471).
+// The gold hourglass beside them is the Suspend counter, not mana: left out.
+const MANA_BAGS = { W: "389c4d", U: "7ae211", B: "887dd2", R: "b991d5", G: "daebb2", C: "52e44b" };
+const MANA_SOURCE = Object.fromEntries(Object.entries(MANA_BAGS).map(([k, g]) => [k, save.ObjectStates.find((o) => o.GUID === g)]));
 {
   const removed = [];
   save.ObjectStates = save.ObjectStates.filter((o) => {
@@ -1221,6 +1229,32 @@ const STATUS_KEEP = new Set([...STATUS_PIECES.map((p) => p.guid), DAY_NIGHT]);
   save.LuaScript += `\n\n${TAG} status pieces (docs/status-objects-spec.md): which object shows which mark, per seat, and where it\n-- parks; written by make-engine-copy from the objects it kept (engineStatusPieces in engine-renderer.lua moves them)\nENGINE_STATUS_PIECES = {\n${lua.join("\n")}\n}\n${dayLua}`;
   report.push(`${problems.length ? "FAIL" : "OK  "} status pieces kept, parked under the table (${kept.length}): ${problems.length ? problems.join("; ") : kept.join(", ")}`);
   if (problems.length) process.exitCode = 1;
+
+  // The mana counters: every seat's copy under a new GUID (the counter's own is inside the +x bag of the source too),
+  // parked as the status pieces are, faded, flat (turned 0), out of the drag-select box, a seat's six in a row along
+  // x from its bag's spot under the table. Their script goes: its click and typed numbers would change a value the
+  // engine owns.
+  const manaLua = [], manaKept = [], manaProblems = [];
+  for (const [k, bag] of Object.entries(MANA_SOURCE)) {
+    const src = bag && (bag.ContainedObjects || [])[0];
+    if (!src || !/Mana Counter$/.test(String(src.Nickname))) { manaProblems.push(`${k} mana counter bag ${MANA_BAGS[k]} not in the table`); continue; }
+    const objs = [];
+    STATUS_SEATS.forEach((seat, i) => {
+      const x = JSON.parse(JSON.stringify(src));
+      x.GUID = copyGuid(src.GUID, seat);
+      x.Transform = { ...x.Transform, posX: bag.Transform.posX + i * 1.5, posZ: bag.Transform.posZ, rotX: 0, rotY: 0, rotZ: 0 };
+      x.DragSelectable = false;
+      park(x);
+      fade(x);
+      save.ObjectStates.push(x);
+      objs.push(`{ g = ${JSON.stringify(x.GUID)}, x = ${r2(x.Transform.posX)}, z = ${r2(x.Transform.posZ)}, seat = "${seat}" }`);
+      manaKept.push(`${k} ${seat} (${x.GUID})`);
+    });
+    manaLua.push(`  ${k} = { scale = ${r2(src.Transform.scaleX)}, y = ${STATUS_PARK_Y},\n    objs = { ${objs.join(", ")} } },`);
+  }
+  save.LuaScript += `\n${TAG} mana counters (2026-11-24): each colour's counter from the original table, one per seat, and where it\n-- parks (y); written by make-engine-copy (engineManaCounters in engine-renderer.lua moves them)\nENGINE_MANA_PIECES = {\n${manaLua.join("\n")}\n}\n`;
+  report.push(`${manaProblems.length ? "FAIL" : "OK  "} mana counters kept, parked under the table (${manaKept.length}): ${manaProblems.length ? manaProblems.join("; ") : manaKept.join(", ")}`);
+  if (manaProblems.length) process.exitCode = 1;
 }
 
 // Leftover check: nothing that downloads-and-runs code should remain reachable.

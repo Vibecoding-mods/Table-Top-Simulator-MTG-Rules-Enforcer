@@ -5,6 +5,8 @@
 // you have floating ("Next (3 floating)"). Boards are made up here (two players: Blue seated, White an AI), as the
 // bridge sends them (bridge.js: a row's `pool` is { W = n, ... } without the empty colours, or null for another
 // player's empty pool); the geometry check puts six chips on all four trackers of the save.
+// (The chips are what a table without the original's mana counters shows: the built table has them since 2026-11-24,
+// tests/test_table_mana_counters.js, so every run here sets ENGINE_MANA_PIECES to nil first, as an older save has it.)
 //   node tests/test_table_floating_mana.js
 const { simulate } = require("./lua/run-sim");
 const { buildSave } = require("./golden/table-run");
@@ -31,7 +33,7 @@ function board(bluePool, whitePool, extra = {}) {
     winner: null, players: [pl("White", "player-1", whitePool ?? null), pl("Blue", "player-0", bluePool ?? {})], stack: [], cards, ...extra }) }, frames: 20 };
 }
 const STARTED = JSON.stringify({ t: "started", colors: { "player-0": "Blue", "player-1": "White" }, names: { "player-0": "Blue", "player-1": "AI 1" }, ai: ["White"] });
-const PRELUDE = 'engineAutoPace.Blue = false engineChat("mtg start ai 1", Player.Blue) return "ok"';
+const PRELUDE = 'ENGINE_MANA_PIECES = nil engineAutoPace.Blue = false engineChat("mtg start ai 1", Player.Blue) return "ok"';
 const ask = (p) => ({ msg: { t: "prompt", json: JSON.stringify({ t: "prompt", color: "Blue", ...p }) }, frames: 5 });
 const PRIO = (id, label = "Next") => ask({ promptId: id, kind: "priority", title: "Your priority", mode: "single", options: [{ id: "__pass", label }, { id: "__endturn", label: "End turn" }] });
 // the chips on a seat's tracker: { label, tip, x, z, w, h, color } each, in button order
@@ -162,7 +164,7 @@ const labels = (list) => (Array.isArray(list) ? list.map((c) => c.label).join(" 
   const four = `{ ${Object.values(TRACKER).map((g) => `"${g}"`).join(", ")} }`;
   const set = `for _, g in ipairs(${four}) do local o = getObjectFromGUID(g) enginePlayerCounters(o, JSON.decode([==[${JSON.stringify({ allMarks: MARKS })}]==])) engineExtraTurnBadge(o, { extraTurns = 10, name = "P" }) enginePoolChips(o, JSON.decode([==[${JSON.stringify({ name: "P", pool: SIX })}]==])) end return "set"`;
   const read = `local out = {} for _, g in ipairs(${four}) do local o = getObjectFromGUID(g) local p, r, s = o.getPosition(), o.getRotation(), o.getScale() local row = { g = g, x = p.x, z = p.z, ry = r.y, sx = s.x, sz = s.z, chips = {}, others = {} } for _, b in ipairs(o.getButtons() or {}) do local q = b.position or {} local e = { label = b.label, w = b.width, h = b.height, f = b.font_size, bx = q[1] or q.x, bz = q[3] or q.z } if enginePoolIsChip(b) then row.chips[#row.chips + 1] = e else row.others[#row.others + 1] = e end end out[#out + 1] = row end return JSON.encode(out)`;
-  const r = simulate({ save, steps: [q(set, "set"), q(read, "read")] });
+  const r = simulate({ save, steps: [q("ENGINE_MANA_PIECES = nil return 0", "chips table"), q(set, "set"), q(read, "read")] });
   ok("fit: precondition, no script error", !r.errors.length, r.errors.slice(0, 2).join(" | "));
   const rows = json(r, "read") || [];
   ok("fit: precondition, four trackers, each with six chips, five marks and a badge", rows.length === 4 && rows.every((t) => t.chips.length === 6 && t.others.length === 6), String(valueOf(r, "read")).slice(0, 300));

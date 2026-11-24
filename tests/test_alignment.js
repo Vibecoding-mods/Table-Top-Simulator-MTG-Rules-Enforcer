@@ -141,6 +141,19 @@ const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringif
   const { simulate } = require("./lua/run-sim");
   const t = simulate({ save: upSave, steps: [{ frames: 40 }, { lua: `local n, bad = 0, {} for _, g in ipairs({ "${names.join('", "')}" }) do local o = getObjectFromGUID(g) if o then n = n + 1 if o.getPosition().y ~= -30 or #(o.__d.invisibleTo or {}) < 6 then bad[#bad + 1] = g end end end return n .. " " .. table.concat(bad, ",")`, mark: "loaded" }] });
   same("pieces: the patched save loads with every piece parked and invisible to every colour", [t.errors.length, String((t.steps.find((s) => s.step === "loaded") || {}).value)], [0, "24 "]);
+  // (the mana counters, 2026-11-24: a save from before them, the user's TS_Save_1, gets the built table's 24 the same way)
+  const { manaGuids } = require("../tools/patch-save");
+  const mana = manaGuids(real.LuaScript);
+  same("mana: a script without the list names none", manaGuids("x\nENGINE_STATUS_PIECES = {\n  { objs = { { g = \"aaa111\" } } },\n}\n"), []);
+  ok("mana: precondition, the built script names 24 mana counters (six colours, four seats), all in the build, none a status piece", mana.length === 24 && mana.every((g) => real.ObjectStates.some((o) => o.GUID === g)) && !mana.some((g) => names.includes(g)), `${mana.length}`);
+  const noMana = { ...real, ObjectStates: real.ObjectStates.filter((o) => !mana.includes(o.GUID)) };
+  const noManaRaw = JSON.stringify(noMana, null, 2);
+  const um = safe(() => addPieces(noManaRaw, real));
+  const umSave = JSON.parse(um.raw);
+  const gotMana = umSave.ObjectStates.filter((o) => mana.includes(o.GUID));
+  ok("mana: a save without them gets all 24, parked at y -30, locked, faded, without a script", !um.threw && gotMana.length === 24 && gotMana.every((o) => o.Transform.posY === -30 && o.Locked && o.ColorDiffuse.a === 0 && o.LuaScript === ""), um.threw || `${gotMana.length}`);
+  same("mana: ... and nothing else changes", JSON.stringify(umSave.ObjectStates.slice(24)), JSON.stringify(noMana.ObjectStates));
+  same("mana: run again, nothing more", safe(() => addPieces(um.raw, real)).raw, um.raw);
 }
 
 // deploy: only a line saying it passed is a pass, and every table and bridge gate on disk is in the list
