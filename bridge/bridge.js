@@ -10229,6 +10229,9 @@ function loopNote(seat, promptId, type, out) {
   const raw = seat.lastRawPrompt, gv = seat.board?.state?.gameView || {};
   if (raw?.kind === "priority") return; // (answered before any question is read: onPrompt)
   if (!raw?.input || Number(raw.promptId ?? 0) !== Number(promptId ?? 0)) { seat.loopLog = null; return; }
+  // (the engine's runaway question is no step of a pass: kept, a repeat waited for it again and stopped at once, the
+  // user's Kykar loop 2026-11-24, "stopped after 0 of 53: the question changed")
+  if (String(raw.input.presentation?.title || "") === RUNAWAY_TITLE) return;
   const book = seat.loopLog && seat.loopLog.turn === gv.turn ? seat.loopLog : (seat.loopLog = { turn: gv.turn, list: [] });
   book.list.push({ type, ask: loopAsk(raw), cands: loopCands(raw.input, gv), out: JSON.parse(JSON.stringify(out ?? null)), sig: type === "chooseAction" ? loopSig(gv, seat.slot) : null });
   if (book.list.length > LOOP_LOG_MAX) book.list.splice(0, book.list.length - LOOP_LOG_MAX);

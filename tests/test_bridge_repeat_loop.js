@@ -394,6 +394,30 @@ async function started(h, seat, n = 2) {
     await sacPick("engine-card-42", "engine-card-43");
     ok("mana at the end: this pass's first Spirit is the one sacrificed", JSON.stringify(lastOut(calls)) === JSON.stringify({ type: "chooseCardsDecision", chosenCardIds: ["engine-card-42"] }), JSON.stringify(lastOut(calls)));
   });
+  // 5e. the engine's runaway question in the middle of a pass (Keep going, the user's Kykar test 2026-11-24: Repeat ×53
+  // stopped at once, "the question changed", as it waited for that question again): it is no step of the pass
+  await run(async (h) => {
+    const { seat, calls } = setup(h);
+    const p1 = await prio(h, seat, board(), acts(0));
+    await answer(h, p1, "prompt-action-0");
+    const t1 = await kikiTarget(h, seat, 0);
+    await answer(h, t1, "card|engine-card-11");
+    await prio(h, seat, board({ kikiTapped: true, stack: [kikiAbility] }), [opt("prompt-action-0")]);
+    const t2 = await trigTarget(h, seat, 0);
+    await answer(h, t2, "card|engine-card-10");
+    const r = await ask(h, seat, board({ kikiTapped: true, tokens: 1, stack: [conscriptsTrigger(0)] }),
+      { type: "chooseBoolean", presentation: { title: "This turn passed the engine's limit", description: "x", targets: [] }, confirmLabel: "Keep going", denyLabel: "End in a draw" },
+      { sourceCard: { id: "engine-card-20", identity: { name: "Zealous Conscripts", isToken: true } } });
+    await answer(h, r, "yes");
+    ok("runaway mid-pass: Keep going answered", calls.some((c) => c.promptId === r && c.out?.value === true), JSON.stringify(calls.find((c) => c.promptId === r)));
+    await prio(h, seat, board({ kikiTapped: true, tokens: 1, stack: [conscriptsTrigger(0)] }), [opt("prompt-action-0")]);
+    await prio(h, seat, board({ tokens: 1 }), acts(1));
+    ok("runaway mid-pass: the pass is offered without it", optIds(seat).includes("__loop") && seat.loopOffer?.steps.length === 5, JSON.stringify({ o: optIds(seat), s: seat.loopOffer?.steps.map((e) => e.type) }));
+    await say(h, "repeatloop", { n: 2 });
+    const mark = h.effects.length;
+    await loopPass(h, seat, 1);
+    ok("runaway mid-pass: the repeat's first pass goes through", !!seat.loop && seat.loop.done === 1, JSON.stringify({ done: seat.loop?.done, said: chats(h, mark) }));
+  });
   // 6. the pieces: loopMap keeps an id that is the same thing, follows a card's action, and names what is gone
   await run(async (h) => {
     const B = h.B;
