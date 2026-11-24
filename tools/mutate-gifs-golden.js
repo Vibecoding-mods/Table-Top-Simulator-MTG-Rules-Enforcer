@@ -4,6 +4,8 @@
 //   node tools/mutate-gifs-golden.js [label pattern]
 // First pass 2026-11-24: 38 of 43 caught (11.6%, SOUND). Of the 5 escapes, 4 are argued equivalent below and marked
 // so; the fifth (the host pattern unanchored at the start: "xmedia.giphy.com") was a real hole, closed with rows.
+// Second pass, after the gifs.js cleanup: 41 of 42 caught (2.4%); the escape (state() counting before the prune) was
+// closed with a state() row after the hour runs out.
 const path = require("path");
 const { runMutations } = require("./mutate-golden-lib");
 
@@ -34,7 +36,10 @@ const MUTATIONS = [
   ["parse: no 8 cap", ".filter(Boolean).slice(0, PER_PAGE);", ".filter(Boolean);"],
   ["problem: 403 not a refused key", "if (status === 401 || status === 403)", "if (status === 401)"],
   ["validKey: 15 characters accepted", "/^[A-Za-z0-9]{16,64}$/.test(k)", "/^[A-Za-z0-9]{15,64}$/.test(k)"],
-  ["loadKeys: logs the error's message (key text)", "log(`gif keys: can't read them (${(e && (e.code || e.name)) || \"unreadable\"})`)", "log(`gif keys: can't read them (${(e && e.message) || \"unreadable\"})`)"],
+  ["readStore: logs the error's message (key text)", "log(`${what}: can't read them (${(e && (e.code || e.name)) || \"unreadable\"})`)", "log(`${what}: can't read them (${(e && e.message) || \"unreadable\"})`)"],
+  ["readStore: a failed read throws on", "catch (e) { log(`${what}: can't read them", "catch (e) { if (what) throw e; log(`${what}: can't read them"],
+  ["search: the player's call not counted", "    if (req.who) whoList(req.who, t).push(t);\n", ""],
+  ["state: used counted before the prune", "    const resting = restingFor(t); // (prunes the hour's calls first)\n    const out = { credit: giphy.credit, limit: hourLimit, used: calls.length, restingMin: Math.ceil(resting / 60000) };", "    const used = calls.length;\n    const out = { credit: giphy.credit, limit: hourLimit, used, restingMin: Math.ceil(restingFor(t) / 60000) };"],
   ["search: logs e.message (the link, with the key)", "log(`gif search: ${(e && e.name) || \"error\"}", "log(`gif search: ${(e && e.message) || \"error\"}"],
   ["setKey: cache not cleared", "    cache.clear();\n", "\n"],
   ["setKey: key not trimmed", "const k = String(key ?? \"\").trim();", "const k = String(key ?? \"\");"],

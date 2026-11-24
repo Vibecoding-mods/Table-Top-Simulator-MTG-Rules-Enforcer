@@ -141,7 +141,7 @@ function gifScenarios(G) {
   sc("cache: same words other case, then the day boundary", { envKey: KEY }, [["first", s("Mind Blown")], ["same lower", s("mind blown")], ["other page", s("mind blown", { page: 1 })], ["other rating", s("mind blown", { rating: "g" })],
     ["+day-1ms", tick(24 * 3600 * 1000 - 1)], ["still cached", s("MIND BLOWN")], ["+1ms", tick(1)], ["expired", s("mind blown")]]);
   sc("hour limit 3: the fourth rests, then the hour boundary", { envKey: KEY, hourLimit: 3 }, [["a", s("a")], ["b", s("b")], ["c", s("c")], ["d rests", s("d")], ["cached a still works", s("a")], ["state", (c) => c.g.state()],
-    ["+1h-1ms", tick(3600 * 1000 - 1)], ["d still rests", s("d")], ["+1ms", tick(1)], ["d goes", s("d")], ["state", (c) => c.g.state()]]);
+    ["+1h-1ms", tick(3600 * 1000 - 1)], ["d still rests", s("d")], ["+1ms", tick(1)], ["state after the hour, before a search", (c) => c.g.state()], ["d goes", s("d")], ["state", (c) => c.g.state()]]);
   sc("hourLimit bad values", { envKey: KEY, hourLimit: "x" }, [["state", (c) => c.g.state()]]);
   sc("hourLimit 0 is the default", { envKey: KEY, hourLimit: 0 }, [["state", (c) => c.g.state()]]);
   sc("who: gap and share", { envKey: KEY, hourLimit: 10 }, [["w1", s("w1", { who: "Red" })], ["+1999", tick(1999)], ["w2 too soon", s("w2", { who: "Red" })], ["other player fine", s("b2", { who: "Blue" })],

@@ -12,6 +12,8 @@
 // Answers are cached (the same words within a day cost no call) and the provider's hour limit is counted: past it the
 // player is told "GIF search is resting for N minutes".
 // Pure apart from what createGifs is given (fetch, clock, key store), so tests drive it without a network.
+// Behaviour pinned by tests/test_gifs_golden.js (graded by tools/mutate-gifs-golden.js); in plain English:
+// docs/plain-english/gifs.md.
 const PER_PAGE = 8;
 const MAX_PAGE = 50; // (GIPHY's offset tops out at 4999; 50 pages of 8 is plenty for a table)
 const WORDS_MAX = 50; // GIPHY: "the length of the search query exceeds 50 characters" is HTTP 414
@@ -110,6 +112,12 @@ const giphy = {
 };
 const ADAPTERS = { giphy };
 
+// A store's saved object, or null: read once by its owner. A failed read is logged by the error's code or name only,
+// never its message (JSON.parse's message quotes the file's text, which for the key file is part of the key).
+function readStore(store, log, what) {
+  try { return store ? store.read() : null; } catch (e) { log(`${what}: can't read them (${(e && (e.code || e.name)) || "unreadable"})`); return null; }
+}
+
 const restText = (ms) => { const n = Math.max(1, Math.ceil(ms / 60000)); return `GIF search is resting for ${n} minute${n === 1 ? "" : "s"}.`; };
 const NO_KEY = "GIF frames need a GIPHY key: the host makes one, free, at developers.giphy.com (the steps: Get a GIPHY key, in the companion page's Table tools) and saves it there.";
 
@@ -128,9 +136,7 @@ function createGifs(opts = {}) {
   function loadKeys() {
     if (keys) return keys;
     keys = {};
-    let saved = null;
-    // (only the error's code: JSON.parse's message quotes the file's text, i.e. part of the key)
-    try { saved = opts.store ? opts.store.read() : null; } catch (e) { log(`gif keys: can't read them (${(e && (e.code || e.name)) || "unreadable"})`); }
+    const saved = readStore(opts.store, log, "gif keys");
     for (const p of PROVIDERS) {
       const k = saved && typeof saved[p] === "string" ? saved[p] : "";
       if (validKey(k)) keys[p] = k;
@@ -169,16 +175,22 @@ function createGifs(opts = {}) {
   function state() {
     const k = loadKeys();
     const t = now();
-    const out = { credit: giphy.credit, limit: hourLimit, used: (prune(t), calls.length), restingMin: Math.ceil(restingFor(t) / 60000) };
+    const resting = restingFor(t); // (prunes the hour's calls first)
+    const out = { credit: giphy.credit, limit: hourLimit, used: calls.length, restingMin: Math.ceil(resting / 60000) };
     for (const p of PROVIDERS) out[p] = k[p] ? { set: true, ends: k[p].slice(-4) } : { set: false };
     return out;
   }
 
+  // `who`'s call times within the hour before t (kept pruned in whoCalls)
+  function whoList(who, t) {
+    const list = (whoCalls.get(who) || []).filter((x) => x > t - HOUR_MS);
+    whoCalls.set(who, list);
+    return list;
+  }
   // how long `who` must wait for their own next call (0: now)
   function whoWait(who, t) {
     if (!who) return 0;
-    const list = (whoCalls.get(who) || []).filter((x) => x > t - HOUR_MS);
-    whoCalls.set(who, list);
+    const list = whoList(who, t);
     const cap = Math.max(1, Math.floor(hourLimit * WHO_SHARE));
     if (list.length >= cap) return list[0] + HOUR_MS - t;
     if (list.length && t - list[list.length - 1] < WHO_GAP_MS) return list[list.length - 1] + WHO_GAP_MS - t;
@@ -205,7 +217,7 @@ function createGifs(opts = {}) {
         : `You've had your share of this hour's GIF searches: yours again in ${Math.max(1, Math.ceil(mine / 60000))} min (words searched before still work).` };
     }
     calls.push(t);
-    if (req.who) whoCalls.get(req.who).push(t);
+    if (req.who) whoList(req.who, t).push(t);
     let res, body;
     try {
       const signal = typeof AbortSignal !== "undefined" && AbortSignal.timeout ? AbortSignal.timeout(FETCH_MS) : undefined;
@@ -260,8 +272,7 @@ function createFavs(opts = {}) {
   function load() {
     if (all) return all;
     all = new Map();
-    let saved = null;
-    try { saved = opts.store ? opts.store.read() : null; } catch (e) { log(`gif favourites: can't read them (${(e && (e.code || e.name)) || "unreadable"})`); }
+    const saved = readStore(opts.store, log, "gif favourites");
     const lists = saved && typeof saved === "object" && saved.players && typeof saved.players === "object" ? saved.players : {};
     for (const [who, list] of Object.entries(lists)) {
       if (!Array.isArray(list)) continue;
