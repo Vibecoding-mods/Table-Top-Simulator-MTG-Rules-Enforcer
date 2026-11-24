@@ -7,7 +7,8 @@
 # The image is only needed again when Forge's own Java changes: harness sources are compiled fresh on every run, so an
 # image older than a new harness class or test still works. ManaBrewEngineAdapterTest and
 # InteractiveSnapshotExtractorTest print nothing when they pass; every class fails by its exit status.
-# Exit status: 0 when every class passed.
+# Exit status: 0 when every class passed. tools/deploy.js runs it with no class named and stops when any *Test.java
+# under forge-harness/src/test is missing from the list below (tests/test_deploy.js checks that rule).
 set -e
 jar=/build/forge-harness/target/forge-harness-jar-with-dependencies.jar
 rm -rf /tmp/main /tmp/test
@@ -25,7 +26,9 @@ cd /build
   SharedTurnsDevTest SharedCombatTest SharedTurnsPlayTest ArchenemyTest ArchenemySchemeSweepTest ArchenemyViewTest \
   FirstPlayerTest CardStateRewindTest BigTurnsTest ThreeHeadedGiantTest ProtocolDefaultsTest AttackTaxLethalTest \
   SnapshotSpeedTest StressCapsTest ReplacementIndexTest TieOfferTest UnboundedTokensTest HeldPassResponseTest CostBadgeTest \
-  BigBoardFixesTest TeamChoiceTest LongTailTest common.GiftTargetsTest
+  BigBoardFixesTest TeamChoiceTest LongTailTest common.GiftTargetsTest AutoPayBudgetTest BigTurnTimingTest \
+  BlockBudgetTest DependencyScanTest ManaSourcesTest OpeningHandTest SnapshotViewersTest StaticPassTest TokenBatchTest \
+  common.ActionSpaceTest common.HarnessPlayPlumbingTest
 failed=""
 for c in "$@"; do
   echo "=== $c"

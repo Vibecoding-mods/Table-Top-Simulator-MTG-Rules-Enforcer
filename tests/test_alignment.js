@@ -5,7 +5,7 @@ const harness = require("./bridge-harness");
 const versions = require("../bridge/versions");
 const { patch, heldBy, unheld, stamped, rewrite } = require("../tools/patch-save");
 const holds = require("../tools/deploy-holds.json");
-const { livePassed, GATES } = require("../tools/deploy");
+const { livePassed, GATES, NOT_GATES } = require("../tools/deploy");
 const { buildSave } = require("./golden/table-run");
 
 let failed = 0, passed = 0;
@@ -162,8 +162,13 @@ const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringif
   ok("deploy: a failed live test doesn't", !livePassed("FAILED: 2 of 3 checks\n"));
   ok("deploy: an empty log doesn't", !livePassed(""));
   ok("deploy: a crash doesn't", !livePassed("Error: socket hang up\n"));
-  const onDisk = require("fs").readdirSync(__dirname).filter((n) => /^test_(bridge|table|state|alignment)/.test(n)).map((n) => n.replace(/\.js$/, ""));
-  same("deploy: no gate left out", onDisk.filter((n) => !GATES.includes(n)), []);
+  // every test on disk is a gate, or in deploy.js's NOT_GATES with a reason; never both, and no name without its file
+  const onDisk = require("fs").readdirSync(__dirname).filter((n) => /^test_.*\.js$/.test(n)).map((n) => n.replace(/\.js$/, ""));
+  same("deploy: no gate left out", onDisk.filter((n) => !GATES.includes(n) && !(n in NOT_GATES)), []);
+  same("deploy: a test skipped as a gate says why", Object.entries(NOT_GATES).filter(([, why]) => typeof why !== "string" || why.trim().length < 10).map(([n]) => n), []);
+  same("deploy: no test both a gate and skipped", Object.keys(NOT_GATES).filter((n) => GATES.includes(n)), []);
+  same("deploy: every gate and skipped test has its file", [...GATES, ...Object.keys(NOT_GATES)].filter((n) => !onDisk.includes(n)), []);
+  same("deploy: no gate twice", GATES.filter((n, i) => GATES.indexOf(n) !== i), []);
 }
 
 // the bridge's version covers all our code in it

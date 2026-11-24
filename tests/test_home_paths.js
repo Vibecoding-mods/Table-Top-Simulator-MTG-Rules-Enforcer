@@ -90,7 +90,9 @@ put("stack/deployed.json", JSON.stringify({ bridge: "pkgbrdg1", table: "t" }));
 // it reads beside itself is what the friend package ships
 {
   const pack = require("../tools/make-friend-package");
-  const shipped = new Set(pack.BRIDGE_SHIPPED);
+  // (the bridge's code goes in whole, bridge/versions.js BRIDGE_FILES; foreign-names.json is the bridge's own cache of
+  // looked-up names, written beside it as it plays and started empty when absent)
+  const shipped = new Set([...pack.BRIDGE_SHIPPED, ...require("../bridge/versions").BRIDGE_FILES.map((f) => path.basename(f)), "foreign-names.json"]);
   const dataDirs = new Set();
   for (const f of require("../bridge/versions").BRIDGE_FILES) {
     const name = path.basename(f);

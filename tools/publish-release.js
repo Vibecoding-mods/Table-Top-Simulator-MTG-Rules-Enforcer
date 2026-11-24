@@ -39,7 +39,7 @@ function releaseFiles(dir, extra) {
   return files;
 }
 
-async function gh(token, url, opts = {}) {
+async function gh(fetch, token, url, opts = {}) {
   const r = await fetch(url, { ...opts, headers: { Authorization: "Bearer " + token, "User-Agent": "mtg-release",
     Accept: "application/vnd.github+json", ...(opts.headers || {}) } });
   const text = await r.text();
@@ -48,47 +48,59 @@ async function gh(token, url, opts = {}) {
   return { status: r.status, body };
 }
 
-async function main() {
-  const a = args(process.argv.slice(2));
+// opts (tests/test_publish_release.js): argv, fetch, tokenFile, log, write (stdout without a newline). Returns the
+// count of files that failed to upload.
+async function main(opts = {}) {
+  const fetch = opts.fetch || globalThis.fetch;
+  const log = opts.log || ((s) => console.log(s));
+  const write = opts.write || ((s) => process.stdout.write(s));
+  const tokenFile = opts.tokenFile || TOKEN_FILE;
+  const a = args(opts.argv || process.argv.slice(2));
   const dir = path.resolve(a.dir);
   const tag = path.basename(dir).replace(/^release-/, "");
   if (tag === path.basename(dir)) throw new Error("the folder must be named release-<tag>");
   const files = releaseFiles(dir, a.extra);
   const notesFile = path.join(dir, "RELEASE-NOTES.md");
   const notes = fs.existsSync(notesFile) ? fs.readFileSync(notesFile, "utf8") : "";
-  console.log("tag " + tag + ", " + files.length + " files");
-  if (a.dryRun) { for (const f of files) console.log("  " + path.basename(f)); return; }
+  log("tag " + tag + ", " + files.length + " files");
+  if (a.dryRun) { for (const f of files) log("  " + path.basename(f)); return 0; }
 
-  if (!fs.existsSync(TOKEN_FILE)) throw new Error("no token: save one to " + TOKEN_FILE);
-  const token = fs.readFileSync(TOKEN_FILE, "utf8").trim();
+  if (!fs.existsSync(tokenFile)) throw new Error("no token: save one to " + tokenFile);
+  const token = fs.readFileSync(tokenFile, "utf8").trim();
 
-  let rel = await gh(token, API + "/releases/tags/" + encodeURIComponent(tag));
+  let rel = await gh(fetch, token, API + "/releases/tags/" + encodeURIComponent(tag));
   if (rel.status === 404) {
-    rel = await gh(token, API + "/releases", { method: "POST", headers: { "Content-Type": "application/json" },
+    rel = await gh(fetch, token, API + "/releases", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tag_name: tag, name: "MTG Table " + tag, body: notes, draft: false, prerelease: false,
         make_latest: "true" }) });
     if (rel.status !== 201) throw new Error("creating the release failed: HTTP " + rel.status);
-    console.log("created release " + tag);
+    log("created release " + tag);
   } else if (rel.status !== 200) {
     throw new Error("reading the release failed: HTTP " + rel.status);
   }
   const have = new Set((rel.body.assets || []).filter((x) => x.state === "uploaded").map((x) => x.name));
-  const uploadBase = rel.body.upload_url.replace(/\{.*$/, "");
+  const uploadBase = String(rel.body.upload_url || "").replace(/\{.*$/, "");
+  // (the token goes with each upload: only to GitHub's own upload host, whatever the answer says)
+  if (!uploadBase.startsWith("https://uploads.github.com/")) throw new Error("the release's upload address isn't on uploads.github.com: nothing uploaded");
   let failed = 0;
   for (const f of files) {
     // GitHub stores names with spaces as dots ("MTG Companion.exe" -> "MTG.Companion.exe")
     const name = path.basename(f).replace(/ /g, ".");
-    if (have.has(name)) { console.log("  have     " + name); continue; }
+    if (have.has(name)) { log("  have     " + name); continue; }
     const size = fs.statSync(f).size;
-    process.stdout.write("  upload   " + name + " (" + (size / 1048576).toFixed(1) + " MB) ... ");
-    const r = await gh(token, uploadBase + "?name=" + encodeURIComponent(name), { method: "POST",
+    write("  upload   " + name + " (" + (size / 1048576).toFixed(1) + " MB) ... ");
+    const r = await gh(fetch, token, uploadBase + "?name=" + encodeURIComponent(name), { method: "POST",
       headers: { "Content-Type": "application/octet-stream", "Content-Length": String(size) },
       body: fs.readFileSync(f) });
-    if (r.status === 201) console.log("done");
-    else { failed++; console.log("FAILED: HTTP " + r.status); }
+    if (r.status === 201) log("done");
+    else { failed++; log("FAILED: HTTP " + r.status); }
   }
-  console.log(failed ? failed + " file(s) failed; run again to retry them" : "all files on " + rel.body.html_url);
-  if (failed) process.exitCode = 1;
+  log(failed ? failed + " file(s) failed; run again to retry them" : "all files on " + rel.body.html_url);
+  return failed;
 }
 
-main().catch((e) => { console.error("publish-release: " + e.message); process.exitCode = 1; });
+if (require.main === module) {
+  main().then((failed) => { if (failed) process.exitCode = 1; })
+    .catch((e) => { console.error("publish-release: " + e.message); process.exitCode = 1; });
+}
+module.exports = { main, args, releaseFiles, API, REPO, NOT_UPLOADED, TOKEN_FILE };

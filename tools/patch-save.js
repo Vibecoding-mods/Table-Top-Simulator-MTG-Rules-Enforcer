@@ -159,8 +159,13 @@ function importerScripts(raw, built) {
   return { raw: out, updated: done, skipped };
 }
 
-function main(write) {
-  const raw = fs.readFileSync(SAVE, "utf8");
+// opts (tests/test_patch_save_write.js): save, the file to patch (SAVE); backupDir, where both copies go (tmp/backup);
+// ttsRunning, the check that refuses a write while TTS is open
+function main(write, opts = {}) {
+  const file = opts.save || SAVE;
+  const backupDir = opts.backupDir || path.join(ROOT, "tmp", "backup");
+  const isTtsRunning = opts.ttsRunning || ttsRunning;
+  const raw = fs.readFileSync(file, "utf8");
   const save = JSON.parse(raw);
   const { buildSave } = require("../tests/golden/table-run");
   const holds = JSON.parse(fs.readFileSync(path.join(__dirname, "deploy-holds.json"), "utf8"));
@@ -190,13 +195,13 @@ function main(write) {
 
   console.log(`${taken.length} taken, ${held.length} held, version ${stamp}, save ${sha8(raw)} -> ${sha8(out)}`);
   if (!write) { console.log("dry run: nothing written"); return { trial: out }; }
-  if (ttsRunning()) throw new Error("TTS is running: close it first, it would save over this");
-  fs.mkdirSync(path.join(ROOT, "tmp", "backup"), { recursive: true });
-  fs.writeFileSync(path.join(ROOT, "tmp", "backup", `TS_Save_1.${sha8(raw)}.json`), raw);
+  if (isTtsRunning()) throw new Error("TTS is running: close it first, it would save over this");
+  fs.mkdirSync(backupDir, { recursive: true });
+  fs.writeFileSync(path.join(backupDir, `TS_Save_1.${sha8(raw)}.json`), raw);
   // the new save too: a save deleted in TTS (2026-11-13, twice) is restored by copying this, with no rebuild
-  fs.writeFileSync(path.join(ROOT, "tmp", "backup", `TS_Save_1.${sha8(out)}.json`), out);
-  fs.writeFileSync(SAVE, out);
-  console.log(`written; copies of the old and new saves are at tmp/backup/TS_Save_1.${sha8(raw)}.json and TS_Save_1.${sha8(out)}.json`);
+  fs.writeFileSync(path.join(backupDir, `TS_Save_1.${sha8(out)}.json`), out);
+  fs.writeFileSync(file, out);
+  console.log(`written; copies of the old and new saves are at ${backupDir}/TS_Save_1.${sha8(raw)}.json and TS_Save_1.${sha8(out)}.json`);
   return { stamp, save: sha8(out) };
 }
 

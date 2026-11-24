@@ -307,5 +307,20 @@ function createFavs(opts = {}) {
   return { page, star, list, MAX: max };
 }
 
-module.exports = { createGifs, createFavs, favItem, favWho, giphy, cleanWords, cleanTitle, cleanRating, cleanPage, mediaLink, viaProxy, restText,
+// The store createGifs and createFavs are given on the host: one JSON file. A missing file reads as null; one that
+// doesn't parse throws (createGifs logs only the error's name). Written whole, then renamed over the old file, so a
+// crash mid-write never leaves half a key file; mode: the new file's permissions (0o600 for the keys).
+function jsonFileStore(file, { mode } = {}) {
+  const fs = require("fs"), path = require("path");
+  return {
+    read: () => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch (e) { if (e.code === "ENOENT") return null; throw e; } },
+    write: (data) => {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(`${file}.tmp`, JSON.stringify(data), mode === undefined ? undefined : { mode });
+      fs.renameSync(`${file}.tmp`, file);
+    },
+  };
+}
+
+module.exports = { createGifs, createFavs, favItem, favWho, giphy, cleanWords, cleanTitle, cleanRating, cleanPage, mediaLink, viaProxy, restText, jsonFileStore,
   PER_PAGE, RATINGS, DEFAULT_RATING, HOUR_LIMIT, CACHE_MS, WORDS_MAX, FAV_MAX };

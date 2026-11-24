@@ -46,7 +46,11 @@ outer repo's `engine/manabrew.patch` history (`git -C mtg-tts log -- engine/mana
    Forge's own Java changes. Run the live checks against the built tag with `sh tools/live-check.sh <tag> <test.js>`.
 4. Regenerate `engine/manabrew.patch` (and `forge.patch`) with `engine/make-patches.sh` in a clean tree made by
    `build-images.sh`.
-5. Deploy with `node tools/deploy.js --image <tag>` (TTS closed, no game running). It runs the gates, retags
+5. Deploy with `node tools/deploy.js --image <tag>` (TTS closed, no game running). Since 2026-11-24 it needs
+   `MTG_MANABREW` (the tree going out) and runs that tree's harness tests itself after the gates: every class of
+   `harness-tests.sh` in `mtg-harness-test:<build id>` (built from the tree's java-builder stage, cached when Forge is
+   unchanged); a failed or un-runnable run stops it, and so does a `*Test.java` missing from the script's default list
+   (`tests/test_deploy.js`). It runs the gates, retags
    `mtg-forge-node:<tag>` as `:exile`, and retags `mtg-relay:<tag>` too when that tag exists. It writes
    `stack/deployed.json`. A deploy of an engine from a tree without the newest protocol fields needs
    `MTG_MANABREW=tmp/mb-pc` (batch 2 did).
