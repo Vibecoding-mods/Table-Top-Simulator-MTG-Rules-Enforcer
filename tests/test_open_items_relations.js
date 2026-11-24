@@ -236,6 +236,15 @@ async function manaBackRelations() {
       theirsB.gameView.players.find((p) => p.id === "player-1").manaPool = { ...EMPTY, G: 2 };
       const theirPool = await ask(theirsB, prompt("chooseAction", { actions: acts }));
       ok(`mana back U4: the opponent's floating mana offers none (${tag})`, offered(theirPool).length === 0, J(offered(theirPool)));
+      // U5 (bridge.js's "a priority the Arena-style passing would pass is asked instead ... The passes the player chose
+      // above still pass"): on their turn, the same floating-mana priority asked without Auto-resolve is passed with it
+      if (turn === "theirs") {
+        const s = sit(boardWith(turn, { ...EMPTY, R: 1 }));
+        s.h.B.onTTS({ t: "autoresolve", json: J({ color: "Blue", on: true }) });
+        s.h.B.onPrompt(s.seat, prompt("chooseAction", { actions: acts }));
+        await s.h.flush();
+        ok(`mana back U5: Auto-resolve still passes a floating-mana priority (${tag})`, live.ui && !s.seat.prompt && s.sent.length === 1 && s.sent[0]?.type === "pass", J({ open: !!s.seat.prompt, sent: s.sent }));
+      }
     }
   }
 }

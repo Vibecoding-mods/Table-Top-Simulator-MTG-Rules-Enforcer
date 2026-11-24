@@ -200,6 +200,30 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     const w = await prio(h, white, board({ stack: [bond(3)] }));
     ok("No: White asked", white.prompt?.promptId === w && !answered(calls, w));
     ok("No: no Accept button after", !optIds(white).includes("__tlaccept"), optIds(white).join(","));
+    // (a No is no limit: the run goes on for Blue, its next target answered unseen)
+    const t4 = await bondTarget(h, seat, 4);
+    ok("No: the run goes on for Blue", !!h.B._getGame().tloop && seat.prompt === null && !!answered(calls, t4), JSON.stringify({ run: !!h.B._getGame().tloop, open: seat.prompt?.ui?.title, said: chats(h, mark) }));
+  });
+  // (Blue's own priority over the loop passed even where a stop of Blue's would ask: the end step with the End stop on)
+  await run(async (h) => {
+    const { seat, white, calls } = setup(h);
+    seat.stops = new Set(["end"]);
+    for (let i = 0; i < 2; i++) await pass(h, seat, white, i, { step: "end" });
+    const t = await bondTarget(h, seat, 2, { step: "end" });
+    await answer(h, t, "__tl:10");
+    if (seat.prompt) await answer(h, seat.prompt.promptId, "player|player-1");
+    const p = await prio(h, seat, board({ stack: [blood(2)], step: "end" }));
+    ok("own priority: passed during the run even at a stop", !!h.B._getGame().tloop && seat.prompt === null && answered(calls, p)?.out?.type === "pass", JSON.stringify({ run: !!h.B._getGame().tloop, open: seat.prompt?.ui?.title }));
+  });
+  // (declined in one step, offered again in the next: "not offered again" is per step)
+  await run(async (h) => {
+    const { seat, white } = setup(h);
+    const t = await toOffer(h, seat, white);
+    await answer(h, t, "__tl:no");
+    if (seat.prompt) await answer(h, seat.prompt.promptId, "player|player-1");
+    for (let i = 3; i < 5; i++) await pass(h, seat, white, i, { step: "end" });
+    await bondTarget(h, seat, 5, { step: "end" });
+    ok("declined: offered again in the next step", /keep triggering: run the loop how many times\?$/.test(seat.prompt?.ui?.title || ""), seat.prompt?.ui?.title);
   });
   // (No in the priority question: said, back to the priority, the button gone)
   await run(async (h) => {

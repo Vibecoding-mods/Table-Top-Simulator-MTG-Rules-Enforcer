@@ -4821,7 +4821,9 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     const h = harness.load();
     const seat = setup(h, F.board);
     const fields = ["endTurnAt", "resolveStack", "queuedPlay", "attachTo", "targetPicks", "cardsDone", "unless", "autoPayCard",
-      "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack", "attackData", "attackRefused", "lastAttack"];
+      "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack", "attackData", "attackRefused", "lastAttack",
+      // (and the ones added since: a repeat, a loop's Repeat ×N, Keep targets, Sacrifice X, the Taxes setting's Pay)
+      "repeatAnswer", "loop", "loopLog", "loopOffer", "loopQuiet", "keepTargets", "sacRun", "taxPay"];
     const now = clone(F.board); now.gameView.turn = 9;
     seat.onEnvelope({ kind: "state", forPlayer: "player-0", state: clone(now), fingerprint: "t9" }); await h.flush();
     for (const f of fields) seat[f] = { set: f };
