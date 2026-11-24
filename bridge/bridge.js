@@ -10446,6 +10446,14 @@ function tloopTrack(gv) {
   const onStack = new Map();
   for (const s of gv.stack || []) if (tloopIsTrig(s)) onStack.set(tloopSig(s), (onStack.get(tloopSig(s)) || 0) + 1);
   for (const [k, n] of onStack) if (n > 1) seen.batch.add(k);
+  // (a spell or ability a player plays, not a trigger, starts that player's count again: triggers from casts are no loop of
+  // triggers, CR 732.4 vs 732.2; Hullbreaker Horror and Kykar trigger on every cast of the user's Sol Ring loop, 2026-11-24)
+  for (const s of gv.stack || []) {
+    if (seen.ids.has(s.id) || tloopIsTrig(s)) continue;
+    seen.ids.add(s.id);
+    if (game.tloop) continue; // (a run under way keeps its count: the spell ends it, tloopStops, after the passes done)
+    for (const [k, c] of seen.ctl) if (c === s.controllerId) seen.counts.delete(k);
+  }
   for (const s of gv.stack || []) {
     if (seen.ids.has(s.id) || !tloopIsTrig(s)) continue;
     seen.ids.add(s.id);
@@ -15216,7 +15224,11 @@ function checkRestored(seat) {
   log(`${seat.color}: the game was rewound (turn ${wasTurn} -> ${turn} ${gv.step}${pointsBack ? `, restore points ${wasNewest} -> ${newest}` : ""}${voteBack ? `, vote ${approved} approved` : ""})`);
   if (seat.prompt) closePrompt(seat);
   seat.clearFollowUps();
-  if (game.tloop) { game.tloop = null; game.tloopSeen = null; } // (a loop of triggers is forgotten, unsaid: the rewind is said)
+  // (a loop of triggers is forgotten, unsaid: the rewind is said; so are the triggers counted toward one, or the undone
+  // ones count again: Kykar + Hullbreaker Horror was offered as a loop right after an Undo, the user's test 2026-11-24)
+  game.tloop = null;
+  game.tloopSeen = null;
+  game.tloopNo = null;
   game.pendingPlays = (game.pendingPlays || []).filter((e) => e.ctl !== seat.slot);
   if (seat === leadSeat()) {
     chat(`[MTG] Rewound to turn ${gv.turn} (${rewindStep(gv.step)}).`);
@@ -15465,7 +15477,7 @@ if (require.main === module) {
   module.exports = {
     alignment, tableCard, costNow, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
     summarizeLands, swapWords, tokensCounted, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword, playWindow,
-    _setGame: (g) => { game = g; }, _getGame: () => game, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
+    _setGame: (g) => { game = g; }, _getGame: () => game, _checkRestored: checkRestored, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
     _spellsMark: spellsMark, _actingFor: actingFor, _tokenRuns: (on) => { tableTokenRuns = !!on; }, _packRunIds: packRunIds, _tieState: tieState, _stalemateEarners: stalemateEarners, _forcedTieEarned: forcedTieEarned, STALEMATE_EARNED_BY, _steamIds: steamIds, _harmlessVotes: harmlessVotes, _accomplishments: accomplishments, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice, deckListArt, _startConfig: () => startConfig(), _match: match, _matchWaiting: () => matchWaiting(),
     _archenemy: archenemy, _onArchenemy: onArchenemy, _onSchemes: onSchemes, _withArchenemy: withArchenemy, _forgeSchemes: forgeSchemes, ARCH_NO_UNDO, ARCH_SWITCH_OFF,
     _engineSetting: () => ({ RELAY, KEY, REMOTE_ENGINE }), _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,

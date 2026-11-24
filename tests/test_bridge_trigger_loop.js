@@ -328,6 +328,43 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     ok("AI loop: ×10 passes 10 passes of the loop, then asks", unseen === 10 && white.prompt !== null, `${unseen} passed`);
   });
 
+  // 9. triggers from casts are no loop of triggers (the user's Hullbreaker Horror + Sol Ring loop, 2026-11-24): each pass
+  // Blue casts a spell and its trigger goes on above it; three passes, no offer
+  const spell = (i, ctl = "player-0") => ({ id: `engine-stack-${500 + i}`, sourceId: `engine-card-${60 + i}`, controllerId: ctl, identity: { name: "Sol Ring" }, text: "Sol Ring" });
+  const castPass = (h, seat, i) => ask(h, seat, board({ stack: [spell(i), bond(i)] }),
+    { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, candidates: [{ id: "player-1", kind: "player" }], presentation: { title: "Choose target opponent" } },
+    { sourceCard: { id: "engine-card-10", identity: { name: "Sanguine Bond" } }, sourceAbilityText: BOND });
+  await run(async (h) => {
+    const { seat } = setup(h);
+    for (let i = 0; i < 4; i++) {
+      const t = await castPass(h, seat, i);
+      ok(`casts: pass ${i + 1} asked as usual`, seat.prompt?.promptId === t && seat.prompt.ui.title === TARGET_TITLE, seat.prompt?.ui?.title);
+      if (seat.prompt) await answer(h, t, "player|player-1");
+    }
+  });
+  // (another player's spell doesn't restart Blue's count: White's Bolt each pass, Blue's loop still found on the third)
+  await run(async (h) => {
+    const { seat } = setup(h);
+    const theirs = (i) => [{ ...spell(i, "player-1"), identity: { name: "Lightning Bolt" } }];
+    for (let i = 0; i < 2; i++) { await bondTarget(h, seat, i); if (seat.prompt) await answer(h, seat.prompt.promptId, "player|player-1"); }
+    const t = await ask(h, seat, board({ stack: [...theirs(2), bond(2)] }), { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, candidates: [{ id: "player-1", kind: "player" }], presentation: { title: "Choose target opponent" } },
+      { sourceCard: { id: "engine-card-10", identity: { name: "Sanguine Bond" } }, sourceAbilityText: BOND });
+    ok("casts: another player's spell keeps the count", seat.prompt?.promptId === t && /keep triggering/.test(seat.prompt.ui.title), seat.prompt?.ui?.title);
+  });
+
+  // 10. a rewind forgets the triggers counted toward a loop: two passes, Undo, one more pass, no offer
+  await run(async (h) => {
+    const { seat, white } = setup(h);
+    await pass(h, seat, white, 0);
+    await pass(h, seat, white, 1);
+    seat.lastTurn = 6;
+    seat.board.state.gameView = board();
+    h.B._checkRestored(seat);
+    ok("rewind: the counts forgotten", !h.B._getGame().tloopSeen, JSON.stringify(h.B._getGame().tloopSeen?.counts && [...h.B._getGame().tloopSeen.counts]));
+    const t = await bondTarget(h, seat, 2);
+    ok("rewind: the next pass asked as usual", seat.prompt?.promptId === t && seat.prompt.ui.title === TARGET_TITLE, seat.prompt?.ui?.title);
+  });
+
   process.stdout.write(failed ? `test_bridge_trigger_loop: ${failed} FAILED, ${passed} passed\n` : `test_bridge_trigger_loop: all ${passed} passed\n`);
   process.exit(failed ? 1 : 0);
 })();
