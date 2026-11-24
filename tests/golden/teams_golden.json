@@ -79,17 +79,20 @@
      "2hg": {
       "rule": "sharedLife",
       "name": "Two-Headed Giant",
-      "gameMode": "commander"
+      "gameMode": "commander",
+      "seats": 4
      },
      "2v2": {
       "rule": "teams",
       "name": "2v2",
-      "gameMode": "standard"
+      "gameMode": "standard",
+      "seats": 4
      },
      "juggernaut": {
       "rule": "teams",
       "name": "Juggernaut",
-      "gameMode": "commander"
+      "gameMode": "commander",
+      "seats": 4
      },
      "archenemy": {
       "rule": "teamTurns",
@@ -759,12 +762,7 @@
  },
  {
   "name": "teamModeOf [\"2v2\"]",
-  "result": [
-   "2v2"
-  ],
-  "aliases": [
-   "result is args.0"
-  ]
+  "result": "2hg"
  },
  {
   "name": "teamModeProblem undefined in commander",
@@ -2353,9 +2351,9 @@
  },
  {
   "name": "sides empty",
-  "threw": {
-   "type": "TypeError",
-   "message": "Cannot read properties of undefined (reading 'push')"
+  "result": {
+   "1": [],
+   "2": []
   }
  },
  {
@@ -2386,37 +2384,46 @@
  },
  {
   "name": "sides three",
-  "threw": {
-   "type": "TypeError",
-   "message": "Cannot read properties of undefined (reading 'push')"
+  "result": {
+   "1": [
+    "Red"
+   ],
+   "2": [
+    "Yellow",
+    "Blue"
+   ]
   }
  },
  {
   "name": "sides zero",
-  "threw": {
-   "type": "TypeError",
-   "message": "Cannot read properties of undefined (reading 'push')"
+  "result": {
+   "1": [],
+   "2": []
   }
  },
  {
   "name": "sides floats",
-  "threw": {
-   "type": "TypeError",
-   "message": "Cannot read properties of undefined (reading 'push')"
+  "result": {
+   "1": [
+    "White"
+   ],
+   "2": [
+    "Red"
+   ]
   }
  },
  {
   "name": "sides spaced",
-  "threw": {
-   "type": "TypeError",
-   "message": "Cannot read properties of undefined (reading 'push')"
+  "result": {
+   "1": [],
+   "2": []
   }
  },
  {
   "name": "sides bools",
-  "threw": {
-   "type": "TypeError",
-   "message": "Cannot read properties of undefined (reading 'push')"
+  "result": {
+   "1": [],
+   "2": []
   }
  },
  {
@@ -2434,16 +2441,20 @@
  },
  {
   "name": "sides lower",
-  "threw": {
-   "type": "TypeError",
-   "message": "Cannot read properties of undefined (reading 'push')"
+  "result": {
+   "1": [],
+   "2": []
   }
  },
  {
   "name": "sides neg",
-  "threw": {
-   "type": "TypeError",
-   "message": "Cannot read properties of undefined (reading 'push')"
+  "result": {
+   "1": [
+    "Blue"
+   ],
+   "2": [
+    "Yellow"
+   ]
   }
  },
  {
@@ -3218,6 +3229,62 @@
  {
   "name": "teamsProblem redYellow total=4 mode=bogus",
   "result": null
+ },
+ {
+  "name": "teamsProblem redBlue total=3 mode=undefined",
+  "result": "Two-Headed Giant needs all four seats filled (seated players + AI players), not 3. Add AI players with  mtg start ai N  or  mtg ai <colour> forge."
+ },
+ {
+  "name": "teamsProblem redBlue total=3 mode=2hg",
+  "result": "Two-Headed Giant needs all four seats filled (seated players + AI players), not 3. Add AI players with  mtg start ai N  or  mtg ai <colour> forge."
+ },
+ {
+  "name": "teamsProblem redBlue total=3 mode=2v2",
+  "result": "2v2 needs all four seats filled (seated players + AI players), not 3. Add AI players with  mtg start ai N  or  mtg ai <colour> forge."
+ },
+ {
+  "name": "teamsProblem redBlue total=3 mode=juggernaut",
+  "result": "Juggernaut is one against three: all four seats filled (seated players + AI players), not 3. Add AI players with  mtg start ai N  or  mtg ai <colour> forge."
+ },
+ {
+  "name": "teamsProblem redBlue total=3 mode=archenemy",
+  "result": null
+ },
+ {
+  "name": "teamsProblem redBlue total=3 mode=3hg",
+  "result": "Three-Headed Giant needs all six seats filled (seated players + AI players), not 3. Add AI players with  mtg start ai N  or  mtg ai <colour> forge."
+ },
+ {
+  "name": "teamsProblem redBlue total=3 mode=bogus",
+  "result": "Two-Headed Giant needs all four seats filled (seated players + AI players), not 3. Add AI players with  mtg start ai N  or  mtg ai <colour> forge."
+ },
+ {
+  "name": "teamsProblem redBlue total=4 mode=undefined",
+  "result": "Partners sit next to each other in turn order (White, Red, Yellow, Blue): Red + Blue and White + Yellow don't. Use  mtg team <colour> <1|2>."
+ },
+ {
+  "name": "teamsProblem redBlue total=4 mode=2hg",
+  "result": "Partners sit next to each other in turn order (White, Red, Yellow, Blue): Red + Blue and White + Yellow don't. Use  mtg team <colour> <1|2>."
+ },
+ {
+  "name": "teamsProblem redBlue total=4 mode=2v2",
+  "result": null
+ },
+ {
+  "name": "teamsProblem redBlue total=4 mode=juggernaut",
+  "result": null
+ },
+ {
+  "name": "teamsProblem redBlue total=4 mode=archenemy",
+  "result": null
+ },
+ {
+  "name": "teamsProblem redBlue total=4 mode=3hg",
+  "result": "Three-Headed Giant needs all six seats filled (seated players + AI players), not 4. Add AI players with  mtg start ai N  or  mtg ai <colour> forge."
+ },
+ {
+  "name": "teamsProblem redBlue total=4 mode=bogus",
+  "result": "Partners sit next to each other in turn order (White, Red, Yellow, Blue): Red + Blue and White + Yellow don't. Use  mtg team <colour> <1|2>."
  },
  {
   "name": "teamsProblem yellowBlue total=3 mode=undefined",
@@ -4793,17 +4860,11 @@
  },
  {
   "name": "teamsField null mode=arch White",
-  "threw": {
-   "type": "TypeError",
-   "message": "Cannot read properties of null (reading 'players')"
-  }
+  "result": {}
  },
  {
   "name": "teamsField null mode=arch Red",
-  "threw": {
-   "type": "TypeError",
-   "message": "Cannot read properties of null (reading 'players')"
-  }
+  "result": {}
  },
  {
   "name": "teamsField null mode=arch none",
@@ -4811,10 +4872,7 @@
  },
  {
   "name": "teamsField null mode=arch Green",
-  "threw": {
-   "type": "TypeError",
-   "message": "Cannot read properties of null (reading 'players')"
-  }
+  "result": {}
  },
  {
   "name": "sharesLife undefined",
@@ -4850,17 +4908,11 @@
  },
  {
   "name": "teamsField undefined mode=arch White",
-  "threw": {
-   "type": "TypeError",
-   "message": "Cannot read properties of undefined (reading 'players')"
-  }
+  "result": {}
  },
  {
   "name": "teamsField undefined mode=arch Red",
-  "threw": {
-   "type": "TypeError",
-   "message": "Cannot read properties of undefined (reading 'players')"
-  }
+  "result": {}
  },
  {
   "name": "teamsField undefined mode=arch none",
@@ -4868,10 +4920,7 @@
  },
  {
   "name": "teamsField undefined mode=arch Green",
-  "threw": {
-   "type": "TypeError",
-   "message": "Cannot read properties of undefined (reading 'players')"
-  }
+  "result": {}
  },
  {
   "name": "sharesLife empty",
@@ -18302,6 +18351,1166 @@
  },
  {
   "name": "poisonLabel rulesNoRule undefined",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "sharesLife ruleList",
+  "result": false
+ },
+ {
+  "name": "sharesTurns ruleList",
+  "result": false
+ },
+ {
+  "name": "boardTeams ruleList",
+  "result": null
+ },
+ {
+  "name": "turnPlayerIds ruleList",
+  "result": [
+   "p0"
+  ]
+ },
+ {
+  "name": "teamsField ruleList mode=none",
+  "result": {}
+ },
+ {
+  "name": "teamsField ruleList mode=2hg",
+  "result": {}
+ },
+ {
+  "name": "teamsField ruleList mode=2v2",
+  "result": {}
+ },
+ {
+  "name": "teamsField ruleList mode=jugg",
+  "result": {}
+ },
+ {
+  "name": "teamsField ruleList mode=arch White",
+  "result": {
+   "teams": {
+    "rule": "teams",
+    "mode": "archenemy",
+    "sides": [
+     [
+      "White"
+     ],
+     [
+      "Red",
+      "Yellow"
+     ]
+    ],
+    "archenemy": "White"
+   }
+  }
+ },
+ {
+  "name": "teamsField ruleList mode=arch Red",
+  "result": {
+   "teams": {
+    "rule": "teams",
+    "mode": "archenemy",
+    "sides": [
+     [
+      "White",
+      "Yellow"
+     ],
+     [
+      "Red"
+     ]
+    ],
+    "archenemy": "Red"
+   }
+  }
+ },
+ {
+  "name": "teamsField ruleList mode=arch none",
+  "result": {}
+ },
+ {
+  "name": "teamsField ruleList mode=arch Green",
+  "result": {}
+ },
+ {
+  "name": "teamOf ruleList p0",
+  "result": [
+   {
+    "id": "p0",
+    "life": 20,
+    "teamNumber": 1
+   }
+  ],
+  "aliases": [
+   "result.0 is args.0"
+  ]
+ },
+ {
+  "name": "withTeamDamage ruleList p0",
+  "result": {
+   "id": "p0",
+   "life": 20,
+   "teamNumber": 1
+  },
+  "aliases": [
+   "result is args.0"
+  ]
+ },
+ {
+  "name": "teamLifeTip ruleList p0",
+  "result": null
+ },
+ {
+  "name": "isTurnOf ruleList p0",
+  "result": true
+ },
+ {
+  "name": "turnPartnerOf ruleList p0",
+  "result": null
+ },
+ {
+  "name": "turnWhose ruleList p0",
+  "result": "your"
+ },
+ {
+  "name": "turnPartners ruleList p0 p0",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p0 p1",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p0 p2",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p0 nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p0 null",
+  "result": false
+ },
+ {
+  "name": "teamOf ruleList p1",
+  "result": [
+   {
+    "id": "p1",
+    "life": 20,
+    "teamNumber": 1
+   }
+  ],
+  "aliases": [
+   "result.0 is args.0"
+  ]
+ },
+ {
+  "name": "withTeamDamage ruleList p1",
+  "result": {
+   "id": "p1",
+   "life": 20,
+   "teamNumber": 1
+  },
+  "aliases": [
+   "result is args.0"
+  ]
+ },
+ {
+  "name": "teamLifeTip ruleList p1",
+  "result": null
+ },
+ {
+  "name": "isTurnOf ruleList p1",
+  "result": false
+ },
+ {
+  "name": "turnPartnerOf ruleList p1",
+  "result": null
+ },
+ {
+  "name": "turnWhose ruleList p1",
+  "result": "N(p0)'s",
+  "calls": [
+   [
+    "nameOf",
+    "p0"
+   ]
+  ]
+ },
+ {
+  "name": "turnPartners ruleList p1 p0",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p1 p1",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p1 p2",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p1 nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p1 null",
+  "result": false
+ },
+ {
+  "name": "teamOf ruleList p2",
+  "result": [
+   {
+    "id": "p2",
+    "life": 20,
+    "teamNumber": 2
+   }
+  ],
+  "aliases": [
+   "result.0 is args.0"
+  ]
+ },
+ {
+  "name": "withTeamDamage ruleList p2",
+  "result": {
+   "id": "p2",
+   "life": 20,
+   "teamNumber": 2
+  },
+  "aliases": [
+   "result is args.0"
+  ]
+ },
+ {
+  "name": "teamLifeTip ruleList p2",
+  "result": null
+ },
+ {
+  "name": "isTurnOf ruleList p2",
+  "result": false
+ },
+ {
+  "name": "turnPartnerOf ruleList p2",
+  "result": null
+ },
+ {
+  "name": "turnWhose ruleList p2",
+  "result": "N(p0)'s",
+  "calls": [
+   [
+    "nameOf",
+    "p0"
+   ]
+  ]
+ },
+ {
+  "name": "turnPartners ruleList p2 p0",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p2 p1",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p2 p2",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p2 nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p2 null",
+  "result": false
+ },
+ {
+  "name": "teamOf ruleList p3",
+  "result": [
+   {
+    "id": "p3",
+    "teamNumber": 1
+   }
+  ],
+  "aliases": [
+   "result.0 is args.0"
+  ]
+ },
+ {
+  "name": "withTeamDamage ruleList p3",
+  "result": {
+   "id": "p3",
+   "teamNumber": 1
+  },
+  "aliases": [
+   "result is args.0"
+  ]
+ },
+ {
+  "name": "teamLifeTip ruleList p3",
+  "result": null
+ },
+ {
+  "name": "isTurnOf ruleList p3",
+  "result": false
+ },
+ {
+  "name": "turnPartnerOf ruleList p3",
+  "result": null
+ },
+ {
+  "name": "turnWhose ruleList p3",
+  "result": "N(p0)'s",
+  "calls": [
+   [
+    "nameOf",
+    "p0"
+   ]
+  ]
+ },
+ {
+  "name": "turnPartners ruleList p3 p0",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p3 p1",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p3 p2",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p3 nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList p3 null",
+  "result": false
+ },
+ {
+  "name": "teamOf ruleList nobody",
+  "result": [
+   {
+    "id": "nobody",
+    "teamNumber": 1
+   }
+  ],
+  "aliases": [
+   "result.0 is args.0"
+  ]
+ },
+ {
+  "name": "withTeamDamage ruleList nobody",
+  "result": {
+   "id": "nobody",
+   "teamNumber": 1
+  },
+  "aliases": [
+   "result is args.0"
+  ]
+ },
+ {
+  "name": "teamLifeTip ruleList nobody",
+  "result": null
+ },
+ {
+  "name": "isTurnOf ruleList nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartnerOf ruleList nobody",
+  "result": null
+ },
+ {
+  "name": "turnWhose ruleList nobody",
+  "result": "N(p0)'s",
+  "calls": [
+   [
+    "nameOf",
+    "p0"
+   ]
+  ]
+ },
+ {
+  "name": "turnPartners ruleList nobody p0",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList nobody p1",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList nobody p2",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList nobody nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList nobody null",
+  "result": false
+ },
+ {
+  "name": "teamOf ruleList null",
+  "result": [
+   {
+    "id": null,
+    "teamNumber": 1
+   }
+  ],
+  "aliases": [
+   "result.0 is args.0"
+  ]
+ },
+ {
+  "name": "withTeamDamage ruleList null",
+  "result": {
+   "id": null,
+   "teamNumber": 1
+  },
+  "aliases": [
+   "result is args.0"
+  ]
+ },
+ {
+  "name": "teamLifeTip ruleList null",
+  "result": null
+ },
+ {
+  "name": "isTurnOf ruleList null",
+  "result": false
+ },
+ {
+  "name": "turnPartnerOf ruleList null",
+  "result": null
+ },
+ {
+  "name": "turnWhose ruleList null",
+  "result": "N(p0)'s",
+  "calls": [
+   [
+    "nameOf",
+    "p0"
+   ]
+  ]
+ },
+ {
+  "name": "turnPartners ruleList null p0",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList null p1",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList null p2",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList null nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList null null",
+  "result": false
+ },
+ {
+  "name": "teamOf ruleList undefined",
+  "result": [
+   {
+    "id": {
+     "$u": 1
+    },
+    "teamNumber": 1
+   }
+  ],
+  "aliases": [
+   "result.0 is args.0"
+  ]
+ },
+ {
+  "name": "withTeamDamage ruleList undefined",
+  "result": {
+   "id": {
+    "$u": 1
+   },
+   "teamNumber": 1
+  },
+  "aliases": [
+   "result is args.0"
+  ]
+ },
+ {
+  "name": "teamLifeTip ruleList undefined",
+  "result": null
+ },
+ {
+  "name": "isTurnOf ruleList undefined",
+  "result": false
+ },
+ {
+  "name": "turnPartnerOf ruleList undefined",
+  "result": null
+ },
+ {
+  "name": "turnWhose ruleList undefined",
+  "result": "N(p0)'s",
+  "calls": [
+   [
+    "nameOf",
+    "p0"
+   ]
+  ]
+ },
+ {
+  "name": "turnPartners ruleList undefined p0",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList undefined p1",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList undefined p2",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList undefined nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleList undefined null",
+  "result": false
+ },
+ {
+  "name": "poisonLabel ruleList \"POISON 3\"",
+  "result": "POISON 3"
+ },
+ {
+  "name": "poisonLabel ruleList \"POISON 0\"",
+  "result": "POISON 0"
+ },
+ {
+  "name": "poisonLabel ruleList \"POISON 15\"",
+  "result": "POISON 15"
+ },
+ {
+  "name": "poisonLabel ruleList \"POISON\"",
+  "result": "POISON"
+ },
+ {
+  "name": "poisonLabel ruleList \"POISON 3/15\"",
+  "result": "POISON 3/15"
+ },
+ {
+  "name": "poisonLabel ruleList \"poison 3\"",
+  "result": "poison 3"
+ },
+ {
+  "name": "poisonLabel ruleList \" POISON 3\"",
+  "result": " POISON 3"
+ },
+ {
+  "name": "poisonLabel ruleList \"POISON 3 \"",
+  "result": "POISON 3 "
+ },
+ {
+  "name": "poisonLabel ruleList \"POISON -1\"",
+  "result": "POISON -1"
+ },
+ {
+  "name": "poisonLabel ruleList \"LIFE 3\"",
+  "result": "LIFE 3"
+ },
+ {
+  "name": "poisonLabel ruleList \"\"",
+  "result": ""
+ },
+ {
+  "name": "poisonLabel ruleList undefined",
+  "result": {
+   "$u": 1
+  }
+ },
+ {
+  "name": "sharesLife ruleProto",
+  "result": false
+ },
+ {
+  "name": "sharesTurns ruleProto",
+  "result": false
+ },
+ {
+  "name": "boardTeams ruleProto",
+  "result": null
+ },
+ {
+  "name": "turnPlayerIds ruleProto",
+  "result": [
+   "p0"
+  ]
+ },
+ {
+  "name": "teamsField ruleProto mode=none",
+  "result": {}
+ },
+ {
+  "name": "teamsField ruleProto mode=2hg",
+  "result": {}
+ },
+ {
+  "name": "teamsField ruleProto mode=2v2",
+  "result": {}
+ },
+ {
+  "name": "teamsField ruleProto mode=jugg",
+  "result": {}
+ },
+ {
+  "name": "teamsField ruleProto mode=arch White",
+  "result": {
+   "teams": {
+    "rule": "teams",
+    "mode": "archenemy",
+    "sides": [
+     [
+      "White"
+     ],
+     [
+      "Red"
+     ]
+    ],
+    "archenemy": "White"
+   }
+  }
+ },
+ {
+  "name": "teamsField ruleProto mode=arch Red",
+  "result": {
+   "teams": {
+    "rule": "teams",
+    "mode": "archenemy",
+    "sides": [
+     [
+      "White"
+     ],
+     [
+      "Red"
+     ]
+    ],
+    "archenemy": "Red"
+   }
+  }
+ },
+ {
+  "name": "teamsField ruleProto mode=arch none",
+  "result": {}
+ },
+ {
+  "name": "teamsField ruleProto mode=arch Green",
+  "result": {}
+ },
+ {
+  "name": "teamOf ruleProto p0",
+  "result": [
+   {
+    "id": "p0",
+    "life": 20,
+    "teamNumber": 1
+   }
+  ],
+  "aliases": [
+   "result.0 is args.0"
+  ]
+ },
+ {
+  "name": "withTeamDamage ruleProto p0",
+  "result": {
+   "id": "p0",
+   "life": 20,
+   "teamNumber": 1
+  },
+  "aliases": [
+   "result is args.0"
+  ]
+ },
+ {
+  "name": "teamLifeTip ruleProto p0",
+  "result": null
+ },
+ {
+  "name": "isTurnOf ruleProto p0",
+  "result": true
+ },
+ {
+  "name": "turnPartnerOf ruleProto p0",
+  "result": null
+ },
+ {
+  "name": "turnWhose ruleProto p0",
+  "result": "your"
+ },
+ {
+  "name": "turnPartners ruleProto p0 p0",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p0 p1",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p0 p2",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p0 nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p0 null",
+  "result": false
+ },
+ {
+  "name": "teamOf ruleProto p1",
+  "result": [
+   {
+    "id": "p1",
+    "life": 20,
+    "teamNumber": 1
+   }
+  ],
+  "aliases": [
+   "result.0 is args.0"
+  ]
+ },
+ {
+  "name": "withTeamDamage ruleProto p1",
+  "result": {
+   "id": "p1",
+   "life": 20,
+   "teamNumber": 1
+  },
+  "aliases": [
+   "result is args.0"
+  ]
+ },
+ {
+  "name": "teamLifeTip ruleProto p1",
+  "result": null
+ },
+ {
+  "name": "isTurnOf ruleProto p1",
+  "result": false
+ },
+ {
+  "name": "turnPartnerOf ruleProto p1",
+  "result": null
+ },
+ {
+  "name": "turnWhose ruleProto p1",
+  "result": "N(p0)'s",
+  "calls": [
+   [
+    "nameOf",
+    "p0"
+   ]
+  ]
+ },
+ {
+  "name": "turnPartners ruleProto p1 p0",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p1 p1",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p1 p2",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p1 nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p1 null",
+  "result": false
+ },
+ {
+  "name": "teamOf ruleProto p2",
+  "result": [
+   {
+    "id": "p2",
+    "teamNumber": 1
+   }
+  ],
+  "aliases": [
+   "result.0 is args.0"
+  ]
+ },
+ {
+  "name": "withTeamDamage ruleProto p2",
+  "result": {
+   "id": "p2",
+   "teamNumber": 1
+  },
+  "aliases": [
+   "result is args.0"
+  ]
+ },
+ {
+  "name": "teamLifeTip ruleProto p2",
+  "result": null
+ },
+ {
+  "name": "isTurnOf ruleProto p2",
+  "result": false
+ },
+ {
+  "name": "turnPartnerOf ruleProto p2",
+  "result": null
+ },
+ {
+  "name": "turnWhose ruleProto p2",
+  "result": "N(p0)'s",
+  "calls": [
+   [
+    "nameOf",
+    "p0"
+   ]
+  ]
+ },
+ {
+  "name": "turnPartners ruleProto p2 p0",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p2 p1",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p2 p2",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p2 nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p2 null",
+  "result": false
+ },
+ {
+  "name": "teamOf ruleProto p3",
+  "result": [
+   {
+    "id": "p3",
+    "teamNumber": 1
+   }
+  ],
+  "aliases": [
+   "result.0 is args.0"
+  ]
+ },
+ {
+  "name": "withTeamDamage ruleProto p3",
+  "result": {
+   "id": "p3",
+   "teamNumber": 1
+  },
+  "aliases": [
+   "result is args.0"
+  ]
+ },
+ {
+  "name": "teamLifeTip ruleProto p3",
+  "result": null
+ },
+ {
+  "name": "isTurnOf ruleProto p3",
+  "result": false
+ },
+ {
+  "name": "turnPartnerOf ruleProto p3",
+  "result": null
+ },
+ {
+  "name": "turnWhose ruleProto p3",
+  "result": "N(p0)'s",
+  "calls": [
+   [
+    "nameOf",
+    "p0"
+   ]
+  ]
+ },
+ {
+  "name": "turnPartners ruleProto p3 p0",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p3 p1",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p3 p2",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p3 nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto p3 null",
+  "result": false
+ },
+ {
+  "name": "teamOf ruleProto nobody",
+  "result": [
+   {
+    "id": "nobody",
+    "teamNumber": 1
+   }
+  ],
+  "aliases": [
+   "result.0 is args.0"
+  ]
+ },
+ {
+  "name": "withTeamDamage ruleProto nobody",
+  "result": {
+   "id": "nobody",
+   "teamNumber": 1
+  },
+  "aliases": [
+   "result is args.0"
+  ]
+ },
+ {
+  "name": "teamLifeTip ruleProto nobody",
+  "result": null
+ },
+ {
+  "name": "isTurnOf ruleProto nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartnerOf ruleProto nobody",
+  "result": null
+ },
+ {
+  "name": "turnWhose ruleProto nobody",
+  "result": "N(p0)'s",
+  "calls": [
+   [
+    "nameOf",
+    "p0"
+   ]
+  ]
+ },
+ {
+  "name": "turnPartners ruleProto nobody p0",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto nobody p1",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto nobody p2",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto nobody nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto nobody null",
+  "result": false
+ },
+ {
+  "name": "teamOf ruleProto null",
+  "result": [
+   {
+    "id": null,
+    "teamNumber": 1
+   }
+  ],
+  "aliases": [
+   "result.0 is args.0"
+  ]
+ },
+ {
+  "name": "withTeamDamage ruleProto null",
+  "result": {
+   "id": null,
+   "teamNumber": 1
+  },
+  "aliases": [
+   "result is args.0"
+  ]
+ },
+ {
+  "name": "teamLifeTip ruleProto null",
+  "result": null
+ },
+ {
+  "name": "isTurnOf ruleProto null",
+  "result": false
+ },
+ {
+  "name": "turnPartnerOf ruleProto null",
+  "result": null
+ },
+ {
+  "name": "turnWhose ruleProto null",
+  "result": "N(p0)'s",
+  "calls": [
+   [
+    "nameOf",
+    "p0"
+   ]
+  ]
+ },
+ {
+  "name": "turnPartners ruleProto null p0",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto null p1",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto null p2",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto null nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto null null",
+  "result": false
+ },
+ {
+  "name": "teamOf ruleProto undefined",
+  "result": [
+   {
+    "id": {
+     "$u": 1
+    },
+    "teamNumber": 1
+   }
+  ],
+  "aliases": [
+   "result.0 is args.0"
+  ]
+ },
+ {
+  "name": "withTeamDamage ruleProto undefined",
+  "result": {
+   "id": {
+    "$u": 1
+   },
+   "teamNumber": 1
+  },
+  "aliases": [
+   "result is args.0"
+  ]
+ },
+ {
+  "name": "teamLifeTip ruleProto undefined",
+  "result": null
+ },
+ {
+  "name": "isTurnOf ruleProto undefined",
+  "result": false
+ },
+ {
+  "name": "turnPartnerOf ruleProto undefined",
+  "result": null
+ },
+ {
+  "name": "turnWhose ruleProto undefined",
+  "result": "N(p0)'s",
+  "calls": [
+   [
+    "nameOf",
+    "p0"
+   ]
+  ]
+ },
+ {
+  "name": "turnPartners ruleProto undefined p0",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto undefined p1",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto undefined p2",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto undefined nobody",
+  "result": false
+ },
+ {
+  "name": "turnPartners ruleProto undefined null",
+  "result": false
+ },
+ {
+  "name": "poisonLabel ruleProto \"POISON 3\"",
+  "result": "POISON 3"
+ },
+ {
+  "name": "poisonLabel ruleProto \"POISON 0\"",
+  "result": "POISON 0"
+ },
+ {
+  "name": "poisonLabel ruleProto \"POISON 15\"",
+  "result": "POISON 15"
+ },
+ {
+  "name": "poisonLabel ruleProto \"POISON\"",
+  "result": "POISON"
+ },
+ {
+  "name": "poisonLabel ruleProto \"POISON 3/15\"",
+  "result": "POISON 3/15"
+ },
+ {
+  "name": "poisonLabel ruleProto \"poison 3\"",
+  "result": "poison 3"
+ },
+ {
+  "name": "poisonLabel ruleProto \" POISON 3\"",
+  "result": " POISON 3"
+ },
+ {
+  "name": "poisonLabel ruleProto \"POISON 3 \"",
+  "result": "POISON 3 "
+ },
+ {
+  "name": "poisonLabel ruleProto \"POISON -1\"",
+  "result": "POISON -1"
+ },
+ {
+  "name": "poisonLabel ruleProto \"LIFE 3\"",
+  "result": "LIFE 3"
+ },
+ {
+  "name": "poisonLabel ruleProto \"\"",
+  "result": ""
+ },
+ {
+  "name": "poisonLabel ruleProto undefined",
   "result": {
    "$u": 1
   }

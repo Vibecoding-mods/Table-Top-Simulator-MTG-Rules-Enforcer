@@ -3,6 +3,8 @@
 //   node tools/mutate-teams-golden.js [label pattern]
 // First pass 2026-11-24: 33 of 35 caught (5.7% escaped, SOUND); the two escapes (an `in` for hasOwnProperty, the
 // commander limit sent only above 21) were closed with new rows and are caught now.
+// Second pass, after the teams.js suite edits: 43 of 44 caught (2.3%, SOUND), 1 argued equivalent; the escape (RULES
+// read without the string and own-property check) was closed with boards whose rule is a list or "toString".
 const path = require("path");
 const { runMutations } = require("./mutate-golden-lib");
 
@@ -13,7 +15,16 @@ const ROOT = path.join(__dirname, "..");
 const MUTATIONS = [
   ["teamsOf: 1 <= n <= 2 instead of exactly 1 or 2", "out[c] = n === 1 || n === 2 ? n : DEFAULT_TEAMS[c];", "out[c] = n >= 1 && n <= 2 ? n : DEFAULT_TEAMS[c];"],
   ["seatColorsFor: > becomes >=", "Number(n) > TEAM_COLORS.length ?", "Number(n) >= TEAM_COLORS.length ?"],
-  ["teamModeOf: own property becomes `in`", "(Object.prototype.hasOwnProperty.call(TEAM_MODES, raw) ? raw : \"2hg\")", "(raw in TEAM_MODES ? raw : \"2hg\")"],
+  ["teamModeOf: own property becomes `in`", "Object.prototype.hasOwnProperty.call(TEAM_MODES, raw) ? raw : \"2hg\")", "raw in TEAM_MODES ? raw : \"2hg\")"],
+  ["teamModeOf: string check dropped (a list comes back a list)", "(typeof raw === \"string\" && Object.prototype.hasOwnProperty.call(TEAM_MODES, raw)", "(Object.prototype.hasOwnProperty.call(TEAM_MODES, raw)"],
+  ["TEAM_MODES: Two-Headed Giant without its seat count (allowed on the six-seat table)", "gameMode: \"commander\", seats: 4 },\n  \"2v2\"", "gameMode: \"commander\" },\n  \"2v2\""],
+  ["TEAM_MODES: Juggernaut without its seat count", "name: \"Juggernaut\", gameMode: \"commander\", seats: 4 },", "name: \"Juggernaut\", gameMode: \"commander\" },"],
+  ["RULES: own-property check dropped (a rule named toString)", "typeof rule === \"string\" && Object.prototype.hasOwnProperty.call(RULES, rule) && !!RULES[rule][trait]", "!!(RULES[rule] || {})[trait]"],
+  ["RULES: teamTurns loses own (Archenemy read as no team game on the board)", "teamTurns: { turns: true, own: true },", "teamTurns: { turns: true },"],
+  ["sides: a bad team number throws again", "if (Object.prototype.hasOwnProperty.call(out, teams[c])) out[teams[c]].push(c);", "out[teams[c]].push(c);"],
+  ["sides: Three-Headed Giant read on the four-seat colours", "const t = sides(teams, SIX_COLORS);", "const t = sides(teams);"],
+  ["archTeamsField: no board throws again", "const colors = (pub?.players || []).map", "const colors = (pub.players || []).map"],
+  ["winnerOf: the winner by the first player instead", "const winnerOf = (pub) => pub.winnerId && playerOf(pub, pub.winnerId);", "const winnerOf = (pub) => pub.winnerId && (pub.players || [])[0];"],
   ["juggOf: missing value no longer skipped", "if (r[k] != null && Number.isInteger(n)", "if (Number.isInteger(n)"],
   ["juggOf: lower bound exclusive", "Number.isInteger(n) && n >= lo && n <= hi", "Number.isInteger(n) && n > lo && n <= hi"],
   ["juggOf: upper bound exclusive", "n >= lo && n <= hi) out[k] = n;", "n >= lo && n < hi) out[k] = n;"],
@@ -36,7 +47,7 @@ const MUTATIONS = [
   ["teamsField: won shown before the game is over", "...(pub.gameOver && won ? { won } : {}) } };\n}\n\n// Archenemy", "...(won ? { won } : {}) } };\n}\n\n// Archenemy"],
   ["archTeamsField: sides always archenemy first", "const sideList = colors[0] === archColor ? [[archColor], others] : [others, [archColor]];", "const sideList = [[archColor], others];"],
   ["teamBlockLines: duplicates kept", "if (!a.blockerId || !a.attackerId || seen.has(key) || controllerOf(a.blockerId) !== partner) return false;", "if (!a.blockerId || !a.attackerId || controllerOf(a.blockerId) !== partner) return false;"],
-  ["sharesLife: Level 2 dropped", "const sharesLife = (pub) => pub?.teamRules?.rule === \"sharedLife\" || pub?.teamRules?.rule === \"sharedTurns\";", "const sharesLife = (pub) => pub?.teamRules?.rule === \"sharedLife\";"],
+  ["sharesLife: Level 2 dropped", "sharedTurns: { life: true, turns: true },", "sharedTurns: { turns: true },"],
   ["teamWinWords: length < 2 for 'wins'", "${won.length === 1 ? \"wins\" : \"win\"}", "${won.length < 2 ? \"wins\" : \"win\"}"],
   ["juggPerks: draw >= 0", "if (jugg.draw > 0) {", "if (jugg.draw >= 0) {"],
   ["gameConfig: archenemy loses goesFirst", "startingLife: archLife(std), goesFirst: true, schemes:", "startingLife: archLife(std), schemes:"],

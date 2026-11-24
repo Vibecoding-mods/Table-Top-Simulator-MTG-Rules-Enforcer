@@ -116,7 +116,7 @@ function cases() {
 
   // ── teamsProblem ──
   const tp = { default: rawTeams.default, wrap: rawTeams.wrap, across: rawTeams.across, allOne: rawTeams.allOne, threeOne: { White: 1, Red: 1, Yellow: 1, Blue: 2 },
-    redYellow: { White: 2, Red: 1, Yellow: 1, Blue: 2 }, yellowBlue: { White: 2, Red: 2, Yellow: 1, Blue: 1 }, whiteYellow: { White: 1, Red: 2, Yellow: 1, Blue: 2 } };
+    redYellow: { White: 2, Red: 1, Yellow: 1, Blue: 2 }, redBlue: { White: 2, Red: 1, Yellow: 2, Blue: 1 }, yellowBlue: { White: 2, Red: 2, Yellow: 1, Blue: 1 }, whiteYellow: { White: 1, Red: 2, Yellow: 1, Blue: 2 } };
   for (const [k, t] of Object.entries(tp)) for (const total of [0, 1, 2, 3, 4, 5, 6, 7, "4"]) for (const mode of [undefined, "2hg", "2v2", "juggernaut", "archenemy", "3hg", "bogus"]) {
     if ((k !== "default" && k !== "across") && total !== 4 && total !== 3) continue; // (the split only matters at 4; 3 shows the order of the checks)
     add(`teamsProblem ${k} total=${JSON.stringify(total)} mode=${mode}`, "teamsProblem", [t, total, mode]);
@@ -178,6 +178,9 @@ function cases() {
     teamsJugg: { activePlayerId: "p1", teamRules: { rule: "teams" }, players: [P("p0", { teamNumber: 1 }), P("p1"), P("p2", { teamNumber: 1 }), P("p3", { teamNumber: 1 })] },
     unknownRule: { activePlayerId: "p0", teamRules: { rule: "bogus", poisonToLose: 10 }, players: [P("p0", { teamNumber: 1 }), P("p1", { teamNumber: 1 })] },
     rulesNoRule: { activePlayerId: "p0", teamRules: {}, players: [P("p0", { teamNumber: 1 })] },
+    // (a rule that isn't a string, or names a prototype member: no traits, though RULES[["sharedLife"]] would find one)
+    ruleList: { activePlayerId: "p0", teamRules: { rule: ["sharedTurns"], poisonToLose: 15 }, players: [P("p0", { teamNumber: 1 }), P("p1", { teamNumber: 1 }), P("p2", { teamNumber: 2 })] },
+    ruleProto: { activePlayerId: "p0", teamRules: { rule: "toString", poisonToLose: 15 }, players: [P("p0", { teamNumber: 1 }), P("p1", { teamNumber: 1 })] },
     noPlayers: { activePlayerId: "p0", teamRules: { rule: "sharedLife", poisonToLose: 15 } },
     unmappedIds: { activePlayerId: "z1", teamRules: { rule: "sharedLife", poisonToLose: 15 }, players: [P("z1", { teamNumber: 1 }), P("z2", { teamNumber: 1 }), P("z3", { teamNumber: 2 })] },
   };
