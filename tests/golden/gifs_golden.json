@@ -1,0 +1,5773 @@
+[
+ {
+  "name": "surface",
+  "result": [
+   [
+    "CACHE_MS",
+    "number",
+    null
+   ],
+   [
+    "DEFAULT_RATING",
+    "string",
+    null
+   ],
+   [
+    "FAV_MAX",
+    "number",
+    null
+   ],
+   [
+    "HOUR_LIMIT",
+    "number",
+    null
+   ],
+   [
+    "PER_PAGE",
+    "number",
+    null
+   ],
+   [
+    "RATINGS",
+    "object",
+    null
+   ],
+   [
+    "WORDS_MAX",
+    "number",
+    null
+   ],
+   [
+    "cleanPage",
+    "function",
+    1
+   ],
+   [
+    "cleanRating",
+    "function",
+    1
+   ],
+   [
+    "cleanTitle",
+    "function",
+    1
+   ],
+   [
+    "cleanWords",
+    "function",
+    1
+   ],
+   [
+    "createFavs",
+    "function",
+    0
+   ],
+   [
+    "createGifs",
+    "function",
+    0
+   ],
+   [
+    "favItem",
+    "function",
+    1
+   ],
+   [
+    "favWho",
+    "function",
+    2
+   ],
+   [
+    "giphy",
+    "object",
+    null
+   ],
+   [
+    "mediaLink",
+    "function",
+    2
+   ],
+   [
+    "restText",
+    "function",
+    1
+   ],
+   [
+    "viaProxy",
+    "function",
+    2
+   ]
+  ],
+  "consts": {
+   "PER_PAGE": 8,
+   "RATINGS": [
+    "g",
+    "pg",
+    "pg-13"
+   ],
+   "DEFAULT_RATING": "pg-13",
+   "HOUR_LIMIT": 100,
+   "CACHE_MS": 86400000,
+   "WORDS_MAX": 50,
+   "FAV_MAX": 48
+  }
+ },
+ {
+  "name": "cleanWords #0 undefined",
+  "result": ""
+ },
+ {
+  "name": "cleanWords #1 null",
+  "result": ""
+ },
+ {
+  "name": "cleanWords #2 \"\"",
+  "result": ""
+ },
+ {
+  "name": "cleanWords #3 \" \"",
+  "result": ""
+ },
+ {
+  "name": "cleanWords #4 \"cat\"",
+  "result": "cat"
+ },
+ {
+  "name": "cleanWords #5 \"  mind   blown  \"",
+  "result": "mind blown"
+ },
+ {
+  "name": "cleanWords #6 \"a\\tb\\nc\\u0000de\"",
+  "result": "a b c d e"
+ },
+ {
+  "name": "cleanWords #7 0",
+  "result": "0"
+ },
+ {
+  "name": "cleanWords #8 42",
+  "result": "42"
+ },
+ {
+  "name": "cleanWords #9 false",
+  "result": "false"
+ },
+ {
+  "name": "cleanWords #10 [\"a\",\"b\"]",
+  "result": "a,b"
+ },
+ {
+  "name": "cleanWords #11 {}",
+  "result": "obj"
+ },
+ {
+  "name": "cleanWords #12 \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "result": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+ },
+ {
+  "name": "cleanWords #13 \"yyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+  "result": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+ },
+ {
+  "name": "cleanWords #14 \"zzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+  "result": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+ },
+ {
+  "name": "cleanWords #15 \"wwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "result": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww"
+ },
+ {
+  "name": "cleanWords #16 \"ünïcödé 🎉 gif\"",
+  "result": "ünïcödé 🎉 gif"
+ },
+ {
+  "name": "cleanWords #17 \" sep\"",
+  "result": " sep"
+ },
+ {
+  "name": "cleanWords #18 \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "result": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+ },
+ {
+  "name": "cleanTitle #0 undefined",
+  "result": "GIF"
+ },
+ {
+  "name": "cleanTitle #1 null",
+  "result": "GIF"
+ },
+ {
+  "name": "cleanTitle #2 \"\"",
+  "result": "GIF"
+ },
+ {
+  "name": "cleanTitle #3 \"   \"",
+  "result": "GIF"
+ },
+ {
+  "name": "cleanTitle #4 \"Happy <b>yay</b> & \\\"q\\\" 'x' ",
+  "result": "Happy b yay /b q x end"
+ },
+ {
+  "name": "cleanTitle #5 \"line1\\nline2\"",
+  "result": "line1 line2"
+ },
+ {
+  "name": "cleanTitle #6 \"ttttttttttttttttttttttttttttt",
+  "result": "ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt"
+ },
+ {
+  "name": "cleanTitle #7 \"ttttttttttttttttttttttttttttt",
+  "result": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt"
+ },
+ {
+  "name": "cleanTitle #8 \"ttttttttttttttttttttttttttttt",
+  "result": "ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt…"
+ },
+ {
+  "name": "cleanTitle #9 \"ttttttttttttttttttttttttttttt",
+  "result": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt…"
+ },
+ {
+  "name": "cleanTitle #10 \"ttttttttttttttttttttttttttttt",
+  "result": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt…"
+ },
+ {
+  "name": "cleanTitle #11 0",
+  "result": "0"
+ },
+ {
+  "name": "cleanTitle #12 12",
+  "result": "12"
+ },
+ {
+  "name": "cleanTitle #13 \"🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉\ud83c",
+  "result": "🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉\ud83c…"
+ },
+ {
+  "name": "cleanTitle #14 \"\\u0000\\u001f\"",
+  "result": "GIF"
+ },
+ {
+  "name": "cleanRating undefined",
+  "result": "pg-13"
+ },
+ {
+  "name": "cleanRating null",
+  "result": "pg-13"
+ },
+ {
+  "name": "cleanRating \"\"",
+  "result": "pg-13"
+ },
+ {
+  "name": "cleanRating \"g\"",
+  "result": "g"
+ },
+ {
+  "name": "cleanRating \"G\"",
+  "result": "g"
+ },
+ {
+  "name": "cleanRating \"pg\"",
+  "result": "pg"
+ },
+ {
+  "name": "cleanRating \"PG\"",
+  "result": "pg"
+ },
+ {
+  "name": "cleanRating \"pg-13\"",
+  "result": "pg-13"
+ },
+ {
+  "name": "cleanRating \"PG-13\"",
+  "result": "pg-13"
+ },
+ {
+  "name": "cleanRating \"r\"",
+  "result": "pg-13"
+ },
+ {
+  "name": "cleanRating \"R\"",
+  "result": "pg-13"
+ },
+ {
+  "name": "cleanRating \" pg\"",
+  "result": "pg-13"
+ },
+ {
+  "name": "cleanRating 0",
+  "result": "pg-13"
+ },
+ {
+  "name": "cleanRating [\"pg\"]",
+  "result": "pg"
+ },
+ {
+  "name": "cleanPage undefined",
+  "result": 0
+ },
+ {
+  "name": "cleanPage null",
+  "result": 0
+ },
+ {
+  "name": "cleanPage \"\"",
+  "result": 0
+ },
+ {
+  "name": "cleanPage \"0\"",
+  "result": 0
+ },
+ {
+  "name": "cleanPage 0",
+  "result": 0
+ },
+ {
+  "name": "cleanPage 1",
+  "result": 1
+ },
+ {
+  "name": "cleanPage \"3\"",
+  "result": 3
+ },
+ {
+  "name": "cleanPage 2.9",
+  "result": 2
+ },
+ {
+  "name": "cleanPage -1",
+  "result": 0
+ },
+ {
+  "name": "cleanPage -0.5",
+  "result": 0
+ },
+ {
+  "name": "cleanPage 49",
+  "result": 49
+ },
+ {
+  "name": "cleanPage 50",
+  "result": 50
+ },
+ {
+  "name": "cleanPage 51",
+  "result": 50
+ },
+ {
+  "name": "cleanPage 1000000000",
+  "result": 50
+ },
+ {
+  "name": "cleanPage nullNaN",
+  "result": 0
+ },
+ {
+  "name": "cleanPage nullInf",
+  "result": 50
+ },
+ {
+  "name": "cleanPage null-Inf",
+  "result": 0
+ },
+ {
+  "name": "cleanPage \"x\"",
+  "result": 0
+ },
+ {
+  "name": "cleanPage [2]",
+  "result": 2
+ },
+ {
+  "name": "cleanPage true",
+  "result": 1
+ },
+ {
+  "name": "mediaLink .mp4 #0 https://media.giphy.com/media/x/giphy.mp4",
+  "result": "https://media.giphy.com/media/x/giphy.mp4"
+ },
+ {
+  "name": "mediaLink .mp4 #1 https://media0.giphy.com/media/x/giphy.mp4",
+  "result": "https://media0.giphy.com/media/x/giphy.mp4"
+ },
+ {
+  "name": "mediaLink .mp4 #2 https://media9.giphy.com/media/x/200.mp4",
+  "result": "https://media9.giphy.com/media/x/200.mp4"
+ },
+ {
+  "name": "mediaLink .mp4 #3 https://media10.giphy.com/media/x/200.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #4 https://i.giphy.com/x.mp4",
+  "result": "https://i.giphy.com/x.mp4"
+ },
+ {
+  "name": "mediaLink .mp4 #5 https://j.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #6 https://giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #7 https://MEDIA.GIPHY.COM/media/x/giphy.mp4",
+  "result": "https://media.giphy.com/media/x/giphy.mp4"
+ },
+ {
+  "name": "mediaLink .mp4 #8 https://media.giphy.com/media/x/GIPHY.MP4",
+  "result": "https://media.giphy.com/media/x/GIPHY.MP4"
+ },
+ {
+  "name": "mediaLink .mp4 #9 http://media.giphy.com/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #10 https://media.giphy.com:443/media/x/giphy.mp4",
+  "result": "https://media.giphy.com/media/x/giphy.mp4"
+ },
+ {
+  "name": "mediaLink .mp4 #11 https://media.giphy.com:8443/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #12 https://u@media.giphy.com/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #13 https://u:p@media.giphy.com/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #14 https://evil.example.com/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #15 https://media.giphy.com.evil.example/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #16 https://notgiphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #17 https://media.giphy.com/media/x/giphy.gif",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #18 https://media.giphy.com/media/x/giphy.gif?x=.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #19 https://media.giphy.com/media/x/giphy.mp4?cid=abc&rid=giphy.",
+  "result": "https://media.giphy.com/media/x/giphy.mp4"
+ },
+ {
+  "name": "mediaLink .mp4 #20 https://media.giphy.com/media/x/giphy.mp4#frag",
+  "result": "https://media.giphy.com/media/x/giphy.mp4"
+ },
+ {
+  "name": "mediaLink .mp4 #21 https://media.giphy.com/media/../x/giphy.mp4",
+  "result": "https://media.giphy.com/x/giphy.mp4"
+ },
+ {
+  "name": "mediaLink .mp4 #22 https://media.giphy.com/media/%2e%2e/x/giphy.mp4",
+  "result": "https://media.giphy.com/x/giphy.mp4"
+ },
+ {
+  "name": "mediaLink .mp4 #23 https://media.giphy.com/media/a..b/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #24 https://media.giphy.com/media/x y/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #25 https://media.giphy.com/media/x/gi%70hy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #26 https://media.giphy.com/",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #27 https://media.giphy.com",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #28 https://media.giphy.com/.mp4",
+  "result": "https://media.giphy.com/.mp4"
+ },
+ {
+  "name": "mediaLink .mp4 #29 //media.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #30 media.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #31 ",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #32 null",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #33 undefined",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #34 5",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #35 javascript:alert(1)",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #36 https://xmedia.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #37 https://evil-i.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #38 https://media.media2.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #39 https://media.giphy.com./x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .mp4 #40 https://media.giphy.com/x.mp4\n",
+  "result": "https://media.giphy.com/x.mp4"
+ },
+ {
+  "name": "mediaLink .jpg #0 https://media.giphy.com/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #1 https://media0.giphy.com/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #2 https://media9.giphy.com/media/x/200.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #3 https://media10.giphy.com/media/x/200.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #4 https://i.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #5 https://j.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #6 https://giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #7 https://MEDIA.GIPHY.COM/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #8 https://media.giphy.com/media/x/GIPHY.MP4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #9 http://media.giphy.com/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #10 https://media.giphy.com:443/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #11 https://media.giphy.com:8443/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #12 https://u@media.giphy.com/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #13 https://u:p@media.giphy.com/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #14 https://evil.example.com/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #15 https://media.giphy.com.evil.example/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #16 https://notgiphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #17 https://media.giphy.com/media/x/giphy.gif",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #18 https://media.giphy.com/media/x/giphy.gif?x=.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #19 https://media.giphy.com/media/x/giphy.mp4?cid=abc&rid=giphy.",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #20 https://media.giphy.com/media/x/giphy.mp4#frag",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #21 https://media.giphy.com/media/../x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #22 https://media.giphy.com/media/%2e%2e/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #23 https://media.giphy.com/media/a..b/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #24 https://media.giphy.com/media/x y/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #25 https://media.giphy.com/media/x/gi%70hy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #26 https://media.giphy.com/",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #27 https://media.giphy.com",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #28 https://media.giphy.com/.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #29 //media.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #30 media.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #31 ",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #32 null",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #33 undefined",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #34 5",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #35 javascript:alert(1)",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #36 https://xmedia.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #37 https://evil-i.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #38 https://media.media2.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #39 https://media.giphy.com./x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .jpg #40 https://media.giphy.com/x.mp4\n",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #0 https://media.giphy.com/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #1 https://media0.giphy.com/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #2 https://media9.giphy.com/media/x/200.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #3 https://media10.giphy.com/media/x/200.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #4 https://i.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #5 https://j.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #6 https://giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #7 https://MEDIA.GIPHY.COM/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #8 https://media.giphy.com/media/x/GIPHY.MP4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #9 http://media.giphy.com/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #10 https://media.giphy.com:443/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #11 https://media.giphy.com:8443/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #12 https://u@media.giphy.com/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #13 https://u:p@media.giphy.com/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #14 https://evil.example.com/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #15 https://media.giphy.com.evil.example/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #16 https://notgiphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #17 https://media.giphy.com/media/x/giphy.gif",
+  "result": "https://media.giphy.com/media/x/giphy.gif"
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #18 https://media.giphy.com/media/x/giphy.gif?x=.mp4",
+  "result": "https://media.giphy.com/media/x/giphy.gif"
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #19 https://media.giphy.com/media/x/giphy.mp4?cid=abc&rid=giphy.",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #20 https://media.giphy.com/media/x/giphy.mp4#frag",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #21 https://media.giphy.com/media/../x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #22 https://media.giphy.com/media/%2e%2e/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #23 https://media.giphy.com/media/a..b/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #24 https://media.giphy.com/media/x y/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #25 https://media.giphy.com/media/x/gi%70hy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #26 https://media.giphy.com/",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #27 https://media.giphy.com",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #28 https://media.giphy.com/.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #29 //media.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #30 media.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #31 ",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #32 null",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #33 undefined",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #34 5",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #35 javascript:alert(1)",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #36 https://xmedia.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #37 https://evil-i.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #38 https://media.media2.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #39 https://media.giphy.com./x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink .gif.jpg.webp #40 https://media.giphy.com/x.mp4\n",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #0 https://media.giphy.com/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #1 https://media0.giphy.com/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #2 https://media9.giphy.com/media/x/200.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #3 https://media10.giphy.com/media/x/200.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #4 https://i.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #5 https://j.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #6 https://giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #7 https://MEDIA.GIPHY.COM/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #8 https://media.giphy.com/media/x/GIPHY.MP4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #9 http://media.giphy.com/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #10 https://media.giphy.com:443/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #11 https://media.giphy.com:8443/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #12 https://u@media.giphy.com/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #13 https://u:p@media.giphy.com/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #14 https://evil.example.com/media/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #15 https://media.giphy.com.evil.example/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #16 https://notgiphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #17 https://media.giphy.com/media/x/giphy.gif",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #18 https://media.giphy.com/media/x/giphy.gif?x=.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #19 https://media.giphy.com/media/x/giphy.mp4?cid=abc&rid=giphy.",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #20 https://media.giphy.com/media/x/giphy.mp4#frag",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #21 https://media.giphy.com/media/../x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #22 https://media.giphy.com/media/%2e%2e/x/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #23 https://media.giphy.com/media/a..b/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #24 https://media.giphy.com/media/x y/giphy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #25 https://media.giphy.com/media/x/gi%70hy.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #26 https://media.giphy.com/",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #27 https://media.giphy.com",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #28 https://media.giphy.com/.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #29 //media.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #30 media.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #31 ",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #32 null",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #33 undefined",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #34 5",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #35 javascript:alert(1)",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #36 https://xmedia.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #37 https://evil-i.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #38 https://media.media2.giphy.com/x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #39 https://media.giphy.com./x.mp4",
+  "result": null
+ },
+ {
+  "name": "mediaLink  #40 https://media.giphy.com/x.mp4\n",
+  "result": null
+ },
+ {
+  "name": "mediaLink no exts argument",
+  "threw": {
+   "type": "TypeError",
+   "message": "Cannot read properties of undefined (reading 'some')"
+  }
+ },
+ {
+  "name": "viaProxy https://media.giphy.com/media/x/giphy_s.gif 480",
+  "result": "https://wsrv.nl/?url=media.giphy.com/media/x/giphy_s.gif&w=480&h=480&fit=inside&output=jpg"
+ },
+ {
+  "name": "viaProxy https://media.giphy.com/media/x/200w_s.gif 160",
+  "result": "https://wsrv.nl/?url=media.giphy.com/media/x/200w_s.gif&w=160&h=160&fit=inside&output=jpg"
+ },
+ {
+  "name": "viaProxy https://media.giphy.com/media/x/s.webp 160",
+  "result": "https://wsrv.nl/?url=media.giphy.com/media/x/s.webp&w=160&h=160&fit=inside&output=jpg"
+ },
+ {
+  "name": "viaProxy https://media.giphy.com/media/x/s.jpg 160",
+  "result": "https://wsrv.nl/?url=media.giphy.com/media/x/s.jpg&w=160&h=160&fit=inside&output=jpg"
+ },
+ {
+  "name": "viaProxy https://media.giphy.com/media/x/s.png 160",
+  "result": null
+ },
+ {
+  "name": "viaProxy https://evil.example.com/x.gif 160",
+  "result": null
+ },
+ {
+  "name": "viaProxy null 160",
+  "result": null
+ },
+ {
+  "name": "viaProxy https://media.giphy.com/media/x/s.gif?a=1 undefined",
+  "result": "https://wsrv.nl/?url=media.giphy.com/media/x/s.gif&w=undefined&h=undefined&fit=inside&output=jpg"
+ },
+ {
+  "name": "viaProxy https://media.giphy.com/media/x/s.gif 9",
+  "result": "https://wsrv.nl/?url=media.giphy.com/media/x/s.gif&w=9&h=9&fit=inside&output=jpg"
+ },
+ {
+  "name": "restText 0",
+  "result": "GIF search is resting for 1 minute."
+ },
+ {
+  "name": "restText 1",
+  "result": "GIF search is resting for 1 minute."
+ },
+ {
+  "name": "restText 59999",
+  "result": "GIF search is resting for 1 minute."
+ },
+ {
+  "name": "restText 60000",
+  "result": "GIF search is resting for 1 minute."
+ },
+ {
+  "name": "restText 60001",
+  "result": "GIF search is resting for 2 minutes."
+ },
+ {
+  "name": "restText 119999",
+  "result": "GIF search is resting for 2 minutes."
+ },
+ {
+  "name": "restText 120000",
+  "result": "GIF search is resting for 2 minutes."
+ },
+ {
+  "name": "restText 900000",
+  "result": "GIF search is resting for 15 minutes."
+ },
+ {
+  "name": "restText -5",
+  "result": "GIF search is resting for 1 minute."
+ },
+ {
+  "name": "restText NaN",
+  "result": "GIF search is resting for NaN minutes."
+ },
+ {
+  "name": "restText 3600000",
+  "result": "GIF search is resting for 60 minutes."
+ },
+ {
+  "name": "giphy.credit",
+  "result": "Powered By GIPHY"
+ },
+ {
+  "name": "giphy.searchUrl cat 0",
+  "result": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=cat&limit=8&offset=0&rating=pg-13&lang=en"
+ },
+ {
+  "name": "giphy.searchUrl mind blown & more 2",
+  "result": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=mind+blown+%26+more&limit=8&offset=16&rating=g&lang=en"
+ },
+ {
+  "name": "giphy.searchUrl a=b?c#d 50",
+  "result": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=a%3Db%3Fc%23d&limit=8&offset=400&rating=pg&lang=en"
+ },
+ {
+  "name": "giphy.searchUrl  0",
+  "result": "https://api.giphy.com/v1/gifs/search?api_key=&q=&limit=8&offset=0&rating=&lang=en"
+ },
+ {
+  "name": "giphy.searchUrl ünï 🎉 1",
+  "result": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=%C3%BCn%C3%AF+%F0%9F%8E%89&limit=8&offset=8&rating=pg-13&lang=en"
+ },
+ {
+  "name": "giphy.problem 200",
+  "result": {
+   "error": "GIF search failed (GIPHY answered 200)."
+  }
+ },
+ {
+  "name": "giphy.problem 400",
+  "result": {
+   "error": "GIF search failed (GIPHY answered 400)."
+  }
+ },
+ {
+  "name": "giphy.problem 401",
+  "result": {
+   "error": "The GIPHY key was refused: check it in the companion (Table tools)."
+  }
+ },
+ {
+  "name": "giphy.problem 403",
+  "result": {
+   "error": "The GIPHY key was refused: check it in the companion (Table tools)."
+  }
+ },
+ {
+  "name": "giphy.problem 404",
+  "result": {
+   "error": "GIF search failed (GIPHY answered 404)."
+  }
+ },
+ {
+  "name": "giphy.problem 414",
+  "result": {
+   "error": "Fewer words, please (50 characters at most)."
+  }
+ },
+ {
+  "name": "giphy.problem 429",
+  "result": {
+   "rest": true
+  }
+ },
+ {
+  "name": "giphy.problem 500",
+  "result": {
+   "error": "GIF search failed (GIPHY answered 500)."
+  }
+ },
+ {
+  "name": "giphy.problem 503",
+  "result": {
+   "error": "GIF search failed (GIPHY answered 503)."
+  }
+ },
+ {
+  "name": "giphy.problem 0",
+  "result": {
+   "error": "GIF search failed (GIPHY answered 0)."
+  }
+ },
+ {
+  "name": "giphy.problem undefined",
+  "result": {
+   "error": "GIF search failed (GIPHY answered undefined)."
+  }
+ },
+ {
+  "name": "giphy.problem \"401\"",
+  "result": {
+   "error": "GIF search failed (GIPHY answered 401)."
+  }
+ },
+ {
+  "name": "giphy.item fixture #0",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "giphy.item fixture #1",
+  "result": {
+   "id": "3o7abKhOpu0NwenH3O",
+   "title": "Happy Spongebob Squarepants yay",
+   "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+   "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+   "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 480,
+   "h": 360
+  }
+ },
+ {
+  "name": "giphy.item fixture #2",
+  "result": {
+   "id": "13CoXDiaCcCoyk",
+   "title": "Cat Ready GIF",
+   "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+   "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 500,
+   "h": 375
+  }
+ },
+ {
+  "name": "giphy.item fixture #3",
+  "result": null
+ },
+ {
+  "name": "giphy.item fixture #4",
+  "result": null
+ },
+ {
+  "name": "giphy.item null",
+  "result": null
+ },
+ {
+  "name": "giphy.item string",
+  "result": null
+ },
+ {
+  "name": "giphy.item noId",
+  "result": null
+ },
+ {
+  "name": "giphy.item numId",
+  "result": null
+ },
+ {
+  "name": "giphy.item spaceId",
+  "result": null
+ },
+ {
+  "name": "giphy.item id64",
+  "result": {
+   "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "giphy.item id65",
+  "result": null
+ },
+ {
+  "name": "giphy.item idEmpty",
+  "result": null
+ },
+ {
+  "name": "giphy.item noImages",
+  "result": null
+ },
+ {
+  "name": "giphy.item imagesString",
+  "result": null
+ },
+ {
+  "name": "giphy.item big",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/200.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "giphy.item at2mb",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "giphy.item bigNoSmall",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "giphy.item foreignMp4",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/200.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "giphy.item noMp4Anywhere",
+  "result": null
+ },
+ {
+  "name": "giphy.item no480",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "giphy.item noStills",
+  "result": null
+ },
+ {
+  "name": "giphy.item onlyFixedHeightStill",
+  "result": null
+ },
+ {
+  "name": "giphy.item foreign480",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "giphy.item sizes0",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "giphy.item sizesHuge",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 4096,
+   "h": 4096
+  }
+ },
+ {
+  "name": "giphy.item sizesMissing",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 1,
+   "h": 1
+  }
+ },
+ {
+  "name": "giphy.item sizesHalf",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 1,
+   "h": 2
+  }
+ },
+ {
+  "name": "giphy.item titleBad",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "script x /script",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "giphy.item titleNone",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "GIF",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "giphy.parse fixture",
+  "result": {
+   "items": [
+    {
+     "id": "26ufdipQqU2lhNA4g",
+     "title": "Mind Blown GIF by Example",
+     "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+     "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+     "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+     "w": 200,
+     "h": 200
+    },
+    {
+     "id": "3o7abKhOpu0NwenH3O",
+     "title": "Happy Spongebob Squarepants yay",
+     "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+     "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+     "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+     "w": 480,
+     "h": 360
+    },
+    {
+     "id": "13CoXDiaCcCoyk",
+     "title": "Cat Ready GIF",
+     "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+     "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+     "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+     "w": 500,
+     "h": 375
+    }
+   ],
+   "total": 1234
+  }
+ },
+ {
+  "name": "giphy.parse null",
+  "result": {
+   "items": [],
+   "total": null
+  }
+ },
+ {
+  "name": "giphy.parse dataString",
+  "result": {
+   "items": [],
+   "total": null
+  }
+ },
+ {
+  "name": "giphy.parse junk",
+  "result": {
+   "items": [],
+   "total": null
+  }
+ },
+ {
+  "name": "giphy.parse twelve",
+  "result": {
+   "items": [
+    {
+     "id": "26ufdipQqU2lhNA4g",
+     "title": "Mind Blown GIF by Example",
+     "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+     "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+     "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+     "w": 200,
+     "h": 200
+    },
+    {
+     "id": "26ufdipQqU2lhNA4g",
+     "title": "Mind Blown GIF by Example",
+     "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+     "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+     "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+     "w": 200,
+     "h": 200
+    },
+    {
+     "id": "26ufdipQqU2lhNA4g",
+     "title": "Mind Blown GIF by Example",
+     "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+     "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+     "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+     "w": 200,
+     "h": 200
+    },
+    {
+     "id": "26ufdipQqU2lhNA4g",
+     "title": "Mind Blown GIF by Example",
+     "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+     "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+     "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+     "w": 200,
+     "h": 200
+    },
+    {
+     "id": "26ufdipQqU2lhNA4g",
+     "title": "Mind Blown GIF by Example",
+     "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+     "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+     "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+     "w": 200,
+     "h": 200
+    },
+    {
+     "id": "26ufdipQqU2lhNA4g",
+     "title": "Mind Blown GIF by Example",
+     "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+     "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+     "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+     "w": 200,
+     "h": 200
+    },
+    {
+     "id": "26ufdipQqU2lhNA4g",
+     "title": "Mind Blown GIF by Example",
+     "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+     "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+     "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+     "w": 200,
+     "h": 200
+    },
+    {
+     "id": "26ufdipQqU2lhNA4g",
+     "title": "Mind Blown GIF by Example",
+     "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+     "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+     "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+     "w": 200,
+     "h": 200
+    }
+   ],
+   "total": null
+  }
+ },
+ {
+  "name": "giphy.parse totalString",
+  "result": {
+   "items": [
+    {
+     "id": "26ufdipQqU2lhNA4g",
+     "title": "Mind Blown GIF by Example",
+     "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+     "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+     "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+     "w": 200,
+     "h": 200
+    }
+   ],
+   "total": 77
+  }
+ },
+ {
+  "name": "giphy.parse totalBad",
+  "result": {
+   "items": [
+    {
+     "id": "26ufdipQqU2lhNA4g",
+     "title": "Mind Blown GIF by Example",
+     "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+     "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+     "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+     "w": 200,
+     "h": 200
+    }
+   ],
+   "total": null
+  }
+ },
+ {
+  "name": "giphy.parse totalNull",
+  "result": {
+   "items": [
+    {
+     "id": "26ufdipQqU2lhNA4g",
+     "title": "Mind Blown GIF by Example",
+     "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+     "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+     "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+     "w": 200,
+     "h": 200
+    }
+   ],
+   "total": 0
+  }
+ },
+ {
+  "name": "giphy.parse noPagination",
+  "result": {
+   "items": [
+    {
+     "id": "26ufdipQqU2lhNA4g",
+     "title": "Mind Blown GIF by Example",
+     "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+     "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+     "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+     "w": 200,
+     "h": 200
+    }
+   ],
+   "total": null
+  }
+ },
+ {
+  "name": "giphy.parse totalInf",
+  "result": {
+   "items": [],
+   "total": null
+  }
+ },
+ {
+  "name": "favItem good",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "favItem proxyStill",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://wsrv.nl/?url=media2.giphy.com/media/x/s.gif&w=480&h=480&fit=inside&output=jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "favItem proxyDotDot",
+  "result": null
+ },
+ {
+  "name": "favItem proxyOtherHost",
+  "result": null
+ },
+ {
+  "name": "favItem proxyPng",
+  "result": null
+ },
+ {
+  "name": "favItem proxyW5",
+  "result": null
+ },
+ {
+  "name": "favItem noThumb",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "favItem badThumb",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "favItem badMp4",
+  "result": null
+ },
+ {
+  "name": "favItem noStill",
+  "result": null
+ },
+ {
+  "name": "favItem badId",
+  "result": null
+ },
+ {
+  "name": "favItem numId",
+  "result": null
+ },
+ {
+  "name": "favItem badSize",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 1,
+   "h": 1
+  }
+ },
+ {
+  "name": "favItem bigSize",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 4096,
+   "h": 4096
+  }
+ },
+ {
+  "name": "favItem title",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "a",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "favItem extra",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "favItem null",
+  "result": null
+ },
+ {
+  "name": "favItem string",
+  "result": null
+ },
+ {
+  "name": "favItem stillQuery",
+  "result": {
+   "id": "26ufdipQqU2lhNA4g",
+   "title": "Mind Blown GIF by Example",
+   "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+   "still": "https://media2.giphy.com/media/x/480w_s.jpg",
+   "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+   "w": 200,
+   "h": 200
+  }
+ },
+ {
+  "name": "favWho \"76561198000000000\" \"White\"",
+  "result": "76561198000000000"
+ },
+ {
+  "name": "favWho \"1234\" \"Red\"",
+  "result": "color:Red"
+ },
+ {
+  "name": "favWho \"12345\" \"Red\"",
+  "result": "12345"
+ },
+ {
+  "name": "favWho \"11111111111111111111\" \"Red\"",
+  "result": "11111111111111111111"
+ },
+ {
+  "name": "favWho \"111111111111111111111\" \"Red\"",
+  "result": "color:Red"
+ },
+ {
+  "name": "favWho 76561198000000000 \"Blue\"",
+  "result": "76561198000000000"
+ },
+ {
+  "name": "favWho null \"Green\"",
+  "result": "color:Green"
+ },
+ {
+  "name": "favWho undefined \"Yellow\"",
+  "result": "color:Yellow"
+ },
+ {
+  "name": "favWho \"\" \"Pink\"",
+  "result": "color:Pink"
+ },
+ {
+  "name": "favWho \" 76561198000000000\" \"Red\"",
+  "result": "color:Red"
+ },
+ {
+  "name": "favWho \"abc\" \"Te-al 9\"",
+  "result": "color:Teal"
+ },
+ {
+  "name": "favWho null \"VeryLongColourNameHere\"",
+  "result": "color:VeryLongColo"
+ },
+ {
+  "name": "favWho null null",
+  "result": "color:"
+ },
+ {
+  "name": "favWho null undefined",
+  "result": "color:"
+ },
+ {
+  "name": "favWho \"123456\" \"\"",
+  "result": "123456"
+ },
+ {
+  "name": "favWho null \"<x>\"",
+  "result": "color:x"
+ },
+ {
+  "name": "gifs: no key at all",
+  "effects": [
+   {
+    "step": "hasKey",
+    "result": false
+   },
+   {
+    "step": "state",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "limit": 100,
+     "used": 0,
+     "restingMin": 0,
+     "giphy": {
+      "set": false
+     }
+    }
+   },
+   {
+    "step": "search",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "cat",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "GIF frames need a GIPHY key: the host makes one, free, at developers.giphy.com (the steps: Get a GIPHY key, in the companion page's Table tools) and saves it there."
+    }
+   },
+   {
+    "step": "NO_KEY",
+    "result": "GIF frames need a GIPHY key: the host makes one, free, at developers.giphy.com (the steps: Get a GIPHY key, in the companion page's Table tools) and saves it there."
+   }
+  ]
+ },
+ {
+  "name": "gifs: env key used when none saved",
+  "effects": [
+   {
+    "step": "hasKey",
+    "result": true
+   },
+   {
+    "step": "state",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "limit": 100,
+     "used": 0,
+     "restingMin": 0,
+     "giphy": {
+      "set": true,
+      "ends": "6789"
+     }
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=cat&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "search",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "cat",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: env key too short refused",
+  "effects": [
+   {
+    "step": "hasKey",
+    "result": false
+   }
+  ]
+ },
+ {
+  "name": "gifs: env key 16 chars ok",
+  "effects": [
+   {
+    "step": "hasKey",
+    "result": true
+   }
+  ]
+ },
+ {
+  "name": "gifs: env key 15 chars refused",
+  "effects": [
+   {
+    "step": "hasKey",
+    "result": false
+   }
+  ]
+ },
+ {
+  "name": "gifs: env key 64 ok / 65 refused",
+  "effects": [
+   {
+    "step": "hasKey 65",
+    "result": false
+   }
+  ]
+ },
+ {
+  "name": "gifs: env key 64 chars ok",
+  "effects": [
+   {
+    "step": "hasKey 64",
+    "result": true
+   }
+  ]
+ },
+ {
+  "name": "gifs: saved key wins over env",
+  "effects": [
+   {
+    "keys.read": 1
+   },
+   {
+    "step": "state",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "limit": 100,
+     "used": 0,
+     "restingMin": 0,
+     "giphy": {
+      "set": true,
+      "ends": "ZyXw"
+     }
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=ZyXw98765432ZyXw&q=dog&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "search",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "dog",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: saved key invalid falls back to env",
+  "effects": [
+   {
+    "keys.read": 1
+   },
+   {
+    "step": "state",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "limit": 100,
+     "used": 0,
+     "restingMin": 0,
+     "giphy": {
+      "set": true,
+      "ends": "6789"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: saved key not a string",
+  "effects": [
+   {
+    "keys.read": 1
+   },
+   {
+    "step": "hasKey",
+    "result": false
+   }
+  ]
+ },
+ {
+  "name": "gifs: store read throws with a code (logged, key not quoted)",
+  "effects": [
+   {
+    "keys.read": 1
+   },
+   {
+    "log": "gif keys: can't read them (EACCES)"
+   },
+   {
+    "step": "hasKey",
+    "result": true
+   },
+   {
+    "step": "hasKey again (read once)",
+    "result": true
+   }
+  ]
+ },
+ {
+  "name": "gifs: store read throws SyntaxError (name logged)",
+  "effects": [
+   {
+    "keys.read": 1
+   },
+   {
+    "log": "gif keys: can't read them (SyntaxError)"
+   },
+   {
+    "step": "hasKey",
+    "result": false
+   }
+  ]
+ },
+ {
+  "name": "gifs: store gives a non-object",
+  "effects": [
+   {
+    "keys.read": 1
+   },
+   {
+    "step": "hasKey",
+    "result": false
+   }
+  ]
+ },
+ {
+  "name": "gifs: setKey paths",
+  "effects": [
+   {
+    "step": "unknown provider",
+    "result": {
+     "ok": false,
+     "message": "Unknown GIF provider \"klipy\"."
+    }
+   },
+   {
+    "step": "long unknown provider",
+    "result": {
+     "ok": false,
+     "message": "Unknown GIF provider \"xxxxxxxxxxxxxxxxxxxx\"."
+    }
+   },
+   {
+    "step": "bad key",
+    "result": {
+     "ok": false,
+     "message": "That doesn't look like a GIPHY key (16 to 64 letters and digits)."
+    }
+   },
+   {
+    "keys.read": 1
+   },
+   {
+    "keys.write": {
+     "giphy": "AbCdEf0123456789AbCdEf0123456789"
+    }
+   },
+   {
+    "log": "gif keys: giphy key saved"
+   },
+   {
+    "step": "spaces trimmed",
+    "result": {
+     "ok": true,
+     "message": "GIPHY key saved on this PC. The table's GIF frames are on."
+    }
+   },
+   {
+    "step": "state",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "limit": 100,
+     "used": 0,
+     "restingMin": 0,
+     "giphy": {
+      "set": true,
+      "ends": "6789"
+     }
+    }
+   },
+   {
+    "keys.write": {}
+   },
+   {
+    "log": "gif keys: giphy key removed"
+   },
+   {
+    "step": "null key removes",
+    "result": {
+     "ok": true,
+     "message": "GIPHY key removed. The table's GIF frames go away."
+    }
+   },
+   {
+    "step": "state after remove",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "limit": 100,
+     "used": 0,
+     "restingMin": 0,
+     "giphy": {
+      "set": false
+     }
+    }
+   },
+   {
+    "keys.write": {}
+   },
+   {
+    "log": "gif keys: giphy key removed"
+   },
+   {
+    "step": "empty removes again",
+    "result": {
+     "ok": true,
+     "message": "GIPHY key removed. The table's GIF frames go away."
+    }
+   },
+   {
+    "keys.write": {
+     "giphy": "ZyXw98765432ZyXw"
+    }
+   },
+   {
+    "log": "gif keys: giphy key saved"
+   },
+   {
+    "step": "set again",
+    "result": {
+     "ok": true,
+     "message": "GIPHY key saved on this PC. The table's GIF frames are on."
+    }
+   },
+   {
+    "step": "hasKey",
+    "result": true
+   }
+  ]
+ },
+ {
+  "name": "gifs: setKey with no store",
+  "effects": [
+   {
+    "log": "gif keys: giphy key saved"
+   },
+   {
+    "step": "set",
+    "result": {
+     "ok": true,
+     "message": "GIPHY key saved on this PC. The table's GIF frames are on."
+    }
+   },
+   {
+    "step": "hasKey",
+    "result": true
+   }
+  ]
+ },
+ {
+  "name": "gifs: setKey store write throws",
+  "effects": [
+   {
+    "keys.read": 1
+   },
+   {
+    "keys.write": {
+     "giphy": "AbCdEf0123456789AbCdEf0123456789"
+    }
+   },
+   {
+    "step": "set",
+    "result": {
+     "ok": false,
+     "message": "Couldn't save the key on this PC (disk full)."
+    }
+   },
+   {
+    "step": "hasKey (kept in memory)",
+    "result": true
+   }
+  ]
+ },
+ {
+  "name": "gifs: setKey clears the cache",
+  "effects": [
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=cat&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "first",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "cat",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "step": "cached",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "cat",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234,
+     "cached": true
+    }
+   },
+   {
+    "log": "gif keys: giphy key saved"
+   },
+   {
+    "step": "set",
+    "result": {
+     "ok": true,
+     "message": "GIPHY key saved on this PC. The table's GIF frames are on."
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=ZyXw98765432ZyXw&q=cat&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "refetched",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "cat",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: search words, page and rating as sent",
+  "effects": [
+   {
+    "step": "blank words",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "Type some words to search for."
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=a+b&limit=8&offset=24&rating=pg&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "control chars",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "a b",
+     "page": 3,
+     "rating": "pg",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq&limit=8&offset=400&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "long words",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+     "page": 50,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=cat&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "provider unknown goes to giphy",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "cat",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: cache: same words other case, then the day boundary",
+  "effects": [
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=Mind+Blown&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "first",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "Mind Blown",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "step": "same lower",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "mind blown",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234,
+     "cached": true
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=mind+blown&limit=8&offset=8&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "other page",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "mind blown",
+     "page": 1,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=mind+blown&limit=8&offset=0&rating=g&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "other rating",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "mind blown",
+     "page": 0,
+     "rating": "g",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "step": "+day-1ms",
+    "result": 86399999
+   },
+   {
+    "step": "still cached",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "MIND BLOWN",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234,
+     "cached": true
+    }
+   },
+   {
+    "step": "+1ms",
+    "result": 86400000
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=mind+blown&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "expired",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "mind blown",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: hour limit 3: the fourth rests, then the hour boundary",
+  "effects": [
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=a&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "a",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "a",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=b&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "b",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "b",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=c&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "c",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "c",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "step": "d rests",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "d",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "GIF search is resting for 60 minutes."
+    }
+   },
+   {
+    "step": "cached a still works",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "a",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234,
+     "cached": true
+    }
+   },
+   {
+    "step": "state",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "limit": 3,
+     "used": 3,
+     "restingMin": 60,
+     "giphy": {
+      "set": true,
+      "ends": "6789"
+     }
+    }
+   },
+   {
+    "step": "+1h-1ms",
+    "result": 3599999
+   },
+   {
+    "step": "d still rests",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "d",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "GIF search is resting for 1 minute."
+    }
+   },
+   {
+    "step": "+1ms",
+    "result": 3600000
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=d&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "d goes",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "d",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "step": "state",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "limit": 3,
+     "used": 1,
+     "restingMin": 0,
+     "giphy": {
+      "set": true,
+      "ends": "6789"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: hourLimit bad values",
+  "effects": [
+   {
+    "step": "state",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "limit": 100,
+     "used": 0,
+     "restingMin": 0,
+     "giphy": {
+      "set": true,
+      "ends": "6789"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: hourLimit 0 is the default",
+  "effects": [
+   {
+    "step": "state",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "limit": 100,
+     "used": 0,
+     "restingMin": 0,
+     "giphy": {
+      "set": true,
+      "ends": "6789"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: who: gap and share",
+  "effects": [
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=w1&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "w1",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "w1",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "step": "+1999",
+    "result": 1999
+   },
+   {
+    "step": "w2 too soon",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "w2",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "One GIF search at a time, please: try again in a moment."
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=b2&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "other player fine",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "b2",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "step": "+1",
+    "result": 2000
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=w2&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "w2 now",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "w2",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "step": "+2000",
+    "result": 4000
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=w3&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "w3",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "w3",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "step": "+2000",
+    "result": 6000
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=w4&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "w4",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "w4",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "step": "+2000",
+    "result": 8000
+   },
+   {
+    "step": "w5 share spent",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "w5",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "You've had your share of this hour's GIF searches: yours again in 60 min (words searched before still work)."
+    }
+   },
+   {
+    "step": "cached w1 still fine",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "w1",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234,
+     "cached": true
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=w5&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "no who is fine",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "w5",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "step": "+1h",
+    "result": 3608000
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=w6&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "w6 after the hour",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "w6",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: who: share at least 1 with a limit of 1",
+  "effects": [
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=a&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "a",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "a",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "step": "+5000",
+    "result": 5000
+   },
+   {
+    "step": "b rests (table limit first)",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "b",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "GIF search is resting for 60 minutes."
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: who: share at hourLimit 2 is 1",
+  "effects": [
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=a&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "a",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "a",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "step": "+5000",
+    "result": 5000
+   },
+   {
+    "step": "b share",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "b",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "You've had your share of this hour's GIF searches: yours again in 60 min (words searched before still work)."
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=c&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "c other",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "c",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: HTTP answers",
+  "effects": [
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=k401&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "log": "gif search: HTTP 401"
+   },
+   {
+    "step": "401",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "k401",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "The GIPHY key was refused: check it in the companion (Table tools)."
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=k403&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "log": "gif search: HTTP 403"
+   },
+   {
+    "step": "403",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "k403",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "The GIPHY key was refused: check it in the companion (Table tools)."
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=k414&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "log": "gif search: HTTP 414"
+   },
+   {
+    "step": "414",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "k414",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "Fewer words, please (50 characters at most)."
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=k500&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "log": "gif search: HTTP 500"
+   },
+   {
+    "step": "500",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "k500",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "GIF search failed (GIPHY answered 500)."
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=k404&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "log": "gif search: HTTP 404"
+   },
+   {
+    "step": "404",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "k404",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "GIF search failed (GIPHY answered 404)."
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=k500&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "log": "gif search: HTTP 500"
+   },
+   {
+    "step": "500 not cached",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "k500",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "GIF search failed (GIPHY answered 500)."
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: 429 rests 15 minutes",
+  "effects": [
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=busy&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "log": "gif search: HTTP 429"
+   },
+   {
+    "step": "busy",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "busy",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "GIF search is resting for 15 minutes."
+    }
+   },
+   {
+    "step": "other rests",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "cat",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "GIF search is resting for 15 minutes."
+    }
+   },
+   {
+    "step": "state",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "limit": 100,
+     "used": 1,
+     "restingMin": 15,
+     "giphy": {
+      "set": true,
+      "ends": "6789"
+     }
+    }
+   },
+   {
+    "step": "+15m-1",
+    "result": 899999
+   },
+   {
+    "step": "still",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "cat",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "GIF search is resting for 1 minute."
+    }
+   },
+   {
+    "step": "+1",
+    "result": 900000
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=cat&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "goes",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "cat",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: network down / bad json (logs never the link)",
+  "effects": [
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=down&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "log": "gif search: TypeError ECONNREFUSED"
+   },
+   {
+    "step": "down",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "down",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "GIF search couldn't reach GIPHY. Try again in a moment."
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=plain&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "log": "gif search: Error"
+   },
+   {
+    "step": "plain",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "plain",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "GIF search couldn't reach GIPHY. Try again in a moment."
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=bad&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "log": "gif search: SyntaxError"
+   },
+   {
+    "step": "bad json",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "bad",
+     "page": 0,
+     "rating": "pg-13",
+     "error": "GIF search couldn't reach GIPHY. Try again in a moment."
+    }
+   },
+   {
+    "step": "state (calls counted)",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "limit": 100,
+     "used": 3,
+     "restingMin": 0,
+     "giphy": {
+      "set": true,
+      "ends": "6789"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: answers that change shape",
+  "effects": [
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=none&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "log": "gif search: 2 answers, none usable (has GIPHY's answer changed shape?)"
+   },
+   {
+    "step": "none usable (logged)",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "none",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [],
+     "total": null
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=empty&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "empty (not logged)",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "empty",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [],
+     "total": null
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=nodata&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "no data",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "nodata",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [],
+     "total": null
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=one&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "one",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "one",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      }
+     ],
+     "total": 1
+    }
+   }
+  ]
+ },
+ {
+  "name": "gifs: cache holds 300",
+  "effects": [
+   {
+    "bulk": 301,
+    "sha256": "a781ff97894ce909da34ff44c19a6d68d2205284a1eba7a2c09d60fe9f0c5775"
+   },
+   {
+    "step": "bulk: fill 301",
+    "result": 301
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=w0&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "w0 refetched",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "w0",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   },
+   {
+    "step": "w2 cached",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "w2",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234,
+     "cached": true
+    }
+   },
+   {
+    "fetch": "https://api.giphy.com/v1/gifs/search?api_key=AbCdEf0123456789AbCdEf0123456789&q=w1&limit=8&offset=0&rating=pg-13&lang=en",
+    "headers": {
+     "Accept": "application/json"
+    },
+    "signal": "object"
+   },
+   {
+    "step": "w1 evicted after w0 came back",
+    "result": {
+     "credit": "Powered By GIPHY",
+     "words": "w1",
+     "page": 0,
+     "rating": "pg-13",
+     "items": [
+      {
+       "id": "26ufdipQqU2lhNA4g",
+       "title": "Mind Blown GIF by Example",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "3o7abKhOpu0NwenH3O",
+       "title": "Happy Spongebob Squarepants yay",
+       "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+       "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+       "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 480,
+       "h": 360
+      },
+      {
+       "id": "13CoXDiaCcCoyk",
+       "title": "Cat Ready GIF",
+       "mp4": "https://media1.giphy.com/media/13CoXDiaCcCoyk/200.mp4",
+       "still": "https://media1.giphy.com/media/13CoXDiaCcCoyk/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media1.giphy.com/media/13CoXDiaCcCoyk/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 500,
+       "h": 375
+      }
+     ],
+     "total": 1234
+    }
+   }
+  ]
+ },
+ {
+  "name": "favs: empty, memory only",
+  "effects": [
+   {
+    "step": "page",
+    "result": {
+     "items": [],
+     "page": 0,
+     "total": 0,
+     "ids": []
+    }
+   },
+   {
+    "step": "list",
+    "result": []
+   },
+   {
+    "step": "MAX",
+    "result": 48
+   },
+   {
+    "step": "unstar unknown",
+    "result": {
+     "ok": true
+    }
+   }
+  ]
+ },
+ {
+  "name": "favs: load cleans the file",
+  "effects": [
+   {
+    "favs.read": 1
+   },
+   {
+    "step": "A",
+    "result": [
+     {
+      "id": "26ufdipQqU2lhNA4g",
+      "title": "Mind Blown GIF by Example",
+      "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+      "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+      "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+      "w": 200,
+      "h": 200
+     },
+     {
+      "id": "3o7abKhOpu0NwenH3O",
+      "title": "Happy Spongebob Squarepants yay",
+      "mp4": "https://media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.mp4",
+      "still": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/giphy_s.gif&w=480&h=480&fit=inside&output=jpg",
+      "thumb": "https://wsrv.nl/?url=media0.giphy.com/media/3o7abKhOpu0NwenH3O/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+      "w": 480,
+      "h": 360
+     }
+    ]
+   },
+   {
+    "step": "B",
+    "result": []
+   },
+   {
+    "step": "C",
+    "result": []
+   },
+   {
+    "step": "D",
+    "result": []
+   }
+  ]
+ },
+ {
+  "name": "favs: load: players not an object",
+  "effects": [
+   {
+    "favs.read": 1
+   },
+   {
+    "step": "A",
+    "result": []
+   }
+  ]
+ },
+ {
+  "name": "favs: load: read throws",
+  "effects": [
+   {
+    "favs.read": 1
+   },
+   {
+    "log": "gif favourites: can't read them (EACCES)"
+   },
+   {
+    "step": "A",
+    "result": []
+   },
+   {
+    "favs.write": {
+     "version": 1,
+     "players": {
+      "A": [
+       {
+        "id": "26ufdipQqU2lhNA4g",
+        "title": "Mind Blown GIF by Example",
+        "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+        "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+        "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+        "w": 200,
+        "h": 200
+       }
+      ]
+     }
+    }
+   },
+   {
+    "step": "star still works",
+    "result": {
+     "ok": true
+    }
+   }
+  ]
+ },
+ {
+  "name": "favs: load: more than max kept to max",
+  "effects": [
+   {
+    "favs.read": 1
+   },
+   {
+    "step": "A",
+    "result": [
+     "id1",
+     "id2",
+     "id3"
+    ]
+   }
+  ]
+ },
+ {
+  "name": "favs: star, unstar, full, bad item",
+  "effects": [
+   {
+    "favs.read": 1
+   },
+   {
+    "favs.write": {
+     "version": 1,
+     "players": {
+      "R": [
+       {
+        "id": "id1",
+        "title": "Item 1",
+        "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+        "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+        "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+        "w": 200,
+        "h": 200
+       }
+      ]
+     }
+    }
+   },
+   {
+    "step": "star 1",
+    "result": {
+     "ok": true
+    }
+   },
+   {
+    "step": "star 1 again",
+    "result": {
+     "ok": true
+    }
+   },
+   {
+    "favs.write": {
+     "version": 1,
+     "players": {
+      "R": [
+       {
+        "id": "id2",
+        "title": "Item 2",
+        "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+        "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+        "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+        "w": 200,
+        "h": 200
+       },
+       {
+        "id": "id1",
+        "title": "Item 1",
+        "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+        "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+        "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+        "w": 200,
+        "h": 200
+       }
+      ]
+     }
+    }
+   },
+   {
+    "step": "star 2",
+    "result": {
+     "ok": true
+    }
+   },
+   {
+    "step": "star 3 full",
+    "result": {
+     "ok": false,
+     "full": true,
+     "message": "Your favourites are full (2): unstar one first."
+    }
+   },
+   {
+    "step": "list",
+    "result": [
+     "id2",
+     "id1"
+    ]
+   },
+   {
+    "step": "bad item",
+    "result": {
+     "ok": false,
+     "message": "That GIF can't be kept as a favourite."
+    }
+   },
+   {
+    "step": "null item",
+    "result": {
+     "ok": false,
+     "message": "That GIF can't be kept as a favourite."
+    }
+   },
+   {
+    "favs.write": {
+     "version": 1,
+     "players": {
+      "R": [
+       {
+        "id": "id2",
+        "title": "Item 2",
+        "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+        "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+        "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+        "w": 200,
+        "h": 200
+       }
+      ]
+     }
+    }
+   },
+   {
+    "step": "unstar 1",
+    "result": {
+     "ok": true
+    }
+   },
+   {
+    "favs.write": {
+     "version": 1,
+     "players": {}
+    }
+   },
+   {
+    "step": "unstar 2 (empties)",
+    "result": {
+     "ok": true
+    }
+   },
+   {
+    "step": "list",
+    "result": []
+   },
+   {
+    "step": "unstar null item",
+    "result": {
+     "ok": true
+    }
+   }
+  ]
+ },
+ {
+  "name": "favs: pages",
+  "effects": [
+   {
+    "bulk": 18,
+    "sha256": "e04550403d51501d858d28c4b7dc628470d497a4e66c0e139089fbf5f3eb3dc1"
+   },
+   {
+    "step": "bulk: star 17",
+    "result": 17
+   },
+   {
+    "step": "page undefined",
+    "result": {
+     "items": [
+      {
+       "id": "id16",
+       "title": "Item 16",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id15",
+       "title": "Item 15",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id14",
+       "title": "Item 14",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id13",
+       "title": "Item 13",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id12",
+       "title": "Item 12",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id11",
+       "title": "Item 11",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id10",
+       "title": "Item 10",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id9",
+       "title": "Item 9",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      }
+     ],
+     "page": 0,
+     "total": 17,
+     "ids": [
+      "id16",
+      "id15",
+      "id14",
+      "id13",
+      "id12",
+      "id11",
+      "id10",
+      "id9",
+      "id8",
+      "id7",
+      "id6",
+      "id5",
+      "id4",
+      "id3",
+      "id2",
+      "id1",
+      "id0"
+     ]
+    }
+   },
+   {
+    "step": "page null",
+    "result": {
+     "items": [
+      {
+       "id": "id16",
+       "title": "Item 16",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id15",
+       "title": "Item 15",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id14",
+       "title": "Item 14",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id13",
+       "title": "Item 13",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id12",
+       "title": "Item 12",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id11",
+       "title": "Item 11",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id10",
+       "title": "Item 10",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id9",
+       "title": "Item 9",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      }
+     ],
+     "page": 0,
+     "total": 17,
+     "ids": [
+      "id16",
+      "id15",
+      "id14",
+      "id13",
+      "id12",
+      "id11",
+      "id10",
+      "id9",
+      "id8",
+      "id7",
+      "id6",
+      "id5",
+      "id4",
+      "id3",
+      "id2",
+      "id1",
+      "id0"
+     ]
+    }
+   },
+   {
+    "step": "page -1",
+    "result": {
+     "items": [
+      {
+       "id": "id16",
+       "title": "Item 16",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id15",
+       "title": "Item 15",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id14",
+       "title": "Item 14",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id13",
+       "title": "Item 13",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id12",
+       "title": "Item 12",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id11",
+       "title": "Item 11",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id10",
+       "title": "Item 10",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id9",
+       "title": "Item 9",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      }
+     ],
+     "page": 0,
+     "total": 17,
+     "ids": [
+      "id16",
+      "id15",
+      "id14",
+      "id13",
+      "id12",
+      "id11",
+      "id10",
+      "id9",
+      "id8",
+      "id7",
+      "id6",
+      "id5",
+      "id4",
+      "id3",
+      "id2",
+      "id1",
+      "id0"
+     ]
+    }
+   },
+   {
+    "step": "page 0",
+    "result": {
+     "items": [
+      {
+       "id": "id16",
+       "title": "Item 16",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id15",
+       "title": "Item 15",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id14",
+       "title": "Item 14",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id13",
+       "title": "Item 13",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id12",
+       "title": "Item 12",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id11",
+       "title": "Item 11",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id10",
+       "title": "Item 10",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id9",
+       "title": "Item 9",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      }
+     ],
+     "page": 0,
+     "total": 17,
+     "ids": [
+      "id16",
+      "id15",
+      "id14",
+      "id13",
+      "id12",
+      "id11",
+      "id10",
+      "id9",
+      "id8",
+      "id7",
+      "id6",
+      "id5",
+      "id4",
+      "id3",
+      "id2",
+      "id1",
+      "id0"
+     ]
+    }
+   },
+   {
+    "step": "page 1",
+    "result": {
+     "items": [
+      {
+       "id": "id8",
+       "title": "Item 8",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id7",
+       "title": "Item 7",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id6",
+       "title": "Item 6",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id5",
+       "title": "Item 5",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id4",
+       "title": "Item 4",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id3",
+       "title": "Item 3",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id2",
+       "title": "Item 2",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id1",
+       "title": "Item 1",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      }
+     ],
+     "page": 1,
+     "total": 17,
+     "ids": [
+      "id16",
+      "id15",
+      "id14",
+      "id13",
+      "id12",
+      "id11",
+      "id10",
+      "id9",
+      "id8",
+      "id7",
+      "id6",
+      "id5",
+      "id4",
+      "id3",
+      "id2",
+      "id1",
+      "id0"
+     ]
+    }
+   },
+   {
+    "step": "page 2",
+    "result": {
+     "items": [
+      {
+       "id": "id0",
+       "title": "Item 0",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      }
+     ],
+     "page": 2,
+     "total": 17,
+     "ids": [
+      "id16",
+      "id15",
+      "id14",
+      "id13",
+      "id12",
+      "id11",
+      "id10",
+      "id9",
+      "id8",
+      "id7",
+      "id6",
+      "id5",
+      "id4",
+      "id3",
+      "id2",
+      "id1",
+      "id0"
+     ]
+    }
+   },
+   {
+    "step": "page 3",
+    "result": {
+     "items": [
+      {
+       "id": "id0",
+       "title": "Item 0",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      }
+     ],
+     "page": 2,
+     "total": 17,
+     "ids": [
+      "id16",
+      "id15",
+      "id14",
+      "id13",
+      "id12",
+      "id11",
+      "id10",
+      "id9",
+      "id8",
+      "id7",
+      "id6",
+      "id5",
+      "id4",
+      "id3",
+      "id2",
+      "id1",
+      "id0"
+     ]
+    }
+   },
+   {
+    "step": "page 99",
+    "result": {
+     "items": [
+      {
+       "id": "id0",
+       "title": "Item 0",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      }
+     ],
+     "page": 2,
+     "total": 17,
+     "ids": [
+      "id16",
+      "id15",
+      "id14",
+      "id13",
+      "id12",
+      "id11",
+      "id10",
+      "id9",
+      "id8",
+      "id7",
+      "id6",
+      "id5",
+      "id4",
+      "id3",
+      "id2",
+      "id1",
+      "id0"
+     ]
+    }
+   },
+   {
+    "step": "page 1",
+    "result": {
+     "items": [
+      {
+       "id": "id8",
+       "title": "Item 8",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id7",
+       "title": "Item 7",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id6",
+       "title": "Item 6",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id5",
+       "title": "Item 5",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id4",
+       "title": "Item 4",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id3",
+       "title": "Item 3",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id2",
+       "title": "Item 2",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id1",
+       "title": "Item 1",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      }
+     ],
+     "page": 1,
+     "total": 17,
+     "ids": [
+      "id16",
+      "id15",
+      "id14",
+      "id13",
+      "id12",
+      "id11",
+      "id10",
+      "id9",
+      "id8",
+      "id7",
+      "id6",
+      "id5",
+      "id4",
+      "id3",
+      "id2",
+      "id1",
+      "id0"
+     ]
+    }
+   },
+   {
+    "step": "page 1.7",
+    "result": {
+     "items": [
+      {
+       "id": "id8",
+       "title": "Item 8",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id7",
+       "title": "Item 7",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id6",
+       "title": "Item 6",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id5",
+       "title": "Item 5",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id4",
+       "title": "Item 4",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id3",
+       "title": "Item 3",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id2",
+       "title": "Item 2",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id1",
+       "title": "Item 1",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      }
+     ],
+     "page": 1,
+     "total": 17,
+     "ids": [
+      "id16",
+      "id15",
+      "id14",
+      "id13",
+      "id12",
+      "id11",
+      "id10",
+      "id9",
+      "id8",
+      "id7",
+      "id6",
+      "id5",
+      "id4",
+      "id3",
+      "id2",
+      "id1",
+      "id0"
+     ]
+    }
+   },
+   {
+    "step": "page NaN",
+    "result": {
+     "items": [
+      {
+       "id": "id16",
+       "title": "Item 16",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id15",
+       "title": "Item 15",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id14",
+       "title": "Item 14",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id13",
+       "title": "Item 13",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id12",
+       "title": "Item 12",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id11",
+       "title": "Item 11",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id10",
+       "title": "Item 10",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id9",
+       "title": "Item 9",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      }
+     ],
+     "page": 0,
+     "total": 17,
+     "ids": [
+      "id16",
+      "id15",
+      "id14",
+      "id13",
+      "id12",
+      "id11",
+      "id10",
+      "id9",
+      "id8",
+      "id7",
+      "id6",
+      "id5",
+      "id4",
+      "id3",
+      "id2",
+      "id1",
+      "id0"
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "name": "favs: page on exactly 8",
+  "effects": [
+   {
+    "bulk": 9,
+    "sha256": "a972991c6d0ed7bba783114a0c279625806f4bb08c8ab2a4bab7b06393c139b9"
+   },
+   {
+    "step": "bulk: star 8",
+    "result": 8
+   },
+   {
+    "step": "page 1",
+    "result": {
+     "items": [
+      {
+       "id": "id7",
+       "title": "Item 7",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id6",
+       "title": "Item 6",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id5",
+       "title": "Item 5",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id4",
+       "title": "Item 4",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id3",
+       "title": "Item 3",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id2",
+       "title": "Item 2",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id1",
+       "title": "Item 1",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      },
+      {
+       "id": "id0",
+       "title": "Item 0",
+       "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+       "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+       "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+       "w": 200,
+       "h": 200
+      }
+     ],
+     "page": 0,
+     "total": 8,
+     "ids": [
+      "id7",
+      "id6",
+      "id5",
+      "id4",
+      "id3",
+      "id2",
+      "id1",
+      "id0"
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "name": "favs: who order: re-added last, oldest evicted past 500",
+  "effects": [
+   {
+    "bulk": 502,
+    "sha256": "2b095ed04de9b9b4c364c3b3cda3a1f9b18d844ea53cdc2fd7ef4b0573550de0"
+   },
+   {
+    "step": "bulk: star 501 players",
+    "result": [
+     0,
+     1,
+     1
+    ]
+   },
+   {
+    "bulk": 2,
+    "sha256": "a2a9d1eb3940bdb95037da7d702162380199e19bfcf6ea567b8cb3837f72e3de"
+   },
+   {
+    "step": "bulk: w1 stars again, w2 is now oldest",
+    "result": [
+     2,
+     0
+    ]
+   }
+  ]
+ },
+ {
+  "name": "favs: write throws (logged, answer ok)",
+  "effects": [
+   {
+    "favs.read": 1
+   },
+   {
+    "favs.write": {
+     "version": 1,
+     "players": {
+      "R": [
+       {
+        "id": "26ufdipQqU2lhNA4g",
+        "title": "Mind Blown GIF by Example",
+        "mp4": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/giphy.mp4",
+        "still": "https://media2.giphy.com/media/26ufdipQqU2lhNA4g/480w_s.jpg",
+        "thumb": "https://wsrv.nl/?url=media2.giphy.com/media/26ufdipQqU2lhNA4g/200w_s.gif&w=160&h=160&fit=inside&output=jpg",
+        "w": 200,
+        "h": 200
+       }
+      ]
+     }
+    }
+   },
+   {
+    "log": "gif favourites: can't save them (Error)"
+   },
+   {
+    "step": "star",
+    "result": {
+     "ok": true
+    }
+   },
+   {
+    "step": "list",
+    "result": 1
+   }
+  ]
+ },
+ {
+  "name": "favs: max option bad",
+  "effects": [
+   {
+    "step": "MAX",
+    "result": 48
+   }
+  ]
+ },
+ {
+  "name": "no log line holds a key",
+  "result": []
+ }
+]
