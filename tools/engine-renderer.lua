@@ -6002,7 +6002,7 @@ end
 -- max: the most the counter's own number shows; box: the black box in the counter's footprint (its width, its height,
 -- its centre below the counter's centre, fractions of the footprint at scale 1); perLocal: button units in one local
 -- unit (as ENGINE_POOL_FIT's, measured on the tracker)
-ENGINE_MANA_FIT = { max = 99, box = { w = 0.9, h = 0.42, z = 0.26 }, perLocal = 480 }
+ENGINE_MANA_FIT = { max = 99, box = { w = 0.9, h = 0.42, z = 0.26 }, perLocal = 480, lift = 0.15 }
 engineManaShown = {} -- counter guid -> { spot = its placing, n = amount, tip = hover }; nil while parked
 engineManaUnit = {}  -- counter guid -> its size { x, y, z } and its centre's height over its position { oy } at scale 1
 engineManaSeat = {}  -- "mana <seat>" -> the pool, name and tracker its six counters were last all placed for
@@ -6045,20 +6045,27 @@ end
 -- the amount on counter c: up to `max` as the original drew it, above that a black box with the real number
 function engineManaNumber(c, n, tip, g)
   local fit = ENGINE_MANA_FIT
+  local unit = engineManaUnit[g] or { x = 2, y = 0.2, z = 2, oy = 0 }
+  -- (above the model's own top: at the original's 0.15 the number was inside this model and never showed, live
+  -- 2026-11-24; the model is 0.21 high at scale 1)
+  local top = (unit.oy or 0) + (unit.y or 0.2) / 2 + fit.lift
   if n <= fit.max then
-    -- (the shadow, then the number with the hover's click area, at the original's spots; labels only)
-    c.createButton({ click_function = "enginePoolNoop", function_owner = Global, label = tostring(n), position = { -0.05, 0.1, 0.115 }, rotation = { 0, 0, 0 },
-      width = 0, height = 0, scale = { 0.75, 0.75, 0.75 }, font_size = 800, font_color = { 0.1, 0.1, 0.1 }, color = { 0, 0, 0, 0 }, tooltip = "" })
-    c.createButton({ click_function = "enginePoolNoop", function_owner = Global, label = tostring(n), position = { 0, 0.15, 0.065 }, rotation = { 0, 0, 0 },
-      width = 500, height = 500, scale = { 0.75, 0.75, 0.75 }, font_size = 800, font_color = { 0.9, 0.9, 0.9 }, color = { 0, 0, 0, 0 }, tooltip = tip })
+    -- (the shadow and the number, at the original's spots across: labels with no background at all, as a button's
+    -- label fades with its background's alpha in TTS: at color alpha 0 or 0.01 the number never showed, live
+    -- 2026-11-24; then the hover's area, an empty see-through button with the tooltip)
+    c.createButton({ click_function = "enginePoolNoop", function_owner = Global, label = tostring(n), position = { -0.05, top - 0.05, 0.115 }, rotation = { 0, 0, 0 },
+      width = 0, height = 0, scale = { 0.75, 0.75, 0.75 }, font_size = 800, font_color = { 0.1, 0.1, 0.1 }, tooltip = "" })
+    c.createButton({ click_function = "enginePoolNoop", function_owner = Global, label = tostring(n), position = { 0, top, 0.065 }, rotation = { 0, 0, 0 },
+      width = 0, height = 0, scale = { 0.75, 0.75, 0.75 }, font_size = 800, font_color = { 0.9, 0.9, 0.9 }, tooltip = "" })
+    c.createButton({ click_function = "enginePoolNoop", function_owner = Global, label = "", position = { 0, top, 0.065 }, rotation = { 0, 0, 0 },
+      width = 500, height = 500, scale = { 0.75, 0.75, 0.75 }, font_size = 800, color = { 0, 0, 0, 0 }, tooltip = tip })
     return
   end
-  local unit = engineManaUnit[g] or { x = 2, z = 2 }
   local label = string.format("%d", math.floor(math.min(n, 1e15)))
   local w, h = math.floor(unit.x * fit.box.w * fit.perLocal), math.floor(unit.z * fit.box.h * fit.perLocal)
   -- (a letter is about 0.583 of the font wide, as engineMarksWidth reckons it)
   local font = math.floor(math.min(h * 0.75, w / (#label * 0.583)))
-  c.createButton({ click_function = "enginePoolNoop", function_owner = Global, label = label, position = { 0, 0.2, unit.z * fit.box.z }, rotation = { 0, 0, 0 },
+  c.createButton({ click_function = "enginePoolNoop", function_owner = Global, label = label, position = { 0, top + 0.05, unit.z * fit.box.z }, rotation = { 0, 0, 0 },
     width = w, height = h, font_size = font, font_color = { 1, 1, 1 }, color = { 0, 0, 0, 1 }, tooltip = tip })
 end
 -- seat pl's six counters for its pool, each changed only where its slot, amount or hover changed; one pcall a colour.

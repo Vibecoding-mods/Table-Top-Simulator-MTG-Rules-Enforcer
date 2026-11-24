@@ -67,7 +67,10 @@ const COUNTERS = (color, mark) => q(`local out = {} for _, k in ipairs({ "W", "U
   out[#out + 1] = { k = k, g = e.g, x = p.x, y = p.y, z = p.z, s = s.x, a = t.a or 1, hidden = #(o.__d.invisibleTo or {}), inter = o.interactable, lock = o.getLock(), ry = o.getRotation().y, b = b } end end return JSON.encode(out)`, mark);
 const CHIPS = (color, mark) => q(`local n = 0 for _, b in ipairs(getObjectFromGUID("${TRACKER[color]}").getButtons() or {}) do if enginePoolIsChip(b) then n = n + 1 end end return n`, mark);
 const byK = (list, k) => (list || []).find((c) => c.k === k) || {};
-const labelsOf = (c) => (c.b || []).map((b) => b.label).join(",");
+// (the labels drawn: the hover's empty see-through button left out)
+const labelsOf = (c) => (c.b || []).filter((b) => b.label !== "").map((b) => b.label).join(",");
+// (the hover's button: the empty one with the tooltip)
+const hoverOf = (c) => (c.b || []).find((b) => b.label === "" && b.tip) || {};
 
 // the chips' world spots (the table without the counters: ENGINE_MANA_PIECES nil), each chip's centre
 const chipSpots = (() => {
@@ -97,7 +100,10 @@ ok("precondition: the chips' six spots on Blue's counter, read with the counters
   ok("one colour: Blue has six counters", green.length === 6, valueOf(r, "green"));
   ok("one colour: its green counter shows (alpha 1, seen by all) with 2 on it as the original draws it (a shadow, the number)", g.a === 1 && g.hidden === 0 && labelsOf(g) === "2,2" && g.b.every((b) => b.f === 800), JSON.stringify(g));
   ok("one colour: the number reads light on a dark shadow", g.b && g.b[1].fc[0] > 0.8 && g.b[0].fc[0] < 0.2, JSON.stringify(g.b));
-  ok("one colour: its hover names the player and the mana, and that the pool empties", g.b && g.b[1].tip.startsWith("Floating mana in Blue's pool: 2 green.") && /empties at the end of each step/.test(g.b[1].tip), g.b && g.b[1].tip);
+  ok("one colour: its hover names the player and the mana, and that the pool empties", String(hoverOf(g).tip).startsWith("Floating mana in Blue's pool: 2 green.") && /empties at the end of each step/.test(hoverOf(g).tip) && hoverOf(g).w > 0, JSON.stringify(hoverOf(g)));
+  // (TTS fades a button's label with its background's alpha: a number on a see-through background never showed, live
+  // 2026-11-24; the numbers have no background, w 0 and no colour)
+  ok("one colour: the numbers have no background, so TTS draws them", (g.b || []).filter((b) => b.label !== "").every((b) => b.w === 0 && b.c == null), JSON.stringify(g.b));
   const others = green.filter((c) => c.k !== "G");
   ok("one colour: the other five are at opacity 0 (alpha 0, hidden from all) with no number", others.length === 5 && others.every((c) => c.a === 0 && c.hidden > 0 && c.b.length === 0), JSON.stringify(others.map((c) => [c.k, c.a, c.hidden, c.b.length])));
   ok("one colour: none of the six can be picked up or clicked (not interactable, locked)", green.every((c) => c.inter === false && c.lock === true), JSON.stringify(green.map((c) => [c.k, c.inter, c.lock])));
@@ -127,10 +133,10 @@ ok("precondition: the chips' six spots on Blue's counter, read with the counters
   const three = json(r, "three") || [];
   ok("several colours: W 1, G 2, C 99 shown with their numbers, U B R at opacity 0", labelsOf(byK(three, "W")) === "1,1" && labelsOf(byK(three, "G")) === "2,2" && labelsOf(byK(three, "C")) === "99,99"
     && ["U", "B", "R"].every((k) => byK(three, k).a === 0 && byK(three, k).b.length === 0) && ["W", "G", "C"].every((k) => byK(three, k).a === 1), JSON.stringify(three.map((c) => [c.k, c.a, labelsOf(c)])));
-  ok("several colours: the hover lists each", (byK(three, "W").b || [])[1]?.tip.startsWith("Floating mana in Blue's pool: 1 white, 2 green, 99 colourless."), (byK(three, "W").b || [])[1]?.tip);
+  ok("several colours: the hover lists each", String(hoverOf(byK(three, "W")).tip).startsWith("Floating mana in Blue's pool: 1 white, 2 green, 99 colourless."), hoverOf(byK(three, "W")).tip);
   ok("several colours: the counters did not move (fixed slots)", three.every((c) => { const o = byK(green, c.k); return o.x === c.x && o.z === c.z; }));
   const wr = json(r, "white red") || [];
-  ok("another seat: the AI's red counter shows 3, its hover names the AI", labelsOf(byK(wr, "R")) === "3,3" && (byK(wr, "R").b || [])[1]?.tip.startsWith("Floating mana in AI 1's pool: 3 red."), JSON.stringify(byK(wr, "R")));
+  ok("another seat: the AI's red counter shows 3, its hover names the AI", labelsOf(byK(wr, "R")) === "3,3" && String(hoverOf(byK(wr, "R")).tip).startsWith("Floating mana in AI 1's pool: 3 red."), JSON.stringify(byK(wr, "R")));
 
   const big = json(r, "150") || [];
   const bg = byK(big, "G");

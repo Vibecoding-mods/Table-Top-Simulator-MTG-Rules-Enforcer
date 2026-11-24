@@ -1179,8 +1179,9 @@
      "f294 \"setRotationSmooth\" obj:s00014 V(0,450,0)",
      "f294 \"setColorTint\" obj:85388b {1=1,2=1,3=1,4=1}",
      "f294 \"setInvisibleTo\" obj:85388b {}",
-     "f294 \"createButton\" obj:85388b \"1\" \"0.00,0.00,0.00\" \"at -0.05,0.10,0.12 scale 0.7500\"",
-     "f294 \"createButton\" obj:85388b \"1\" \"0.00,0.00,0.00\" \"at 0.00,0.15,0.07 scale 0.7500\"",
+     "f294 \"createButton\" obj:85388b \"1\" \"at -0.05,0.20,0.12 scale 0.7500\"",
+     "f294 \"createButton\" obj:85388b \"1\" \"at 0.00,0.25,0.07 scale 0.7500\"",
+     "f294 \"createButton\" obj:85388b \"\" \"0.00,0.00,0.00\" \"at 0.00,0.25,0.07 scale 0.7500\"",
      "f294 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - main1 - priority: PlayerBlue\\\nStack (top first): Thousand-Faced Shadow\\\nYour mana pool: U\"",
      "f300 \"UI.setValue\" \"eng_banner_Blue\" \"MAIN PHASE 1\"",
      "f300 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFFFFF\"",
@@ -5999,8 +6000,9 @@
      "f636 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FFFFFF\"",
      "f636 \"setColorTint\" obj:31832a {1=1,2=1,3=1,4=1}",
      "f636 \"setInvisibleTo\" obj:31832a {}",
-     "f636 \"createButton\" obj:31832a \"1\" \"0.00,0.00,0.00\" \"at -0.05,0.10,0.12 scale 0.7500\"",
-     "f636 \"createButton\" obj:31832a \"1\" \"0.00,0.00,0.00\" \"at 0.00,0.15,0.07 scale 0.7500\"",
+     "f636 \"createButton\" obj:31832a \"1\" \"at -0.05,0.20,0.12 scale 0.7500\"",
+     "f636 \"createButton\" obj:31832a \"1\" \"at 0.00,0.25,0.07 scale 0.7500\"",
+     "f636 \"createButton\" obj:31832a \"\" \"0.00,0.00,0.00\" \"at 0.00,0.25,0.07 scale 0.7500\"",
      "f636 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 3rd turn (game turn 4) - main1 - priority: PlayerBlue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\""
     ]
    },
@@ -9277,8 +9279,9 @@
      "f2148 \"setRotationSmooth\" obj:s00006 V(0,450,0)",
      "f2148 \"setColorTint\" obj:31832a {1=1,2=1,3=1,4=1}",
      "f2148 \"setInvisibleTo\" obj:31832a {}",
-     "f2148 \"createButton\" obj:31832a \"1\" \"0.00,0.00,0.00\" \"at -0.05,0.10,0.12 scale 0.7500\"",
-     "f2148 \"createButton\" obj:31832a \"1\" \"0.00,0.00,0.00\" \"at 0.00,0.15,0.07 scale 0.7500\"",
+     "f2148 \"createButton\" obj:31832a \"1\" \"at -0.05,0.20,0.12 scale 0.7500\"",
+     "f2148 \"createButton\" obj:31832a \"1\" \"at 0.00,0.25,0.07 scale 0.7500\"",
+     "f2148 \"createButton\" obj:31832a \"\" \"0.00,0.00,0.00\" \"at 0.00,0.25,0.07 scale 0.7500\"",
      "f2148 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 6th turn (game turn 10) - combatDeclareBlockers - priority: PlayerBlue\\\nYour mana pool: C\""
     ]
    },
