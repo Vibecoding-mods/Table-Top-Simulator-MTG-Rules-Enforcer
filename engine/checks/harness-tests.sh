@@ -7,6 +7,10 @@
 # The image is only needed again when Forge's own Java changes: harness sources are compiled fresh on every run, so an
 # image older than a new harness class or test still works. ManaBrewEngineAdapterTest and
 # InteractiveSnapshotExtractorTest print nothing when they pass; every class fails by its exit status.
+# The golden-master classes (GoldenFileTest's users: ProtocolGoldenTest, SnapshotGoldenTest) compare against
+# forge-harness/src/test/resources/golden. To re-record them after a deliberate behaviour change, mount a writable
+# folder and name it: -v "<dir>:/out" -e GOLDEN_WRITE=/out ... /harness-tests.sh ProtocolGoldenTest SnapshotGoldenTest,
+# then copy the files into the tree and read the diff before keeping it.
 # Exit status: 0 when every class passed.
 set -e
 jar=/build/forge-harness/target/forge-harness-jar-with-dependencies.jar
@@ -25,13 +29,13 @@ cd /build
   SharedTurnsDevTest SharedCombatTest SharedTurnsPlayTest ArchenemyTest ArchenemySchemeSweepTest ArchenemyViewTest \
   FirstPlayerTest CardStateRewindTest BigTurnsTest ThreeHeadedGiantTest ProtocolDefaultsTest AttackTaxLethalTest \
   SnapshotSpeedTest StressCapsTest ReplacementIndexTest TieOfferTest UnboundedTokensTest HeldPassResponseTest CostBadgeTest \
-  BigBoardFixesTest TeamChoiceTest LongTailTest common.GiftTargetsTest
+  BigBoardFixesTest TeamChoiceTest LongTailTest common.GiftTargetsTest GoldenFileTest ProtocolGoldenTest SnapshotGoldenTest
 failed=""
 for c in "$@"; do
   echo "=== $c"
   # (a name with a package, common.GiftTargetsTest, is under forge.harness; a plain one under forge.harness.host)
   case "$c" in *.*) cls="forge.harness.$c" ;; *) cls="forge.harness.host.$c" ;; esac
-  if timeout 900 java -cp "/tmp/test:/tmp/main:$jar" "$cls" > "/tmp/$c.out" 2>&1; then
+  if timeout 900 java -cp "/tmp/test:/tmp/main:$jar" "$cls" ${GOLDEN_WRITE:+--write "$GOLDEN_WRITE"} > "/tmp/$c.out" 2>&1; then
     echo "exit=0"
   else
     echo "exit=$?"

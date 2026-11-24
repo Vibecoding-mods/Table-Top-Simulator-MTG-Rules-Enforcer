@@ -2,7 +2,7 @@
 // one piece off in a COPY of one file (the trees are never written), the image compiles only that copy over the patched
 // build (engine/checks/mutate-in-image.sh) and runs the test class, and the named check must fail.
 //   node tools/mutate-engine-docker.js --harness <manabrew tree> --forge <forge tree> [--proto <generated protocol dir>]
-//        [--image mtg-harness-test:l2-ai] [--set tie|tokens|runaway|held|watchdog|all] [--only <label regex>]
+//        [--image mtg-harness-test:l2-ai] [--set tie|tokens|runaway|held|watchdog|golden|all] [--only <label regex>]
 // Heavy: run it through tmp/slot.js's queue (it does so itself when MTG_SLOT is set to slot.js's path).
 const fs = require("fs");
 const os = require("os");
@@ -89,6 +89,50 @@ const SETS = {
   ],
 };
 
+// The Java golden masters (engine/checks/harness-tests.sh: ProtocolGoldenTest, SnapshotGoldenTest, 2026-11-24): the
+// adversary pass of careless edits. A name ending in " *" matches by prefix (golden keys carry the input JSON).
+const P = H + "ManabrewProtocolAdapter.java", S = H + "ManaBrewInteractiveSession.java", X = H + "InteractiveSnapshotExtractor.java";
+const A = H + "ManaBrewEngineAdapter.java", PG = "ProtocolGoldenTest", SG = "SnapshotGoldenTest";
+SETS.golden = [
+  ["one colour counted as a combo", "mb", P, "        if (total <= 1) {", "        if (total < 1) {", PG, "golden decodeAction chooseColor.oneRed *"],
+  ["colourless not a mana letter", "mb", P, " || \"G\".equals(token) || \"C\".equals(token);", " || \"G\".equals(token);", PG, "golden decodeAction chooseAction.tapIndexColorless *"],
+  ["the first colon read as the last", "mb", P, "        final int lastColon = rest.lastIndexOf(':');", "        final int lastColon = rest.indexOf(':');", PG, "golden decodeAction chooseAction.tapIndexColor *"],
+  ["exhaustStack false read as true", "mb", P, "                && output.get(\"exhaustStack\").getAsBoolean()) {", "                ) {", PG, "golden decodeAction chooseAction.passExhaustFalse *"],
+  ["a null number not read as 0", "mb", P, "output.has(\"chosenNumber\") && !output.get(\"chosenNumber\").isJsonNull()", "output.has(\"chosenNumber\")", PG, "golden decodeAction chooseNumber.null *"],
+  ["a blank ability text sent", "mb", P, "!sourceAbilityText.isBlank()", "!sourceAbilityText.isEmpty()", PG, "golden agentPrompt blank ability"],
+  ["an empty decider sent", "mb", P, "decidingPlayerId != null && !decidingPlayerId.isEmpty()", "decidingPlayerId != null", PG, "golden agentPrompt empty decider"],
+  ["a tie vote read as a restore vote", "mb", P, "                flat.addProperty(\"kind\", \"tie_vote\");", "                flat.addProperty(\"kind\", \"restore_vote\");", PG, "golden decodeAction directive.tieVote *"],
+  ["no card count floor in the checkpoint cap", "mb", S, "CHECKPOINT_BYTES_PER_CARD * Math.max(1, cards);", "CHECKPOINT_BYTES_PER_CARD * cards;", PG, "golden checkpointCap 0"],
+  ["no floor of one checkpoint", "mb", S, "        return (int) Math.max(1, Math.min(MAX_CHECKPOINTS,", "        return (int) (Math.min(MAX_CHECKPOINTS,", PG, "golden checkpointCap 100000"],
+  ["thinning ignores the kept point", "mb", S, "            if (c.turn != current && previous != null && previous.turn == c.turn && c != keep) {", "            if (c.turn != current && previous != null && previous.turn == c.turn) {", PG, "golden thinCheckpoints [1, 1, 2, 2, 3, 3, 3] cap 4 keep 1"],
+  ["thinning drops the first of a pair", "mb", S, "previous != null && previous.turn == c.turn && c != keep) {\n                return c;", "previous != null && previous.turn == c.turn && previous != keep) {\n                return previous;", PG, "golden thinCheckpoints [1, 1, 2, 2, 3, 3, 3] cap 4 keep -1"],
+  ["the cap printed without grouping", "mb", S, "\", past the engine's limit of %,d.", "\", past the engine's limit of %d.", PG, "golden runawayWords triggers fired 1234567 5000"],
+  ["three misses to draw", "mb", S, "static final int RUNAWAY_MISSES_TO_DRAW = 2;", "static final int RUNAWAY_MISSES_TO_DRAW = 3;", PG, "golden runawayWords constants"],
+  ["extra-phase arguments swapped", "mb", H + "PriorityFastForward.java", "current != null && maxSeen != null && current.isBefore(maxSeen)", "current != null && maxSeen != null && maxSeen.isBefore(current)", PG, "golden invalidatedByExtraPhase maxSeen COMBAT_END"],
+  ["perks refuse replacements", "mb", H + "Perks.java", "List.of(\"Name:\", \"Oracle:\", \"SVar:\", \"T:\", \"S:\", \"R:\")", "List.of(\"Name:\", \"Oracle:\", \"SVar:\", \"T:\", \"S:\")", PG, "golden Perks.check ['Name:Juggernaut', *"],
+  ["a null perk line not refused by name", "mb", H + "Perks.java", "            if (line == null || kind(line) == null) {", "            if (kind(line) == null) {", PG, "golden Perks.check ['Name:x', null]"],
+  ["team seats not read round the table", "mb", A, "seats.get((i + 1) % seats.size()).getTeam()", "seats.get(Math.min(i + 1, seats.size() - 1)).getTeam()", PG, "golden start sharedLife 2v2 together Constructed"],
+  ["2HG poison not scaled by heads", "mb", A, "? request.getPoisonToLose() : 15 + 5 * (heads - 2));", "? request.getPoisonToLose() : 15 + 5 * heads);", PG, "golden start sharedLife 2v2 together Constructed"],
+  ["a poison limit of one refused", "mb", A, "request.getPoisonToLose() != null && request.getPoisonToLose() < 1", "request.getPoisonToLose() != null && request.getPoisonToLose() <= 1", PG, "golden start sharedLife poison one Constructed"],
+  ["Commander team life not scaled", "mb", A, "gameType == GameType.Commander ? 40 * heads : 30 + 15 * (heads - 2)", "gameType == GameType.Commander ? 40 : 30 + 15 * (heads - 2)", PG, "golden start sharedLife 3v3 Commander"],
+  ["a spectator sees face-down exile", "mb", X, "        if (zone == ZoneType.Exile || zone == ZoneType.Merged) {\n            return !card.isFaceDown();", "        if (zone == ZoneType.Exile || zone == ZoneType.Merged) {\n            return true;", SG, "golden snapshot hidden viewer -1"],
+  ["a spectator can't see graveyards", "mb", X, "                || zone == ZoneType.Graveyard\n", "", SG, "golden snapshot delayed viewer -1"],
+  ["a conceded player shown as lost", "mb", X, "player.conceded() ? \"conceded\" : player.hasLost()", "player.hasLost() ? \"lost\" : player.conceded()", SG, "golden snapshot lost viewer 0"],
+  ["phasing never sent", "mb", X, "        dto.phasedOut = card.isPhasedOut();", "        dto.phasedOut = false;", SG, "golden snapshot flags viewer 0"],
+  ["storm sent at zero", "mb", X, "        if (stormCount > 0) {", "        if (stormCount >= 0) {", SG, "golden snapshot quiet viewer 0"],
+  ["a face-down permanent hidden from its controller", "mb", X, "        return card.getController() == viewerPlayer\n                || card.getView()", "        return card.getView()", SG, "golden snapshot hidden viewer 0"],
+  ["monstrous never sent", "mb", X, "        dto.monstrous = card.isMonstrous();", "", SG, "golden snapshot flags viewer 2"],
+  ["a move loses its from zone", "mb", H + "EngineEventLog.java", "                event.put(\"from\", entry.from.name());", "", SG, "golden snapshot moves viewer 0"],
+  ["an emblem not flagged", "mb", H + "EffectsView.java", "            effect.put(\"emblem\", card.isEmblem());", "            effect.put(\"emblem\", false);", SG, "golden snapshot effects viewer 0"],
+  ["a zero-count colour taken", "mb", P, "                if (entry.getValue().getAsInt() > 0) {", "                if (entry.getValue().getAsInt() >= 0) {", PG, "golden decodeAction chooseColor.zeroRedOneGreen *"],
+  ["a fix with ops not an array let through", "mb", P, "if (!directive.has(\"ops\") || !directive.get(\"ops\").isJsonArray()) {", "if (!directive.has(\"ops\")) {", PG, "golden decodeAction directive.applyStateOpsObject *"],
+  ["a fix with no ops reaches the game", "mb", S, "        if (!action.has(\"ops\") || !action.get(\"ops\").isJsonArray()) {\n            publishStateFix(fixId, false, \"the fix has no ops array\");\n            return false;\n        }\n", "", SG, "golden snapshot fixnoops *"],
+  ["a spectator reads an LKI host's zone as none", "mb", X, "card.getZone() != null ? card.getZone() : card.getLastKnownZone()", "card.getZone()", SG, "golden snapshot delayed viewer -1"],
+  ["clearing a held pass keeps the exhaust", "mb", H + "ManaBrewInteractiveController.java", "        clearPassUntil();\n        clearExhaust();\n    }", "        clearPassUntil();\n    }", "HeldPassResponseTest", "clearingTheHoldForgetsTheActions"],
+  ["an ended exhaust keeps its actions", "mb", H + "ManaBrewInteractiveController.java", "        exhaustStackIds = null;\n        heldActionIds = null;\n    }\n\n    void clearHeldPass", "        exhaustStackIds = null;\n    }\n\n    void clearHeldPass", "HeldPassResponseTest", "clearingTheHoldForgetsTheActions"],
+  ["a held exhaust forgets the actions it was offered", "mb", H + "ManaBrewInteractiveController.java", "heldActionIds = choice.exhaustStack() ? responseIds(all) : null;", "heldActionIds = null;", "HeldPassResponseTest", "aNewInstantEndsTheHold"],
+];
+
 // the cloud's tie-offer break-its (tools/mutate-tie-offer-engine.js needs a local JDK), read from that file as they are
 SETS["tie-cloud"] = (() => {
   const src = fs.readFileSync(path.join(__dirname, "mutate-tie-offer-engine.js"), "utf8");
@@ -133,7 +177,8 @@ let caught = 0;
 for (const x of dirs.filter((x) => x.m)) {
   const [label, , , , , , name] = x.m;
   const { t, names } = fails(x.d);
-  const hit = names.some((n) => n.startsWith(`${name}:`) || n === name);
+  const hit = name.endsWith(" *") ? names.some((n) => n.startsWith(name.slice(0, -1)))
+    : names.some((n) => n.startsWith(`${name}:`) || n === name);
   if (hit) caught++;
   console.log(`${hit ? "caught  " : "MISSED  "} ${label}: ${names.join(" | ").slice(0, 300) || (/COMPILE ERROR/.test(t) ? "COMPILE ERROR " + t.split("\n")[0] : "nothing failed")}`);
 }
