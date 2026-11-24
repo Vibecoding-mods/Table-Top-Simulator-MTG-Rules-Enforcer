@@ -5,10 +5,16 @@
 -- and is dropped; the server builds the deck from that list. Nothing is kept (DeckCheck's terms). DeckCheck is not
 -- affiliated with this project.
 
+-- colour -> the DeckCheck tag of that seat's last deck import (deckcheckTag), nil when the last one wasn't a
+-- DeckCheck link: the server builds the deck from a plain list, so the tag is put on the decks it spawns
+-- (deckcheckRikTagSpawned) for the bracket and threat label (engine-renderer.lua engineDeckCheckLabels)
+DECKCHECK_RIK_TAG = {}
+
 -- M.deck's request `data` with a deckcheck.co link in data.url: true, and this takes it over: an error is said to
 -- `color` in plain words and nothing is posted; else data.data = the decklist, data.url = '' and post() is called
 -- once. false for any other link (or none): the server reads it, as before.
 function deckcheckRikDeck(color, data, post)
+  if type(color) == "string" then DECKCHECK_RIK_TAG[color] = nil end
   local url = nil
   if type(data) == "table" then url = data.url end
   if type(url) ~= "string" or not string.find(string.lower(url), "deckcheck.co/", 1, true) then return false end
@@ -37,7 +43,18 @@ function deckcheckRikDeck(color, data, post)
     if text == nil then return fail("That DeckCheck deck has no cards.") end
     data.data = text
     data.url = ''
+    DECKCHECK_RIK_TAG[color] = deckcheckTag({ id = id, bracket = info.bracket, threatIndex = info.threatIndex, maxThreat = info.maxThreat })
     post()
   end)
   return true
+end
+
+-- each object the importer spawns from the server's answer (its callback, make-engine-copy.js): a Deck spawned for a
+-- seat's deck request whose link was DeckCheck's gets that deck's tag in its GM notes, after any notes it already has
+function deckcheckRikTagSpawned(color, reqType, obj)
+  if reqType ~= "deck" or type(color) ~= "string" or obj == nil then return end
+  local tag = DECKCHECK_RIK_TAG[color]
+  if tag == nil or obj.type ~= "Deck" then return end
+  local notes = tostring(obj.getGMNotes() or "")
+  if notes == "" then obj.setGMNotes(tag) else obj.setGMNotes(notes .. "\n" .. tag) end
 end

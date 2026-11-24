@@ -182,7 +182,7 @@ patchScripts("Phasing + Color Module: disable updateModule",
 // 6. rikrassen importer: spawns whatever object JSON its server returns (scripts included)
 patchScripts("rikrassen importer: strip scripts from server-spawned objects",
   "      spawnObjectJSON({ json = obj })",
-  `      spawnObjectJSON({ json = engineCopyStripScripts(obj) }) ${TAG} scripts from the server are removed`);
+  `      spawnObjectJSON({ json = engineCopyStripScripts(obj), callback_function = function(o) deckcheckRikTagSpawned(player.color, reqType, o) end }) ${TAG} scripts from the server are removed; a DeckCheck deck gets its tag (tools/deckcheck-rik.lua)`);
 patchScripts("rikrassen importer: add the script stripper",
   "--- @param resp WebRequestInstance\n--- @param player PlayerInstance",
   `${TAG} remove Lua/XML from objects the importer server sends, so only cards and images are spawned

@@ -81,6 +81,35 @@ const script = rik ? rik.LuaScript : "";
   ok("no seat: the importer's own message, and no GET to DeckCheck", /take a seat/.test(said(seatless)) && seatless.gets.length === 0 && seatless.posts.length === 0, said(seatless) + JSON.stringify(seatless.gets));
 }
 
+// ───────── the deck the server builds from a DeckCheck link carries the bracket tag ─────────
+// (the bracket and threat label reads it from the GM notes of the deck on the library spot: engine-renderer.lua; the
+// server only ever saw a plain list, so without this the label never showed, live 2026-11-24)
+{
+  const build = [JSON.stringify({ Name: "Deck", Nickname: "Library" }), JSON.stringify({ Name: "Card", Nickname: "Thrasios" }),
+    JSON.stringify({ Name: "Deck", Nickname: "Tokens", GMNotes: "made by the server" })].join("\n");
+  const id = "Tag_1";
+  const r = runDeck(script, form(`https://deckcheck.co/app/builder/${id}`), { answers: { [API + id]: answer(200, FIX.partners) }, build });
+  const sp = r.spawned || [];
+  const decks = sp.filter((o) => o.type === "Deck");
+  const card = sp.find((o) => o.type === "Card");
+  const tag = decks[0] && decks[0].gm;
+  ok("deckcheck build: runs, the server's three objects spawned", !r.error && sp.length === 3 && decks.length === 2 && card, r.error || JSON.stringify(sp));
+  ok("deckcheck build: the deck's GM notes hold the DeckCheck tag with its id, bracket and threat",
+    typeof tag === "string" && tag.includes("id=" + id) && /bracket=\d/.test(tag) && /threat=\d+\/\d+/.test(tag), JSON.stringify(tag));
+  ok("deckcheck build: a deck that came with notes keeps them, the tag on the next line",
+    decks[1] && decks[1].gm === "made by the server\n" + tag, JSON.stringify(decks[1] && decks[1].gm));
+  ok("deckcheck build: the commander card gets no tag", card && (card.gm || "") === "", JSON.stringify(card));
+  const other = runDeck(script, form("https://www.moxfield.com/decks/abc123"), { build });
+  const od = (other.spawned || []).filter((o) => o.type === "Deck");
+  ok("other link's build: its decks get no tag", !other.error && od.length === 2 && (od[0].gm || "") === "" && od[1].gm === "made by the server", other.error || JSON.stringify(other.spawned));
+  // the same seat imports a DeckCheck deck, then a Moxfield one: the second deck must not carry the first one's tag
+  const after = runDeck(script, form("https://www.moxfield.com/decks/abc123"), { answers: { [API + id]: answer(200, FIX.partners) }, build,
+    first: form(`https://deckcheck.co/app/builder/${id}`) });
+  const all = (after.spawned || []).filter((o) => o.type === "Deck");
+  ok("a DeckCheck import then another link: the first deck tagged, the second deck not",
+    !after.error && all.length === 4 && all[0].gm === tag && (all[2].gm || "") === "" && all[3].gm === "made by the server", after.error || JSON.stringify(after.spawned));
+}
+
 // ───────── every other link, and a pasted list: to the server unchanged ─────────
 {
   const url = "https://www.moxfield.com/decks/abc123";
