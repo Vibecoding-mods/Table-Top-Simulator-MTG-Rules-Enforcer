@@ -3175,7 +3175,7 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
       // so a plain morph shows no numbers and a pumped or damaged one does)
       ...(body != null ? { bp: 2, bt: 2 } : {}),
       ...(c.phasedOut ? { po: true } : {}),
-      ...(c.isForetold ? { fo: true } : {}), ...(c.exiledWith ? { ew: c.exiledWith, rl: !!c.returnsWhenHostLeaves } : {}),
+      ...(c.isForetold ? { fo: true } : {}), ...(exileLinkMatters(c) ? { ew: c.exiledWith, rl: !!c.returnsWhenHostLeaves } : {}),
       // (a hideaway card under its land: which card it lies under is public, what it is is not)
       ...(zone === "exile" ? notesOf(exiledWithNote(c)) : {}) };
   }
@@ -3239,12 +3239,12 @@ function tableCard(c, { blockers = null, active = null, zone = null, views = [],
     blk: !!(blockers && blockers.has(c.id)), blkOf: blockers?.get?.(c.id) || null, // (the attackers it blocks: lines)
     // exile links (our Forge build, 2026-10-23): the card that exiled it, whether it comes back when that card leaves,
     // and foretold; absent with the stock server
-    ...(c.exiledWith ? { ew: c.exiledWith, rl: !!c.returnsWhenHostLeaves } : {}),
+    ...(exileLinkMatters(c) ? { ew: c.exiledWith, rl: !!c.returnsWhenHostLeaves } : {}),
     // a cipher card encoded on a creature: shown with it, as a linked exile (hp-25 T10)
-    ...(c.encodedOn && !c.exiledWith ? { ew: c.encodedOn, enc: true } : {}),
+    ...(c.encodedOn && !exileLinkMatters(c) ? { ew: c.encodedOn, enc: true } : {}),
     // a prepared creature's spell copy (notePrepared): shown with its creature, as a linked exile, when it isn't in a
     // seated player's playable row (HAND-TEST-HP06 #20)
-    ...(!c.exiledWith && !c.encodedOn && game?.prepared?.has(c.id) ? { ew: game.prepared.get(c.id).host } : {}),
+    ...(!exileLinkMatters(c) && !c.encodedOn && game?.prepared?.has(c.id) ? { ew: game.prepared.get(c.id).host } : {}),
     // its text as changed (Mind Bend, Exchange of Words, Deadpool, Volrath's Shapeshifter: Forge's current text, sent
     // only when changed) and its printed name when a text effect renamed it (hp-25 T0 T13)
     // (each line once: Forge's text repeats a replacement's line, "As Deadpool enters, ..." twice on the Shapeshifter)
@@ -3514,12 +3514,26 @@ const boardText = (id) => {
 // battlefield, return the exiled card") says its trigger returns it, which can be answered: readability audit B3.
 function exiledWithNote(c) {
   const host = c?.exiledWith;
-  if (!host || host === c.id || !game?.tableCtx?.field?.has(host)) return [];
+  if (!host || host === c.id || !game?.tableCtx?.field?.has(host) || !exileLinkMatters(c)) return [];
   const name = boardName(host);
   if (!c.returnsWhenHostLeaves && /\bleaves the battlefield, return the exiled cards?\b/i.test(boardText(host))) {
     return [`Exiled with ${name}. When ${name} leaves the battlefield, its trigger returns this card`];
   }
   return [`Exiled with ${name}`];
+}
+// Whether a card's exiledWith links it to that card for the table (laid with it, "Exiled with X"). Forge sets
+// exiledWith for every exile a card's effect makes, so The Wandering Emperor's "Exile target tapped creature" named her
+// too, and the table laid a card exiled for good beside her (the user, 2026-11-24): that is the exile pile's. Linked:
+// it comes back when the card leaves, it may be played through it, or the card's text speaks of what it exiled ("cards
+// exiled with", "the exiled card", "until ... leaves the battlefield", hideaway, imprint, cage counters). A card whose
+// text isn't known (face down) keeps the link.
+const EXILE_LINK_WORDS = /\bexiled with\b|\bcards? exiled\b|\bexiled cards?\b|\bhideaway\b|\bimprint(?:ed)?\b|\bcage counters?\b|\buntil [^.]*\bleaves the battlefield\b|\bremains? exiled\b/i;
+function exileLinkMatters(c) {
+  const host = c?.exiledWith;
+  if (!host) return false;
+  if (host === c.id || c.returnsWhenHostLeaves || c.mayPlay) return true;
+  const text = boardText(host);
+  return text === "" || EXILE_LINK_WORDS.test(text);
 }
 // A caged card (Mairsil, the Pretender: its owner's card in exile with a cage counter; that player's permanents whose
 // text names cage counters have its activated abilities, whoever caged it): those permanents on the board drawn now
@@ -15480,7 +15494,7 @@ if (require.main === module) {
   module.exports = {
     alignment, tableCard, costNow, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
     summarizeLands, swapWords, tokensCounted, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword, playWindow,
-    _setGame: (g) => { game = g; }, _getGame: () => game, _checkRestored: checkRestored, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
+    _setGame: (g) => { game = g; }, _getGame: () => game, _checkRestored: checkRestored, _exileLinkMatters: exileLinkMatters, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
     _spellsMark: spellsMark, _actingFor: actingFor, _tokenRuns: (on) => { tableTokenRuns = !!on; }, _packRunIds: packRunIds, _tieState: tieState, _stalemateEarners: stalemateEarners, _forcedTieEarned: forcedTieEarned, STALEMATE_EARNED_BY, _steamIds: steamIds, _harmlessVotes: harmlessVotes, _accomplishments: accomplishments, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice, deckListArt, _startConfig: () => startConfig(), _match: match, _matchWaiting: () => matchWaiting(),
     _archenemy: archenemy, _onArchenemy: onArchenemy, _onSchemes: onSchemes, _withArchenemy: withArchenemy, _forgeSchemes: forgeSchemes, ARCH_NO_UNDO, ARCH_SWITCH_OFF,
     _engineSetting: () => ({ RELAY, KEY, REMOTE_ENGINE }), _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,

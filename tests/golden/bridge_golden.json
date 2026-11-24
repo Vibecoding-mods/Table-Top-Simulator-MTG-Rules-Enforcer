@@ -121262,11 +121262,7 @@
          "p": "1",
          "t": "3",
          "sick": true,
-         "ctl": "Blue",
-         "ew": "engine-card-22",
-         "nt": [
-          "Exiled with Evolving Wilds"
-         ]
+         "ctl": "Blue"
         },
         {
          "s": 1,
