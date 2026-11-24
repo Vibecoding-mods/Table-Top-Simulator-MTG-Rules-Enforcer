@@ -839,7 +839,10 @@ Player = setmetatable({}, { __index = function(t, color)
   if color == "getColors" then return function() return COLORS end end
   if color == "Action" then return { PickUp = 0, Select = 1, FlipOver = 2, RotateIncrementalLeft = 3, RotateIncrementalRight = 4, Copy = 5, Paste = 6, Delete = 7, Group = 8, Randomize = 9, Cut = 10 } end
   local p = { color = color, seated = SIM.seated[color] == true, steam_name = SIM.seated[color] and ("Player" .. color) or "", host = color == SIM.host,
-    admin = color == SIM.host or (SIM.promoted or {})[color] == true, promoted = (SIM.promoted or {})[color] == true, team = "None", steam_id = "sim-" .. color }
+    admin = color == SIM.host or (SIM.promoted or {})[color] == true, promoted = (SIM.promoted or {})[color] == true, steam_id = "sim-" .. color }
+  -- (team: kept per colour, as TTS keeps a player's team; a write is logged, "Player.team")
+  setmetatable(p, { __index = function(_, k) if k == "team" then return (SIM.teams or {})[color] or "None" end end,
+    __newindex = function(tt, k, v) if k == "team" then SIM.teams = SIM.teams or {} SIM.teams[color] = v fx("Player.team", color, v) else rawset(tt, k, v) end end })
   -- (promote() toggles, like TTS (api.tabletopsimulator.com/player/instance: no parameters); an argument is ignored)
   p.promote = function()
     SIM.promoted = SIM.promoted or {}

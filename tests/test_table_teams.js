@@ -74,7 +74,8 @@ const chats = (r, mark) => fxOf(r, mark).filter((l) => /broadcast/.test(l)).join
     'local inH = false for _, h in ipairs(Player.Yellow.getHandObjects(2)) do if h == o then inH = true end end return inH and "back" or "out"';
   const check = 'local out = {} for _, pr in ipairs(engineSelfCheck().problems or {}) do if tostring(pr):find("50[12]") or tostring(pr):find("Elves", 1, true) or tostring(pr):find("Counterspell", 1, true) then out[#out + 1] = tostring(pr) end end return #out == 0 and "none" or table.concat(out, " || ")';
   const r = sim([
-    q('engineAutoPace.Yellow = false engineAutoPace.Blue = false engineChat("mtg start ai 2", Player.Blue) return "ok"', "prelude"),
+    // (the stand-ins: the fallback when the TTS teams can't be set, engineTtsTeams false; the teams are checked below)
+    q('engineTtsTeams = function() return false end engineAutoPace.Yellow = false engineAutoPace.Blue = false engineChat("mtg start ai 2", Player.Blue) return "ok"', "prelude"),
     { msg: { t: "started", json: STARTED } },
     { msg: { t: "table", json: board({}, HANDS) }, frames: 90 },
     q(where("engine-card-501", "Blue"), "blue's own"),
@@ -113,6 +114,38 @@ const chats = (r, mark) => fxOf(r, mark).filter((l) => /broadcast/.test(l)).join
   ok("hands: no teamHand, no stand-in", valueOf(r, "gone") === "none", String(valueOf(r, "gone")));
   ok("end: both partners win; the banner names the team", valueOf(r, "won") === "true true false PLAYERYELLOW + PLAYERBLUE WIN THE GAME", String(valueOf(r, "won")));
   ok("end: free-for-all unchanged", valueOf(r, "won ffa") === "false true PLAYERBLUE WINS THE GAME", String(valueOf(r, "won ffa")));
+}
+
+// ── the partners on one TTS team (docs/2hg-shared-hand-spec.md, the user 2026-11-24): each sees the other's real hand,
+// so no stand-ins; the other team's seats (AIs here, unseated) untouched; off at the game's end, a reset, and in 2v2 ──
+{
+  const teamsOf = (mark) => q('return Player.White.team .. " " .. Player.Red.team .. " " .. Player.Yellow.team .. " " .. Player.Blue.team', mark);
+  const sides2v2 = JSON.parse(board({}, HANDS));
+  sides2v2.teams = { rule: "teams", sides: SIDES };
+  const r = sim([
+    q('engineAutoPace.Yellow = false engineAutoPace.Blue = false engineChat("mtg start ai 2", Player.Blue) return "ok"', "prelude"),
+    { msg: { t: "started", json: STARTED } },
+    { msg: { t: "table", json: board({}, HANDS) }, frames: 90 },
+    teamsOf("on"),
+    q(where("team:Yellow:engine-card-501", "Yellow"), "no stand-in"),
+    q(where("engine-card-501", "Blue"), "own card"),
+    q('__fx = {} engineRender(engineTable()) __sim.frames(5) local n = 0 for _, l in ipairs(__fx) do if l:find("Player.team", 1, true) then n = n + 1 end end return tostring(n)', "again"),
+    { msg: { t: "table", json: board({ gameOver: true, winner: "Blue" }, HANDS) }, frames: 30 },
+    teamsOf("over"),
+    { msg: { t: "table", json: board({}, HANDS) }, frames: 30 },
+    q('engineCountersReset() return "reset"', "reset"),
+    teamsOf("after reset"),
+    { msg: { t: "table", json: JSON.stringify(sides2v2) }, frames: 30 },
+    teamsOf("2v2"),
+  ]);
+  ok("tts teams: no errors", !r.errors.length, r.errors.join(" | "));
+  ok("tts teams: the seated partners on one team, the other side's seats untouched", valueOf(r, "on") === "None None Clubs Clubs", String(valueOf(r, "on")));
+  ok("tts teams: no stand-in of the partner's hand", valueOf(r, "no stand-in") === "none", String(valueOf(r, "no stand-in")));
+  ok("tts teams: the partner's own card still in their hand", valueOf(r, "own card") === "1 hand", String(valueOf(r, "own card")));
+  ok("tts teams: not set again on the next board", valueOf(r, "again") === "0", String(valueOf(r, "again")));
+  ok("tts teams: off when the game is over", valueOf(r, "over") === "None None None None", String(valueOf(r, "over")));
+  ok("tts teams: off after a reset", valueOf(r, "after reset") === "None None None None", String(valueOf(r, "after reset")));
+  ok("tts teams: never in 2v2 (own-life teams keep hands private)", valueOf(r, "2v2") === "None None None None", String(valueOf(r, "2v2")));
 }
 
 console.log(`${failed ? "FAIL" : "PASS"} test_table_teams: ${passed} passed, ${failed} failed`);

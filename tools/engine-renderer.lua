@@ -1044,6 +1044,43 @@ function engineTeamHands(m, seen)
     end
   end
 end
+-- Two-Headed Giant partners on one TTS team (docs/2hg-shared-hand-spec.md, the user 2026-11-24: "don't duplicate my
+-- teammates deck on my side ... I can see their live hand"; Teams chosen, and partners may see face-down cards too):
+-- teammates in TTS see each other's hand and hidden zones, so the partner sees the real cards, live, and the look-only
+-- stand-ins (engineTeamHands) aren't placed. A shared-life game's sides only (2HG, 3HG: the board's teams without
+-- rule "teams"; 2v2 and the other own-life modes keep hands private). Each side gets its own TTS team, in the board's
+-- order; a seated player not on theirs is put on it. engineTtsTeamsSet: colour -> the team the table put them on, so the
+-- end of the game (engineTtsTeamsClear) takes off only what the table set.
+ENGINE_TTS_TEAMS = { "Hearts", "Clubs", "Spades", "Diamonds" }
+engineTtsTeamsSet = {}
+-- true when every seated partner is on their TTS team for this board (false: a team didn't take, and the stand-ins
+-- are placed instead)
+function engineTtsTeams(m)
+  local t = m and m.teams
+  if t == nil or t.rule == "teams" or type(t.sides) ~= "table" or #t.sides < 2 or m.gameOver then
+    engineTtsTeamsClear()
+    return false
+  end
+  local all = true
+  for i, side in ipairs(t.sides) do
+    local want = ENGINE_TTS_TEAMS[i]
+    for _, c in ipairs(side) do
+      local p = Player[c]
+      if p ~= nil and p.seated then
+        if want ~= nil and p.team ~= want then pcall(function() p.team = want end) end
+        if want ~= nil and p.team == want then engineTtsTeamsSet[c] = want else all = false end
+      end
+    end
+  end
+  return all
+end
+function engineTtsTeamsClear()
+  for c, team in pairs(engineTtsTeamsSet) do
+    local p = Player[c]
+    if p ~= nil and p.team == team then pcall(function() p.team = "None" end) end
+  end
+  engineTtsTeamsSet = {}
+end
 -- the team of the colour, from the board's teams (bridge/teams.js teamsField), or nil
 function engineTeamOf(t, color)
   for _, side in ipairs((t and t.teams and t.teams.sides) or {}) do
@@ -1866,6 +1903,7 @@ function engineCountersReset()
   engineCountersShown = {}
   if engineStatusParkAll ~= nil then pcall(engineStatusParkAll) end -- (the status pieces go back under the table)
   if engineManaParkAll ~= nil then pcall(engineManaParkAll) end -- (and the mana counters, engineManaCounters)
+  if engineTtsTeamsClear ~= nil then pcall(engineTtsTeamsClear) end -- (and the 2HG partners off their TTS teams)
 end
 -- Where the marks go: one small box a mark, stacked down the inner corner of the player's mat under the heart
 -- (2026-11-10, the user: "have it [in the] corner of your playmat under your heart"; "you can add multiple boxes if
@@ -4310,8 +4348,14 @@ function engineRender(m)
   pcall(engineMatchRollBanner, m) -- (best of three: game 1's roll, the bridge's matchRoll)
   local okCtl, errCtl = pcall(engineCtlHands, m, seen) -- (a controlled player's hand, see engineCtlHands)
   if not okCtl then print("[MTG] controlled hand: " .. tostring(errCtl)) end
-  okCtl, errCtl = pcall(engineTeamHands, m, seen) -- (a Two-Headed Giant partner's hand, look-only: engineTeamHands)
-  if not okCtl then print("[MTG] partner's hand: " .. tostring(errCtl)) end
+  -- (a Two-Headed Giant partner's hand: seen through the TTS team, engineTtsTeams; the look-only stand-ins,
+  -- engineTeamHands, only when the teams couldn't be set)
+  okCtl, errCtl = pcall(engineTtsTeams, m)
+  if not okCtl then print("[MTG] TTS teams: " .. tostring(errCtl)) end
+  if not (okCtl and errCtl == true) then
+    okCtl, errCtl = pcall(engineTeamHands, m, seen)
+    if not okCtl then print("[MTG] partner's hand: " .. tostring(errCtl)) end
+  end
   local okPop, errPop = pcall(function() enginePopups(m) enginePopupsClose(m) engineEffects(m) end) -- a pop-up problem must never stop the board update
   if not okPop then print("[MTG] pop-up: " .. tostring(errPop)) end
   sect("popups")
