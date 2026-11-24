@@ -686,17 +686,26 @@ function batch1124(s1) {
   const clickObj = (gm) => ({ lua: `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${gm}" then o = x end end if o == nil then return "no object" end
     onPlayerAction(Player.Blue, Player.Action.Select, { o }) onPlayerAction(Player.Blue, Player.Action.PickUp, { o }) __sim.frames(30) return "clicked"`, mark: `click ${gm}` });
   const opts = (ids) => ids.map((id) => ({ id: `spell|${id}`, label: id }));
+  const tileRead = click(`${tile} local l = {} for _, x in ipairs(t.getButtons() or {}) do l[#l + 1] = x.click_function .. "=" .. x.label .. "@" .. tostring(x.font_size) end return table.concat(l, ";")`);
   // (the "Waiting for" flash goes by os.clock, real time: off here, or a slow run records other colours)
   return [click("engineWaitFlash = function() end"), click("setEngineMode(true)"),
     click('onMtgSetupMode(nil, "Blue")'), click('onMtgSetupMode(nil, "Blue", true)'), click('onMtgSetupMode(nil, "Blue", true)'),
     msg("banlist", { format: "commander", source: "scryfall", date: "2026-11-18", counts: { banned: 83, restricted: 0 }, missing: ["duel"] }),
-    click('onMtgSetupMode(nil, "Blue") onMtgSetupMode(nil, "Blue") return ENGINE_FORMAT'), // commander, then past duel
+    click('onMtgSetupMode(nil, "Blue") onMtgSetupMode(nil, "Blue") return ENGINE_FORMAT'), // round to commander
+    click('onMtgSetupMode(nil, "Blue") return ENGINE_FORMAT'), // past duel (no list) to paupercommander
     click('onMtgSetupMode(nil, "White") return ENGINE_FORMAT'), // a table-promoted player: refused
+    // (the fitted font both sides of its bounds: "Pauper Commander: 100" is 21 letters, "Duel Commander" exactly 14)
+    msg("banlist", { format: "paupercommander", source: "scryfall", date: "2026-11-18", counts: { banned: 100, restricted: 0 }, missing: [] }), tileRead,
+    click('engineChat("mtg format duel", Player.Blue) return ENGINE_FORMAT'), tileRead,
     click('engineChat("mtg format modern", Player.Blue) onMtgSetupBanned(nil, "Blue") return ENGINE_FORMAT .. "|" .. ENGINE_GAME_MODE'),
     msg("banlist", { format: "modern", source: "scryfall", date: "2026-11-18", counts: { banned: 3, restricted: 0 } }),
     click('onMtgSetupBanlist(nil, "White")'),
     msg("banlistNames", { format: "modern", source: "scryfall", date: "2026-11-18", banned: ["Up the Beanstalk", "Ancient Den"], restricted: [] }),
-    click(`${tile} local l = {} for _, x in ipairs(t.getButtons() or {}) do l[#l + 1] = x.click_function .. "=" .. x.label .. "@" .. tostring(x.font_size) end return table.concat(l, ";")`),
+    tileRead,
+    click('local t = {} for _, n in ipairs(Notes.getNotebookTabs()) do t[#t + 1] = n.index .. ":" .. n.title .. "=" .. n.body end return table.concat(t, "\\n####\\n")'),
+    click('onMtgSetupBanlist(nil, "White")'), // the Notebook holds the list now: nothing asked of the bridge
+    // a format button wiped (TTS's own scripts can): the next heal draws the tile again
+    { lua: `${tile} for i, x in ipairs(t.getButtons()) do if x.click_function == "onMtgSetupBanlist" then t.removeButton(i - 1) break end end return "wiped"`, frames: 130, mark: "wipe the Banned list button" }, tileRead,
     click('engineChat("mtg gifs off", Player.White)'), click('engineChat("mtg gifs off", Player.Blue) engineChat("mtg gifs on", Player.Blue)'),
     click('engineChat("mtg format casual", Player.Blue) return ENGINE_FORMAT'),
     click("engineAutoPace.Blue = false"), click('engineChat("mtg start ai 1", Player.Blue)'),
@@ -711,7 +720,8 @@ function batch1124(s1) {
     glows("glows offered"), click('return tostring(UI.getValue("eng_hint_Blue"))'), clickObj(C(974)), clickObj(C(971)),
     ask({ promptId: 9902, kind: "target", title: "Choose up to two spells", mode: "multi", min: 1, max: 2, options: opts(["stack-91", "stack-92"]) }),
     clickObj("stack:stack-92"), glows("glows picked"),
-    ask({ promptId: 9903, kind: "target", title: "Counter target ability", mode: "single", min: 1, max: 1, options: opts(["stack-w1", "stack-w2"]) }),
+    // (no kind: the spell| options alone make it a target question, promptKind)
+    ask({ promptId: 9903, title: "Counter target ability", mode: "single", min: 1, max: 1, options: opts(["stack-w1", "stack-w2"]) }),
     glows("glows folded"), clickObj("stack:more:White"),
     { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 90, mark: "clear (mtg reset)" }];
 }
