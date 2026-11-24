@@ -353,6 +353,47 @@ async function started(h, seat, n = 2) {
     ok("panel: the 10th pass shows Repeating 11/20", seat.loop?.done === 10 && titles.includes("Repeating 11/20"), JSON.stringify({ done: seat.loop?.done, titles }));
     ok("panel: not every pass within the moment", !titles.includes("Repeating 5/20"), JSON.stringify(titles));
   });
+  // 5d. a pass that ends with mana abilities (Kykar sacrificing the Spirit the pass made, for {R}; the user's Hullbreaker
+  // Horror + Sol Ring loop, 2026-11-24): the priorities after them are on the same board, as tokens don't count, and
+  // nothing resolved since; the pass began before them, and it repeats with the sacrifice in it
+  await run(async (h) => {
+    const { seat, calls } = setup(h);
+    const sacAct = (id) => ({ id, type: "activateAbility", isManaAbility: true, cardId: "engine-card-12", description: "Sacrifice a Spirit: Add {R}.", cost: "Sac<1/Spirit>" });
+    const kykar = card("engine-card-12", "Kykar, Wind's Fury");
+    const withK = (o) => { const gv = board(o); gv.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.push(kykar); return gv; };
+    const spirit = (id) => card(id, "Spirit", { token: true });
+    // two Spirits to pick from (a single one is picked by the table itself); their ids new each pass
+    const sacPick = (a, b) => ask(h, seat, withK({ extra: [spirit(a), spirit(b)] }), { type: "chooseCards", min: 1, max: 1, cancellable: true, presentation: { title: "Kykar, Wind's Fury: choose a creature to sacrifice" },
+      cards: [{ id: a }, { id: b }] }, { sourceCard: { id: "engine-card-12", identity: { name: "Kykar, Wind's Fury" } } });
+    // the hand pass on Kykar's board, then the token sacrificed for mana
+    const p1 = await prio(h, seat, withK({}), acts(0));
+    await answer(h, p1, "prompt-action-0");
+    const t1 = await kikiTarget(h, seat, 0);
+    await answer(h, t1, "card|engine-card-11");
+    await prio(h, seat, withK({ kikiTapped: true, stack: [kikiAbility] }), [opt("prompt-action-0")]);
+    const t2 = await trigTarget(h, seat, 0);
+    await answer(h, t2, "card|engine-card-10");
+    await prio(h, seat, withK({ kikiTapped: true, tokens: 1, stack: [conscriptsTrigger(0)] }), [opt("prompt-action-0")]);
+    const p2 = await prio(h, seat, withK({ tokens: 1 }), [...acts(1), sacAct("prompt-action-2")]);
+    ok("mana at the end: Repeat ×N before the sacrifice", optIds(seat).includes("__loop"), optIds(seat).join(","));
+    await answer(h, p2, "__mana:engine-card-12");
+    const s1 = await sacPick("engine-card-40", "engine-card-41");
+    await answer(h, s1, "engine-card-40");
+    const p3 = await prio(h, seat, withK({}), acts(0));
+    ok("mana at the end: still Repeat ×N after the sacrifice (the pass began at the Kiki-Jiki activation)",
+      seat.prompt?.promptId === p3 && optIds(seat).includes("__loop") && seat.loopOffer?.steps.length === 7 && seat.loopOffer.name === "Kiki-Jiki, Mirror Breaker + Kykar, Wind's Fury",
+      JSON.stringify({ o: optIds(seat), n: seat.loopOffer?.name, s: seat.loopOffer?.steps.length }));
+    await say(h, "repeatloop", { n: 1 });
+    ok("mana at the end: the repeat starts with the Kiki-Jiki activation", seat.loop && JSON.stringify(lastOut(calls)) === JSON.stringify({ type: "act", actionId: "prompt-action-0" }), JSON.stringify(lastOut(calls)));
+    await kikiTarget(h, seat, 0);
+    await prio(h, seat, withK({ kikiTapped: true, stack: [kikiAbility] }), [opt("prompt-action-0")]);
+    await trigTarget(h, seat, 0);
+    await prio(h, seat, withK({ kikiTapped: true, tokens: 1, stack: [conscriptsTrigger(0)] }), [opt("prompt-action-0")]);
+    await prio(h, seat, withK({ tokens: 1 }), [...acts(1), sacAct("prompt-action-2")]);
+    ok("mana at the end: the repeat sacrifices too", JSON.stringify(lastOut(calls)) === JSON.stringify({ type: "act", actionId: "prompt-action-2" }), JSON.stringify(lastOut(calls)));
+    await sacPick("engine-card-42", "engine-card-43");
+    ok("mana at the end: this pass's first Spirit is the one sacrificed", JSON.stringify(lastOut(calls)) === JSON.stringify({ type: "chooseCardsDecision", chosenCardIds: ["engine-card-42"] }), JSON.stringify(lastOut(calls)));
+  });
   // 6. the pieces: loopMap keeps an id that is the same thing, follows a card's action, and names what is gone
   await run(async (h) => {
     const B = h.B;

@@ -10233,10 +10233,12 @@ function loopNote(seat, promptId, type, out) {
   book.list.push({ type, ask: loopAsk(raw), cands: loopCands(raw.input, gv), out: JSON.parse(JSON.stringify(out ?? null)), sig: type === "chooseAction" ? loopSig(gv, seat.slot) : null });
   if (book.list.length > LOOP_LOG_MAX) book.list.splice(0, book.list.length - LOOP_LOG_MAX);
 }
-// The pass the seat's open priority can repeat: the answers since its last priority this turn with this same board
-// where it played something, LOOP_PASS_MAX at most; null when there is none. A pass resolved something (a priority
-// passed in it) and cancelled nothing: a cast taken back comes back to the same board too, and so would two
-// activations with no board between them.
+// The pass the seat's open priority can repeat: the answers since its latest priority this turn with this same board
+// where it played something and from which the pass resolved something (a priority passed in it), LOOP_PASS_MAX at
+// most; null when there is none, or when the pass cancelled something (a cast taken back comes back to the same board
+// too). A priority on the same board where nothing resolved since is not where the pass began: mana abilities at its
+// end (Kykar sacrificing the Spirits the pass made, for {R}) come back to the same board, as tokens don't count, and
+// the pass began before them (the user's Hullbreaker Horror + Sol Ring loop, 2026-11-24).
 function loopFind(seat, gv) {
   const list = seat.loopLog && seat.loopLog.turn === gv.turn ? seat.loopLog.list : [];
   const sig = loopSig(gv, seat.slot);
@@ -10244,8 +10246,8 @@ function loopFind(seat, gv) {
     const e = list[j];
     if (e.type !== "chooseAction" || e.sig !== sig || e.out?.type !== "act") continue;
     const steps = list.slice(j);
-    const resolved = steps.some((x) => x.type === "chooseAction" && x.out?.type === "pass");
-    return resolved && !steps.some((x) => x.out?.type === "cancel") ? { steps, sig } : null;
+    if (steps.some((x) => x.out?.type === "cancel")) return null;
+    if (steps.some((x) => x.type === "chooseAction" && x.out?.type === "pass")) return { steps, sig };
   }
   return null;
 }

@@ -1,0 +1,21 @@
+{
+  "label": "Hullbreaker Horror + Sol Ring + a 1-mana permanent (Sensei's Divining Top): each cast bounces the other, net 0 mana, infinite casts; Kykar makes a Spirit per noncreature cast (sacrifice it for R), Impact Tremors pings per Spirit",
+  "lands": {
+    "Island": 2,
+    "Mountain": 1,
+    "Plains": 1
+  },
+  "keepHand": false,
+  "hand": [
+    "Sensei's Divining Top"
+  ],
+  "battlefield": [
+    "Hullbreaker Horror",
+    "Sol Ring",
+    "Impact Tremors"
+  ],
+  "life": 40,
+  "opponents": {
+    "life": 20
+  }
+}

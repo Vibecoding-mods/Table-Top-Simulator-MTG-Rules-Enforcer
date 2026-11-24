@@ -1,0 +1,21 @@
+{
+  "label": "Hullbreaker Horror + Sol Ring + Sensei's Divining Top, mana-neutral infinite casts; Kykar makes a Spirit per cast and sacrifices it for {R}: infinite red mana, finished with Crackle with Power for X = 60 (300 damage)",
+  "lands": {
+    "Island": 2,
+    "Mountain": 1,
+    "Plains": 1
+  },
+  "keepHand": false,
+  "hand": [
+    "Sensei's Divining Top",
+    "Crackle with Power"
+  ],
+  "battlefield": [
+    "Hullbreaker Horror",
+    "Sol Ring"
+  ],
+  "life": 40,
+  "opponents": {
+    "life": 20
+  }
+}
