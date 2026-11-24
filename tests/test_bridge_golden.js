@@ -1,5 +1,11 @@
 // Golden-master test for bridge/bridge.js: replays every scenario and compares against tests/golden/bridge_golden.json.
 // Fails by scenario name, with the first differing side effect.   node tests/test_bridge_golden.js
+// Re-capture: node --max-old-space-size=12288 tools/capture_bridge_golden.js (runs every scenario twice in one process
+// and refuses to write unless both runs are byte-identical, so a scenario must not keep state between runs).
+// What it cannot see: timing and concurrency (the harness runs timers and sockets in one thread, in order); the real
+// engine and relay (every prompt and board is a fixture); the table's Lua (only the messages sent to it); whether a
+// recorded behaviour was RIGHT (a photograph certifies what the code did when captured); and the sections with few or no
+// scenarios of their own (best of three, debug tools, turn timers, crash recovery), which their test_bridge_* files cover.
 const fs = require("fs");
 const path = require("path");
 const { runAll, codeErrors } = require("./golden/bridge-run");

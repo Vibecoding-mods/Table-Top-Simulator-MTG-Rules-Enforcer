@@ -954149,5 +954149,5818 @@
     "AI 1: 40 -> 38 life (-2, Night's Whisper)"
    ]
   }
+ },
+ {
+  "name": "trigger loop: found on the third pass, Blue runs it x10, White accepts 2, it ends after 2 and is not offered again",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #1701: chooseBoardTargets \"Sanguine Bond: choose target opponent\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1701 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1701,
+     "title": "Sanguine Bond: choose target opponent",
+     "mode": "multi",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "White"
+      }
+     ],
+     "kind": "target",
+     "text": "Whenever you gain life, target opponent loses that much life."
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1701,
+     "choice": [
+      "player|player-1"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1701 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1701,
+     "type": "chooseBoardTargets",
+     "out": {
+      "type": "boardTargets",
+      "chosen": [
+       {
+        "kind": "player",
+        "id": "player-1"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1701,
+      "action": {
+       "type": "chooseBoardTargets",
+       "output": {
+        "type": "boardTargets",
+        "chosen": [
+         {
+          "kind": "player",
+          "id": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1702: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1702 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1702,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1702,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1702 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1702,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1702,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1703: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1703 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1703,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1703,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1703 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1703,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1703,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #1704: chooseBoardTargets \"Sanguine Bond: choose target opponent\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1704 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1704,
+     "title": "Sanguine Bond: choose target opponent",
+     "mode": "multi",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "White"
+      }
+     ],
+     "kind": "target",
+     "text": "Whenever you gain life, target opponent loses that much life."
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1704,
+     "choice": [
+      "player|player-1"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1704 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1704,
+     "type": "chooseBoardTargets",
+     "out": {
+      "type": "boardTargets",
+      "chosen": [
+       {
+        "kind": "player",
+        "id": "player-1"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1704,
+      "action": {
+       "type": "chooseBoardTargets",
+       "output": {
+        "type": "boardTargets",
+        "chosen": [
+         {
+          "kind": "player",
+          "id": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1705: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1705 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1705,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1705,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1705 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1705,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1705,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1706: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1706 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1706,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1706,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1706 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1706,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1706,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #1707: chooseBoardTargets \"Sanguine Bond → Exquisite Blood keep triggering: run the loop how many times?\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1707 \"Sanguine Bond → Exquisite Blood keep triggering: run the loop how many times?\": ×10 | ×100 | ×1000 | All (until it ends) | How many… | Answer as usual\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1707,
+     "title": "Sanguine Bond → Exquisite Blood keep triggering: run the loop how many times?",
+     "mode": "single",
+     "min": 1,
+     "max": 1,
+     "kind": "loop",
+     "text": "3 times so far this step. The others are asked to accept it, or fewer. Then answer this question once: the same answer is given each time after. Anyone may respond when they get priority, and that stops it.",
+     "options": [
+      {
+       "id": "__tl:10",
+       "label": "×10"
+      },
+      {
+       "id": "__tl:100",
+       "label": "×100"
+      },
+      {
+       "id": "__tl:1000",
+       "label": "×1000"
+      },
+      {
+       "id": "__tl:all",
+       "label": "All (until it ends)"
+      },
+      {
+       "id": "__tl:some",
+       "label": "How many…"
+      },
+      {
+       "id": "__tl:no",
+       "label": "Answer as usual"
+      }
+     ]
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1707,
+     "choice": [
+      "__tl:10"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1707 \"Sanguine Bond → Exquisite Blood keep triggering: run the loop how many times?\": ×10\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Blue runs the loop ×10 (Sanguine Bond → Exquisite Blood). The others are asked to accept it, or fewer; anyone may respond when they get priority, and that stops it.\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #__tloop \"Blue's loop ×10: accept it?\": Accept ×10 | Accept fewer… | No\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1707 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Blue runs the loop ×10 (Sanguine Bond → Exquisite Blood). The others are asked to accept it, or fewer; anyone may respond when they get priority, and that stops it.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": "__tloop",
+     "title": "Blue's loop ×10: accept it?",
+     "mode": "single",
+     "kind": "loop",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "__tl:all",
+       "label": "Accept ×10"
+      },
+      {
+       "id": "__tl:some",
+       "label": "Accept fewer…"
+      },
+      {
+       "id": "__tl:no",
+       "label": "No"
+      }
+     ],
+     "text": "Sanguine Bond → Exquisite Blood. Accepted, your priority is passed while only these triggers are on the stack, for that many passes of the loop (up to 10). You may still respond when asked, and that stops it."
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1707,
+     "step": 0,
+     "title": "Sanguine Bond: choose target opponent",
+     "mode": "multi",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "White"
+      }
+     ],
+     "kind": "target",
+     "text": "Whenever you gain life, target opponent loses that much life."
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1707,
+     "choice": [
+      "player|player-1"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1707 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1707,
+     "type": "chooseBoardTargets",
+     "out": {
+      "type": "boardTargets",
+      "chosen": [
+       {
+        "kind": "player",
+        "id": "player-1"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1707,
+      "action": {
+       "type": "chooseBoardTargets",
+       "output": {
+        "type": "boardTargets",
+        "chosen": [
+         {
+          "kind": "player",
+          "id": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": "__tloop",
+     "choice": [
+      "__tl:some"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #__tloop (the open question is #none) \"?\": __tl:some\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #__tloop \"Accept Blue's loop how many times? (1 to 10)\"\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": "__tloop",
+     "title": "Accept Blue's loop how many times? (1 to 10)",
+     "mode": "number",
+     "kind": "number",
+     "min": 0,
+     "max": 10,
+     "default": 10,
+     "text": "0 is No: you are asked at your priority as usual."
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": "__tloop",
+     "choice": [
+      "2"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #__tloop (the open question is #none) \"?\": 2\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] White accepts the loop ×2 (of 10).\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] White accepts the loop ×2 (of 10).",
+     "color": null
+    }
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1708,
+     "type": "chooseBoardTargets",
+     "out": {
+      "type": "boardTargets",
+      "chosen": [
+       {
+        "kind": "player",
+        "id": "player-1"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1708,
+      "action": {
+       "type": "chooseBoardTargets",
+       "output": {
+        "type": "boardTargets",
+        "chosen": [
+         {
+          "kind": "player",
+          "id": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1709,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1709,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1710,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1710,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1711,
+     "type": "chooseBoardTargets",
+     "out": {
+      "type": "boardTargets",
+      "chosen": [
+       {
+        "kind": "player",
+        "id": "player-1"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1711,
+      "action": {
+       "type": "chooseBoardTargets",
+       "output": {
+        "type": "boardTargets",
+        "chosen": [
+         {
+          "kind": "player",
+          "id": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1712,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1712,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1713,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1713,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] The loop ran 2 times (Sanguine Bond → Exquisite Blood).\n"
+   },
+   {
+    "log": "prompt Blue #1714: chooseBoardTargets \"Sanguine Bond: choose target opponent\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1714 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] The loop ran 2 times (Sanguine Bond → Exquisite Blood).",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1714,
+     "title": "Sanguine Bond: choose target opponent",
+     "mode": "multi",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "White"
+      }
+     ],
+     "kind": "target",
+     "text": "Whenever you gain life, target opponent loses that much life."
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1714,
+     "choice": [
+      "player|player-1"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1714 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1714,
+     "type": "chooseBoardTargets",
+     "out": {
+      "type": "boardTargets",
+      "chosen": [
+       {
+        "kind": "player",
+        "id": "player-1"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1714,
+      "action": {
+       "type": "chooseBoardTargets",
+       "output": {
+        "type": "boardTargets",
+        "chosen": [
+         {
+          "kind": "player",
+          "id": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1715: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1715 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1715,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1715,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1715 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1715,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1715,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1716: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1716 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1716,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1716,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1716 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1716,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1716,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #1717: chooseBoardTargets \"Sanguine Bond: choose target opponent\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1717 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1717,
+     "title": "Sanguine Bond: choose target opponent",
+     "mode": "multi",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "White"
+      }
+     ],
+     "kind": "target",
+     "text": "Whenever you gain life, target opponent loses that much life."
+    }
+   }
+  ],
+  "result": {
+   "offer": {
+    "id": 1707,
+    "title": "Sanguine Bond → Exquisite Blood keep triggering: run the loop how many times?",
+    "options": [
+     "__tl:10=×10",
+     "__tl:100=×100",
+     "__tl:1000=×1000",
+     "__tl:all=All (until it ends)",
+     "__tl:some=How many…",
+     "__tl:no=Answer as usual"
+    ]
+   },
+   "panel": [
+    "Blue's loop ×10: accept it?"
+   ],
+   "runAfter": null,
+   "offeredAgain": "Sanguine Bond: choose target opponent",
+   "tloopNo": "5|main1|engine-card-10|Whenever you gain life, target opponent loses that much life.",
+   "again": 1717
+  }
+ },
+ {
+  "name": "trigger loop: a rewind forgets the run and the triggers counted toward one",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #1701: chooseBoardTargets \"Sanguine Bond: choose target opponent\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1701 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1701,
+     "title": "Sanguine Bond: choose target opponent",
+     "mode": "multi",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "White"
+      }
+     ],
+     "kind": "target",
+     "text": "Whenever you gain life, target opponent loses that much life."
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1701,
+     "choice": [
+      "player|player-1"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1701 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1701,
+     "type": "chooseBoardTargets",
+     "out": {
+      "type": "boardTargets",
+      "chosen": [
+       {
+        "kind": "player",
+        "id": "player-1"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1701,
+      "action": {
+       "type": "chooseBoardTargets",
+       "output": {
+        "type": "boardTargets",
+        "chosen": [
+         {
+          "kind": "player",
+          "id": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1702: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1702 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1702,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1702,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1702 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1702,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1702,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1703: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1703 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1703,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1703,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1703 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1703,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1703,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #1704: chooseBoardTargets \"Sanguine Bond: choose target opponent\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1704 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1704,
+     "title": "Sanguine Bond: choose target opponent",
+     "mode": "multi",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "White"
+      }
+     ],
+     "kind": "target",
+     "text": "Whenever you gain life, target opponent loses that much life."
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1704,
+     "choice": [
+      "player|player-1"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1704 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1704,
+     "type": "chooseBoardTargets",
+     "out": {
+      "type": "boardTargets",
+      "chosen": [
+       {
+        "kind": "player",
+        "id": "player-1"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1704,
+      "action": {
+       "type": "chooseBoardTargets",
+       "output": {
+        "type": "boardTargets",
+        "chosen": [
+         {
+          "kind": "player",
+          "id": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1705: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1705 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1705,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1705,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1705 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1705,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1705,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1706: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1706 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1706,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1706,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1706 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1706,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1706,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #1707: chooseBoardTargets \"Sanguine Bond → Exquisite Blood keep triggering: run the loop how many times?\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1707 \"Sanguine Bond → Exquisite Blood keep triggering: run the loop how many times?\": ×10 | ×100 | ×1000 | All (until it ends) | How many… | Answer as usual\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1707,
+     "title": "Sanguine Bond → Exquisite Blood keep triggering: run the loop how many times?",
+     "mode": "single",
+     "min": 1,
+     "max": 1,
+     "kind": "loop",
+     "text": "3 times so far this step. The others are asked to accept it, or fewer. Then answer this question once: the same answer is given each time after. Anyone may respond when they get priority, and that stops it.",
+     "options": [
+      {
+       "id": "__tl:10",
+       "label": "×10"
+      },
+      {
+       "id": "__tl:100",
+       "label": "×100"
+      },
+      {
+       "id": "__tl:1000",
+       "label": "×1000"
+      },
+      {
+       "id": "__tl:all",
+       "label": "All (until it ends)"
+      },
+      {
+       "id": "__tl:some",
+       "label": "How many…"
+      },
+      {
+       "id": "__tl:no",
+       "label": "Answer as usual"
+      }
+     ]
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1707,
+     "choice": [
+      "__tl:all"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1707 \"Sanguine Bond → Exquisite Blood keep triggering: run the loop how many times?\": All (until it ends)\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Blue runs the loop until it ends (Sanguine Bond → Exquisite Blood). The others are asked to accept it, or fewer; anyone may respond when they get priority, and that stops it.\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #__tloop \"Blue's loop until it ends: accept it?\": Accept all | Accept fewer… | No\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1707 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Blue runs the loop until it ends (Sanguine Bond → Exquisite Blood). The others are asked to accept it, or fewer; anyone may respond when they get priority, and that stops it.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": "__tloop",
+     "title": "Blue's loop until it ends: accept it?",
+     "mode": "single",
+     "kind": "loop",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "__tl:all",
+       "label": "Accept all"
+      },
+      {
+       "id": "__tl:some",
+       "label": "Accept fewer…"
+      },
+      {
+       "id": "__tl:no",
+       "label": "No"
+      }
+     ],
+     "text": "Sanguine Bond → Exquisite Blood. Accepted, your priority is passed while only these triggers are on the stack, for that many passes of the loop. You may still respond when asked, and that stops it."
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1707,
+     "step": 0,
+     "title": "Sanguine Bond: choose target opponent",
+     "mode": "multi",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "White"
+      }
+     ],
+     "kind": "target",
+     "text": "Whenever you gain life, target opponent loses that much life."
+    }
+   },
+   {
+    "log": "Blue: the game was rewound (turn 6 -> 5 main1)"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Rewound to turn 5 (main phase).\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] === Game: Blue, White ===\n[time] --- Rewound to Blue's turn (main phase) ---\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Rewound to turn 5 (main phase).",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "--- Rewound to Blue's turn (main phase) ---"
+     ]
+    }
+   },
+   {
+    "log": "prompt Blue #1708: chooseBoardTargets \"Sanguine Bond: choose target opponent\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1708 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1708,
+     "title": "Sanguine Bond: choose target opponent",
+     "mode": "multi",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "White"
+      }
+     ],
+     "kind": "target",
+     "text": "Whenever you gain life, target opponent loses that much life."
+    }
+   }
+  ],
+  "result": {
+   "before": {
+    "run": true,
+    "seen": true
+   },
+   "after": {
+    "run": null,
+    "seen": [
+     [
+      "engine-card-10|Whenever you gain life, target opponent loses that much life.",
+      1
+     ]
+    ],
+    "no": null
+   },
+   "open": {
+    "id": 1708,
+    "title": "Sanguine Bond: choose target opponent",
+    "options": [
+     "player|player-1=White"
+    ]
+   }
+  }
+ },
+ {
+  "name": "trigger loop: the game ending during the run says how many times it ran, before Game over",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #1701: chooseBoardTargets \"Sanguine Bond: choose target opponent\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1701 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1701,
+     "title": "Sanguine Bond: choose target opponent",
+     "mode": "multi",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "White"
+      }
+     ],
+     "kind": "target",
+     "text": "Whenever you gain life, target opponent loses that much life."
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1701,
+     "choice": [
+      "player|player-1"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1701 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1701,
+     "type": "chooseBoardTargets",
+     "out": {
+      "type": "boardTargets",
+      "chosen": [
+       {
+        "kind": "player",
+        "id": "player-1"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1701,
+      "action": {
+       "type": "chooseBoardTargets",
+       "output": {
+        "type": "boardTargets",
+        "chosen": [
+         {
+          "kind": "player",
+          "id": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1702: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1702 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1702,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1702,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1702 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1702,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1702,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1703: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1703 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1703,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1703,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1703 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1703,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1703,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #1704: chooseBoardTargets \"Sanguine Bond: choose target opponent\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1704 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1704,
+     "title": "Sanguine Bond: choose target opponent",
+     "mode": "multi",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "White"
+      }
+     ],
+     "kind": "target",
+     "text": "Whenever you gain life, target opponent loses that much life."
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1704,
+     "choice": [
+      "player|player-1"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1704 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1704,
+     "type": "chooseBoardTargets",
+     "out": {
+      "type": "boardTargets",
+      "chosen": [
+       {
+        "kind": "player",
+        "id": "player-1"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1704,
+      "action": {
+       "type": "chooseBoardTargets",
+       "output": {
+        "type": "boardTargets",
+        "chosen": [
+         {
+          "kind": "player",
+          "id": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1705: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1705 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1705,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1705,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1705 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1705,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1705,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1706: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1706 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1706,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1706,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1706 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1706,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1706,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #1707: chooseBoardTargets \"Sanguine Bond → Exquisite Blood keep triggering: run the loop how many times?\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1707 \"Sanguine Bond → Exquisite Blood keep triggering: run the loop how many times?\": ×10 | ×100 | ×1000 | All (until it ends) | How many… | Answer as usual\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1707,
+     "title": "Sanguine Bond → Exquisite Blood keep triggering: run the loop how many times?",
+     "mode": "single",
+     "min": 1,
+     "max": 1,
+     "kind": "loop",
+     "text": "3 times so far this step. The others are asked to accept it, or fewer. Then answer this question once: the same answer is given each time after. Anyone may respond when they get priority, and that stops it.",
+     "options": [
+      {
+       "id": "__tl:10",
+       "label": "×10"
+      },
+      {
+       "id": "__tl:100",
+       "label": "×100"
+      },
+      {
+       "id": "__tl:1000",
+       "label": "×1000"
+      },
+      {
+       "id": "__tl:all",
+       "label": "All (until it ends)"
+      },
+      {
+       "id": "__tl:some",
+       "label": "How many…"
+      },
+      {
+       "id": "__tl:no",
+       "label": "Answer as usual"
+      }
+     ]
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1707,
+     "choice": [
+      "__tl:100"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1707 \"Sanguine Bond → Exquisite Blood keep triggering: run the loop how many times?\": ×100\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Blue runs the loop ×100 (Sanguine Bond → Exquisite Blood). The others are asked to accept it, or fewer; anyone may respond when they get priority, and that stops it.\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #__tloop \"Blue's loop ×100: accept it?\": Accept ×100 | Accept fewer… | No\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1707 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Blue runs the loop ×100 (Sanguine Bond → Exquisite Blood). The others are asked to accept it, or fewer; anyone may respond when they get priority, and that stops it.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": "__tloop",
+     "title": "Blue's loop ×100: accept it?",
+     "mode": "single",
+     "kind": "loop",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "__tl:all",
+       "label": "Accept ×100"
+      },
+      {
+       "id": "__tl:some",
+       "label": "Accept fewer…"
+      },
+      {
+       "id": "__tl:no",
+       "label": "No"
+      }
+     ],
+     "text": "Sanguine Bond → Exquisite Blood. Accepted, your priority is passed while only these triggers are on the stack, for that many passes of the loop (up to 100). You may still respond when asked, and that stops it."
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1707,
+     "step": 0,
+     "title": "Sanguine Bond: choose target opponent",
+     "mode": "multi",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "player|player-1",
+       "label": "White"
+      }
+     ],
+     "kind": "target",
+     "text": "Whenever you gain life, target opponent loses that much life."
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1707,
+     "choice": [
+      "player|player-1"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1707 \"Sanguine Bond: choose target opponent\": White\n"
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1707,
+     "type": "chooseBoardTargets",
+     "out": {
+      "type": "boardTargets",
+      "chosen": [
+       {
+        "kind": "player",
+        "id": "player-1"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1707,
+      "action": {
+       "type": "chooseBoardTargets",
+       "output": {
+        "type": "boardTargets",
+        "chosen": [
+         {
+          "kind": "player",
+          "id": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1708,
+     "type": "chooseBoardTargets",
+     "out": {
+      "type": "boardTargets",
+      "chosen": [
+       {
+        "kind": "player",
+        "id": "player-1"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1708,
+      "action": {
+       "type": "chooseBoardTargets",
+       "output": {
+        "type": "boardTargets",
+        "chosen": [
+         {
+          "kind": "player",
+          "id": "player-1"
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1709: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1709 \"Your priority\": Resolve | Resolve all (1) | End turn | Accept Blue's loop ×100… | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1709,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "__tlaccept",
+       "label": "Accept Blue's loop ×100…"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1709,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1709 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1709,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1709,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #__tloop \"Blue's loop ×100: accept it?\": Accept ×100 | Accept fewer… | No\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": "__tloop",
+     "title": "Blue's loop ×100: accept it?",
+     "mode": "single",
+     "kind": "loop",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "__tl:all",
+       "label": "Accept ×100"
+      },
+      {
+       "id": "__tl:some",
+       "label": "Accept fewer…"
+      },
+      {
+       "id": "__tl:no",
+       "label": "No"
+      }
+     ],
+     "text": "Sanguine Bond → Exquisite Blood. Accepted, your priority is passed while only these triggers are on the stack, for that many passes of the loop (up to 100). You may still respond when asked, and that stops it."
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1710: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1710 \"Your priority\": Resolve | Resolve all (1) | End turn | Accept Blue's loop ×100… | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1710,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "__tlaccept",
+       "label": "Accept Blue's loop ×100…"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1710,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1710 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1710,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-1",
+      "promptId": 1710,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #__tloop \"Blue's loop ×100: accept it?\": Accept ×100 | Accept fewer… | No\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": "__tloop",
+     "title": "Blue's loop ×100: accept it?",
+     "mode": "single",
+     "kind": "loop",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "__tl:all",
+       "label": "Accept ×100"
+      },
+      {
+       "id": "__tl:some",
+       "label": "Accept fewer…"
+      },
+      {
+       "id": "__tl:no",
+       "label": "No"
+      }
+     ],
+     "text": "Sanguine Bond → Exquisite Blood. Accepted, your priority is passed while only these triggers are on the stack, for that many passes of the loop (up to 100). You may still respond when asked, and that stops it."
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] The loop stopped after once (Sanguine Bond → Exquisite Blood): the game ended.\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   told: [MTG] Game over.\n"
+   },
+   {
+    "appendFile": "game-log.txt",
+    "text": "[time] === Game: Blue, White ===\n[time] Game over\n"
+   },
+   {
+    "unlink": "mtg-bridge-game-test.json"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] The loop stopped after once (Sanguine Bond → Exquisite Blood): the game ended.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Game over.",
+     "color": "Blue"
+    }
+   },
+   {
+    "tts": {
+     "t": "gamelog",
+     "lines": [
+      "Game over"
+     ]
+    }
+   }
+  ],
+  "result": {
+   "run": null,
+   "chats": [
+    "[MTG] Blue runs the loop ×100 (Sanguine Bond → Exquisite Blood). The others are asked to accept it, or fewer; anyone may respond when they get priority, and that stops it.",
+    "[MTG] The loop stopped after once (Sanguine Bond → Exquisite Blood): the game ended.",
+    "[MTG] Game over."
+   ]
+  }
+ },
+ {
+  "name": "trigger loop: an AI's loop, White passes for it x10 from its priority",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1701: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1701 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1701,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1701,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1701 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1701,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1701,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1702: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1702 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1702,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1702,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1702 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1702,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1702,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1703: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1703 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1703,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1703,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1703 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1703,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1703,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1704: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1704 \"Your priority\": Resolve | Resolve all (1) | End turn | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1704,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1704,
+     "choice": [
+      "__pass"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1704 \"Your priority\": Resolve\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1704,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1704,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "log": "White may respond to the stack with: Cast Lightning Bolt"
+   },
+   {
+    "log": "prompt White #1705: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1705 \"Your priority\": Resolve | Resolve all (1) | End turn | Pass for this loop… | Cast Lightning Bolt\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1705,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Resolve"
+      },
+      {
+       "id": "__resolve",
+       "label": "Resolve all (1)"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "__tlaccept",
+       "label": "Pass for this loop…"
+      },
+      {
+       "id": "prompt-action-0",
+       "cardId": "engine-card-40",
+       "label": "Cast Lightning Bolt"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1705,
+     "choice": [
+      "__tlaccept"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1705 \"Your priority\": Pass for this loop…\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  is asked #1705 \"AI 1's loop: pass for it?\": ×10 | ×100 | ×1000 | All | How many… | Back\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": 1705,
+     "step": 0,
+     "title": "AI 1's loop: pass for it?",
+     "mode": "single",
+     "kind": "loop",
+     "min": 1,
+     "max": 1,
+     "options": [
+      {
+       "id": "__tl:10",
+       "label": "×10"
+      },
+      {
+       "id": "__tl:100",
+       "label": "×100"
+      },
+      {
+       "id": "__tl:1000",
+       "label": "×1000"
+      },
+      {
+       "id": "__tl:all",
+       "label": "All"
+      },
+      {
+       "id": "__tl:some",
+       "label": "How many…"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ],
+     "text": "Sanguine Bond → Exquisite Blood. Accepted, your priority is passed while only these triggers are on the stack, for that many passes of the loop. You may still respond when asked, and that stops it."
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "White",
+     "promptId": 1705,
+     "choice": [
+      "__tl:10"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  answers #1705 \"AI 1's loop: pass for it?\": ×10\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] White passes for AI 1's loop until it ends (Sanguine Bond → Exquisite Blood).\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] White accepts the loop ×10.\n"
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1705,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1705,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] White passes for AI 1's loop until it ends (Sanguine Bond → Exquisite Blood).",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] White accepts the loop ×10.",
+     "color": null
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
+     "promptId": null
+    }
+   },
+   {
+    "respond": {
+     "color": "White",
+     "promptId": 1706,
+     "type": "chooseAction",
+     "out": {
+      "type": "pass"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1706,
+      "action": {
+       "type": "chooseAction",
+       "output": {
+        "type": "pass"
+       }
+      }
+     }
+    }
+   }
+  ],
+  "result": {
+   "offered": {
+    "id": 1705,
+    "title": "Your priority",
+    "options": [
+     "__pass=Resolve",
+     "__resolve=Resolve all (1)",
+     "__endturn=End turn",
+     "__tlaccept=Pass for this loop…",
+     "prompt-action-0=Cast Lightning Bolt"
+    ]
+   },
+   "ui": {
+    "id": 1705,
+    "title": "AI 1's loop: pass for it?",
+    "options": [
+     "__tl:10=×10",
+     "__tl:100=×100",
+     "__tl:1000=×1000",
+     "__tl:all=All",
+     "__tl:some=How many…",
+     "__back=Back"
+    ]
+   },
+   "run": {
+    "total": null,
+    "acc": {
+     "White": 10
+    },
+    "proposed": false
+   },
+   "passedOpen": null,
+   "passed": 1706
+  }
+ },
+ {
+  "name": "taxes: the hello's settings, never pay, always pay with Auto-pay, your own card asked, a question open when it changes",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "said": {
+     "t": "hello",
+     "again": true,
+     "tax": {
+      "Blue": "no",
+      "Nobody": "pay",
+      "Red": "maybe"
+     }
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] -      table connected\n"
+   },
+   {
+    "log": "TTS connected"
+   },
+   {
+    "tts": {
+     "t": "started",
+     "colors": {
+      "player-0": "Blue",
+      "player-1": "White"
+     },
+     "names": {
+      "player-0": "Blue",
+      "player-1": "AI 1"
+     },
+     "ai": [
+      "White"
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "autostate",
+     "color": "Blue",
+     "phase": "",
+     "on": false
+    }
+   },
+   {
+    "appendFile": "guess-log.log",
+    "text": "[time] no feed: this engine sends no events\n"
+   },
+   {
+    "tts": {
+     "t": "table",
+     "turn": 4,
+     "step": "draw",
+     "active": "Blue",
+     "activeTurnNo": 1,
+     "priority": "Blue",
+     "gameOver": false,
+     "winner": null,
+     "players": [
+      {
+       "color": "Blue",
+       "slot": "player-0",
+       "name": "Blue",
+       "ai": false,
+       "pool": {},
+       "cmdDamage": {},
+       "tax": [],
+       "library": 0,
+       "handCount": 0,
+       "hand": [],
+       "battlefield": [],
+       "graveyard": [],
+       "exile": [],
+       "command": []
+      },
+      {
+       "color": "White",
+       "slot": "player-1",
+       "name": "AI 1",
+       "ai": true,
+       "pool": null,
+       "cmdDamage": {},
+       "tax": [],
+       "library": 0,
+       "handCount": 0,
+       "hand": null,
+       "battlefield": [],
+       "graveyard": [],
+       "exile": [],
+       "command": []
+      }
+     ],
+     "stack": [],
+     "cards": {},
+     "rewind": {
+      "points": [],
+      "vote": null
+     },
+     "jump": true
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   told: [MTG] Taxes (auto): Smothering Tithe: pay {2}: No: something.\n"
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1701,
+     "type": "chooseBoolean",
+     "out": {
+      "type": "decision",
+      "value": false
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1701,
+      "action": {
+       "type": "chooseBoolean",
+       "output": {
+        "type": "decision",
+        "value": false
+       }
+      }
+     }
+    }
+   },
+   {
+    "fetch": "https://api.scryfall.com/cards/collection",
+    "method": "POST",
+    "body": {
+     "identifiers": [
+      {
+       "name": "Smothering Tithe"
+      }
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Taxes (auto): Smothering Tithe: pay {2}: No: something.",
+     "color": "Blue"
+    }
+   },
+   {
+    "writeFile": "image-cache-klrmngr.json.tmp",
+    "bytes": 127
+   },
+   {
+    "rename": [
+     "image-cache-klrmngr.json.tmp",
+     "image-cache-klrmngr.json"
+    ]
+   },
+   {
+    "said": {
+     "t": "taxauto",
+     "color": "Blue",
+     "mode": "pay"
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   taxauto {\"mode\":\"pay\"}\n"
+   },
+   {
+    "log": "Blue: taxes pay"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   told: [MTG] Taxes: always pay another player's tax (Rhystic Study, Smothering Tithe...), with Auto-pay.\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Taxes: always pay another player's tax (Rhystic Study, Smothering Tithe...), with Auto-pay.",
+     "color": "Blue"
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   told: [MTG] Taxes (auto): Smothering Tithe: pay {2}: Pay {2}.\n"
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1702,
+     "type": "chooseBoolean",
+     "out": {
+      "type": "decision",
+      "value": true
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1702,
+      "action": {
+       "type": "chooseBoolean",
+       "output": {
+        "type": "decision",
+        "value": true
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Taxes (auto): Smothering Tithe: pay {2}: Pay {2}.",
+     "color": "Blue"
+    }
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1703,
+     "type": "payManaCost",
+     "out": {
+      "type": "pay",
+      "auto": true
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1703,
+      "action": {
+       "type": "payManaCost",
+       "output": {
+        "type": "pay",
+        "auto": true
+       }
+      }
+     }
+    }
+   },
+   {
+    "log": "prompt Blue #1704: payManaCost \"Pay {R} for Lightning Bolt\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1704 \"Pay {R} for Lightning Bolt\": Auto-pay | Tap Island for {U} | Tap Island for {U} | Cancel\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1704,
+     "title": "Pay {R} for Lightning Bolt",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__auto",
+       "label": "Auto-pay"
+      },
+      {
+       "id": "tap:engine-card-7",
+       "cardId": "engine-card-7",
+       "label": "Tap Island for {U}",
+       "rank": 1
+      },
+      {
+       "id": "tap:engine-card-8",
+       "cardId": "engine-card-8",
+       "label": "Tap Island for {U}",
+       "rank": 1
+      },
+      {
+       "id": "__cancel",
+       "label": "Cancel"
+      }
+     ],
+     "kind": "mana",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1704,
+     "choice": [
+      "__cancel"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1704 \"Pay {R} for Lightning Bolt\": Cancel\n"
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1704,
+     "type": "payManaCost",
+     "out": {
+      "type": "cancel"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1704,
+      "action": {
+       "type": "payManaCost",
+       "output": {
+        "type": "cancel"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "log": "prompt Blue #1705: chooseBoolean \"Mystic Remora: pay {1}?\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1705 \"Mystic Remora: pay {1}?\": Pay {1} | No: something\n"
+   },
+   {
+    "fetch": "https://api.scryfall.com/cards/collection",
+    "method": "POST",
+    "body": {
+     "identifiers": [
+      {
+       "name": "Mystic Remora"
+      }
+     ]
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1705,
+     "title": "Mystic Remora: pay {1}?",
+     "mode": "single",
+     "options": [
+      {
+       "id": "yes",
+       "label": "Pay {1}"
+      },
+      {
+       "id": "no",
+       "label": "No: something"
+      }
+     ],
+     "kind": "yesno",
+     "text": "At the beginning of your upkeep, sacrifice Mystic Remora unless you pay {1}.",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "writeFile": "image-cache-klrmngr.json.tmp",
+    "bytes": 250
+   },
+   {
+    "rename": [
+     "image-cache-klrmngr.json.tmp",
+     "image-cache-klrmngr.json"
+    ]
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1705,
+     "choice": [
+      "no"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1705 \"Mystic Remora: pay {1}?\": No: something\n"
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1705,
+     "type": "chooseBoolean",
+     "out": {
+      "type": "decision",
+      "value": false
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1705,
+      "action": {
+       "type": "chooseBoolean",
+       "output": {
+        "type": "decision",
+        "value": false
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "said": {
+     "t": "taxauto",
+     "color": "Blue",
+     "mode": "ask"
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   taxauto {\"mode\":\"ask\"}\n"
+   },
+   {
+    "log": "Blue: taxes ask"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   told: [MTG] Taxes: ask me each time.\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Taxes: ask me each time.",
+     "color": "Blue"
+    }
+   },
+   {
+    "log": "prompt Blue #1706: chooseBoolean \"Smothering Tithe: pay {2}?\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1706 \"Smothering Tithe: pay {2}?\": Pay {2} | No: something\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1706,
+     "title": "Smothering Tithe: pay {2}?",
+     "mode": "single",
+     "options": [
+      {
+       "id": "yes",
+       "label": "Pay {2}"
+      },
+      {
+       "id": "no",
+       "label": "No: something"
+      }
+     ],
+     "kind": "yesno",
+     "show": [
+      {
+       "n": "Smothering Tithe",
+       "img": "https://img.klrmngr.com/display/front/b/a/bab3ef7a-e878-7f52-edc7-0c9dc2556889.webp"
+      }
+     ],
+     "text": "Whenever an opponent draws a card, that player may pay {2}. If the player doesn't, you create a Treasure token.",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "taxauto",
+     "color": "Blue",
+     "mode": "no"
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   taxauto {\"mode\":\"no\"}\n"
+   },
+   {
+    "log": "Blue: taxes no"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   told: [MTG] Taxes: never pay another player's tax.\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   told: [MTG] Taxes (auto): Smothering Tithe: pay {2}: No: something.\n"
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1706,
+     "type": "chooseBoolean",
+     "out": {
+      "type": "decision",
+      "value": false
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1706,
+      "action": {
+       "type": "chooseBoolean",
+       "output": {
+        "type": "decision",
+        "value": false
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Taxes: never pay another player's tax.",
+     "color": "Blue"
+    }
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Taxes (auto): Smothering Tithe: pay {2}: No: something.",
+     "color": "Blue"
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   }
+  ],
+  "result": {
+   "afterNo": null,
+   "boltShown": {
+    "id": 1704,
+    "title": "Pay {R} for Lightning Bolt",
+    "options": [
+     "__auto=Auto-pay",
+     "tap:engine-card-7=Tap Island for {U}",
+     "tap:engine-card-8=Tap Island for {U}",
+     "__cancel=Cancel"
+    ]
+   },
+   "ownShown": {
+    "id": 1705,
+    "title": "Mystic Remora: pay {1}?",
+    "options": [
+     "yes=Pay {1}",
+     "no=No: something"
+    ]
+   },
+   "lastOpen": null,
+   "id": 1706,
+   "taxPay": null
+  }
+ },
+ {
+  "name": "exile link: the Emperor's exile goes to the pile; Oblivion Ring, Banishing Light, play-through and a face-down host keep the link",
+  "effects": [],
+  "result": {
+   "emperor": {
+    "ew": null,
+    "rl": null,
+    "enc": null,
+    "notes": null,
+    "linked": false
+   },
+   "oring": {
+    "ew": "engine-card-701",
+    "rl": false,
+    "enc": null,
+    "notes": [
+     "Exiled with Oblivion Ring. When Oblivion Ring leaves the battlefield, its trigger returns this card"
+    ],
+    "linked": true
+   },
+   "banish": {
+    "ew": "engine-card-702",
+    "rl": false,
+    "enc": null,
+    "notes": [
+     "Exiled with Banishing Light"
+    ],
+    "linked": true
+   },
+   "keeper": {
+    "ew": null,
+    "rl": null,
+    "enc": null,
+    "notes": null,
+    "linked": false
+   },
+   "keeperReturns": {
+    "ew": "engine-card-703",
+    "rl": true,
+    "enc": null,
+    "notes": [
+     "Exiled with Path Keeper"
+    ],
+    "linked": true
+   },
+   "keeperMayPlay": {
+    "ew": "engine-card-703",
+    "rl": false,
+    "enc": null,
+    "notes": [
+     "Exiled with Path Keeper"
+    ],
+    "linked": true
+   },
+   "faceDownHost": {
+    "ew": "engine-card-799",
+    "rl": false,
+    "enc": null,
+    "notes": [
+     "Exiled with a face-down card"
+    ],
+    "linked": true
+   },
+   "encoded": {
+    "ew": "engine-card-700",
+    "rl": null,
+    "enc": true,
+    "notes": null,
+    "linked": false
+   },
+   "encodedLinked": {
+    "ew": "engine-card-701",
+    "rl": false,
+    "enc": null,
+    "notes": [
+     "Exiled with Oblivion Ring. When Oblivion Ring leaves the battlefield, its trigger returns this card"
+    ],
+    "linked": true
+   }
+  }
+ },
+ {
+  "name": "formats: Modern from the Format button, a banned card refused, Banned off lets it through, a refresh drops it, the start refused",
+  "effects": [
+   {
+    "said": {
+     "t": "format",
+     "color": "White",
+     "format": "modern"
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  format {\"format\":\"modern\"}\n"
+   },
+   {
+    "log": "game mode: standard"
+   },
+   {
+    "log": "format: Modern"
+   },
+   {
+    "tts": {
+     "t": "banlist",
+     "format": "modern",
+     "source": "forge",
+     "date": "2026-09-21",
+     "counts": {
+      "banned": 52,
+      "restricted": 0
+     },
+     "missing": [
+      "duel",
+      "paupercommander"
+     ]
+    }
+   },
+   {
+    "said": {
+     "t": "decks",
+     "seats": {
+      "Blue": {
+       "deckName": "Claws",
+       "commander": [],
+       "library": [
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Hired Claw",
+         "f": null
+        },
+        {
+         "n": "Lightning Bolt",
+         "f": null
+        }
+       ]
+      }
+     },
+     "request": 7,
+     "format": "modern"
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] -      sends the decks on the table (none)\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   told: [MTG] Blue (Claws): not ready for Modern.\n- banned in Modern: Hired Claw\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Blue (Claws): not ready for Modern.\n- banned in Modern: Hired Claw\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).",
+     "color": "Blue"
+    }
+   },
+   {
+    "tts": {
+     "t": "deckReport",
+     "request": 7,
+     "ready": [],
+     "checked": [
+      "Blue"
+     ]
+    }
+   },
+   {
+    "said": {
+     "t": "format",
+     "color": "White",
+     "format": "modern",
+     "banned": false
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  format {\"format\":\"modern\",\"banned\":false}\n"
+   },
+   {
+    "log": "format: Modern (banned cards allowed)"
+   },
+   {
+    "tts": {
+     "t": "banlist",
+     "format": "modern",
+     "source": "forge",
+     "date": "2026-09-21",
+     "counts": {
+      "banned": 52,
+      "restricted": 0
+     },
+     "missing": [
+      "duel",
+      "paupercommander"
+     ]
+    }
+   },
+   {
+    "said": {
+     "t": "decks",
+     "seats": {
+      "Blue": {
+       "deckName": "Claws",
+       "commander": [],
+       "library": [
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Hired Claw",
+         "f": null
+        },
+        {
+         "n": "Lightning Bolt",
+         "f": null
+        }
+       ]
+      }
+     },
+     "request": 8,
+     "format": "modern",
+     "banned": false
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] -      sends the decks on the table (none)\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   told: [MTG] Blue (Claws): ready for Modern (banned cards allowed by the host: Hired Claw). 60 cards; every card is known to the engine and legal in Modern.\n"
+   },
+   {
+    "log": "Blue deck ready for Modern (banned cards allowed): 60 cards"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Blue (Claws): ready for Modern (banned cards allowed by the host: Hired Claw). 60 cards; every card is known to the engine and legal in Modern.",
+     "color": "Blue"
+    }
+   },
+   {
+    "tts": {
+     "t": "deckReport",
+     "request": 8,
+     "ready": [
+      "Blue"
+     ],
+     "checked": [
+      "Blue"
+     ]
+    }
+   },
+   {
+    "said": {
+     "t": "format",
+     "color": "White",
+     "format": "modern"
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] White  format {\"format\":\"modern\"}\n"
+   },
+   {
+    "log": "format: Modern"
+   },
+   {
+    "tts": {
+     "t": "banlist",
+     "format": "modern",
+     "source": "forge",
+     "date": "2026-09-21",
+     "counts": {
+      "banned": 52,
+      "restricted": 0
+     },
+     "missing": [
+      "duel",
+      "paupercommander"
+     ]
+    }
+   },
+   {
+    "said": {
+     "t": "start",
+     "color": "Blue",
+     "seats": [
+      "Blue"
+     ],
+     "bots": 1,
+     "format": "modern",
+     "requireReady": true
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   start {\"seats\":[\"Blue\"],\"bots\":1,\"format\":\"modern\",\"requireReady\":true}\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] all    told: [MTG] Not started: Blue's deck was checked for Modern (banned cards allowed); the format is now Modern: press READY again.\n"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Not started: Blue's deck was checked for Modern (banned cards allowed); the format is now Modern: press READY again.",
+     "color": null
+    }
+   },
+   {
+    "said": {
+     "t": "decks",
+     "seats": {
+      "Blue": {
+       "deckName": "Bolts",
+       "commander": [],
+       "library": [
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Mountain",
+         "f": null
+        },
+        {
+         "n": "Lightning Bolt",
+         "f": null
+        }
+       ]
+      }
+     },
+     "request": 9,
+     "format": "modern"
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] -      sends the decks on the table (none)\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   told: [MTG] Blue (Bolts): ready for Modern. 60 cards; every card is known to the engine and legal in Modern.\n"
+   },
+   {
+    "log": "Blue deck ready for Modern: 60 cards"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Blue (Bolts): ready for Modern. 60 cards; every card is known to the engine and legal in Modern.",
+     "color": "Blue"
+    }
+   },
+   {
+    "tts": {
+     "t": "deckReport",
+     "request": 9,
+     "ready": [
+      "Blue"
+     ],
+     "checked": [
+      "Blue"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   told: [MTG] Blue (Bolts): not ready for Modern.\n- banned in Modern: Lightning Bolt\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nThe ban list was updated since your READY: change the deck and press READY again.\n"
+   },
+   {
+    "log": "Blue deck no longer ready for Modern: the ban list changed"
+   },
+   {
+    "tts": {
+     "t": "chat",
+     "text": "[MTG] Blue (Bolts): not ready for Modern.\n- banned in Modern: Lightning Bolt\nBan list: Scryfall, 2026-11-18. The host can allow banned cards (Banned cards button).\nThe ban list was updated since your READY: change the deck and press READY again.",
+     "color": "Blue"
+    }
+   },
+   {
+    "tts": {
+     "t": "deckReport",
+     "request": -1,
+     "ready": [],
+     "checked": [
+      "Blue"
+     ]
+    }
+   }
+  ],
+  "result": {
+   "mode1": {
+    "mode": "standard",
+    "format": "modern",
+    "banned": true,
+    "restricted": true,
+    "key": "modern|true|true|h1",
+    "words": "Modern"
+   },
+   "refused": null,
+   "mode2": {
+    "mode": "standard",
+    "format": "modern",
+    "banned": false,
+    "restricted": true,
+    "key": "modern|false|true|h1",
+    "words": "Modern (banned cards allowed)"
+   },
+   "readied": "modern|false|true|h1",
+   "forGame": {
+    "sameSwitches": true,
+    "otherSwitches": false
+   },
+   "started": false,
+   "bolts": "modern|true|true|h1",
+   "afterRefresh": null
+  }
+ },
+ {
+  "name": "sacrifice X: three Treasures paying {2}{B}, x2 for black, the second answered unseen",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "prompt Blue #1701: payManaCost \"Pay {2}{B} for Phyrexian Obliterator\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1701 \"Pay {2}{B} for Phyrexian Obliterator\": Auto-pay | Sacrifice X Treasure Token for mana (1 to 3) | Tap Treasure Token for {W} (also sacrifice this token) | Tap Treasure Token for {U} (also sacrifice this token) | Tap Treasure Token for {B} (also sacrifice this token) | Tap Treasure Token for {R} (also sacrifice this token) | Tap Treasure Token for {G} (also sacrifice this token) | Tap Treasure Token for {W} (also sacrifice this token) | ... (18)\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1701,
+     "title": "Pay {2}{B} for Phyrexian Obliterator",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__auto",
+       "label": "Auto-pay"
+      },
+      {
+       "id": "__sacx:g0",
+       "cardId": "engine-card-91",
+       "label": "Sacrifice X Treasure Token for mana (1 to 3)",
+       "rank": 2
+      },
+      {
+       "id": "tap:engine-card-91:0:W",
+       "cardId": "engine-card-91",
+       "label": "Tap Treasure Token for {W} (also sacrifice this token)",
+       "rank": 1
+      },
+      {
+       "id": "tap:engine-card-91:0:U",
+       "cardId": "engine-card-91",
+       "label": "Tap Treasure Token for {U} (also sacrifice this token)",
+       "rank": 1
+      },
+      {
+       "id": "tap:engine-card-91:0:B",
+       "cardId": "engine-card-91",
+       "label": "Tap Treasure Token for {B} (also sacrifice this token)",
+       "rank": 2
+      },
+      {
+       "id": "tap:engine-card-91:0:R",
+       "cardId": "engine-card-91",
+       "label": "Tap Treasure Token for {R} (also sacrifice this token)",
+       "rank": 1
+      },
+      {
+       "id": "tap:engine-card-91:0:G",
+       "cardId": "engine-card-91",
+       "label": "Tap Treasure Token for {G} (also sacrifice this token)",
+       "rank": 1
+      },
+      {
+       "id": "tap:engine-card-92:0:W",
+       "cardId": "engine-card-92",
+       "label": "Tap Treasure Token for {W} (also sacrifice this token)",
+       "rank": 1
+      },
+      {
+       "id": "tap:engine-card-92:0:U",
+       "cardId": "engine-card-92",
+       "label": "Tap Treasure Token for {U} (also sacrifice this token)",
+       "rank": 1
+      },
+      {
+       "id": "tap:engine-card-92:0:B",
+       "cardId": "engine-card-92",
+       "label": "Tap Treasure Token for {B} (also sacrifice this token)",
+       "rank": 2
+      },
+      {
+       "id": "tap:engine-card-92:0:R",
+       "cardId": "engine-card-92",
+       "label": "Tap Treasure Token for {R} (also sacrifice this token)",
+       "rank": 1
+      },
+      {
+       "id": "tap:engine-card-92:0:G",
+       "cardId": "engine-card-92",
+       "label": "Tap Treasure Token for {G} (also sacrifice this token)",
+       "rank": 1
+      },
+      {
+       "id": "tap:engine-card-93:0:W",
+       "cardId": "engine-card-93",
+       "label": "Tap Treasure Token for {W} (also sacrifice this token)",
+       "rank": 1
+      },
+      {
+       "id": "tap:engine-card-93:0:U",
+       "cardId": "engine-card-93",
+       "label": "Tap Treasure Token for {U} (also sacrifice this token)",
+       "rank": 1
+      },
+      {
+       "id": "tap:engine-card-93:0:B",
+       "cardId": "engine-card-93",
+       "label": "Tap Treasure Token for {B} (also sacrifice this token)",
+       "rank": 2
+      },
+      {
+       "id": "tap:engine-card-93:0:R",
+       "cardId": "engine-card-93",
+       "label": "Tap Treasure Token for {R} (also sacrifice this token)",
+       "rank": 1
+      },
+      {
+       "id": "tap:engine-card-93:0:G",
+       "cardId": "engine-card-93",
+       "label": "Tap Treasure Token for {G} (also sacrifice this token)",
+       "rank": 1
+      },
+      {
+       "id": "__cancel",
+       "label": "Cancel"
+      }
+     ],
+     "kind": "mana",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1701,
+     "choice": [
+      "__sacx:g0"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1701 \"Pay {2}{B} for Phyrexian Obliterator\": Sacrifice X Treasure Token for mana (1 to 3)\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1701 \"Treasure Token: sacrifice them for which mana?\": {B} (needed) | {W} | {U} | {R} | {G} | Back\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1701,
+     "step": 0,
+     "title": "Treasure Token: sacrifice them for which mana?",
+     "mode": "single",
+     "kind": "choice",
+     "text": "{2}{B} still to pay. The same mana from each one.",
+     "options": [
+      {
+       "id": "__sacx:c:B",
+       "label": "{B} (needed)"
+      },
+      {
+       "id": "__sacx:c:W",
+       "label": "{W}"
+      },
+      {
+       "id": "__sacx:c:U",
+       "label": "{U}"
+      },
+      {
+       "id": "__sacx:c:R",
+       "label": "{R}"
+      },
+      {
+       "id": "__sacx:c:G",
+       "label": "{G}"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ],
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1701,
+     "choice": [
+      "__sacx:c:B"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1701 \"Treasure Token: sacrifice them for which mana?\": {B} (needed)\n"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #1701 \"Treasure Token: sacrifice how many for {B}?\": ×1 | ×2 | ×3 (all) | Back\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 1701,
+     "step": 0,
+     "title": "Treasure Token: sacrifice how many for {B}?",
+     "mode": "single",
+     "kind": "choice",
+     "text": "{2}{B} still to pay. Each one is sacrificed for {B}, one after another.",
+     "options": [
+      {
+       "id": "__sacx:1",
+       "label": "×1"
+      },
+      {
+       "id": "__sacx:2",
+       "label": "×2"
+      },
+      {
+       "id": "__sacx:3",
+       "label": "×3 (all)"
+      },
+      {
+       "id": "__back",
+       "label": "Back"
+      }
+     ],
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "said": {
+     "t": "answer",
+     "color": "Blue",
+     "promptId": 1701,
+     "choice": [
+      "__sacx:2"
+     ]
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #1701 \"Treasure Token: sacrifice how many for {B}?\": ×2\n"
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1701,
+     "type": "payManaCost",
+     "out": {
+      "type": "act",
+      "actionId": "tap:engine-card-91:0:B"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1701,
+      "action": {
+       "type": "payManaCost",
+       "output": {
+        "type": "act",
+        "actionId": "tap:engine-card-91:0:B"
+       }
+      }
+     }
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1702,
+     "type": "chooseBoolean",
+     "out": {
+      "type": "decision",
+      "value": true
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1702,
+      "action": {
+       "type": "chooseBoolean",
+       "output": {
+        "type": "decision",
+        "value": true
+       }
+      }
+     }
+    }
+   },
+   {
+    "respond": {
+     "color": "Blue",
+     "promptId": 1703,
+     "type": "payManaCost",
+     "out": {
+      "type": "act",
+      "actionId": "tap:engine-card-92:0:B"
+     }
+    }
+   },
+   {
+    "relay": {
+     "type": "BroadcastState",
+     "state": {
+      "kind": "response",
+      "fromPlayer": "player-0",
+      "promptId": 1703,
+      "action": {
+       "type": "payManaCost",
+       "output": {
+        "type": "act",
+        "actionId": "tap:engine-card-92:0:B"
+       }
+      }
+     }
+    }
+   }
+  ],
+  "result": {
+   "first": {
+    "id": 1701,
+    "title": "Pay {2}{B} for Phyrexian Obliterator",
+    "options": [
+     "__auto=Auto-pay",
+     "__sacx:g0=Sacrifice X Treasure Token for mana (1 to 3)",
+     "tap:engine-card-91:0:W=Tap Treasure Token for {W} (also sacrifice this token)",
+     "tap:engine-card-91:0:U=Tap Treasure Token for {U} (also sacrifice this token)",
+     "tap:engine-card-91:0:B=Tap Treasure Token for {B} (also sacrifice this token)",
+     "tap:engine-card-91:0:R=Tap Treasure Token for {R} (also sacrifice this token)",
+     "tap:engine-card-91:0:G=Tap Treasure Token for {G} (also sacrifice this token)",
+     "tap:engine-card-92:0:W=Tap Treasure Token for {W} (also sacrifice this token)",
+     "tap:engine-card-92:0:U=Tap Treasure Token for {U} (also sacrifice this token)",
+     "tap:engine-card-92:0:B=Tap Treasure Token for {B} (also sacrifice this token)",
+     "tap:engine-card-92:0:R=Tap Treasure Token for {R} (also sacrifice this token)",
+     "tap:engine-card-92:0:G=Tap Treasure Token for {G} (also sacrifice this token)",
+     "tap:engine-card-93:0:W=Tap Treasure Token for {W} (also sacrifice this token)",
+     "tap:engine-card-93:0:U=Tap Treasure Token for {U} (also sacrifice this token)",
+     "tap:engine-card-93:0:B=Tap Treasure Token for {B} (also sacrifice this token)",
+     "tap:engine-card-93:0:R=Tap Treasure Token for {R} (also sacrifice this token)",
+     "tap:engine-card-93:0:G=Tap Treasure Token for {G} (also sacrifice this token)",
+     "__cancel=Cancel"
+    ]
+   },
+   "colour": {
+    "id": 1701,
+    "title": "Treasure Token: sacrifice them for which mana?",
+    "options": [
+     "__sacx:c:B={B} (needed)",
+     "__sacx:c:W={W}",
+     "__sacx:c:U={U}",
+     "__sacx:c:R={R}",
+     "__sacx:c:G={G}",
+     "__back=Back"
+    ]
+   },
+   "count": {
+    "id": 1701,
+    "title": "Treasure Token: sacrifice how many for {B}?",
+    "options": [
+     "__sacx:1=×1",
+     "__sacx:2=×2",
+     "__sacx:3=×3 (all)",
+     "__back=Back"
+    ]
+   },
+   "run": {
+    "left": [],
+    "last": "engine-card-92"
+   },
+   "open": null
+  }
+ },
+ {
+  "name": "yes/no words: putting a land from your hand onto the battlefield says so",
+  "effects": [],
+  "result": {
+   "zimone": [
+    "Put a land card from your hand onto the battlefield tapped?",
+    "Yes",
+    "No",
+    null
+   ],
+   "plain": [
+    "Look in your hand for a card?",
+    "Yes",
+    "No",
+    null
+   ]
+  }
  }
 ]
