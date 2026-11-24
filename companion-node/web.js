@@ -173,7 +173,7 @@ function updateSection(u, friend, observe) {
   const actions = [btn("update-check", u.status === "checking" ? "Checking…" : "Check for updates", !updateWorking(u.status), u.lastCheck ? `Last checked ${u.lastCheck}` : "Not checked yet.", null)];
   const line = u.text || `This package: ${u.current || "?"}.`;
   return { title: updateTitle(u), line: `${line} ${RevertNote}`, status: u.status, current: u.current, available: u.available, progress: u.progress, deferred: false, error: u.error, lastCheck: u.lastCheck, actions,
-    changes: u.changes || null, revert: { possible: false, why: RevertNote } };
+    changes: u.changes || null, whatsNew: u.status === "available" && u.whatsNew ? u.whatsNew : null, releaseUrl: u.status === "available" && u.available ? L.releasePage(u.available) : null, revert: { possible: false, why: RevertNote } };
 }
 
 class WebUi {

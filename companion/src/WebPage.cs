@@ -187,6 +187,9 @@ ol.lights { list-style: none; margin: 0; padding: 0; overflow: hidden; }
 .hint { margin: 0; padding: 12px 16px; border-radius: 12px; background: var(--panel); border: 1px dashed #464a63; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
 .tools { display: flex; flex-wrap: wrap; gap: 10px; }
 .banner .tools { margin-top: 12px; }
+.banner .whats-new { margin: 8px 0 0; padding-left: 20px; }
+.banner .whats-new li { margin: 3px 0; }
+.banner .rel-link { display: inline-block; margin-top: 6px; color: var(--gold, #d2ae63); }
 .toast { min-height: 1.5em; margin: 12px 0 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .toast.ok { color: var(--green); } .toast.warn { color: var(--amber); } .toast.bad { color: var(--red); }
 
@@ -282,7 +285,7 @@ body.is-down .lights, body.is-down .hint, body.is-down .tools { opacity: .45; fi
   <div class='banner down' id='pageerr' role='alert' hidden><strong>This page hit an error</strong><span id='pageerr-text'></span></div>
   <div class='banner game' id='game' role='status' aria-live='polite' hidden><strong id='game-title'>Game in progress</strong><span id='game-text'></span></div>
   <div class='banner info' id='observe' hidden>Observe only: this copy reads the lights and changes nothing.</div>
-  <div class='banner update' id='update' hidden><strong id='update-title'>Update</strong><span id='update-text'></span><div class='tools' id='update-actions'></div></div>
+  <div class='banner update' id='update' hidden><strong id='update-title'>Update</strong><span id='update-text'></span><ul class='whats-new' id='update-new' hidden></ul><a class='rel-link' id='update-link' target='_blank' rel='noopener noreferrer' hidden>Release notes on GitHub</a><div class='tools' id='update-actions'></div></div>
 
   <div class='cols'>
   <section class='col'>
@@ -574,7 +577,9 @@ var MtgPage = (function () {
   function updateView(u, b) {
     if (!u || typeof u !== 'object') return null;
     var acts = u.actions && u.actions.length ? u.actions : [];
-    return { title: u.title ? String(u.title) : 'Update', text: str(u.line || u.text), actions: acts.map(function (m) { return menuButton(m, b); }) };
+    var news = Array.isArray(u.whatsNew) ? u.whatsNew.map(str).filter(Boolean) : [];
+    var url = /^https:\/\/github\.com\/[^\s<>']+$/.test(str(u.releaseUrl)) ? str(u.releaseUrl) : '';
+    return { title: u.title ? String(u.title) : 'Update', text: str(u.line || u.text), whatsNew: news, url: url, actions: acts.map(function (m) { return menuButton(m, b); }) };
   }
 
   // status JSON (or null before the first answer) + { mode, inflight } -> everything the page shows
@@ -946,6 +951,15 @@ var MtgPage = (function () {
       var u = vm.update;
       $('update').hidden = !u;
       if (u) { set($('update-title'), u.title); set($('update-text'), u.text); }
+      var nl = $('update-new'), news = u ? u.whatsNew : [], key = news.join('\n');
+      if (nl.getAttribute('data-k') !== key) {
+        nl.setAttribute('data-k', key);
+        nl.textContent = '';
+        news.forEach(function (t) { nl.appendChild(el('li', null, t)); });
+      }
+      nl.hidden = !news.length;
+      var ln = $('update-link');
+      if (u && u.url) { if (ln.getAttribute('href') !== u.url) ln.setAttribute('href', u.url); ln.hidden = false; } else ln.hidden = true;
       syncButtons($('update-actions'), u ? u.actions : [], st.updateBtns);
       vm.lights.forEach(function (lv, i) {
         var r = st.rows[i] || addRow(i);

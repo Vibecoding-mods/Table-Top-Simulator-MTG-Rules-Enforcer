@@ -484,6 +484,20 @@ function update() {
   const { updateSection, RevertNote } = require("./web");
   const sec = updateSection({ status: "up-to-date", text: "Up to date (v2).", current: "v2" }, true, false);
   check("revert: no button on Linux/macOS, the page line says why", !sec.actions.some((a) => a.id === "update-revert") && sec.line.endsWith(RevertNote) && sec.line.startsWith("Up to date (v2).") && sec.revert.possible === false, sec);
+  const notes = "## MTG Table v1\r\n\r\n**New here?** Download it.\r\n\r\n### What’s new\r\n- **Loops** run themselves; type `mtg stop`\r\n  to stop one.\r\n* Decks move again.\r\n\r\n### How to install\r\n- Install Docker.";
+  const wn = L.parseRelease(JSON.stringify({ tag_name: "v1", assets: [], body: notes })).whatsNew;
+  check("what's new: the section's items, plain, continuation joined, the next section left out (as the Windows app)",
+    JSON.stringify(wn) === JSON.stringify(["Loops run themselves; type mtg stop to stop one.", "Decks move again."]), wn);
+  check("what's new: no body or no section: none", L.parseRelease('{"tag_name":"v1","assets":[]}').whatsNew.length === 0 && L.whatsNew("### How to install\n- x").length === 0 && L.whatsNew(null).length === 0);
+  const wm = L.whatsNew("### What's new\n" + Array.from({ length: 15 }, (_, i) => `- item ${i}`).join("\n"));
+  check("what's new: at most 10 items", wm.length === 10 && wm[9] === "item 9", wm.length);
+  const wl = L.whatsNew("### What's new\n- " + "x".repeat(900));
+  check("what's new: a long item is cut to 400", wl.length === 1 && wl[0].length === 400 && wl[0].endsWith("…"), wl[0] && wl[0].length);
+  const usNew = L.updateChecked({}, { manifest: two, plan: twoPlan, text: "x", release: { tag: two.version, whatsNew: ["Loops run themselves."] } }, false, "t");
+  const secNew = updateSection(usNew, true, false);
+  check("section: an offer shows the release's what's new and its page",
+    JSON.stringify(secNew.whatsNew) === '["Loops run themselves."]' && secNew.releaseUrl === `https://github.com/${L.Updates.Repo}/releases/tag/${two.version}`, secNew);
+  check("section: nothing offered: no what's new, no release page", sec.whatsNew === null && sec.releaseUrl === null, sec);
   check("revert: the note says how to go back by hand", RevertNote.includes("not on Linux or macOS") && RevertNote.includes("older package"));
   // the manifest's signature (the vector the Windows selftest uses, made by the packager's Node code)
   section("self-update: the signature");

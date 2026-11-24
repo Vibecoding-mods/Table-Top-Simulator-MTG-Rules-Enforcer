@@ -763,7 +763,7 @@ namespace MtgCompanion
             if (offered)
             {
                 actions.Add(UpdateButton("update-now", "Update now", !working && !revertWaits, revertWaits ? Updates.RevertWaitsText : u.Notes ?? "Downloads and installs " + u.Available + ".",
-                    "Install update " + u.Available + " now?\n\n" + (u.Notes ?? "") + "\n\nThe bridge stops for a minute while it installs. During a game it only downloads, and installs 2 minutes after the game."));
+                    "Install update " + u.Available + " now?\n\n" + (u.Notes ?? "") + (u.WhatsNew != null ? "\n\nWhat's new:\n• " + string.Join("\n• ", u.WhatsNew) : "") + "\n\nThe bridge stops for a minute while it installs. During a game it only downloads, and installs 2 minutes after the game."));
                 if (u.Status == "available" && !u.Later) actions.Add(UpdateButton("update-later", "Later", true, "No reminder for this update until you check again.", null));
             }
             actions.Add(UpdateButton("update-check", u.Status == "checking" ? "Checking…" : "Check for updates", !working, u.LastCheck != null ? "Last checked " + u.LastCheck : "Not checked yet.", null));
@@ -783,6 +783,8 @@ namespace MtgCompanion
                 { "title", UpdateTitle(u) }, { "line", line }, { "status", u.Status }, { "current", u.Current }, { "available", u.Available },
                 { "progress", u.Progress }, { "deferred", u.DeferredUntilGameEnds }, { "error", u.Error }, { "lastCheck", u.LastCheck }, { "actions", actions },
                 { "changes", u.Changes != null ? u.Changes.ToArray() : null },
+                { "whatsNew", offered && u.WhatsNew != null ? u.WhatsNew.ToArray() : null },
+                { "releaseUrl", offered ? Updates.ReleasePage(u.Available) : null },
                 { "revert", rv == null ? null : new Dictionary<string, object> { { "possible", rv.Possible }, { "target", rv.Target }, { "from", rv.From }, { "why", rv.Why }, { "self", rv.Self }, { "changes", rv.Changes.ToArray() }, { "waiting", u.RevertWaiting } } },
             };
         }

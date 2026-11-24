@@ -851,6 +851,17 @@ namespace MtgCompanion
             var rel = Updates.ParseRelease("{\"tag_name\":\"v1\",\"assets\":[{\"name\":\"update-manifest.json\",\"url\":\"https://api.github.com/repos/o/r/releases/assets/7\",\"size\":900}]}");
             Check("release: tag and assets", rel != null && rel.Tag == "v1" && rel.Assets.Count == 1 && rel.Assets[0].Size == 900 && rel.Assets[0].Url.EndsWith("/assets/7"));
             Check("release: no tag", Updates.ParseRelease("{\"message\":\"Not Found\"}") == null && Updates.ParseRelease("nope") == null);
+            var notes = "## MTG Table v1\r\n\r\n**New here?** Download it.\r\n\r\n### What’s new\r\n- **Loops** run themselves; type `mtg stop`\r\n  to stop one.\r\n* Decks move again.\r\n\r\n### How to install\r\n- Install Docker.";
+            var wn = Updates.ParseRelease("{\"tag_name\":\"v1\",\"assets\":[],\"body\":" + J.Write(notes) + "}").WhatsNew;
+            Check("what's new: the section's items, plain, continuation joined, the next section left out",
+                wn.Count == 2 && wn[0] == "Loops run themselves; type mtg stop to stop one." && wn[1] == "Decks move again.", string.Join(" | ", wn));
+            Check("what's new: no body or no section: none", Updates.ParseRelease("{\"tag_name\":\"v1\",\"assets\":[]}").WhatsNew.Count == 0 && Updates.WhatsNew("### How to install\n- x").Count == 0 && Updates.WhatsNew(null).Count == 0);
+            var many = "### What's new\n" + string.Join("\n", Enumerable.Range(0, 15).Select(i => "- item " + i)) + "\n- " + new string('x', 900);
+            var wm = Updates.WhatsNew(many);
+            Check("what's new: at most " + Updates.WhatsNewMax + " items", wm.Count == Updates.WhatsNewMax && wm[9] == "item 9", wm.Count.ToString());
+            var wl = Updates.WhatsNew("### What's new\n- " + new string('x', 900));
+            Check("what's new: a long item is cut to " + Updates.WhatsNewItemMax, wl.Count == 1 && wl[0].Length == Updates.WhatsNewItemMax && wl[0].EndsWith("…"), wl.Count > 0 ? wl[0].Length.ToString() : "none");
+            Check("release page: made from the tag", Updates.ReleasePage("v2026.11.23-1925") == "https://github.com/" + Updates.Repo + "/releases/tag/v2026.11.23-1925");
             Check("check: 404 is the quiet line", Updates.CheckFailed(404, null) == Updates.NotPublic);
             Check("check: 403 names the token or the rate limit", Updates.CheckFailed(403, null).Contains("token") && Updates.CheckFailed(0, "timed out").Contains("timed out"));
             var now = new DateTime(2026, 11, 10, 12, 0, 0, DateTimeKind.Utc);
@@ -879,6 +890,19 @@ namespace MtgCompanion
             var us = new UpdateState { Status = "checking", Progress = 40 };
             us.Checked(avail, false, now);
             Check("state: available, with the version and notes", us.Status == "available" && us.Available == "v2026.11.10-1200" && us.Notes == avail.Text && !us.Later && us.Error == null && us.Progress == -1 && us.LastCheck == now.ToString("o"), us.Status);
+            Check("state: no release notes read: no what's new", us.WhatsNew == null);
+            var availNew = new CheckResult { Manifest = man, Plan = avail.Plan, Text = avail.Text, Release = new ReleaseInfo { Tag = "v2026.11.10-1200", WhatsNew = new List<string> { "Loops run themselves." } } };
+            var usNew = new UpdateState();
+            usNew.Checked(availNew, false, now);
+            Check("state: the release's what's new is kept with the offer", usNew.WhatsNew != null && usNew.WhatsNew.SequenceEqual(new[] { "Loops run themselves." }));
+            var secNew = J.Parse(J.Write(WebUi.UpdateSection(usNew, true, false)));
+            var nowBtn = J.Arr(secNew, "actions").FirstOrDefault(a => J.Str(a, "id") == "update-now");
+            Check("section: what's new and the release page go to the page, and into Update now's question",
+                (J.Arr(secNew, "whatsNew") ?? new object[0]).Select(x => x as string).SequenceEqual(new[] { "Loops run themselves." })
+                && J.Str(secNew, "releaseUrl") == Updates.ReleasePage("v2026.11.10-1200") && nowBtn != null && J.Str(nowBtn, "confirm").Contains("What's new:\n• Loops run themselves."), J.Write(secNew));
+            usNew.Checked(new CheckResult { Manifest = Updates.ParseManifest(all, out err), Plan = Updates.Plan(local, Updates.ParseManifest(all, out err), 1), Text = "Up to date." }, false, now);
+            var secOld = J.Parse(J.Write(WebUi.UpdateSection(usNew, true, false)));
+            Check("state: up to date again: no what's new, no release page", usNew.WhatsNew == null && J.Arr(secOld, "whatsNew") == null && J.Str(secOld, "releaseUrl") == null, J.Write(secOld));
             us.Checked(avail, true, now);
             Check("state: Later stays for the same release", us.Later);
             us.Checked(new CheckResult { Failed = true, Quiet = true, Text = Updates.NotPublic }, true, now);

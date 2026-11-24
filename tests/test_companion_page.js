@@ -296,6 +296,14 @@ ok("vm: the script defines MtgPage without a document (and starts nothing)", P &
   same("click: a disabled Revert says why (no backup), sends nothing", P.clickPlan(vn, none), { do: "say", text: "No earlier version is kept yet: the first update makes one.", kind: "warn" });
   ok("tip: a disabled Revert's 'right now' is its own reason, not 'an update is being checked'", vn.tip.endsWith("\nRight now: No earlier version is kept yet: the first update makes one.") && !vn.tip.includes("being checked, downloaded"), vn.tip);
   same("vm: an update line that says what changed is shown as sent", P.viewModel(Object.assign(status(), { update: { line: "Update available: v3: changes the table and the app (table, bridge and decks; 2.0 MB to download).", actions: [] } }), none).update.text, "Update available: v3: changes the table and the app (table, bridge and decks; 2.0 MB to download).");
+  {
+    const rel = "https://github.com/Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer/releases/tag/v2";
+    const wv = P.viewModel(Object.assign(status(), { update: { line: "x", actions: [], whatsNew: ["Loops run themselves.", "", 7], releaseUrl: rel } }), none).update;
+    same("vm: what's new as text items (empties dropped), the release page kept", [wv.whatsNew, wv.url], [["Loops run themselves.", "7"], rel]);
+    const bad = ["javascript:alert(1)", "https://evil.example/x", "https://github.com/a b", "http://github.com/x", null];
+    same("vm: a release link that isn't https://github.com/... is dropped", bad.map((u) => P.viewModel(Object.assign(status(), { update: { line: "x", actions: [], releaseUrl: u } }), none).update.url), bad.map(() => ""));
+    same("vm: no what's new sent: an empty list", P.viewModel(Object.assign(status(), { update: { line: "x", actions: [], whatsNew: "nope" } }), none).update.whatsNew, []);
+  }
   same("vm: update not an object: no section", [P.updateView("x", { down: false, inflight: {} }), P.updateView(null, { down: false, inflight: {} })], [null, null]);
 }
 
@@ -558,6 +566,23 @@ function boot(body) {
     await h.clock.advance(0);
     const box = h.$("update-actions");
     same("shell: the server's update title and both buttons", [h.$("update-title").textContent, box.children.map((b) => b.textContent)], ["Update available: v2", ["Update now", "Check for updates"]]);
+    same("shell: no what's new sent: the list and the link stay hidden", [h.$("update-new").hidden, h.$("update-link").hidden], [true, true]);
+    {
+      const wn = status();
+      wn.update = Object.assign({}, up.update, { whatsNew: ["Loops run themselves.", "Decks move again."], releaseUrl: "https://github.com/o/r/releases/tag/v2" });
+      const h2 = boot(wn);
+      await h2.clock.advance(0);
+      const list = h2.$("update-new"), link = h2.$("update-link");
+      same("shell: what's new: one item per line, as text, and the release notes link", [list.hidden, list.children.map((li) => [li.tagName, li.textContent]), link.hidden, link.getAttribute("href"), link.getAttribute("target")],
+        [false, [["li", "Loops run themselves."], ["li", "Decks move again."]], false, "https://github.com/o/r/releases/tag/v2", "_blank"]);
+      const first = list.children[0];
+      h2.body = wn;
+      await h2.clock.advance(2500);
+      ok("shell: the same list on the next poll is left as it is (not drawn again)", list.children.length === 2 && list.children[0] === first);
+      h2.body = status();
+      await h2.clock.advance(2500);
+      same("shell: no update any more: the list and the link hide", [list.hidden, link.hidden], [true, true]);
+    }
     box.children[0].click();
     await flush();
     same("shell: Update now posts update-now", h.posts.map((p) => p.body.id), ["update-now"]);

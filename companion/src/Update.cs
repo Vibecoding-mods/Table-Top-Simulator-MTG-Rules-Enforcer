@@ -22,7 +22,8 @@ namespace MtgCompanion
     }
 
     public class ReleaseAsset { public string Name, Url; public long Size; }
-    public class ReleaseInfo { public string Tag; public List<ReleaseAsset> Assets = new List<ReleaseAsset>(); }
+    // WhatsNew: the release notes' "What's new" items, as plain text (Updates.WhatsNew)
+    public class ReleaseInfo { public string Tag; public List<ReleaseAsset> Assets = new List<ReleaseAsset>(); public List<string> WhatsNew = new List<string>(); }
 
     public class UpdatePlan
     {
@@ -110,6 +111,7 @@ namespace MtgCompanion
         public string LastCheck;            // ISO time of the last check
         public string Text = "";            // the one line for the window and the tray
         public List<string> Changes;        // what the offered release changes: "table", "app", "engine" (Updates.Changes)
+        public List<string> WhatsNew;       // the offered release's "What's new" items (its notes on GitHub), or null
         public RevertInfo Revert;           // what Revert would go back to (the Controller's, after each change of the package)
         public bool RevertWaiting;          // Revert was pressed during a game: it goes back after the game (the one place this is kept: Controller.PendingRevert reads it; a check changes Status, never this)
         public UpdateState Copy() { return (UpdateState)MemberwiseClone(); }
@@ -125,6 +127,7 @@ namespace MtgCompanion
             Available = r.Available ? r.Manifest.Version : null;
             Notes = r.Available ? r.Text : null;
             Changes = r.Available ? Updates.Changes(r.Plan.Fetch.Select(p => p.Name)) : null;
+            WhatsNew = r.Available && r.Release != null && r.Release.WhatsNew.Count > 0 ? r.Release.WhatsNew : null;
             Later = r.Available && laterSame;
             Progress = -1;
         }
@@ -137,7 +140,7 @@ namespace MtgCompanion
             DeferredUntilGameEnds = res.Deferred;
             Error = res.Ok || res.Deferred ? null : res.Text;
             Progress = -1;
-            if (res.Ok && !res.Swapping) { Available = null; Notes = null; Changes = null; }
+            if (res.Ok && !res.Swapping) { Available = null; Notes = null; Changes = null; WhatsNew = null; }
         }
 
         // after a revert (or its wait for the game). One that went back clears any offer: it was planned against the
@@ -149,7 +152,7 @@ namespace MtgCompanion
             RevertWaiting = res.Deferred;
             Error = res.Ok || res.Deferred ? null : res.Text;
             Progress = -1;
-            if (res.Ok) { Available = null; Notes = null; Changes = null; Later = false; }
+            if (res.Ok) { Available = null; Notes = null; Changes = null; WhatsNew = null; Later = false; }
         }
     }
 
@@ -372,8 +375,50 @@ namespace MtgCompanion
                 long size; long.TryParse(J.Str(a, "size") ?? "", out size);
                 r.Assets.Add(new ReleaseAsset { Name = J.Str(a, "name"), Url = J.Str(a, "url"), Size = size });
             }
+            r.WhatsNew = WhatsNew(J.Str(o, "body"));
             return r;
         }
+
+        public const int WhatsNewMax = 10, WhatsNewItemMax = 400;
+
+        // The "### What's new" section of a release's notes (tools/publish-release.js puts RELEASE-NOTES.md there):
+        // one plain-text line per "- " item, continuation lines joined, ** and ` dropped, at most WhatsNewMax items of
+        // WhatsNewItemMax characters. Empty when the notes have no such section.
+        public static List<string> WhatsNew(string body)
+        {
+            var items = new List<string>();
+            bool inside = false;
+            StringBuilder cur = null;
+            Action flush = () =>
+            {
+                if (cur == null) return;
+                var t = Regex.Replace(cur.ToString().Replace("**", "").Replace("__", "").Replace("`", ""), @"\s+", " ").Trim();
+                if (t.Length > WhatsNewItemMax) t = t.Substring(0, WhatsNewItemMax - 1).TrimEnd() + "…";
+                if (t.Length > 0 && items.Count < WhatsNewMax) items.Add(t);
+                cur = null;
+            };
+            foreach (var raw in (body ?? "").Split('\n'))
+            {
+                var line = raw.TrimEnd('\r');
+                var trim = line.Trim();
+                if (trim.StartsWith("#"))
+                {
+                    flush();
+                    var head = trim.TrimStart('#').Trim().Replace('’', '\'').ToLowerInvariant();
+                    if (inside) break;
+                    inside = head == "what's new";
+                    continue;
+                }
+                if (!inside) continue;
+                if (trim.StartsWith("- ") || trim.StartsWith("* ")) { flush(); cur = new StringBuilder(trim.Substring(2)); }
+                else if (trim.Length > 0 && cur != null) cur.Append(' ').Append(trim);
+            }
+            flush();
+            return items;
+        }
+
+        // the release's page on GitHub, made from the tag (never a URL from GitHub's answer)
+        public static string ReleasePage(string tag) { return "https://github.com/" + Repo + "/releases/tag/" + Uri.EscapeDataString(tag ?? ""); }
 
         // what a failed releases/latest says (never a red light)
         public static string CheckFailed(int status, string error)

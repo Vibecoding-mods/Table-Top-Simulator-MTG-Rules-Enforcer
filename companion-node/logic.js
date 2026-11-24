@@ -862,8 +862,41 @@ function parseRelease(body) {
   const tag = str(o, "tag_name");
   if (!validTag(tag)) return null;
   const assets = (Array.isArray(get(o, "assets")) ? get(o, "assets") : []).map((a) => ({ name: str(a, "name"), url: str(a, "url"), size: Number(str(a, "size") || 0) || 0 }));
-  return { tag, assets };
+  return { tag, assets, whatsNew: whatsNew(str(o, "body")) };
 }
+
+const WhatsNewMax = 10, WhatsNewItemMax = 400;
+
+// The "### What's new" section of a release's notes (as Updates.WhatsNew in the Windows app): one plain-text line per
+// "- " item, continuation lines joined, ** and ` dropped, at most WhatsNewMax items of WhatsNewItemMax characters.
+function whatsNew(body) {
+  const items = [];
+  let inside = false, cur = null;
+  const flush = () => {
+    if (cur === null) return;
+    let t = cur.split("**").join("").split("__").join("").split("`").join("").replace(/\s+/g, " ").trim();
+    if (t.length > WhatsNewItemMax) t = t.slice(0, WhatsNewItemMax - 1).trimEnd() + "…";
+    if (t && items.length < WhatsNewMax) items.push(t);
+    cur = null;
+  };
+  for (const raw of String(body || "").split(String.fromCharCode(10))) {
+    const trim = raw.trim();
+    if (trim.startsWith("#")) {
+      flush();
+      if (inside) break;
+      inside = trim.replace(/^#+/, "").trim().replace(/’/g, "'").toLowerCase() === "what's new";
+      continue;
+    }
+    if (!inside) continue;
+    if (trim.startsWith("- ") || trim.startsWith("* ")) { flush(); cur = trim.slice(2); }
+    else if (trim && cur !== null) cur += " " + trim;
+  }
+  flush();
+  return items;
+}
+
+// the release's page on GitHub, made from the tag (never a URL from GitHub's answer)
+const releasePage = (tag) => `https://github.com/${Updates.Repo}/releases/tag/${encodeURIComponent(tag || "")}`;
 
 function checkFailed(status, error) {
   if (status === 404) return Updates.NotPublic;
@@ -908,6 +941,7 @@ function updateChecked(s, r, laterSame, nowIso) {
     error: available || r.quiet || !(r.failed || (r.plan && r.plan.refused)) ? null : r.text,
     available: available ? r.manifest.version : null, notes: available ? r.text : null, later: available && laterSame, progress: -1,
     changes: available ? changes(r.plan.fetch.map((x) => x.name)) : null,
+    whatsNew: available && r.release && r.release.whatsNew && r.release.whatsNew.length ? r.release.whatsNew : null,
   };
 }
 
@@ -923,5 +957,5 @@ module.exports = {
   DefaultSaveName, Room, ttsHowTo, decideTts, sha8, clip, relayKey, worst, overall,
   NotStartedPhase, StoppedPhase, StartHint, engineUp, beforeStart, nextHint, autoStart,
   Updates, validTag, imagesVersion, parseKeys, verifySignature, parseManifest, localVersion, builtTime, downgrade,
-  updatePlan, planAvailable, describe, changes, changesWords, parseRelease, checkFailed, checkDue, allowedUrl, tokenFor, updateChecked, mb,
+  updatePlan, planAvailable, describe, changes, changesWords, parseRelease, whatsNew, releasePage, checkFailed, checkDue, allowedUrl, tokenFor, updateChecked, mb,
 };

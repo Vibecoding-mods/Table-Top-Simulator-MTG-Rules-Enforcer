@@ -77,7 +77,7 @@ class Updater {
     if (!pm.m) return { failed: true, text: `The update manifest of ${rel.tag} is broken: ${pm.error}.` };
     if (pm.m.version !== rel.tag) return { failed: true, text: `The update manifest says ${pm.m.version} but sits in release ${rel.tag}: not used.` };
     const plan = L.updatePlan(this.c.version, pm.m, L.Updates.Format);
-    return { manifest: pm.m, plan, text: plan.refused || (plan.upToDate ? `Up to date (${pm.m.version}).` : L.describe(plan, pm.m)) };
+    return { manifest: pm.m, release: rel, plan, text: plan.refused || (plan.upToDate ? `Up to date (${pm.m.version}).` : L.describe(plan, pm.m)) };
   }
 
   checkInBackground() {
