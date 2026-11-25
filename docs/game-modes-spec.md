@@ -486,7 +486,10 @@ What exists (details and proofs: `docs/engine-changes.md`, "2026-11-13 2hg"):
   whose partners aren't next to each other in seat order, give partners different starting life, or set a poison or
   commander-damage limit below 1. Left out, as planned: 810.9d, 810.9f, 701.34b (built 2026-11-15, §5.9.1).
 - **Hands (§12.5):** a teammate's hand is sent to the viewer in a `sharedLife` game; the bridge keeps it out of the
-  "revealed to everyone" rows and the table lays it look-only in the partner's second hand zone.
+  "revealed to everyone" rows. The table lays no copy of it: partners see the real hand through their TTS team (Hearts,
+  Clubs, ...: engineTtsTeams, docs/2hg-shared-hand-spec.md). The look-only stand-ins in the partner's second hand zone and
+  the bridge's `teamHand` / `teamBy` were removed on 2026-11-25 (the user's request; `tests/test_table_teams.js` "no copy of
+  a partner's hand is made", `tests/test_bridge_teams.js` "no copy of a partner's hand is sent").
 - **§5.5 bridge (`bridge/teams.js`):** the table's teams come with every Start; the bridge refuses a start that is not
   four seats in two teams of two side by side in turn order, sends `gameConfig` before `StartGame`, says the teams; the
   board gets `teams` (sides, poison limit, winners), poison as "POISON n/15", both partners' commander damage as the
@@ -499,7 +502,7 @@ What exists (details and proofs: `docs/engine-changes.md`, "2026-11-13 2hg"):
   both formats (Standard 2HG: 30 a team). Since 2026-11-15 Two-Headed Giant is Commander only (§4.1); the engine's
   Standard 2HG is no longer reachable from the table or the bridge.
 - **§5.6 table:** `mtg mode 2hg|ffa` and `mtg team <colour> 1|2` (host; beside main's `mtg mode standard|commander`), the
-  partner's hand stand-ins, the phase bar's "(YOUR TEAM)" / "(TEAM ...)" tag, VICTORY for both partners and "WHITE + RED
+  partner's hand (the TTS team since 2026-11-24; the stand-ins removed 2026-11-25), the phase bar's "(YOUR TEAM)" / "(TEAM ...)" tag, VICTORY for both partners and "WHITE + RED
   WIN THE GAME", "Concede for your team?". The engine side was proved live on `engine1115-2hg`
   (`tests/live_2hg_check.js`, 24 of 24, 2026-11-14).
 - **Team pieces (looks only; branch `2hg-looks`, 2026-11-14, fake TTS only, not yet seen on the real table):**
@@ -702,6 +705,13 @@ has to be easy to read and easy to do".
   Giant game has each player's own turn; `mtg 2hg turns shared` makes a Start send `teamTurns: "shared"` (the bridge's
   gameConfig `teamRules: "sharedTurns"`), and `mtg 2hg turns own` takes it back. The Teams button then reads "2HG team
   turns". Not yet tried with several people.
+- **The Team turns button (2026-11-25):** the setting as a button on the setup tile, beside Teams on the west strip
+  (`engineTeamTurnsSpot`: the profile's `spots.teamTurns` when it names one, else 4 further out than Teams, x -51 on the
+  4-player table and -53 on the six-seat one, z 17.5; inside both cleared west strips; not yet seen on the real tables).
+  Shown only while the next games are Two-Headed or Three-Headed Giant (`engineTeamTurnsMode`), hidden during a game as
+  the other mode buttons. Label "Team turns / Own" or "Team turns / Shared" (yellow when shared). Host only: a click is
+  exactly `mtg 2hg turns shared|own` (`mtg 3hg turns ...` in 3HG), so another player's click is refused the same way.
+  One setting for both modes; `mtg 3hg turns shared|own` is the same command. Tests: `tests/test_table_team_turns.js`.
 - **Tests:** `tests/test_bridge_2hg_team_block.js` drives `tests/golden/fixtures/2hg-team-block.json` (hand-built in the
   report's shapes, with its `decidingPlayerId` sequences: a change of mind, agreement, no change, the cap, a refusal,
   free-for-all; and the change of mind at Level 1). `tests/test_table_2hg_team_block.js` plays the bridge's prompts on
@@ -907,12 +917,26 @@ Needs: §4, §5 Level 1 (or 2), and §7 (the six-seat table). In Level 1, three 
   Standard: None → 2v2 → 3HG). The teams are the table's sides, White + Red + Yellow against Green + Blue + Purple;
   `mtg team` is refused. On the four-seat table it is refused ("Three-Headed Giant is played on the six-seat table").
 - **Numbers:** 120 life a team in Commander (the user's decision, §12; 63 commander damage), 45 in Standard; poison 20.
-  Level 1 only: each player's own turn, the team's back to back; a shared-turns request is ignored for 3HG.
+  Each player's own turn by default (the team's back to back). **Since 2026-11-25 the same options as 2HG:**
+  `mtg 3hg turns shared` (or `mtg 2hg turns shared`, one setting, or the Team turns button, §5.12) makes Start send
+  `teamTurns: "shared"`; the bridge keeps it (`setupOf`), asks the engine for `teamRules: "sharedTurns"` and says
+  "each team takes one turn together, attacks together and blocks together". The engine already plays shared turns for
+  any equal team size (`configureTeamRules` takes `sharedTurns` with teams of three; `LongTailTest`'s "threes" checks:
+  a team of three untaps and draws together, the turn alternates between the teams, each of the three may play a land,
+  priority goes round all three before the other team, all three declare attacks in one combat), and `PhaseHandler`'s
+  team pieces (the joint block's revise rounds, `ThreeHeadedGiantTest`; the team leader `GameAction.teamLead` ordering
+  the team's triggers; the refused declaration loop) take the team as a list. So no engine change was made or needed
+  for it; it has not been run with three people. The team words read right for three: "you pick your creatures, Red
+  and Yellow pick theirs", "you, Blue and Purple can each block any attacker, even one attacking one of your
+  partners", each partner's attack and blocks a sentence of their own, "You order your team's triggers, Red's and
+  Yellow's too" (each partner with a trigger there is told), "You are all asked again", and the concede question "You
+  are all out for good". Tests: `tests/test_bridge_3hg_turns.js`, `tests/test_table_team_turns.js`.
 - **Table:** the life counter's hover "Team life: ...", "POISON n/20", the phase bar's team tags. Not built: the team
   tint and shared team-life panel between the mats (drawn only for teams of two), and a team life tracker for three
   mats a side (§8.3).
 - **Not done:** the six-seat save ("MTG 6 player table - ENGINE MODE") isn't made yet, so 3HG has not run on a real
-  table; nothing was tried in TTS. Conceding says "You are both out for good" even with three partners.
+  table; nothing was tried in TTS. (Conceding said "You are both out for good" with three partners: fixed 2026-11-25,
+  "You are all out for good".)
 
 ## 9. Order of work and hours
 

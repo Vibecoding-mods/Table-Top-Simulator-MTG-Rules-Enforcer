@@ -1,8 +1,8 @@
 // Two-Headed Giant on the table (docs/game-modes-spec.md §5.5-5.6, Level 1; tools/engine-renderer.lua engineTeamChat,
-// engineTeamHands, engineTeamTurnTag, engineWonBy / engineWinsWords): the host's "mtg mode 2hg" and "mtg team", the
-// teams sent with Start, a partner's hand laid look-only in the other partner's second hand zone (and a stand-in
-// dragged out snaps back, playing nothing), the phase bar's team, and the team's win. Boards are made up here in the
-// bridge's shape (bridge/teams.js teamsField, bridge.js teamHandOf): Yellow and Blue seated partners against two AIs.
+// engineTtsTeams, engineTeamTurnTag, engineWonBy / engineWinsWords): the host's "mtg mode 2hg" and "mtg team", the
+// teams sent with Start, no copy of a partner's hand (the look-only stand-ins were removed: partners see the real hand
+// through their TTS team), the phase bar's team, and the team's win. Boards are made up here in the bridge's shape
+// (bridge/teams.js teamsField): Yellow and Blue seated partners against two AIs.
 //   node tests/test_table_teams.js
 const { simulate } = require("./lua/run-sim");
 const { buildSave } = require("./golden/table-run");
@@ -69,49 +69,40 @@ const chats = (r, mark) => fxOf(r, mark).filter((l) => /broadcast/.test(l)).join
 
 // ── the partners' hands, the phase bar, the end ──
 {
-  const drop = 'local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:team:Yellow:engine-card-501" then o = x end end if o == nil then return "none" end ' +
-    'local m = data.Yellow.playmat.getPosition() o.setPosition(Vector(m.x, 1.5, m.z)) onObjectDrop("Yellow", o) __sim.frames(30) ' +
-    'local inH = false for _, h in ipairs(Player.Yellow.getHandObjects(2)) do if h == o then inH = true end end return inH and "back" or "out"';
+  // (any object the table made for a partner's hand: an engine:team:... stand-in, or a copy of the partner's card in a
+  // second hand zone)
+  const copies = 'local out = {} for _, x in ipairs(getObjects()) do local g = tostring(x.getGMNotes()) if g:sub(1, 12) == "engine:team:" then out[#out + 1] = g end end ' +
+    'for _, c in ipairs({ "Yellow", "Blue" }) do for _, h in ipairs(Player[c].getHandObjects(2)) do out[#out + 1] = c .. " hand2 " .. tostring(h.getGMNotes()) end end ' +
+    'return #out == 0 and "none" or table.concat(out, " | ")';
   const check = 'local out = {} for _, pr in ipairs(engineSelfCheck().problems or {}) do if tostring(pr):find("50[12]") or tostring(pr):find("Elves", 1, true) or tostring(pr):find("Counterspell", 1, true) then out[#out + 1] = tostring(pr) end end return #out == 0 and "none" or table.concat(out, " || ")';
   const r = sim([
-    // (the stand-ins: the fallback when the TTS teams can't be set, engineTtsTeams false; the teams are checked below)
+    // (no copies of a partner's hand, even when the TTS teams can't be set (engineTtsTeams false) and the board carries an
+    // older bridge's teamHand rows; the user had the look-only stand-ins removed, 2026-11-25)
     q('engineTtsTeams = function() return false end engineAutoPace.Yellow = false engineAutoPace.Blue = false engineChat("mtg start ai 2", Player.Blue) return "ok"', "prelude"),
     { msg: { t: "started", json: STARTED } },
     { msg: { t: "table", json: board({}, HANDS) }, frames: 90 },
     q(where("engine-card-501", "Blue"), "blue's own"),
-    q(where("team:Yellow:engine-card-501", "Yellow"), "yellow sees"),
-    q(where("team:Blue:engine-card-502", "Blue"), "blue sees"),
-    q('local n = 0 for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:team:Yellow:engine-card-501" then n = n + #(x.getDescription() or "") end end return tostring(n)', "note"),
+    q(where("engine-card-502", "Yellow"), "yellow's own"),
+    q(copies, "copies"),
     q('engineConcedeAsk = nil engineChat("mtg concede", Player.Blue) return "asked"', "concede ask"),
     q(check, "check"),
-    // (TTS lays a hand out itself: a stand-in shifted inside the second hand zone stays where TTS put it on the next board)
-    q('local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:team:Yellow:engine-card-501" then o = x end end if o == nil then return "none" end ' +
-      'local p = o.getPosition() o.setPosition(Vector(p.x + 0.3, p.y, p.z)) __sim.frames(2) local inH = false for _, h in ipairs(Player.Yellow.getHandObjects(2)) do if h == o then inH = true end end ' +
-      'if not inH then return "left the zone" end __fx = {} engineRender(engineTable()) __sim.frames(30) local n = 0 for _, l in ipairs(__fx) do if l:find("obj:" .. o.getGUID() .. " ", 1, true) and l:find("setPosition", 1, true) then n = n + 1 end end return tostring(n)', "relaid"),
-    q('__fx = {} ' + drop, "drop", 10),
     q('engineUpdateCorner("Blue", nil) local b = tostring(UI.getValue("eng_phase_Blue")) engineUpdateCorner("Yellow", nil) return b .. " || " .. tostring(UI.getValue("eng_phase_Yellow"))', "corner white"),
     { msg: { t: "table", json: board({ active: "Blue", priority: "Blue" }, HANDS) }, frames: 30 },
     q('engineUpdateCorner("Yellow", nil) return tostring(UI.getValue("eng_phase_Yellow"))', "corner blue"),
     { msg: { t: "table", json: board({}, { Yellow: { hand: [{ s: 1, id: "engine-card-502", ctl: "Yellow" }] }, Blue: { hand: [{ s: 1, id: "engine-card-501", ctl: "Blue" }] } }) }, frames: 90 },
-    q(where("team:Yellow:engine-card-501", "Yellow"), "gone"),
     q('local m = { winner = "Blue", teams = { sides = { { "White", "Red" }, { "Yellow", "Blue" } }, won = { "Yellow", "Blue" } } } ' +
       'return tostring(engineWonBy(m, "Yellow")) .. " " .. tostring(engineWonBy(m, "Blue")) .. " " .. tostring(engineWonBy(m, "White")) .. " " .. engineWinsWords(m)', "won"),
     q('local m = { winner = "Blue" } return tostring(engineWonBy(m, "Yellow")) .. " " .. tostring(engineWonBy(m, "Blue")) .. " " .. engineWinsWords(m)', "won ffa"),
   ]);
   ok("hands: no errors", !r.errors.length, r.errors.join(" | "));
   ok("hands: Blue's own card stays in Blue's hand", valueOf(r, "blue's own") === "1 hand", String(valueOf(r, "blue's own")));
-  ok("hands: Yellow sees Blue's card in Yellow's second hand zone", valueOf(r, "yellow sees") === "1 hand2", String(valueOf(r, "yellow sees")));
-  ok("hands: Blue sees Yellow's card in Blue's second hand zone", valueOf(r, "blue sees") === "1 hand2", String(valueOf(r, "blue sees")));
-  ok("concede: the question says it is for the team", /Concede for your team \(PlayerYellow \+ PlayerBlue\)\?/.test(chats(r, "concede ask")), chats(r, "concede ask"));
-  ok("hands: the stand-in says it is the partner's, look only", Number(valueOf(r, "note")) > 0, String(valueOf(r, "note")));
-  ok("hands: a stand-in TTS laid out in the hand zone stays there on the next board", valueOf(r, "relaid") === "0", String(valueOf(r, "relaid")));
-  ok("hands: the table check expects the stand-ins", valueOf(r, "check") === "none", String(valueOf(r, "check")));
-  const sentDrop = fxOf(r, "drop").filter((l) => l.includes("WebRequest")).join(" ").split("\\").join("");
-  ok("hands: a stand-in dragged onto the mat plays nothing and goes back", valueOf(r, "drop") === "back" && !/"kind":"play"/.test(sentDrop), `${valueOf(r, "drop")} ${sentDrop.slice(0, 200)}`);
+  ok("hands: Yellow's own card stays in Yellow's hand", valueOf(r, "yellow's own") === "1 hand", String(valueOf(r, "yellow's own")));
+  ok("hands: no copy of a partner's hand is made (no engine:team: stand-in, nothing in a second hand zone)", valueOf(r, "copies") === "none", String(valueOf(r, "copies")));
+  ok("concede: the question says it is for the team, both partners", /Concede for your team \(PlayerYellow \+ PlayerBlue\)\? You are both out for good/.test(chats(r, "concede ask")), chats(r, "concede ask"));
+  ok("hands: the table check is clean without copies", valueOf(r, "check") === "none", String(valueOf(r, "check")));
   const corner = String(valueOf(r, "corner white"));
   ok("phase bar: the other team's turn names the team", /\(TEAM AI 1 \+ AI 2\)/.test(corner.split(" || ")[0]) && /\(TEAM AI 1 \+ AI 2\)/.test(corner.split(" || ")[1]), corner);
   ok("phase bar: your partner's turn says your team", /\(YOUR TEAM\)/.test(String(valueOf(r, "corner blue"))), String(valueOf(r, "corner blue")));
-  ok("hands: no teamHand, no stand-in", valueOf(r, "gone") === "none", String(valueOf(r, "gone")));
   ok("end: both partners win; the banner names the team", valueOf(r, "won") === "true true false PLAYERYELLOW + PLAYERBLUE WIN THE GAME", String(valueOf(r, "won")));
   ok("end: free-for-all unchanged", valueOf(r, "won ffa") === "false true PLAYERBLUE WINS THE GAME", String(valueOf(r, "won ffa")));
 }

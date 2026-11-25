@@ -47,7 +47,7 @@ async function startFlow(h) {
   ok("game mode: 2HG still Commander only", /Commander only/.test(T.teamModeProblem("2hg", "standard") || ""));
   same("setupOf: the teams are the six-seat table's sides, whatever teams were sent",
     T.setupOf({ teamMode: "3hg", teams: { White: 2, Red: 1 } }), { teams: { White: 1, Red: 1, Yellow: 1, Green: 2, Blue: 2, Purple: 2 }, mode: "3hg", jugg: null, turns: null });
-  same("setupOf: Level 1 turns even when shared turns were asked", T.setupOf({ teamMode: "3hg", teamTurns: "shared" }).turns, null);
+  same("setupOf: shared turns asked for 3HG are kept (Level 2 for three, as 2HG)", T.setupOf({ teamMode: "3hg", teamTurns: "shared" }).turns, "shared");
   ok("sides: each team is three seats next to each other in turn order", SIX.slice(0, 3).every((c) => T.THREE_TEAMS[c] === 1) && SIX.slice(3).every((c) => T.THREE_TEAMS[c] === 2));
   ok("teamsProblem: six players start", T.teamsProblem(T.THREE_TEAMS, 6, "3hg") === null);
   same("teamsProblem: five players don't, saying six", T.teamsProblem(T.THREE_TEAMS, 5, "3hg"), "Three-Headed Giant needs all six seats filled (seated players + AI players), not 5. Add AI players with  mtg start ai N  or  mtg ai <colour> forge.");

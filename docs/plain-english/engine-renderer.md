@@ -55,7 +55,8 @@ when the game ends, when engine mode goes off, and when the table loads.
 
 In a shared-life team game (Two-Headed Giant, Three-Headed Giant), the table puts each side on its own TTS team
 (Hearts, Clubs, ...). TTS lets teammates see each other's hands, so partners see the real cards, live. If a player can't
-be put on their team, the table falls back to the old look-only copies of the partner's hand. When the game ends, the
+be put on their team, their partner simply doesn't see that hand: the table never lays copies of it (the old look-only
+copies were removed on 2026-11-25). When the game ends, the
 table takes off only the teams it set itself.
 
 ## Planned attack lines (2026-11-19)

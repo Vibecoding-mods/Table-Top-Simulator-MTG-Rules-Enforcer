@@ -151,7 +151,7 @@ function cases() {
     ["arch no names", [T.archTeams("Yellow"), users, COLORS4, "archenemy", null, false, null, { color: "Yellow" }]], ["arch no arch", [T.archTeams("Yellow"), users, COLORS4, "archenemy"]],
     ["arch six", [T.archTeams("Purple", COLORS6), ["a", "b", "c", "d", "e", "f"], COLORS6, "archenemy", null, false, null, { color: "Purple", names: ["X"] }]],
     ["3hg", [{ White: 1, Red: 1, Yellow: 1, Green: 2, Blue: 2, Purple: 2 }, ["a", "b", "c", "d", "e", "f"], COLORS6, "3hg"]],
-    ["3hg shared turns ignored", [{ White: 1, Red: 1, Yellow: 1, Green: 2, Blue: 2, Purple: 2 }, ["a", "b", "c", "d", "e", "f"], COLORS6, "3hg", null, false, "shared"]],
+    ["3hg shared turns", [{ White: 1, Red: 1, Yellow: 1, Green: 2, Blue: 2, Purple: 2 }, ["a", "b", "c", "d", "e", "f"], COLORS6, "3hg", null, false, "shared"]],
     ["fewer usernames", [rawTeams.default, ["u-w", "u-b"], ["White", "Blue"]]], ["no usernames", [rawTeams.default, [], []]], ["colour missing from teams", [rawTeams.default, ["x"], ["Green"]]],
     ["usernames not array", [rawTeams.default, null, COLORS4]],
   ];

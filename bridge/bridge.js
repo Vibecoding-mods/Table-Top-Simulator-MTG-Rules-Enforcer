@@ -2436,7 +2436,7 @@ const forgeBotCount = () => game.bots - (game.harmlessWanted || []).length;
 // teams: the table's teams ({ White: 1, ... }, teams2hg.setupOf), null for free-for-all. teamMode: "2hg"
 // (the default with teams), "2v2" or "juggernaut"; jugg: the Juggernaut's settings (teams2hg.juggOf). A Juggernaut
 // start's teams are already the Juggernaut's (setupOf, the start handler).
-// turns: "shared" for Two-Headed Giant Level 2 (the team's one turn, teamRules "sharedTurns"), else null (setupOf).
+// turns: "shared" for Two-Headed or Three-Headed Giant Level 2 (the team's one turn, teamRules "sharedTurns"), else null (setupOf).
 // arch: Archenemy's { color, schemes } (schemes null: 20 at random), withArchenemy.
 function startGame(seatList, bots, requireReady = false, fromTable = requireReady, aiSeats = [], friendly = 0, mode = gameMode.mode, teams = null, teamMode = "2hg", jugg = null, turns = null, arch = null) {
   if (game) { chat('[MTG] A game is already set up. Type "mtg reset" first.'); return; }
@@ -2512,7 +2512,7 @@ function startGame(seatList, bots, requireReady = false, fromTable = requireRead
   game = { seats: new Map(), bots, total, playerOrder: [], slotNames: {}, slotColor: {}, started: false, closing: false, fromTable, setupAt: Date.now(), pendingPlays: [],
     friendly: friendlyCount(friendly), mode, ...(formatGame ? { rules: deckRules } : {}),
     teams: teams || null, // (a team mode: sent to the engine as gameConfig before StartGame, onRoomUpdate)
-    ...(teams ? { teamMode, ...(teamMode === "juggernaut" ? { jugg } : {}), ...(archGame ? { arch: archGame } : {}), ...(teamMode === "2hg" && turns === "shared" ? { teamTurns: "shared" } : {}) } : {}),
+    ...(teams ? { teamMode, ...(teamMode === "juggernaut" ? { jugg } : {}), ...(archGame ? { arch: archGame } : {}), ...((teamMode === "2hg" || teamMode === "3hg") && turns === "shared" ? { teamTurns: "shared" } : {}) } : {}),
     // (Planechase: the planar pool, sent in the first seated player's deck, onRoomUpdate)
     planes: pool?.names || null, planeSeat: pool ? seatList[0] : null,
     // decks put in empty seats' library zones (checked by "mtg ready" like a player's) are played by the AI; the seat
@@ -3969,16 +3969,6 @@ function revealedOf(p, seats, toCard) {
   return (zoneOf(others[0].board.state.gameView, "hand", p.id).cards || []).filter((c) => sees.every((ids) => ids.has(c.id)))
     // (face up, its plain back as in a hand: a double-faced card's back would be its other face)
     .map((c) => ({ ...toCard(c), b: DEFAULT_BACK }));
-}
-
-// Two-Headed Giant (810.5): p's hand for p's seated partner, as that partner's own view shows it (the engine shows a
-// partner's hand to their teammates only, forge-harness InteractiveSnapshotExtractor.sharesHandWith). -> { teamHand,
-// teamBy } for the table's partner stand-ins (engineTeamHands: look-only, in the partner's second hand zone), or {}.
-function teamHandOf(p, pub, seats, toCard) {
-  const mate = teams2hg.teamOf(p, pub).find((q) => q.id !== p.id && seats.some((s) => s.slot === q.id));
-  const seat = mate && seats.find((s) => s.slot === mate.id);
-  const cards = seat ? zoneOf(seat.board.state.gameView, "hand", p.id).cards.filter((c) => c.identity?.name && c.visibility !== "hidden") : [];
-  return cards.length ? { teamHand: cards.map((c) => ({ ...toCard(c), b: DEFAULT_BACK })), teamBy: seat.color } : {};
 }
 
 // Forge numbers turns across all players (turn 10 = your 5th in a 2-player game); count each player's own turns.
@@ -7136,8 +7126,8 @@ function sendTable() {
     const ctl = p.controlledBy && p.controlledBy !== p.id && seats.find((s) => s.slot === p.controlledBy);
     const ctlHand = ctl ? zoneOf(ctl.board.state.gameView, "hand", p.id).cards.filter((c) => c.identity?.name) : [];
     if (ctlHand.length) { row.ctlHand = ctlHand.map((c) => ({ ...toCard(c), b: DEFAULT_BACK })); row.ctlBy = ctl.color; }
-    // (Two-Headed Giant: the hand as a seated partner's view shows it, look-only in that partner's second hand zone)
-    Object.assign(row, teamHandOf(p, pub, seats, toCard));
+    // (Two-Headed / Three-Headed Giant: no copy of p's hand for a partner; partners see the real hand through their TTS
+    // team, engine-renderer.lua engineTtsTeams; revealedOf above keeps it out of the rows shown to everyone)
     return row;
   });
   playableEnded(playableNow, pub);
@@ -12809,10 +12799,10 @@ function onPrompt(seat, prompt) {
       // test #16)
       if (onTop && game && /\blook at the top \w+ cards of your library\b/i.test(what)) gameLogLine(`${seat.color} looks at the top ${input.items.length === 1 ? "card" : `${input.items.length} cards`} of their library (${src})`);
       // (Two-Headed Giant Level 2: the team's first seat orders both partners' triggers, 805.7 and 805.2; the partner's
-      // are named as theirs and the partner is told)
+      // are named as theirs and the partner is told; in Three-Headed Giant each partner with a trigger there)
       const teamTrig = trig && teams2hg.sharesTurns(gv) ? teams2hg.teamTriggerWords(gv, forP || seat.slot, input.items, nameOf) : null;
-      if (teamTrig) {
-        const partnerSeat = [...game.seats.values()].find((s) => s.slot === teamTrig.partner);
+      for (const p of teamTrig?.partners || []) {
+        const partnerSeat = [...game.seats.values()].find((s) => s.slot === p);
         if (partnerSeat) chat(`[MTG] ${teamTrig.toPartner}`, partnerSeat.color);
       }
       const [words, hint] = teamTrig
@@ -12855,7 +12845,7 @@ function onPrompt(seat, prompt) {
       if (bottom || exileAll || allSame || landsDown) { seat.respond(prompt.promptId, type, { type: "reorderDecision", orderedIds: input.items.map((i) => i.id) }); return; }
       // (Forge's object numbers left out of what is shown: "Counter Chart a Course (61)")
       // (and an effect's own name too: "First Day of Class (225)'s Effect" read so, keyword sweep kw-13)
-      const labelOf = (i, card = cardLabel(i.card)) => (teamTrig && teamTrig.theirs.has(i.id) ? `${nameOf(teamTrig.partner)}'s ` : "") + String(card).replace(/^(.+?) \(\d+\)'s Effect$/, (m, n) => `${poss(n)} effect`) + (i.oracle ? `: ${shorten(oracleOf(i), 60)}` : "");
+      const labelOf = (i, card = cardLabel(i.card)) => (teamTrig && teamTrig.theirs.has(i.id) ? `${nameOf(teamTrig.whose.get(i.id))}'s ` : "") + String(card).replace(/^(.+?) \(\d+\)'s Effect$/, (m, n) => `${poss(n)} effect`) + (i.oracle ? `: ${shorten(oracleOf(i), 60)}` : "");
       // (triggers alike, sameTrig's and the same partner's, are one item moved as a block, "Soul Warden ×18: ...": their
       // order among themselves doesn't matter, so only the different ones are ordered; the owner, 2026-11-15, "if 20
       // pop up at once, cut it down to 2". Not those that target, as allSame. Each block keeps Forge's order inside it.)

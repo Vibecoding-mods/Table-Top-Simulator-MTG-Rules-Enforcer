@@ -151,8 +151,9 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
     await h.flush();
     const msg = tables(h).pop();
     const blueRow = rowOf(msg, "Blue"), whiteRow = rowOf(msg, "White");
-    same("board: White's hand to Blue, look-only", { ids: (whiteRow?.teamHand || []).map((c) => c.id), by: whiteRow?.teamBy }, { ids: ["engine-card-900"], by: "Blue" });
-    same("board: Blue's hand to White", { n: (blueRow?.teamHand || []).length, by: blueRow?.teamBy }, { n: 7, by: "White" });
+    // (the partner's look-only copies were removed, 2026-11-25: partners see the real hand through their TTS team)
+    ok("board: no copy of a partner's hand is sent (no teamHand / teamBy, any board)", tables(h).every((m) => (m.players || []).every((p) => p.teamHand === undefined && p.teamBy === undefined)),
+      JSON.stringify([whiteRow?.teamBy, blueRow?.teamBy]));
     same("board: a partner's hand is not shown to everyone", revealedRows(h), []);
     same("board: the sides and the team's poison limit", msg?.teams, { poison: 15, cmd: 42, sides: [["Blue", "White"]] });
     ok("board: the life counter says it is the team's", /^Team life: Blue \+ White/.test(blueRow?.lifeTip || "") && /^Team life: Blue \+ White/.test(whiteRow?.lifeTip || ""), JSON.stringify([blueRow?.lifeTip, whiteRow?.lifeTip]));
@@ -174,7 +175,7 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
     await h.flush();
     const msg = tables(h).pop();
     ok("free-for-all: no team life tip", !/Team life/.test(rowOf(msg, "Blue")?.lifeTip || ""), rowOf(msg, "Blue")?.lifeTip);
-    ok("free-for-all: no teams, no partner's hand", !msg?.teams && !rowOf(msg, "White")?.teamHand && !rowOf(msg, "Blue")?.teamHand, JSON.stringify({ t: msg?.teams, w: rowOf(msg, "White")?.teamHand }));
+    ok("free-for-all: no teams", !msg?.teams, JSON.stringify({ t: msg?.teams }));
   });
   await run(async (h) => {
     // a teams game without shared life (2v2 or Juggernaut: the engine sends teamRules "teams"): the sides, none of
@@ -189,7 +190,7 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
     await h.flush();
     const msg = tables(h).pop();
     same("teams without shared life: the sides, no 2HG poison limit", msg?.teams, { rule: "teams", sides: [["Blue", "White"]] });
-    ok("teams without shared life: no team life tip, no partner's hand", !/Team life/.test(rowOf(msg, "Blue")?.lifeTip || "") && !rowOf(msg, "White")?.teamHand, JSON.stringify(rowOf(msg, "White")?.teamHand));
+    ok("teams without shared life: no team life tip", !/Team life/.test(rowOf(msg, "Blue")?.lifeTip || ""), rowOf(msg, "Blue")?.lifeTip);
   });
   await run(async (h) => {
     // the end: an engine win for Blue (player-0) is the team's
