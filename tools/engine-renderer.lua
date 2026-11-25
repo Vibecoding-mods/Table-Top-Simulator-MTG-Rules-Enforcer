@@ -775,8 +775,10 @@ end
 ENGINE_TEAMS = nil
 ENGINE_TEAM_MODE = nil -- "2hg" | "2v2" | "juggernaut" while ENGINE_TEAMS is set
 -- Two-Headed Giant's level: "shared" Level 2 (one turn for the team, attacks and blocks together: CR 805, 810.2), nil
--- Level 1, the default until Level 2 is checked live (each player's own turn, the team's back to back). "mtg 2hg turns shared|own" (host); sent with
--- Start as teamTurns, only in a Two-Headed Giant game (engineTeamTurnsSent; the bridge's gameConfig says "sharedTurns").
+-- Level 1, the default until Level 2 is checked live (each player's own turn, the team's back to back). "mtg 2hg turns shared|own" (host; "mtg 3hg
+-- turns ..." the same setting, and the Team turns button); sent with Start as teamTurns, only in a Two-Headed or
+-- Three-Headed Giant game (engineTeamTurnsSent; the bridge's gameConfig says "sharedTurns": CR 810.11, 2HG's rules for
+-- a team of three, which the engine plays for any equal team size).
 ENGINE_TEAM_TURNS = nil
 -- the Juggernaut's settings (bridge/teams.js JUGG_DEFAULTS; life nil: twice the format's, 80 or 40)
 ENGINE_JUGG = { color = "White", hand = 10, draw = 1, land = 0, cmd = 21, order = "first" }
@@ -799,7 +801,9 @@ end
 function engineTeamsSent() return ENGINE_TEAMS end
 function engineTeamModeSent() return ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil end
 function engineJuggSent() return (ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE == "juggernaut") and ENGINE_JUGG or nil end
-function engineTeamTurnsSent() return (ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE == "2hg") and ENGINE_TEAM_TURNS or nil end
+function engineTeamTurnsSent() return engineTeamTurnsMode() and ENGINE_TEAM_TURNS or nil end
+-- whether the next games are Two-Headed or Three-Headed Giant (the modes with the shared-turns option)
+function engineTeamTurnsMode() return ENGINE_TEAMS ~= nil and (ENGINE_TEAM_MODE == "2hg" or ENGINE_TEAM_MODE == "3hg") end
 -- "White + Red" from a list of colours, by what the screen calls each player
 function engineTeamWords(colors)
   local names = {}
@@ -835,28 +839,32 @@ ENGINE_JUGG_LIMITS = { life = { 1, 999 }, hand = { 0, 30 }, draw = { 0, 5 }, lan
 ENGINE_TEAM_HELP = {
   ["2hg"] = ". Partners share life (80 a team), poison (15) and a commander's damage (42), block for each other and see each other's hands; each player takes their own turn. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host). One turn for each team, attacking and blocking together:  mtg 2hg turns shared  (back:  mtg 2hg turns own).",
   ["2v2"] = ". Standard decks; each player has their own life (20) and turn, no commander; teammates can't attack each other; a team wins when both its opponents have lost. All four seats play (AI players fill the empty ones). Move a seat with  mtg team <colour> 1|2  (host).",
-  ["3hg"] = ". Each side of the table is a team of three: they share life (120 a team in Commander, 45 in Standard), poison (20) and losing, block together and see each other's hands; each player takes their own turn, the team's back to back. All six seats play (AI players fill the empty ones).",
+  ["3hg"] = ". Each side of the table is a team of three: they share life (120 a team in Commander, 45 in Standard), poison (20) and losing, block together and see each other's hands; each player takes their own turn, the team's back to back. All six seats play (AI players fill the empty ones). One turn for each team, attacking and blocking together:  mtg 3hg turns shared  (back:  mtg 3hg turns own).",
 }
 -- "mtg mode 2hg|2v2|juggernaut|ffa", "mtg team <colour> <1|2>" and "mtg juggernaut ..." (host): true when handled
 -- (engineChat, make-engine-copy.js); any other "mtg mode" word is left to the other game modes
 -- ("mtg 2hg turns shared|own" too: the chat's command word is letters only, so "2hg" comes in rest with cmd "")
 function engineTeamChat(cmd, rest, pl, isHost)
   local isMode = cmd == "mode" and (rest == "2hg" or rest == "2v2" or rest == "juggernaut" or rest == "ffa") or cmd == "mode" and rest == "3hg"
-  local isLevel = cmd == "" and rest:sub(1, 3) == "2hg"
+  local isLevel = cmd == "" and (rest:sub(1, 3) == "2hg" or rest:sub(1, 3) == "3hg")
   if not isMode and not isLevel and cmd ~= "team" and cmd ~= "juggernaut" then return false end
   if not isHost then pl.broadcast("[MTG] Only the host can set up team games.") return true end
   local who = tostring(pl.steam_name or pl.color)
   local function redraw() if engineSetupButtons ~= nil then pcall(engineSetupButtons) end end
   if isLevel then
-    local level = rest:match("^2hg%s+turns%s+(%a+)$")
+    -- (one setting for Two-Headed and Three-Headed Giant: said with the name of the team mode set, else the one typed)
+    local word = rest:sub(1, 3)
+    local three = (engineTeamTurnsMode() and ENGINE_TEAM_MODE or word) == "3hg"
+    local level = rest:sub(4):match("^%s+turns%s+(%a+)$")
     if level ~= "shared" and level ~= "own" then
-      pl.broadcast("[MTG] Two-Headed Giant turns: " .. (ENGINE_TEAM_TURNS == "shared" and "one turn for each team" or "each player's own turn")
-        .. ". Use:  mtg 2hg turns shared  (one turn for each team, attacking and blocking together) or  mtg 2hg turns own  (each player's own turn, the team's back to back).")
+      pl.broadcast("[MTG] " .. (three and "Three" or "Two") .. "-Headed Giant turns: " .. (ENGINE_TEAM_TURNS == "shared" and "one turn for each team" or "each player's own turn")
+        .. ". Use:  mtg " .. word .. " turns shared  (one turn for each team, attacking and blocking together) or  mtg " .. word .. " turns own  (each player's own turn, the team's back to back).")
       return true
     end
     ENGINE_TEAM_TURNS = level == "shared" and "shared" or nil
-    local note = (ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE == "2hg") and "" or (" (for Two-Headed Giant games:  mtg mode 2hg" .. (ENGINE_GAME_MODE == "standard" and ", in Commander)" or ")"))
-    broadcastToAll("[MTG] " .. who .. " set Two-Headed Giant to " .. (level == "shared"
+    local note = engineTeamTurnsMode() and "" or three and " (for Three-Headed Giant games:  mtg mode 3hg, on the six-seat table)"
+      or (" (for Two-Headed Giant games:  mtg mode 2hg" .. (ENGINE_GAME_MODE == "standard" and ", in Commander)" or ")"))
+    broadcastToAll("[MTG] " .. who .. " set " .. (three and "Three" or "Two") .. "-Headed Giant to " .. (level == "shared"
       and "one turn for each team: partners take their turn together, attack together and block together." or "each player's own turn, the team's back to back.") .. note, { 1, 0.85, 0.4 })
     redraw()
     return true
@@ -940,7 +948,7 @@ TEAMS_SPOT = Vector(TABLE_PROFILE.spots.teams[1], TABLE_PROFILE.spots.teams[2], 
 function engineTeamsLabel()
   local m = ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil
   if m == "juggernaut" then return "Juggernaut\n" .. ENGINE_JUGG.color end
-  return "Teams\n" .. (m == "2hg" and (ENGINE_TEAM_TURNS == "shared" and "2HG team turns" or "2HG") or m == "2v2" and "2v2" or m == "3hg" and "3HG" or "None")
+  return "Teams\n" .. (m == "2hg" and (ENGINE_TEAM_TURNS == "shared" and "2HG team turns" or "2HG") or m == "2v2" and "2v2" or m == "3hg" and (ENGINE_TEAM_TURNS == "shared" and "3HG team turns" or "3HG") or "None")
 end
 function onMtgSetupTeams(obj, playerColor)
   local pl = Player[playerColor]
@@ -954,7 +962,22 @@ function onMtgSetupTeams(obj, playerColor)
   end
   engineChat("mtg mode " .. (m == nil and (ENGINE_GAME_MODE == "standard" and "2v2" or "2hg") or nextOf[m] or "ffa"), pl)
 end
-function engineTeamId(color, id) return "team:" .. tostring(color) .. ":" .. tostring(id) end
+-- The Team turns button beside it (host only, as typed; docs/game-modes-spec.md §5.12, §8.4): shown while the next
+-- games are Two-Headed or Three-Headed Giant (engineTeamTurnsMode), hidden during a game as the other mode buttons;
+-- a click is exactly  mtg 2hg turns shared / own  (mtg 3hg ... in 3HG), toggling ENGINE_TEAM_TURNS. Its spot: the
+-- profile's spots.teamTurns, else 4 further out than Teams on the same strip (x -51 on the 4-player table, -53 on
+-- the six-seat one: inside both cleared west strips, x -56 to -44/-45; not yet seen on the real tables).
+function engineTeamTurnsSpot()
+  local p = TABLE_PROFILE.spots.teamTurns
+  if p ~= nil then return Vector(p[1], p[2], p[3]) end
+  return Vector(TEAMS_SPOT.x - 4, TEAMS_SPOT.y, TEAMS_SPOT.z)
+end
+function engineTeamTurnsLabel() return "Team turns\n" .. (ENGINE_TEAM_TURNS == "shared" and "Shared" or "Own") end
+function onMtgSetupTeamTurns(obj, playerColor)
+  local pl = Player[playerColor]
+  if pl == nil then return end
+  engineChat("mtg " .. (ENGINE_TEAM_MODE == "3hg" and "3hg" or "2hg") .. " turns " .. (ENGINE_TEAM_TURNS == "shared" and "own" or "shared"), pl)
+end
 -- The Archenemy button beside it (docs/team-turns-archenemy-plan.md step 9, host only): off, then each seat in turn as
 -- the archenemy, then off, the same as  mtg archenemy <colour> / off  (the bridge keeps the setting and says it in
 -- chat). ENGINE_ARCH_SETUP: the colour the table last asked for, nil for off. On either table: the 4-player table's
@@ -1027,37 +1050,19 @@ function engineNearerMat(c, p, best, bestD)
   if bestD == nil or d < bestD then return c, d end
   return best, bestD
 end
--- A partner's hand (810.5): the bridge sends it as teamHand with the seated partner who sees it, teamBy. Look-only
--- stand-ins, team:<partner>:<id>, in that partner's second hand zone, which only they see; dragged out they snap back
--- (zone "partner", onObjectDrop's last case). Their own hand keeps the real cards. Since 2026-11-24 only when the
--- partners couldn't be put on one TTS team (engineTtsTeams, below: teammates see each other's real hand there);
--- engineRender calls this only then.
-function engineTeamHands(m, seen)
-  for _, pl in ipairs(m.players or {}) do
-    local by = pl.teamBy
-    local g = by and seatGeometry(by)
-    if g ~= nil and #(pl.teamHand or {}) > 0 and Player[by] ~= nil and Player[by].seated then
-      local side = Player[by].getHandTransform(2)
-      local base = side and side.position or (g.handPos or g.mat)
-      for _, c in ipairs(pl.teamHand) do
-        local r = engineStandIn(c, engineTeamId(by, c.id), "In your partner " .. engineNameOf(pl.color) .. "'s hand (look only)")
-        place(r, base + Vector(0, 1, 0), Vector(0, g.rotY, 0), seen, by, { zone = "partner", color = by, hand2 = true })
-      end
-    end
-  end
-end
 -- Two-Headed Giant partners on one TTS team (docs/2hg-shared-hand-spec.md, the user 2026-11-24: "don't duplicate my
 -- teammates deck on my side ... I can see their live hand"; Teams chosen, and partners may see face-down cards too):
--- teammates in TTS see each other's hand and hidden zones, so the partner sees the real cards, live, and the look-only
--- stand-ins (engineTeamHands) aren't placed. A shared-life game's sides only (2HG, 3HG: the board's teams without
+-- teammates in TTS see each other's hand and hidden zones, so the partner sees the real cards, live. The table lays
+-- no copy of a partner's hand anywhere (the look-only stand-ins in the partner's second hand zone were removed,
+-- 2026-11-25, the user's request). A shared-life game's sides only (2HG, 3HG: the board's teams without
 -- rule "teams"; 2v2 and the other own-life modes keep hands private). Each side gets its own TTS team, in the board's
 -- order; a seated player not on theirs is put on it, and a seated player on no side is taken off a team a side uses.
 -- engineTtsTeamsSet: colour -> the team the table put them on (kept in the save, onSave), so the end of the game
 -- (engineTtsTeamsClear) takes off only what the table set, after a reload too.
 ENGINE_TTS_TEAMS = { "Hearts", "Clubs", "Spades", "Diamonds" }
 engineTtsTeamsSet = {}
--- true when every seated partner is on their TTS team for this board (false: a team didn't take, and the stand-ins
--- are placed instead)
+-- true when every seated partner is on their TTS team for this board (false: a team didn't take; the partner then
+-- doesn't see that hand, and nothing is laid in its place)
 function engineTtsTeams(m)
   local t = m and m.teams
   if t == nil or t.rule == "teams" or type(t.sides) ~= "table" or #t.sides < 2 or m.gameOver then
@@ -4329,14 +4334,9 @@ function engineRender(m)
   pcall(engineMatchRollBanner, m) -- (best of three: game 1's roll, the bridge's matchRoll)
   local okCtl, errCtl = pcall(engineCtlHands, m, seen) -- (a controlled player's hand, see engineCtlHands)
   if not okCtl then print("[MTG] controlled hand: " .. tostring(errCtl)) end
-  -- (a Two-Headed Giant partner's hand: seen through the TTS team, engineTtsTeams; the look-only stand-ins,
-  -- engineTeamHands, only when the teams couldn't be set)
+  -- (a Two-Headed or Three-Headed Giant partner's hand: seen through the TTS team, engineTtsTeams; no copy is laid)
   okCtl, errCtl = pcall(engineTtsTeams, m)
   if not okCtl then print("[MTG] TTS teams: " .. tostring(errCtl)) end
-  if not (okCtl and errCtl == true) then
-    okCtl, errCtl = pcall(engineTeamHands, m, seen)
-    if not okCtl then print("[MTG] partner's hand: " .. tostring(errCtl)) end
-  end
   local okPop, errPop = pcall(function() enginePopups(m) enginePopupsClose(m) engineEffects(m) end) -- a pop-up problem must never stop the board update
   if not okPop then print("[MTG] pop-up: " .. tostring(errPop)) end
   sect("popups")
@@ -10147,7 +10147,7 @@ function engineSetupIntact()
   local want = SETUP.drawn.tile
   local have = tile ~= nil and (tile.getButtons() or {})[1] or nil
   if (want == nil) ~= (have == nil) or (have ~= nil and have.label ~= want) then return false end
-  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < (SETUP.drawn.mode and (SETUP.drawn.teams and 4 or 3) or 2) + (SETUP.drawn.arch and 1 or 0) + (SETUP.drawn.fmt or 0) then return false end
+  if SETUP.drawn.friendly and #((tile and tile.getButtons()) or {}) < (SETUP.drawn.mode and (SETUP.drawn.teams and 4 or 3) or 2) + (SETUP.drawn.arch and 1 or 0) + (SETUP.drawn.turns and 1 or 0) + (SETUP.drawn.fmt or 0) then return false end
   for c in pairs(SETUP.drawn.mats) do
     local mat = data[c] and data[c].playmat
     local any = false
@@ -10278,7 +10278,7 @@ function engineSetupButtons()
   for _, pl in ipairs((game and game.players) or {}) do if pl.status == "playing" then alive[#alive + 1] = tostring(pl.color) end end
   table.sort(alive)
   local sig = table.concat({ tostring(ENGINE_MODE), tostring(running), tostring(over), table.concat(seated, ","), tostring(ready), table.concat(alive, ","),
-    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly), tostring(ENGINE_GAME_MODE), engineFormatSig(), engineTeamsLabel ~= nil and engineTeamsLabel() or "", engineArchLabel ~= nil and engineArchLabel() or "", dcKey }, "|")
+    (function() local p = {} for _, c in ipairs(seated) do p[#p + 1] = tostring(engineReadyState[c]) end return table.concat(p, ",") end)(), tostring(engineFriendly), tostring(ENGINE_GAME_MODE), engineFormatSig(), engineTeamsLabel ~= nil and engineTeamsLabel() or "", engineArchLabel ~= nil and engineArchLabel() or "", engineTeamTurnsLabel ~= nil and engineTeamTurnsMode() and engineTeamTurnsLabel() or "", dcKey }, "|")
   -- (unchanged, and the buttons are still there: TTS's own scripts or a reload can wipe an object's buttons, and after a
   -- game ended the READY buttons and the middle tile stayed gone or stale, "Engine: off" with engine mode on, playtest
   -- 2026-10-24; engineSetupHeal below looks every 2 s)
@@ -10372,6 +10372,11 @@ function engineSetupButtons()
       if engineTeamsLabel ~= nil then
         SETUP.drawn.teams = true
         setupButton(tile, "onMtgSetupTeams", engineTeamsLabel(), SETUP.color.idle, TEAMS_SPOT, nil, 1700, 620, 90)
+      end
+      -- (and Team turns beside it, Two-Headed and Three-Headed Giant only: onMtgSetupTeamTurns; yellow when shared)
+      SETUP.drawn.turns = engineTeamTurnsLabel ~= nil and engineTeamTurnsMode() or nil
+      if SETUP.drawn.turns then
+        setupButton(tile, "onMtgSetupTeamTurns", engineTeamTurnsLabel(), ENGINE_TEAM_TURNS == "shared" and SETUP.color.wait or SETUP.color.idle, engineTeamTurnsSpot(), nil, 1700, 620, 90)
       end
       -- (and Archenemy past it, on either table: onMtgSetupArch)
       if engineArchLabel ~= nil then
@@ -12494,8 +12499,6 @@ function engineSelfCheck()
     for _, card in ipairs(pl.playable or {}) do expected[engineCastId(c, card.id)] = true end
     -- (a controlled player's hand, in the controller's second hand zone, or as stand-ins there: engineCtlHands)
     for _, card in ipairs(pl.ctlHand or {}) do expected[card.id] = true expected[engineCastId(pl.ctlBy, card.id)] = true end
-    -- (a Two-Headed Giant partner's hand, look-only in the partner's second hand zone: engineTeamHands)
-    for _, card in ipairs(pl.teamHand or {}) do expected[engineTeamId(pl.teamBy, card.id)] = true end
     local handY = nil
     local function inHand(o, which) return inHandOf(c, o, which) end
     local function homeRotation()

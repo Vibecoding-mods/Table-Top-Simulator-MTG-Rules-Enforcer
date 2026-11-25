@@ -604,7 +604,8 @@ function engineChat(message, pl)
       -- (engineTable: the renderer's last board; its local lastTable is declared after this chunk)
       local board = engineTable ~= nil and engineTable() or nil
       local team = engineTeamOf ~= nil and board ~= nil and not (board.teams and board.teams.rule == "teams") and engineTeamOf(board, pl.color) or nil
-      pl.broadcast(team ~= nil and ("[MTG] Concede for your team (" .. engineTeamWords(team) .. ")? You are both out for good. Type  mtg concede  again within 15 seconds to confirm.")
+      -- (a Three-Headed Giant team is three: "all", not "both")
+      pl.broadcast(team ~= nil and ("[MTG] Concede for your team (" .. engineTeamWords(team) .. ")? You are " .. (#team > 2 and "all" or "both") .. " out for good. Type  mtg concede  again within 15 seconds to confirm.")
         or "[MTG] Concede the game? You are out for good. Type  mtg concede  again within 15 seconds to confirm.", {1, 0.6, 0.3})
     end
   elseif cmd == "winner" then
@@ -739,7 +740,7 @@ function engineChat(message, pl)
       " mtg ready / mtg ready all (host) - check decks",
       " mtg format [name] (host) - the next games' format: Casual Commander (the default), Commander, Duel Commander, Pauper Commander, PreDH, Casual 60-card, Standard, Pioneer, Modern, Legacy, Vintage, Pauper, Premodern, Old School, Historic, Timeless, Alchemy (also the Format button; mtg mode standard|commander picks Standard or Casual Commander)",
       " mtg banned on|off, mtg restricted on|off (host) - the format's banned cards not allowed / allowed (house rule), its restricted cards 1 copy / the normal limit; mtg banlist - its banned cards (the Notebook's Banned list tab); mtg banlist refresh (host) - the bridge checks for a newer list now",
-      " mtg mode 2hg / 2v2 / juggernaut / 3hg / ffa (host) - Two-Headed Giant or Juggernaut (one against three) in Commander, 2v2 (White + Red vs Yellow + Blue) in Standard, Three-Headed Giant (the six-seat table's sides, three a team) in either, or free-for-all; mtg team <colour> 1|2 (host) - move a seat; mtg juggernaut <colour> / life|hand|draw|land <n> / cmd 21|42 / order first|after (host) - the Juggernaut",
+      " mtg mode 2hg / 2v2 / juggernaut / 3hg / ffa (host) - Two-Headed Giant or Juggernaut (one against three) in Commander, 2v2 (White + Red vs Yellow + Blue) in Standard, Three-Headed Giant (the six-seat table's sides, three a team) in either, or free-for-all; mtg 2hg turns shared / own (host; mtg 3hg turns ... the same) - one turn for each team, attacking and blocking together, or each player's own turn (also the Team turns button); mtg team <colour> 1|2 (host) - move a seat;mtg juggernaut <colour> / life|hand|draw|land <n> / cmd 21|42 / order first|after (host) - the Juggernaut",
       " mtg commander - hover your commander first",
       " mtg clear deck - remove your own deck and commander from your seat (not during a game)",
       " mtg start [ai N] - start the engine game, optionally with N Forge AI players",

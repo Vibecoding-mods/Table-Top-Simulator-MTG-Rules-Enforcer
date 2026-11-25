@@ -84,7 +84,8 @@ function setupOf(m, colors = TEAM_COLORS) {
     const arch = archOf(m.archenemy, colors);
     return { teams: archTeams(arch.color, colors), mode: "archenemy", jugg: null, turns: null, arch };
   }
-  if (m?.teamMode === "3hg") return { teams: { ...THREE_TEAMS }, mode: "3hg", jugg: null, turns: null };
+  // (Three-Headed Giant takes the same shared-turns option as Two-Headed Giant: CR 810.11 is 2HG's rules for any team size)
+  if (m?.teamMode === "3hg") return { teams: { ...THREE_TEAMS }, mode: "3hg", jugg: null, turns: m?.teamTurns === "shared" ? "shared" : null };
   if (m?.teamMode === "juggernaut") {
     const jugg = juggOf(m.juggernaut);
     return { teams: juggTeams(jugg.color), mode: "juggernaut", jugg, turns: null };
@@ -238,11 +239,12 @@ function teamsProblem(teams, total, mode = "2hg") {
 // Two-Headed Giant: life, poison and commander damage are left to the engine's 2HG defaults (30 / 80, 15, 42). 2v2:
 // teamRules "teams", each player's life the engine's default. Juggernaut (jugg: juggOf; std: a Standard game): teams
 // "teams", and the Juggernaut's life, hand, perks, own commander limit (only when not 21, Forge's) and first turn.
-// turns "shared" (Two-Headed Giant only): teamRules "sharedTurns", Level 2's one turn for the team (CR 805, 810.2).
+// turns "shared" (Two-Headed and Three-Headed Giant only): teamRules "sharedTurns", Level 2's one turn for the team (CR
+// 805, 810.2, 810.11; the engine's sharedTurns takes teams of any equal size, LongTailTest's "threes" checks).
 // Archenemy (arch: { color, names }, names the scheme deck to play): the flag archenemy, and the archenemy's life,
 // first turn and schemes (the engine reads players[].schemes).
 function gameConfig(teams, usernames, colors, mode = "2hg", jugg = null, std = false, turns = null, arch = null) {
-  const rule = mode === "2hg" && turns === "shared" ? "sharedTurns" : TEAM_MODES[teamModeOf(mode)].rule;
+  const rule = (mode === "2hg" || mode === "3hg") && turns === "shared" ? "sharedTurns" : TEAM_MODES[teamModeOf(mode)].rule;
   return { type: "gameConfig", teamRules: rule, ...(mode === "archenemy" ? { archenemy: true } : {}), players: usernames.map((u, i) => {
     const p = { username: u, team: teams[colors[i]] };
     if (mode === "archenemy") return arch && colors[i] === arch.color ? { ...p, startingLife: archLife(std), goesFirst: true, schemes: [...(arch.names || [])] } : p;
@@ -372,7 +374,8 @@ function setupWords(mode, teams, jugg, std, turns = null, arch = null) {
   if (mode === "2v2") return `2v2: ${teamWords(s[1])} vs ${teamWords(s[2])} (each player their own 20 life and turn; teammates can't attack each other; a team wins when both its opponents have lost).`;
   if (mode === "3hg") {
     const t = sides(teams, SIX_COLORS);
-    return `Three-Headed Giant: ${teamWords(t[1])} vs ${teamWords(t[2])} (shared life: ${std ? 45 : 120} a team, poison 20; each player takes their own turn, the team's back to back; the team blocks together).`;
+    return `Three-Headed Giant: ${teamWords(t[1])} vs ${teamWords(t[2])} (shared life: ${std ? 45 : 120} a team, poison 20; ${turns === "shared"
+      ? "each team takes one turn together, attacks together and blocks together" : "each player takes their own turn, the team's back to back; the team blocks together"}).`;
   }
   if (turns === "shared") return `Two-Headed Giant: ${teamWords(s[1])} vs ${teamWords(s[2])} (shared life, poison 15; each team takes one turn together, attacks together and blocks together).`;
   return `Two-Headed Giant: ${teamWords(s[1])} vs ${teamWords(s[2])} (shared life, poison 15; each player takes their own turn, the team's back to back).`;
@@ -406,8 +409,13 @@ function turnPartners(pub, a, b) {
   const pa = playerOf(pub, a), pb = playerOf(pub, b);
   return pa?.teamNumber != null && pa.teamNumber === pb?.teamNumber;
 }
-// player id's partner in a shared-turn game, or null
-const turnPartnerOf = (pub, id) => (sharesTurns(pub) ? (pub.players || []).find((p) => turnPartners(pub, id, p.id))?.id || null : null);
+// player id's partners in a shared-turn game, in the board's (seat) order: one in Two-Headed Giant, two in
+// Three-Headed Giant, up to five in Archenemy's team; [] outside one
+const turnPartnersOf = (pub, id) => (sharesTurns(pub) ? (pub.players || []).filter((p) => turnPartners(pub, id, p.id)).map((p) => p.id) : []);
+// player id's (first) partner in a shared-turn game, or null
+const turnPartnerOf = (pub, id) => turnPartnersOf(pub, id)[0] || null;
+// names in words: "Red", "Red and Yellow", "Red, Yellow and Blue"
+const andWords = (names) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`);
 // whose turn, as said to player id: "your" / "White's", and in a shared-turn game "your team's" / "White + Red's"
 // (nameOf: id -> the player's name)
 function turnWhose(pub, id, nameOf) {
@@ -424,44 +432,64 @@ const declaredBy = (decl, pub, slot, kind) => (decl && decl.turn === pub.turn &&
 // creatures; the engine asks the partners one after the other): the line that says so, with what the partner already
 // attacks with (on the board, isAttacking, or in their answer, decl). cards: the board's cards (isAttacking,
 // attackTargetId, controllerId); cname(id): a card's or a player's words; nameOf(id): a player's name. [] outside a
-// shared-turn game.
+// shared-turn game. With two or more partners (Three-Headed Giant, Archenemy's team) each one's attack is said in turn.
 function teamAttackLines(pub, who, cards, cname, nameOf, decl = null) {
-  const partner = turnPartnerOf(pub, who);
-  if (!partner) return [];
-  const at = new Map();
-  for (const c of cards) if (c.isAttacking && (c.controllerId || c.ownerId) === partner) at.set(c.id, c.attackTargetId || null);
-  for (const a of declaredBy(decl, pub, partner, "attacks")) if (a.attackerId && !at.get(a.attackerId)) at.set(a.attackerId, a.targetId || null);
-  if (!at.size) return [`Your team attacks together: you pick your creatures, ${nameOf(partner)} picks theirs.`];
-  return [`Your team attacks together. ${nameOf(partner)} attacks with ${[...at].map(([id, tgt]) => `${cname(id)}${tgt ? ` → ${cname(tgt)}` : ""}`).join(", ")}. Now pick yours.`];
+  const partners = turnPartnersOf(pub, who);
+  if (!partners.length) return [];
+  const parts = [];
+  for (const partner of partners) {
+    const at = new Map();
+    for (const c of cards) if (c.isAttacking && (c.controllerId || c.ownerId) === partner) at.set(c.id, c.attackTargetId || null);
+    for (const a of declaredBy(decl, pub, partner, "attacks")) if (a.attackerId && !at.get(a.attackerId)) at.set(a.attackerId, a.targetId || null);
+    if (at.size) parts.push(`${nameOf(partner)} attacks with ${[...at].map(([id, tgt]) => `${cname(id)}${tgt ? ` → ${cname(tgt)}` : ""}`).join(", ")}.`);
+  }
+  if (!parts.length) return [`Your team attacks together: you pick your creatures, ${andWords(partners.map((p) => nameOf(p)))} ${partners.length === 1 ? "picks" : "pick"} theirs.`];
+  return [`Your team attacks together. ${parts.join(" ")} Now pick yours.`];
 }
 // The block question of a defending player in a shared-turn game (805.10d: the team blocks as one, and a defender may
 // block a creature attacking either partner): the lines that say so, with the partner's blocks already on the board.
 // blocks: Forge's combatAssignments; controllerOf(id): a card's controller; decl: as teamAttackLines'. [] outside a
 // shared-turn game.
+// With two or more partners the head names them all and each partner's blocks are a line of their own.
 function teamBlockLines(pub, who, blocks, controllerOf, cname, nameOf, decl = null) {
-  const partner = turnPartnerOf(pub, who);
-  if (!partner) return [];
-  const seen = new Set();
-  const theirs = [...(blocks || []), ...declaredBy(decl, pub, partner, "blocks")].filter((a) => {
-    const key = `${a.blockerId}|${a.attackerId}`;
-    if (!a.blockerId || !a.attackerId || seen.has(key) || controllerOf(a.blockerId) !== partner) return false;
-    seen.add(key);
-    return true;
+  const partners = turnPartnersOf(pub, who);
+  if (!partners.length) return [];
+  const theirsOf = partners.map((partner) => {
+    const seen = new Set();
+    return [...(blocks || []), ...declaredBy(decl, pub, partner, "blocks")].filter((a) => {
+      const key = `${a.blockerId}|${a.attackerId}`;
+      if (!a.blockerId || !a.attackerId || seen.has(key) || controllerOf(a.blockerId) !== partner) return false;
+      seen.add(key);
+      return true;
+    });
   });
-  const head = `Your team blocks together: you and ${nameOf(partner)} can each block any attacker, even one attacking your partner.`;
-  return theirs.length ? [head, `${nameOf(partner)} blocks: ${theirs.map((a) => `${cname(a.blockerId)} blocks ${cname(a.attackerId)}`).join(", ")}.`] : [head];
+  const lines = partners.length === 1
+    ? [`Your team blocks together: you and ${nameOf(partners[0])} can each block any attacker, even one attacking your partner.`]
+    : [`Your team blocks together: you, ${andWords(partners.map((p) => nameOf(p)))} can each block any attacker, even one attacking one of your partners.`];
+  partners.forEach((partner, k) => {
+    const theirs = theirsOf[k];
+    if (theirs.length) lines.push(`${nameOf(partner)} blocks: ${theirs.map((a) => `${cname(a.blockerId)} blocks ${cname(a.attackerId)}`).join(", ")}.`);
+  });
+  return lines;
 }
 
 // The team's trigger order (805.7: the active team puts all its triggers on the stack in one order, which the primary
 // player, the team's first seat, picks, 805.2): asked of who with both partners' triggers in items (each { id, card }).
-// { partner, theirs: the partner's item ids, hint, toPartner } when some item is the partner's, else null.
+// { partner, partners, theirs: the partners' item ids, whose: item id -> its partner, hint, toPartner } when some item is
+// a partner's, else null. partners: the partners with an item there (each is told toPartner), in seat order; partner:
+// the first of them.
 function teamTriggerWords(pub, who, items, nameOf) {
-  const partner = turnPartnerOf(pub, who);
-  if (!partner) return null;
-  const theirs = new Set((items || []).filter((i) => (i.card?.controllerId || i.card?.ownerId) === partner).map((i) => i.id));
-  if (!theirs.size) return null;
-  return { partner, theirs,
-    hint: `You order your team's triggers, ${nameOf(partner)}'s too (you are the team leader). The one you click first happens first. Not sure? Keep this order.`,
+  const all = turnPartnersOf(pub, who);
+  if (!all.length) return null;
+  const whose = new Map();
+  for (const i of items || []) {
+    const ctl = i.card?.controllerId || i.card?.ownerId;
+    if (all.includes(ctl)) whose.set(i.id, ctl);
+  }
+  if (!whose.size) return null;
+  const partners = all.filter((p) => [...whose.values()].includes(p));
+  return { partner: partners[0], partners, theirs: new Set(whose.keys()), whose,
+    hint: `You order your team's triggers, ${andWords(partners.map((p) => `${nameOf(p)}'s`))} too (you are the team leader). The one you click first happens first. Not sure? Keep this order.`,
     toPartner: `${nameOf(who)} is putting your team's triggers in order, yours too (the team leader does).` };
 }
 // A refused team attack or block (track C, docs/2hg-level2-combat.md: a notice with no cards to every player of the
@@ -473,7 +501,7 @@ function teamRefusalWords(pub, who, title, nameOf) {
   const team = (pub.players || []).filter((p) => p.id === who || turnPartners(pub, who, p.id)).map((p) => p.id);
   const attack = m[1].toLowerCase() === "attack";
   const why = m[2] ? ` ${m[2].replace(/\.?$/, ".")}` : "";
-  return `Your team's ${attack ? "attack" : "blocks"} together ${attack ? "isn't" : "aren't"} legal.${why} You are both asked again, ${nameOf(team[0])} first.`;
+  return `Your team's ${attack ? "attack" : "blocks"} together ${attack ? "isn't" : "aren't"} legal.${why} You are ${team.length > 2 ? "all" : "both"} asked again, ${nameOf(team[0])} first.`;
 }
 // ── The team's joint block (engine team-block, CR 805.10d and 805.2; docs/game-modes-spec.md §5.12) ──
 // A Two-Headed Giant team block asks each defender in turn, again after a partner changes the team's block, until an
@@ -524,6 +552,6 @@ function teamBlockNotice(text) {
   if (/^[^:]+: .+ (?:now blocks .+|no longer blocks)\.$/.test(t)) return { kind: "change", line: t };
   return null;
 }
-module.exports = { seatColorsFor, jointBlock, jointBlockLines, teamBlockNotice, SEAT_HEX, teamTriggerWords, teamRefusalWords, sharesLife, sharesTurns, turnPlayerIds, isTurnOf, turnPartners, turnPartnerOf, turnWhose, teamAttackLines, teamBlockLines, TEAM_COLORS, DEFAULT_TEAMS, TEAM_MODES, JUGG_DEFAULTS, setupOf, teamModeOf, teamModeProblem, juggOf, juggLife, juggTeams, juggPerks, juggWords,
+module.exports = { seatColorsFor, jointBlock, jointBlockLines, teamBlockNotice, SEAT_HEX, teamTriggerWords, teamRefusalWords, sharesLife, sharesTurns, turnPlayerIds, isTurnOf, turnPartners, turnPartnerOf, turnPartnersOf, andWords, turnWhose, teamAttackLines, teamBlockLines, TEAM_COLORS, DEFAULT_TEAMS, TEAM_MODES, JUGG_DEFAULTS, setupOf, teamModeOf, teamModeProblem, juggOf, juggLife, juggTeams, juggPerks, juggWords,
   setupWords, teamsOf, teamWords, sides, teamsProblem, gameConfig, boardTeams, teamOf, withTeamDamage, teamsField, teamLifeTip,
   poisonLabel, teamWinWords, ARCH_DEFAULTS, ARCH_SCHEMES, ARCH_COPIES, archOf, archTeams, archLife, schemeDeckProblem, archWords, SIX_COLORS, THREE_TEAMS };

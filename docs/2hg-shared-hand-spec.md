@@ -74,3 +74,11 @@ Steps for A:
 - **Partners may see each other's face-down and foretold cards too.** So risk 2 needs no extra work: the second hand
   zone stays as it is.
 Still to do before calling it done: the live check with a second real player (risk 1).
+
+## Done (2026-11-25)
+Option A was built on 2026-11-24 (engine-renderer.lua engineTtsTeams). On 2026-11-25, at the user's request, the old
+look-only copies were removed altogether: engineTeamHands, the `team:<partner>:<id>` stand-ins and their table-check
+entry, and the bridge's `teamHand` / `teamBy` (teamHandOf). With the TTS teams not set, the partner sees no copy.
+The bridge still keeps a partner's hand out of the "revealed to everyone" rows (revealedOf). Tests:
+tests/test_table_teams.js "no copy of a partner's hand is made", tests/test_bridge_teams.js "no copy of a partner's
+hand is sent". Risk 1 (the live check with a second real player) is still open.

@@ -13,12 +13,12 @@ let failed = 0, passed = 0;
 const ok = (name, cond, why) => { if (cond) passed++; else { failed++; process.stdout.write(`FAIL ${name}${why ? `: ${why}` : ""}\n`); } };
 const same = (name, got, want) => ok(name, JSON.stringify(got) === JSON.stringify(want), `got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
 
-// the renderer's team block (ENGINE_TEAMS ... up to engineTeamId) and engineSetGameMode, as written
+// the renderer's team block (ENGINE_TEAMS ... up to the Archenemy button) and engineSetGameMode, as written
 const from = RENDERER.indexOf("\nENGINE_TEAMS = nil");
-const to = RENDERER.indexOf("\nfunction engineTeamId(");
+const to = RENDERER.indexOf("\n-- The Archenemy button beside it");
 const gm = RENDERER.indexOf("\nfunction engineSetGameMode(");
 const gmEnd = RENDERER.indexOf("\nend\n", gm) + 5;
-if (from < 0 || to < 0 || gm < 0) { console.log("FAIL test_table_3hg: the renderer's team code moved (ENGINE_TEAMS = nil / engineTeamId / engineSetGameMode)"); process.exit(1); }
+if (from < 0 || to < 0 || gm < 0) { console.log("FAIL test_table_3hg: the renderer's team code moved (ENGINE_TEAMS = nil / the Archenemy button / engineSetGameMode)"); process.exit(1); }
 const STUBS = `
 TABLE_PROFILE = { spots = { teams = { 0, 0, 0 } } }
 function Vector(x, y, z) return { x, y, z } end

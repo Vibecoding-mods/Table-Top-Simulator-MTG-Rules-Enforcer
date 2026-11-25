@@ -119,6 +119,11 @@
     }
    ],
    [
+    "andWords",
+    "function",
+    1
+   ],
+   [
     "archLife",
     "function",
     1
@@ -307,6 +312,11 @@
     "turnPartners",
     "function",
     3
+   ],
+   [
+    "turnPartnersOf",
+    "function",
+    2
    ],
    [
     "turnPlayerIds",
@@ -4747,10 +4757,10 @@
   }
  },
  {
-  "name": "gameConfig 3hg shared turns ignored",
+  "name": "gameConfig 3hg shared turns",
   "result": {
    "type": "gameConfig",
-   "teamRules": "sharedLife",
+   "teamRules": "sharedTurns",
    "players": [
     {
      "username": "a",
@@ -33468,10 +33478,25 @@
   "name": "teamTriggerWords shared p0",
   "result": {
    "partner": "p1",
+   "partners": [
+    "p1"
+   ],
    "theirs": {
     "$set": [
      "t1",
      "t3"
+    ]
+   },
+   "whose": {
+    "$map": [
+     [
+      "t1",
+      "p1"
+     ],
+     [
+      "t3",
+      "p1"
+     ]
     ]
    },
    "hint": "You order your team's triggers, N(p1)'s too (you are the team leader). The one you click first happens first. Not sure? Keep this order.",
@@ -33504,9 +33529,20 @@
   "name": "teamTriggerWords shared p1",
   "result": {
    "partner": "p0",
+   "partners": [
+    "p0"
+   ],
    "theirs": {
     "$set": [
      "t2"
+    ]
+   },
+   "whose": {
+    "$map": [
+     [
+      "t2",
+      "p0"
+     ]
     ]
    },
    "hint": "You order your team's triggers, N(p0)'s too (you are the team leader). The one you click first happens first. Not sure? Keep this order.",
@@ -33533,7 +33569,37 @@
  },
  {
   "name": "teamTriggerWords arch p2",
-  "result": null
+  "result": {
+   "partner": "p3",
+   "partners": [
+    "p3"
+   ],
+   "theirs": {
+    "$set": [
+     "a"
+    ]
+   },
+   "whose": {
+    "$map": [
+     [
+      "a",
+      "p3"
+     ]
+    ]
+   },
+   "hint": "You order your team's triggers, N(p3)'s too (you are the team leader). The one you click first happens first. Not sure? Keep this order.",
+   "toPartner": "N(p2) is putting your team's triggers in order, yours too (the team leader does)."
+  },
+  "calls": [
+   [
+    "nameOf",
+    "p3"
+   ],
+   [
+    "nameOf",
+    "p2"
+   ]
+  ]
  },
  {
   "name": "teamRefusalWords shared p0 \"Attack declaration invalid\"",
@@ -33565,7 +33631,7 @@
  },
  {
   "name": "teamRefusalWords arch p1 \"Attack declaration invalid\"",
-  "result": "Your team's attack together isn't legal. You are both asked again, N(p1) first.",
+  "result": "Your team's attack together isn't legal. You are all asked again, N(p1) first.",
   "calls": [
    [
     "nameOf",
@@ -33603,7 +33669,7 @@
  },
  {
   "name": "teamRefusalWords arch p1 \"Attack declaration invalid: Goblin must attack\"",
-  "result": "Your team's attack together isn't legal. Goblin must attack. You are both asked again, N(p1) first.",
+  "result": "Your team's attack together isn't legal. Goblin must attack. You are all asked again, N(p1) first.",
   "calls": [
    [
     "nameOf",
@@ -33641,7 +33707,7 @@
  },
  {
   "name": "teamRefusalWords arch p1 \"Block declaration invalid: Wall can't block.\"",
-  "result": "Your team's blocks together aren't legal. Wall can't block. You are both asked again, N(p1) first.",
+  "result": "Your team's blocks together aren't legal. Wall can't block. You are all asked again, N(p1) first.",
   "calls": [
    [
     "nameOf",
@@ -33679,7 +33745,7 @@
  },
  {
   "name": "teamRefusalWords arch p1 \"block declaration invalid:  lower case  \"",
-  "result": "Your team's blocks together aren't legal. lower case. You are both asked again, N(p1) first.",
+  "result": "Your team's blocks together aren't legal. lower case. You are all asked again, N(p1) first.",
   "calls": [
    [
     "nameOf",
@@ -33717,7 +33783,7 @@
  },
  {
   "name": "teamRefusalWords arch p1 \"  Attack declaration invalid  \"",
-  "result": "Your team's attack together isn't legal. You are both asked again, N(p1) first.",
+  "result": "Your team's attack together isn't legal. You are all asked again, N(p1) first.",
   "calls": [
    [
     "nameOf",
@@ -33775,7 +33841,7 @@
  },
  {
   "name": "teamRefusalWords arch p1 \"Attack declaration invalid:\"",
-  "result": "Your team's attack together isn't legal. You are both asked again, N(p1) first.",
+  "result": "Your team's attack together isn't legal. You are all asked again, N(p1) first.",
   "calls": [
    [
     "nameOf",
@@ -33813,7 +33879,7 @@
  },
  {
   "name": "teamRefusalWords arch p1 \"Attack declaration invalid: two. sentences.\"",
-  "result": "Your team's attack together isn't legal. two. sentences. You are both asked again, N(p1) first.",
+  "result": "Your team's attack together isn't legal. two. sentences. You are all asked again, N(p1) first.",
   "calls": [
    [
     "nameOf",
