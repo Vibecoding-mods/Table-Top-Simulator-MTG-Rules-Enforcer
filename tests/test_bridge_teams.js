@@ -210,6 +210,18 @@ const TEAMS = { White: 1, Red: 1, Yellow: 2, Blue: 2 };
     ok("concede: said for the team", chats(h).includes("[MTG] Blue conceded for the team (Blue + White)."), chats(h).join(" | "));
   });
 
+  // the edges the 2026-11-24 module mutation pass found unchecked (tools/mutate-bridge-modules.js)
+  same("edges: the Juggernaut's highest settings are taken", [T.juggOf({ life: 999 }).life, T.juggOf({ cmd: 99 }).cmd, T.juggOf({ hand: 30 }).hand], [999, 99, 30]);
+  same("edges: the archenemy may be the first colour of the list", T.archOf({ color: "Red" }, ["Red", "Blue"]).color, "Red");
+  {
+    const pub = { teamRules: { rule: "sharedLife" }, winnerId: "player-0", gameOver: false,
+      players: [{ id: "player-0", teamNumber: 1 }, { id: "player-1", teamNumber: 1 }, { id: "player-2", teamNumber: 2 }, { id: "player-3", teamNumber: 2 }] };
+    const slotColor = { "player-0": "White", "player-1": "Red", "player-2": "Yellow", "player-3": "Blue" };
+    const live = T.teamsField(pub, slotColor).teams || {};
+    const over = T.teamsField({ ...pub, gameOver: true }, slotColor).teams || {};
+    ok("edges: no winners said before the game is over", live.won === undefined && JSON.stringify(over.won) === JSON.stringify(["White", "Red"]), JSON.stringify({ live, over }));
+  }
+
   console.log(`${failed ? "FAIL" : "PASS"} test_bridge_teams: ${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.log(`FAIL test_bridge_teams: ${e.stack}`); process.exit(1); });

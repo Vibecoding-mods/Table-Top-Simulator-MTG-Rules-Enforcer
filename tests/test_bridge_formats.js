@@ -75,6 +75,18 @@ async function check(h, e, extra = {}) {
   const fp = (key, opts, cards, cmd, side) => R.formatProblems(key, { isBasic: basic, source: "Scryfall", date: "2026-11-18", ...opts }, cards, cmd, side);
   const st = (t) => (f, n) => t[n] ?? "l";
   const n60 = (extra = []) => [...Array(60 - extra.length).fill("Mountain"), ...extra];
+  // (the edges the 2026-11-24 module mutation pass found unchecked, tools/mutate-bridge-modules.js)
+  same("edges: few: exactly 8 names, no 'and 0 more'", R.few(["a", "b", "c", "d", "e", "f", "g", "h"]), "a, b, c, d, e, f, g, h");
+  {
+    const dwarves = (n) => (n === "Seven Dwarves" ? 7 : undefined);
+    const r = fp("modern", { status: st({}), limit: dwarves }, n60(Array(7).fill("Seven Dwarves")), [], ["Seven Dwarves"]);
+    same("edges: a card's own limit counts the main deck only (7 + 1 in the sideboard)", r.problems, []);
+    const u = fp("modern", { status: (f, n) => (n === "Mystery Card" ? undefined : "l") }, n60(["Mystery Card"]));
+    ok("edges: a card the data returns nothing for is said as not checked", u.warnings.some((w) => /not in the Modern card data, so not checked: Mystery Card/.test(w)), JSON.stringify(u.warnings));
+    const cmd = "Tatyova, Benthic Druid";
+    const p = fp("paupercommander", { status: st({ [cmd]: "n" }) }, [...Array(98).fill("Forest"), cmd], [cmd]);
+    ok("edges: Pauper Commander: the commander's name also in the 99 is checked there", p.problems.some((l) => /not legal in Pauper Commander.*Tatyova/.test(l)), JSON.stringify(p.problems));
+  }
   {
     const cards = n60(["Brainstorm", "Brainstorm", "Brainstorm", "Brainstorm"]);
     let r = fp("vintage", { status: st({ Brainstorm: "r" }) }, cards);

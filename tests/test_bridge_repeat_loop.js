@@ -269,6 +269,8 @@ async function started(h, seat, n = 2) {
   await stopCase("the runaway question", (h, seat) => ({ t2: () => ask(h, seat, board({ kikiTapped: true, tokens: 2 }),
     { type: "chooseBoolean", presentation: { title: "This turn passed the engine's limit", description: "x" }, confirmLabel: "Keep going", denyLabel: "End in a draw" }) }), [0, "the engine's runaway limit asks first"], { asked: "shown" });
   await stopCase("the game ended", (h, seat) => ({ t2: () => ask(h, seat, { ...board({ tokens: 2 }), gameOver: true, winnerId: "player-0" }, { type: "gameOver" }) }), [0, "the game ended"], { asked: false }); // (the game-over question shows nothing to answer)
+  // (a manual fix started mid-run: its questions are the fix's, never answered from the pass; mutation pass 2026-11-24)
+  await stopCase("a manual fix", (h) => { h.B._getGame().fix = { state: "asking" }; return {}; }, [0, "a manual fix is under way"]);
   await stopCase("mtg stop", null, [0, "you typed mtg stop"], { after: async (h) => { await say(h, "stopchain", {}); } });
   await stopCase("Stop on the panel", null, [0, "you pressed Stop"], { after: async (h) => { await answer(h, "__loop", "__loopstop"); } });
   // (Stop and mtg stop clear the panel and ask the next priority with something on the stack)

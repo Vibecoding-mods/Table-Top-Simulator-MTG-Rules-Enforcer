@@ -174,6 +174,42 @@ const tmpLeft = (w) => fs.readdirSync(dir).filter((f) => f.startsWith(path.basen
     await L.refreshLegality();
     same("daily: a day later the unforced check asks", w.asked.length, 1);
 
+    // ── the edges the 2026-11-24 module mutation pass found unchecked (tools/mutate-bridge-modules.js) ──
+    w = world({ updatedAt: "2026-11-18T10:01:54.000+00:00", cache: older() });
+    await L.refreshLegality();
+    w.asked.length = 0;
+    w.now += 24 * 3600 * 1000;
+    await L.refreshLegality();
+    same("edges: daily: exactly a day later the unforced check asks", w.asked.length, 1);
+    w = world({ cache: older("2026-11-12T12:00:00.000+00:00") });
+    same("edges: a list exactly a week old is not old yet", L.loadLegality().old, false);
+    w = world({ cache: older("2026-11-12T11:59:59.999+00:00") });
+    same("edges: a moment past the week it is", L.loadLegality().old, true);
+    w = world({ cache: older("2026-11-18T10:01:54.000+00:00", (c) => {
+      const i = c.keys.indexOf("pauper");
+      c.keys.splice(i, 1);
+      for (const k of Object.keys(c.cards)) c.cards[k] = c.cards[k].slice(0, i) + c.cards[k].slice(i + 1);
+    }) });
+    same("edges: a format whose key the data dropped is not had, though its list is there", [L.loadLegality().has("pauper"), L.loadLegality().has("modern")], [false, true]);
+    w = world({ cache: older(), body: zlib.gzipSync(FIXTURE.split("\n").filter((l) => !l.includes("\"name\":\"Sol Ring\"")).join("\n")) });
+    r = await L.refreshLegality({ force: true });
+    ok("edges: a download a card shorter than the cache is taken (only a fifth fewer is refused)", !r.failed && L.loadLegality().updatedAt === "2026-11-19T10:00:00.000+00:00", JSON.stringify(r));
+    w = world({ cache: older() });
+    L.configure({ runWorker: async (job) => { const d = await W.downloadAndReduce({ ...job, fetch: w.fetch }); w.busy = true; return d; } });
+    await L.refreshLegality();
+    w.busy = false;
+    L.configure({ runWorker: (job) => W.downloadAndReduce({ ...job, fetch: w.fetch }) });
+    w.asked.length = 0;
+    await L.refreshLegality();
+    ok("edges: a check a game cut short runs again after it, within the day", w.asked.length > 0, JSON.stringify(w.asked));
+    w = world({ cache: older() });
+    L.configure({ runWorker: async () => { const e = new Error("429 Too Many Requests"); e.status = 429; throw e; } });
+    r = await L.refreshLegality({ force: true });
+    w.asked.length = 0;
+    w.now += 60 * 1000;
+    r = await L.refreshLegality({ force: true });
+    ok("edges: the download's own 429 waits an hour too", w.asked.length === 0 && /asked to wait/.test(r.summary), `${w.asked} ${r.summary}`);
+
     // ── never two at once ──
     w = world({ cache: older() });
     const a = L.refreshLegality({ force: true }), b = L.refreshLegality({ force: true });

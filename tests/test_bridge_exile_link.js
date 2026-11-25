@@ -3,7 +3,8 @@
 // though it is exiled for good: it belongs in the exile pile (the user, 2026-11-24). Linked: it comes back when that
 // card leaves, it may be played through it, or the card's text speaks of what it exiled.
 //   node tests/test_bridge_exile_link.js
-// (BRIDGE_PATH: a copy, as tests/bridge-harness.js takes it: a break-it pass edits a copy, never the bridge)
+// (BRIDGE_PATH: a copy, as tests/bridge-harness.js takes it: a break-it pass or tools/mutate-bridge.js edits a copy,
+// never the bridge)
 const bridge = require(process.env.BRIDGE_PATH ? require("path").resolve(process.env.BRIDGE_PATH) : "../bridge/bridge.js");
 let failed = 0, passed = 0;
 const ok = (name, cond, why) => { if (cond) { passed++; console.log(`ok   ${name}`); } else { failed++; console.log(`FAIL ${name}${why !== undefined ? `: ${String(why).slice(0, 400)}` : ""}`); } };
@@ -17,6 +18,9 @@ const HOSTS = {
   bombard: ["Arcane Bombardment", "Whenever you cast your first instant or sorcery spell each turn, exile an instant or sorcery card at random from your graveyard. Then copy each card exiled with Arcane Bombardment. You may cast any number of the copies."],
   hideaway: ["Mosswort Bridge", "Hideaway 4\nMosswort Bridge enters tapped.\n{T}: Add {G}.\n{G}, {T}: You may play the exiled card without paying its mana cost if creatures you control have total power 10 or greater."],
   chrome: ["Chrome Mox", "Imprint — When Chrome Mox enters, you may exile a nonartifact, nonland card from your hand.\n{T}: Add one mana of any of the exiled card's colors."],
+  isochron: ["Isochron Scepter", "Imprint — When Isochron Scepter enters, you may exile an instant card with mana value 2 or less from your hand.\n{2}, {T}: You may copy the imprinted instant card. If you do, you may cast the copy without paying its mana cost."],
+  exwith: ["Vault host", "{T}: Until end of turn, you may cast spells from among those exiled with Vault host."],
+  hidekw: ["Hideaway land", "Hideaway 5"],
   gonti: ["Gonti, Lord of Luxury", "Deathtouch\nWhen Gonti enters, look at the top four cards of target opponent's library, exile one of them face down, then put the rest on the bottom of that library in a random order. For as long as that card remains exiled, you may look at it, you may cast it, and you may spend mana as though it were mana of any type to cast that spell."],
 };
 const ids = Object.keys(HOSTS);
@@ -37,6 +41,9 @@ ok("Tibalt (cards exiled with Tibalt may be played): linked", linked(ex(hostOf("
 ok("Arcane Bombardment (each card exiled with it): linked", linked(ex(hostOf("bombard"))) === true);
 ok("a hideaway land: linked", linked(ex(hostOf("hideaway"))) === true);
 ok("Chrome Mox (imprint, the exiled card's colours): linked", linked(ex(hostOf("chrome"))) === true);
+ok("Isochron Scepter (imprint alone, no 'exiled card' words): linked", linked(ex(hostOf("isochron"))) === true);
+ok("'exiled with' alone (no 'card exiled' words): linked", linked(ex(hostOf("exwith"))) === true);
+ok("a hideaway keyword with no other words: linked", linked(ex(hostOf("hidekw"))) === true);
 ok("Gonti (for as long as that card remains exiled): linked", linked(ex(hostOf("gonti"))) === true);
 ok("a card that may be played through it: linked whatever the text", linked(ex(hostOf("emperor"), { mayPlay: true })) === true);
 ok("a host whose text isn't known (face down): the link is kept", linked(ex("engine-card-799")) === true);

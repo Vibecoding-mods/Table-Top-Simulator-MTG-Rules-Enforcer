@@ -389,6 +389,123 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     ok("rewind: the next pass asked as usual", seat.prompt?.promptId === t && seat.prompt.ui.title === TARGET_TITLE, seat.prompt?.ui?.title);
   });
 
+  // 11. the edges the 2026-11-24 mutation pass found unchecked (tools/mutate-bridge.js "tl ..."), each failing by name
+  // (another player's own trigger, twice this step, is not part of Blue's loop: not named, not counted)
+  await run(async (h) => {
+    const { seat, white } = setup(h);
+    const warden = (i) => item(`engine-stack-${700 + i}`, "engine-card-20", "Soul Warden", "Whenever another creature enters, you gain 1 life.", "player-1");
+    for (let i = 0; i < 2; i++) {
+      await pass(h, seat, white, i);
+      const w = await prio(h, white, board({ stack: [warden(i)] }));
+      if (white.prompt?.promptId === w) await answer(h, w, "__pass", "White");
+    }
+    await bondTarget(h, seat, 2);
+    ok("edges: another player's trigger not in the loop", /^Sanguine Bond → Exquisite Blood keep triggering/.test(seat.prompt?.ui?.title || "") && !/Soul Warden/.test(seat.prompt?.ui?.title || ""), seat.prompt?.ui?.title);
+  });
+  // (White's No: the run goes on for Blue, White's panel is cleared, White's priority over the pass under way is asked)
+  await run(async (h) => {
+    const { seat, white, calls } = setup(h);
+    const mark = h.effects.length;
+    await begin(h, seat, white);
+    await say(h, "answer", { promptId: "__tloop", choice: ["__tl:no"] }, "White");
+    ok("edges: after a No, White's panel cleared", panels(h, "White", mark).pop()?.promptId === null, JSON.stringify(panels(h, "White", mark).slice(-1)));
+    const w = await prio(h, white, board({ stack: [bond(2)] }));
+    ok("edges: after a No, White asked even on the pass under way", white.prompt?.promptId === w && !answered(calls, w), JSON.stringify(answered(calls, w)));
+    const t = await bondTarget(h, seat, 3);
+    ok("edges: after White's No, the run goes on for Blue", seat.prompt === null && !!answered(calls, t) && !chats(h, mark).some((c) => /The loop (ran|stopped)/.test(c)), JSON.stringify(chats(h, mark)));
+  });
+  // (a panel answer that is no button, "__tl:0": not a No; the panel shown again)
+  await run(async (h) => {
+    const { seat, white } = setup(h);
+    const mark = h.effects.length;
+    await begin(h, seat, white);
+    await say(h, "answer", { promptId: "__tloop", choice: ["__tl:0"] }, "White");
+    ok("edges: __tl:0 is not a No", !chats(h, mark).some((c) => /doesn't accept the loop/.test(c)), JSON.stringify(chats(h, mark)));
+    ok("edges: __tl:0 shows the panel again", panels(h, "White", mark).pop()?.promptId === "__tloop", JSON.stringify(panels(h, "White", mark).slice(-1)));
+  });
+  // (the run ends while White's panel is up: the panel cleared)
+  await run(async (h) => {
+    const { seat, white } = setup(h);
+    const mark = h.effects.length;
+    await begin(h, seat, white);
+    await say(h, "stopchain", {}, "Blue");
+    ok("edges: the run's end clears White's waiting panel", panels(h, "White", mark).pop()?.promptId === null, JSON.stringify(panels(h, "White", mark).slice(-1)));
+  });
+  // (How many… 1 starts a run of one)
+  await run(async (h) => {
+    const { seat, white } = setup(h);
+    const mark = h.effects.length;
+    const t = await toOffer(h, seat, white);
+    await answer(h, t, "__tl:some");
+    await answer(h, seat.prompt.promptId, "1");
+    ok("edges: How many… 1 runs it once", chats(h, mark).some((c) => c.startsWith("[MTG] Blue runs the loop ×1 ")), JSON.stringify(chats(h, mark)));
+  });
+  // (Cancel on the question asked once more is not kept as the run's answer: the next pass asks)
+  await run(async (h) => {
+    const { seat, white, calls } = setup(h);
+    const t = await toOffer(h, seat, white);
+    await answer(h, t, "__tl:10");
+    const cancelTarget = (i) => ask(h, seat, board({ stack: [bond(i)] }),
+      { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, cancellable: true, candidates: [{ id: "player-1", kind: "player" }], presentation: { title: "Choose target opponent" } },
+      { sourceCard: { id: "engine-card-10", identity: { name: "Sanguine Bond" } }, sourceAbilityText: BOND });
+    const c1 = await cancelTarget(2);
+    if (seat.prompt) await answer(h, seat.prompt.promptId, "__cancel");
+    const c2 = await cancelTarget(3);
+    ok("edges: a Cancel is never given again by the run", c1 !== c2 && seat.prompt?.promptId === c2 && !answered(calls, c2) && !!h.B._getGame().tloop, JSON.stringify({ a: answered(calls, c2), tl: !!h.B._getGame().tloop }));
+  });
+  // (Blue holding priority (seat.hold) during its own run: still passed over the loop's triggers)
+  await run(async (h) => {
+    const { seat, white, calls } = setup(h);
+    await begin(h, seat, white);
+    seat.hold = 5;
+    const p = await prio(h, seat, board({ stack: [blood(3)] }));
+    ok("edges: the controller's priority passed in the run, even holding", seat.prompt === null && answered(calls, p)?.out?.type === "pass", JSON.stringify(answered(calls, p)));
+  });
+  // (a spell already under the loop when the run began: once it is the top again, White is asked)
+  await run(async (h) => {
+    const { seat, white, calls } = setup(h);
+    const X = { id: "engine-stack-950", sourceId: "engine-card-51", controllerId: "player-0", identity: { name: "Opt" }, text: "Opt" };
+    const tgt = (i) => ask(h, seat, board({ stack: [X, bond(i)] }), { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, candidates: [{ id: "player-1", kind: "player" }], presentation: { title: "Choose target opponent" } },
+      { sourceCard: { id: "engine-card-10", identity: { name: "Sanguine Bond" } }, sourceAbilityText: BOND });
+    for (let i = 0; i < 2; i++) {
+      const t0 = await tgt(i);
+      if (seat.prompt?.promptId === t0) await answer(h, t0, "player|player-1");
+      for (const s of [[X, bond(i)], [X, blood(i)]]) { const w0 = await prio(h, white, board({ stack: s })); if (white.prompt?.promptId === w0) await answer(h, w0, "__pass", "White"); }
+    }
+    const t = await tgt(2);
+    await answer(h, t, "__tl:10");
+    if (seat.prompt) await answer(h, seat.prompt.promptId, "player|player-1");
+    await say(h, "answer", { promptId: "__tloop", choice: ["__tl:all"] }, "White");
+    const w1 = await prio(h, white, board({ stack: [X, bond(2)] }));
+    ok("edges: precondition, the run began with a spell under it and White accepted", !!h.B._getGame().tloop && !!answered(calls, w1), JSON.stringify(chats(h)));
+    const w = await prio(h, white, board({ stack: [X] }));
+    ok("edges: a spell from before the run on top: White asked", white.prompt?.promptId === w && !answered(calls, w), JSON.stringify(answered(calls, w)));
+  });
+  // (a kept answer of two targets, one of them gone: not given half-right, the run ends and the question is asked)
+  await run(async (h) => {
+    const { seat, white, calls } = setup(h);
+    const two = (i, cands) => ask(h, seat, board({ stack: [bond(i)] }),
+      { type: "chooseBoardTargets", minTargets: 1, maxTargets: 2, candidates: cands.map((id) => ({ id, kind: "player" })), presentation: { title: "Choose targets" } },
+      { sourceCard: { id: "engine-card-10", identity: { name: "Sanguine Bond" } }, sourceAbilityText: BOND });
+    await pass(h, seat, white, 0);
+    await pass(h, seat, white, 1);
+    const t = await two(2, ["player-1", "player-2"]);
+    await answer(h, t, "__tl:10");
+    if (seat.prompt) await say(h, "answer", { promptId: seat.prompt.promptId, choice: ["player|player-1", "player|player-2"] }, "Blue");
+    await say(h, "answer", { promptId: "__tloop", choice: ["__tl:all"] }, "White");
+    const t2 = await two(3, ["player-1"]);
+    ok("edges: a kept two-target answer with one target gone is asked", seat.prompt?.promptId === t2 && !answered(calls, t2) && !h.B._getGame().tloop, JSON.stringify(answered(calls, t2)));
+  });
+  // (the relay's GameAborted, how a game ends by an empty library or a concession: the run's count said first)
+  await run(async (h) => {
+    const { seat, white } = setup(h);
+    const mark = h.effects.length;
+    await begin(h, seat, white);
+    seat.onRelay({ type: "GameAborted" });
+    await h.flush();
+    ok("edges: GameAborted says the run's count", chats(h, mark).some((c) => /^\[MTG\] The loop stopped after .*: the game ended\.$/.test(c)) && !h.B._getGame().tloop, JSON.stringify(chats(h, mark)));
+  });
+
   process.stdout.write(failed ? `test_bridge_trigger_loop: ${failed} FAILED, ${passed} passed\n` : `test_bridge_trigger_loop: all ${passed} passed\n`);
   process.exit(failed ? 1 : 0);
 })();

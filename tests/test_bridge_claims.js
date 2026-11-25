@@ -5290,7 +5290,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const t = sent(h, "table")[0] || { players: [] };
       const fix = (n) => h.B.fixOps([{ op: "commanderDamage", player: "Blue", from: "White", n }], b.gameView);
       const row = t.players.find((p) => p.slot === "player-0") || {};
-      const out = { row, fix18: fix(18), fix12: fix(12), fix5: fix(5) };
+      const out = { row, fix18: fix(18), fix12: fix(12), fix10: fix(10), fix5: fix(5) };
       harness.restore();
       return out;
     };
@@ -5312,6 +5312,8 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       JSON.stringify(b2.fix12.ops) === JSON.stringify([cd("engine-card-1401", 12)]), JSON.stringify(b2.fix12));
     ok("cmd damage: lowered to 5, below the other partner's 10: that one comes down to 5 too (the counter would bounce back to 10)",
       JSON.stringify(b2.fix5.ops) === JSON.stringify([cd("engine-card-1401", 5), cd("engine-card-200", 5)]), JSON.stringify(b2.fix5));
+    ok("cmd damage: lowered to 10, the other partner's own 10: only the one shown, no change to the other (mutation pass 2026-11-24)",
+      JSON.stringify(b2.fix10.ops) === JSON.stringify([cd("engine-card-1401", 10)]) && b2.fix10.lines.length === 1, JSON.stringify(b2.fix10));
     ok("cmd damage: and the change list says both", JSON.stringify(b2.fix5.lines) === JSON.stringify(["Blue: 5 damage from Tymna the Weaver", `Blue: 5 damage from ${name200}`]), JSON.stringify(b2.fix5.lines));
     const c = await cmdTable((gv) => {
       gv.players.find((p) => p.id === "player-1").commanderCasts = { "engine-card-1402": 0 };
