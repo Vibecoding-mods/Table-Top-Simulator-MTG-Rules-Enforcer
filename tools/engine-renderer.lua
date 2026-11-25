@@ -1029,7 +1029,9 @@ function engineNearerMat(c, p, best, bestD)
 end
 -- A partner's hand (810.5): the bridge sends it as teamHand with the seated partner who sees it, teamBy. Look-only
 -- stand-ins, team:<partner>:<id>, in that partner's second hand zone, which only they see; dragged out they snap back
--- (zone "partner", onObjectDrop's last case). Their own hand keeps the real cards.
+-- (zone "partner", onObjectDrop's last case). Their own hand keeps the real cards. Since 2026-11-24 only when the
+-- partners couldn't be put on one TTS team (engineTtsTeams, below: teammates see each other's real hand there);
+-- engineRender calls this only then.
 function engineTeamHands(m, seen)
   for _, pl in ipairs(m.players or {}) do
     local by = pl.teamBy
@@ -1890,7 +1892,9 @@ function engineLifeTip(o, pl)
 end
 -- (the label goes with the game: it stayed on the normal table after a reset, stage 3 review 2026-10-27)
 -- (the extra-turn number beside the life counter goes too, engineExtraTurnBadge, and the floating-mana chips,
--- enginePoolChips; from the last button down, as a removal moves the ones after it)
+-- enginePoolChips; from the last button down, as a removal moves the ones after it). Then the status pieces and the
+-- original's mana counters go back under the table (engineStatusParkAll, engineManaParkAll) and the 2HG partners off
+-- the TTS teams the table put them on (engineTtsTeamsClear).
 function engineCountersReset()
   for _, guid in pairs(LIFE_TRACKERS) do
     local o = getObjectFromGUID(guid)
@@ -2776,16 +2780,14 @@ function engineDrawLines(m, stackSpot)
   if m ~= nil and m.gameOver then m = nil end -- (the game is over: no attack or target lines stay on the table)
   local ours = {}
   local drawn = {} -- (one line per pair of spots: twenty tokens in one stack attacking one player are one line)
-  -- (dashed: short lines along the arc, the first gap at the attacker and the last dash on the target; nothing draws dashed now)
-  -- (avoid, mat: a planned line's attacker's own life counter and mat, bentArc)
-  local function add(a, b, style, lift, dashed, avoid, mat)
+  -- (every line is solid on arc(): the dashed planned line bent around the life counter, ENGINE_LINE_AVOID.arc, went
+  -- 2026-11-19 when it was drawn as a block line; ENGINE_LINE_AVOID stays, tested, for a line that needs it again)
+  local function add(a, b, style, lift)
     if a == nil or b == nil then return end
     local key = string.format("%.2f,%.2f,%.2f,%.2f,%.4f", a.x, a.z, b.x, b.z, style.thickness)
     if drawn[key] then return end
     drawn[key] = true
-    local pts = dashed and ENGINE_LINE_AVOID.arc(a, b, lift, avoid, mat) or arc(a, b, lift)
-    if not dashed then ours[#ours + 1] = { points = pts, color = style.color, thickness = style.thickness } return end
-    for i = 2, #pts - 1, 2 do ours[#ours + 1] = { points = { pts[i], pts[i + 1] }, color = style.color, thickness = style.thickness } end
+    ours[#ours + 1] = { points = arc(a, b, lift), color = style.color, thickness = style.thickness }
   end
   if m ~= nil then
     engineLinesSpot = stackSpot -- (for the block lines a question's clicks draw: engineQuestionBlocks)
@@ -4366,6 +4368,7 @@ function engineRender(m)
   local stackGlow = {}
   local stackSpot = {} -- stack item id -> where its target lines start
   engineFxStackSpot = {} -- stack item id -> its spot on the stack (the next board's effects: where a countered spell stood)
+  engineStackShown = {} -- stack item id -> the engine id of the object that shows it on the table (engineSpellObj)
   for i, s in ipairs(m.stack or {}) do
     local g = s.ctl and seatGeometry(s.ctl)
     local n = stackFold.spot[i]
@@ -4385,8 +4388,11 @@ function engineRender(m)
     local onTableSrc = not s.spell and s.src and (engineObjs[s.src] ~= nil or engineObjs[engineGroupOf[s.src] or ""] ~= nil)
     -- (folded: no object of its own, the "+N more" card stands for it below; an ability whose source is on the table
     -- still lights it)
+    local itemId = tostring(s.id)
     if stackFold.folded[i] and not onTableSrc then
+      engineStackShown[itemId] = "stack:more:" .. tostring(s.ctl or "?")
     elseif s.spell and st then
+      engineStackShown[itemId] = s.src
       -- the spell's own card moves onto the stack (spawning a new object costs a frame hitch while its picture loads)
       local c = { id = s.src }
       for k, v in pairs(st) do c[k] = v end
@@ -4397,6 +4403,7 @@ function engineRender(m)
       -- an ability: its source glows purple; the panel lists the stack. A run of one trigger (x, the bridge's
       -- stackGroups) lights each of its sources; a token folded into a token stack lights that stack's card (a stack
       -- card each for 112 Second Harvest tokens' triggers before)
+      engineStackShown[itemId] = (engineObjs[s.src] == nil and engineGroupOf[s.src]) or s.src
       for k = 0, #(s.srcs or {}) do
         local sid = k == 0 and s.src or s.srcs[k]
         stackGlow[(engineObjs[sid] == nil and engineGroupOf[sid]) or sid] = true
@@ -4404,6 +4411,7 @@ function engineRender(m)
     else
       -- (a run of one trigger is one stack card, its count in its name and its "xN" badge)
       local x = tonumber(s.x) or 1
+      engineStackShown[itemId] = "stack:" .. itemId
       place({ id = "stack:" .. tostring(s.id), n = s.n, tl = x > 1 and ("On the stack (×" .. x .. ")") or "On the stack", tx = s.tx, f = s.f, b = ENGINE_BACK, groupN = x > 1 and x or nil },
         pos, rot, seen, nil, { zone = "stack", color = s.ctl })
     end
@@ -5460,8 +5468,9 @@ function engineUpdateCorner(color, p)
       -- (targets in a graveyard or exile come with a picture: more than the card row holds are picked in the Engine panel,
       -- which then opens; "Click a glowing card" showed with nothing glowing, hp-07 #41 2026-10-27)
       local pile = enginePileOnly(q)
-      -- (a spell on the stack glows green and is clicked like a card, engineSpellObj; one with no card drawn, folded or
-      -- face down, is still in the panel. Before 2026-11-24 nothing glowed: hp-01 #5)
+      -- (a spell on the stack glows green and is clicked like a card: the object that shows it there, its own card, its
+      -- "On the stack" card, its source or its caster's "+N more" card, engineSpellObj; the panel lists every one. Before
+      -- 2026-11-24 nothing glowed: hp-01 #5)
       if spells and not cards and not players then hint = title .. "\nClick the glowing spell on the stack, or pick it in the Engine panel (Choices, top left)."
       elseif engineAnswerPlace(q) == "panel" then hint = title .. "\nThe cards are in a graveyard or exile: pick one in the Engine panel."
       -- (the cards pictures in the card row: nothing glows on the table, hp-07 re-test 2026-10-27; with players too, a
@@ -5945,6 +5954,8 @@ function enginePoolTotal(color)
   end
   return 0
 end
+-- the floating-mana chips on life counter o for player pl's pool; where the table has the original's mana counters
+-- (engineManaOn) the pool goes on them instead (engineManaCounters) and the chips are cleared
 function enginePoolChips(o, pl)
   if o == nil then return end
   -- (a table with the original's mana counters shows the pool on them instead, engineManaCounters: no chips there)
@@ -7798,9 +7809,9 @@ end
 -- ───────── phase 2: tap to pay, tap to attack, click to block / target, right-click actions (SPEC §10a) ─────────
 -- Gestures answer the open prompt the same way the panel buttons do (pick → engineAnswer), so the panel and the
 -- table always agree. Glows show what you can use: mana sources, attackers, blockers, targets.
--- white: can attack/block; red: attacking or a picked target; blue: blocking; orange: can be targeted; gold: can pay
--- (M5, after MTG Arena's colour code: green = you can act on it, like the hand's playable glow; orange-gold = chosen;
--- red = attacking, blue = blocking, as the base glows; gold = the lands that will pay)
+-- Since M5, after MTG Arena's colour code (GLOW below): green (CAN) = you can use it: an attacker or blocker you may
+-- declare, a card, player or spell you may target, a card you may choose; orange-gold (CHOSEN) = a target or card you
+-- picked; red = a declared attacker, blue = a declared blocker, as the base glows; gold = the lands that will pay.
 local CAN, CHOSEN = {0.3, 1, 0.4}, {1, 0.7, 0.15}
 local GLOW = { mana = {1, 0.85, 0.2}, attack = CAN, attackPick = {1, 0.12, 0.08}, block = CAN, blockPick = {0.15, 0.45, 1},
   target = CAN, targetPick = CHOSEN, picked = CHOSEN }
@@ -7911,24 +7922,16 @@ function engineGlowOption(color, kind, i, id)
   elseif kind == "target" and startsWith(id, "card|") then glowCard(color, id:sub(6), isSelected(color, i) and GLOW.targetPick or GLOW.target)
   elseif kind == "target" and startsWith(id, "spell|") then glowObj(color, engineSpellObj(id:sub(7)), isSelected(color, i) and GLOW.targetPick or GLOW.target) end
 end
--- The object that shows stack item `sid` on the table (a counterspell's target, "spell|<id>"): a spell's own card on
--- the stack; an ability's "On the stack" card, else its source on the table (or the stack that source is folded
--- into); one folded under its caster's "+N more" card, that card. nil when none is drawn.
+-- The object that shows stack item `sid` on the table (a counterspell's target, "spell|<id>"), as the board's render
+-- drew it (engineStackShown, set while it places the stack, so the glow, the click and the stack never disagree): a
+-- spell's own card on the stack; an ability's "On the stack" card, or its source on the battlefield (or the token
+-- stack that source is folded into) when that is on the table; one folded under its caster's "+N more" card, that
+-- card. nil when none is drawn (a "+N more" card for a seat with no mat).
+engineStackShown = {}
 function engineSpellObj(sid)
-  for _, s in ipairs((lastTable and lastTable.stack) or {}) do
-    if tostring(s.id) == sid then
-      local src = s.src and tostring(s.src) or nil
-      local function live(o) if o ~= nil and not o.isDestroyed() then return o end return nil end
-      if s.spell and src then
-        local o = live(engineObjs[src])
-        if o ~= nil and (engineMeta[src] or {}).zone == "stack" then return o end
-      end
-      local o = live(engineObjs["stack:" .. sid])
-      if o == nil and not s.spell and src then o = live(engineObjs[src]) or live(engineObjs[engineGroupOf[src] or ""]) end
-      if o == nil and s.ctl then o = live(engineObjs["stack:more:" .. tostring(s.ctl)]) end
-      return o
-    end
-  end
+  local key = engineStackShown[tostring(sid)]
+  local o = key ~= nil and engineObjs[key] or nil
+  if o ~= nil and not o.isDestroyed() then return o end
   return nil
 end
 -- A card whose object arrives after the question that names it (a token made a moment before the legend rule asked
@@ -8377,8 +8380,22 @@ clickGesture = function(color, obj)
   if kind == "target" then
     local i
     if id ~= nil then i = findOption(color, function(o) return o.id == "card|" .. id end) end
-    -- a spell or ability on the stack (a counterspell's target): the card that shows it there
-    if i == nil then i = findOption(color, function(o) return startsWith(o.id, "spell|") and engineSpellObj(tostring(o.id):sub(7)) == obj end) end
+    -- a spell or ability on the stack (a counterspell's target): the card that shows it there. One card can stand for
+    -- more than one offered item (a "+N more" card, a permanent with two triggers waiting): a click can't say which, so
+    -- it answers nothing and says to use the Engine panel (it picked the first one, maybe not the spell meant)
+    if i == nil then
+      local many = 0
+      for k, o in ipairs(p.options or {}) do
+        if startsWith(tostring(o.id), "spell|") and engineSpellObj(tostring(o.id):sub(7)) == obj then
+          many = many + 1
+          if i == nil then i = k end
+        end
+      end
+      if many > 1 then
+        if firstClick(obj) then tell(color, "That card stands for " .. many .. " things on the stack you can choose: pick the one you mean in the Engine panel (Choices, top left).") end
+        return true
+      end
+    end
     if i == nil then
       -- a life tracker stands for its player
       for _, pl in ipairs((lastTable and lastTable.players) or {}) do
@@ -9858,7 +9875,7 @@ local PLAYABLE_BAR = '<Panel color="#3dff6e" raycastTarget="false" width="%d" he
 local PLAYABLE_XML = '<Panel id="eng_play" visibility="%s" position="0 0 -12" rotation="0 0 180" width="266" height="366" color="#00000000" raycastTarget="false" active="%s">'
   .. string.format(PLAYABLE_BAR, 266, 13, "UpperCenter") .. string.format(PLAYABLE_BAR, 266, 13, "LowerCenter")
   .. string.format(PLAYABLE_BAR, 13, 366, "MiddleLeft") .. string.format(PLAYABLE_BAR, 13, 366, "MiddleRight") .. '</Panel>'
-local playableBuilt = {} -- object -> owner colour its frame was built for (built once, then only shown/hidden)
+local playableBuilt = {} -- object -> owner colour its frame was built for (built once per owner colour, then only shown/hidden)
 -- First builds wait in a queue and go ENGINE_FRAME_BUILDS a frame (a full UI build costs a frame: a 40-permanent priority
 -- built at once would stutter, SPEC.md "Green glow on permanents"). The frame is added beside whatever else the card's
 -- UI holds, never by replacing it; a rebuild (another colour: a stolen permanent) takes only its own panel out.
@@ -10808,7 +10825,8 @@ function engineOnMessage(m)
     if type(m.json) == "string" then
       local ok, x = pcall(engineJsonDecode, m.json)
       if not ok or type(x) ~= "table" then ok, x = pcall(JSON.decode, m.json) end
-      if not ok or type(x) ~= "table" then return end
+      -- (said in the log: a dropped list leaves the Banned list button on "?" with no other sign why)
+      if not ok or type(x) ~= "table" then print("[MTG] " .. m.t .. ": the bridge's message could not be read") return end
       d = x
     end
     if m.t == "banlist" then return engineOnBanlist(d) end
@@ -13210,8 +13228,8 @@ function engineGif.chat(message, pl)
   local rest = G.trim(message:sub(at))
   local low = string.lower(rest)
   local c = pl.color
-  -- (as engineChat's: a player the table promoted, enginePromoteSeated, is not a host here)
-  local isHost = pl.host or ((pl.admin or pl.promoted) and not (ENGINE_PROMOTED or {})[tostring(pl.steam_id)])
+  -- (as engineChat's: a player the table promoted, enginePromoteSeated, is not a host here; make-engine-copy.js)
+  local isHost = engineIsHost(pl)
   local function tellMe(t) pl.broadcast("[MTG] " .. t, { 1, 0.85, 0.4 }) end
   if cmd == "gifs" then
     if low == "hide" or low == "show" then

@@ -108,6 +108,13 @@ const script = rik ? rik.LuaScript : "";
   const all = (after.spawned || []).filter((o) => o.type === "Deck");
   ok("a DeckCheck import then another link: the first deck tagged, the second deck not",
     !after.error && all.length === 4 && all[0].gm === tag && (all[2].gm || "") === "" && all[3].gm === "made by the server", after.error || JSON.stringify(after.spawned));
+  // (stage 3 review 2026-11-24) the DeckCheck import still waiting for DeckCheck's answer when the same seat imports a
+  // Moxfield deck: the late answer must not put its tag on the Moxfield deck (only the seat's latest import may tag)
+  const race = runDeck(script, form("https://www.moxfield.com/decks/abc123"), { answers: { [API + id]: answer(200, FIX.partners) }, build,
+    first: form(`https://deckcheck.co/app/builder/${id}`), overlap: true });
+  const rd = (race.spawned || []).filter((o) => o.type === "Deck");
+  ok("a DeckCheck import answered after a later import: no deck carries the DeckCheck tag",
+    !race.error && rd.length >= 2 && rd.every((o) => !String(o.gm || "").includes("id=" + id)), race.error || JSON.stringify(race.spawned));
 }
 
 // ───────── every other link, and a pasted list: to the server unchanged ─────────

@@ -649,7 +649,81 @@ function scenarios() {
     { name: "setup buttons (Ready / Start)", steps: setup, seated: ["Blue", "White"] },
     { name: "setup buttons: one player starts against an AI", steps: solo, seated: ["Blue"] },
     { name: "card entry: every way a card object is made", steps: cardEntry(s1) },
-    { name: "cost badge: hand and command cards whose cost changed", steps: costBadge(s1) }];
+    { name: "cost badge: hand and command cards whose cost changed", steps: costBadge(s1) },
+    { name: "2026-11-18..24 batch: formats, Taxes, a counterspell's target, look-only top", steps: batch1124(s1), seated: ["Blue", "White"] }];
+}
+
+// (2026-11-24, jr-programmer-suite stage 0) the renderer batch of 2026-11-18..24 that no recorded game reached, a game of
+// its own so the others stay as they are: before a game, the Format button (forward, back, past a format with no
+// list), the Banned cards switch, the bridge's banlist / banlistNames and the Notebook tab, the Banned list button,
+// host-only refusals (White is a player the table promoted) for the format and "mtg gifs off". Then the 1v1 up to its
+// 40th message, the Taxes button round, a hello carrying it, a board with a look-only library top (lk) and a stack of
+// a spell, an ability with no card, an ability whose source is on the battlefield and White's ten abilities (two
+// folded under "+2 more"), and counterspell questions over them: glows, clicks, a multi pick's colour, and a click on
+// the "+2 more" card that stands for two offered abilities.
+function batch1124(s1) {
+  const C = (n) => `engine-card-${n}`;
+  const msgs = s1.slice(0, 40);
+  const last = JSON.parse([...msgs].reverse().find((m) => m.t === "table").json);
+  const b = JSON.parse(JSON.stringify(last));
+  const blue = b.players.find((p) => p.color === "Blue");
+  b.cards = { ...(b.cards || {}), [C(971)]: { n: "Divination", f: "https://img.example/divination.jpg", ty: ["Sorcery"] },
+    [C(974)]: { n: "Prodigal Sorcerer", f: "https://img.example/tim.jpg", ty: ["Creature"], bp: 1, bt: 1 },
+    [C(975)]: { n: "Island", f: "https://img.example/island.jpg", ty: ["Land"] }, [C(976)]: { n: "Opt", f: "https://img.example/opt.jpg", ty: ["Instant"] } };
+  blue.battlefield = [{ s: 1, id: C(974), ctl: "Blue" }];
+  blue.playable = [{ id: C(975), lk: true }, { id: C(976) }];
+  blue.keep = (blue.keep || []).filter((z) => z !== "battlefield" && z !== "playable");
+  const white = Array.from({ length: 10 }, (_, i) => ({ id: `stack-w${i + 1}`, n: `Trigger ${i + 1}`, ctl: "White", tx: "Draw a card." }));
+  b.stack = [...white, { id: "stack-93", n: "Tim's ability", src: C(974), ctl: "Blue", tx: "It deals 1 damage to any target." },
+    { id: "stack-92", n: "Trigger", src: C(973), ctl: "Blue", tx: "When this enters, draw a card." },
+    { id: "stack-91", n: "Divination", src: C(971), spell: true, ctl: "Blue", tx: "Draw two cards." }];
+  const tile = 'local t for _, o in ipairs(getObjects()) do if o.getGMNotes() == "mtgsetup" then t = o end end';
+  const ask = (p) => ({ msg: { t: "prompt", json: JSON.stringify({ t: "prompt", color: "Blue", ...p }) }, mark: `ask ${p.promptId}` });
+  const msg = (t, o) => ({ msg: { t, json: JSON.stringify({ t, ...o }) }, mark: `bridge ${t}` });
+  const gms = [C(971), "stack:stack-92", C(974), "stack:stack-93", "stack:more:White", "stack:stack-w3", C(975), C(976)];
+  const glows = (mark) => ({ lua: `local out = {} for _, gm in ipairs({ "${gms.join('", "')}" }) do local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:" .. gm then o = x end end
+    local h = o and o.__d.highlight out[#out + 1] = gm .. "=" .. (o and (tostring((engineGlowing.Blue or {})[o] == true) .. "/" .. tostring(engineStackGlow[gm]) .. "/" .. (h and string.format("%.2f,%.2f,%.2f", h[1] or h.r, h[2] or h.g, h[3] or h.b) or "none")) or "no object") end return table.concat(out, " | ")`, mark });
+  const clickObj = (gm) => ({ lua: `local o for _, x in ipairs(getObjects()) do if x.getGMNotes() == "engine:${gm}" then o = x end end if o == nil then return "no object" end
+    onPlayerAction(Player.Blue, Player.Action.Select, { o }) onPlayerAction(Player.Blue, Player.Action.PickUp, { o }) __sim.frames(30) return "clicked"`, mark: `click ${gm}` });
+  const opts = (ids) => ids.map((id) => ({ id: `spell|${id}`, label: id }));
+  const tileRead = click(`${tile} local l = {} for _, x in ipairs(t.getButtons() or {}) do l[#l + 1] = x.click_function .. "=" .. x.label .. "@" .. tostring(x.font_size) end return table.concat(l, ";")`);
+  // (the "Waiting for" flash goes by os.clock, real time: off here, or a slow run records other colours)
+  return [click("engineWaitFlash = function() end"), click("setEngineMode(true)"),
+    click('onMtgSetupMode(nil, "Blue")'), click('onMtgSetupMode(nil, "Blue", true)'), click('onMtgSetupMode(nil, "Blue", true)'),
+    msg("banlist", { format: "commander", source: "scryfall", date: "2026-11-18", counts: { banned: 83, restricted: 0 }, missing: ["duel"] }),
+    click('onMtgSetupMode(nil, "Blue") onMtgSetupMode(nil, "Blue") return ENGINE_FORMAT'), // round to commander
+    click('onMtgSetupMode(nil, "Blue") return ENGINE_FORMAT'), // past duel (no list) to paupercommander
+    click('onMtgSetupMode(nil, "White") return ENGINE_FORMAT'), // a table-promoted player: refused
+    // (the fitted font both sides of its bounds: "Pauper Commander: 100" is 21 letters, "Duel Commander" exactly 14)
+    msg("banlist", { format: "paupercommander", source: "scryfall", date: "2026-11-18", counts: { banned: 100, restricted: 0 }, missing: [] }), tileRead,
+    click('engineChat("mtg format duel", Player.Blue) return ENGINE_FORMAT'), tileRead,
+    click('engineChat("mtg format modern", Player.Blue) onMtgSetupBanned(nil, "Blue") return ENGINE_FORMAT .. "|" .. ENGINE_GAME_MODE'),
+    msg("banlist", { format: "modern", source: "scryfall", date: "2026-11-18", counts: { banned: 3, restricted: 0 } }),
+    click('onMtgSetupBanlist(nil, "White")'),
+    msg("banlistNames", { format: "modern", source: "scryfall", date: "2026-11-18", banned: ["Up the Beanstalk", "Ancient Den"], restricted: [] }),
+    tileRead,
+    click('local t = {} for _, n in ipairs(Notes.getNotebookTabs()) do t[#t + 1] = n.index .. ":" .. n.title .. "=" .. n.body end return table.concat(t, "\\n####\\n")'),
+    click('onMtgSetupBanlist(nil, "White")'), // the Notebook holds the list now: nothing asked of the bridge
+    // a format button wiped (TTS's own scripts can): the next heal draws the tile again
+    { lua: `${tile} for i, x in ipairs(t.getButtons()) do if x.click_function == "onMtgSetupBanlist" then t.removeButton(i - 1) break end end return "wiped"`, frames: 130, mark: "wipe the Banned list button" }, tileRead,
+    click('engineChat("mtg gifs off", Player.White)'), click('engineChat("mtg gifs off", Player.Blue) engineChat("mtg gifs on", Player.Blue)'),
+    click('engineChat("mtg format casual", Player.Blue) return ENGINE_FORMAT'),
+    click("engineAutoPace.Blue = false"), click('engineChat("mtg start ai 1", Player.Blue)'),
+    ...msgs.map((m) => ({ msg: { t: m.t, json: m.json } })), { frames: 30 },
+    click('onMtgTax(Player.Blue, nil, "eng_tax_White") return tostring(engineTaxAuto.Blue)'), // another seat's button: nothing
+    click('onMtgTax(Player.Blue, nil, "eng_tax_Blue") return tostring(engineTaxAuto.Blue)'),
+    click('engineHello() return "hello"'),
+    click('onMtgTax(Player.Blue, nil, "eng_tax_Blue") onMtgTax(Player.Blue, nil, "eng_tax_Blue") return tostring(engineTaxAuto.Blue)'),
+    { msg: { t: "table", json: JSON.stringify(b) }, frames: 60, mark: "board: a stack to counter, a look-only top" }, glows("glows first board"),
+    { msg: { t: "table", json: JSON.stringify({ ...b, again: 1 }) }, frames: 60, mark: "board: the same again" }, glows("glows before"),
+    ask({ promptId: 9901, kind: "target", title: "Counterspell: counter which spell?", mode: "single", min: 1, max: 1, options: opts(["stack-91", "stack-92", "stack-93", "stack-w1", "stack-w3"]) }),
+    glows("glows offered"), click('return tostring(UI.getValue("eng_hint_Blue"))'), clickObj(C(974)), clickObj(C(971)),
+    ask({ promptId: 9902, kind: "target", title: "Choose up to two spells", mode: "multi", min: 1, max: 2, options: opts(["stack-91", "stack-92"]) }),
+    clickObj("stack:stack-92"), glows("glows picked"),
+    // (no kind: the spell| options alone make it a target question, promptKind)
+    ask({ promptId: 9903, title: "Counter target ability", mode: "single", min: 1, max: 1, options: opts(["stack-w1", "stack-w2"]) }),
+    glows("glows folded"), clickObj("stack:more:White"),
+    { msg: { t: "clear", json: JSON.stringify({ t: "clear" }) }, frames: 90, mark: "clear (mtg reset)" }];
 }
 
 // (2026-11-11, docs/cost-badge-spec.md) the cost badge, a game of its own so the recorded games stay as they are: the 1v1

@@ -137,6 +137,12 @@ const chats = (r, mark) => fxOf(r, mark).filter((l) => /broadcast/.test(l)).join
     teamsOf("after reset"),
     { msg: { t: "table", json: JSON.stringify(sides2v2) }, frames: 30 },
     teamsOf("2v2"),
+    // (stage 3 review 2026-11-24) a partner the table put on a team who then picks another one keeps theirs at the end:
+    // the table takes off only the team it set
+    { msg: { t: "table", json: board({}, HANDS) }, frames: 30 },
+    q('Player.Yellow.team = "Spades" return "moved"', "yellow moves"),
+    { msg: { t: "table", json: board({ gameOver: true, winner: "Blue" }, HANDS) }, frames: 30 },
+    teamsOf("own team kept"),
   ]);
   ok("tts teams: no errors", !r.errors.length, r.errors.join(" | "));
   ok("tts teams: the seated partners on one team, the other side's seats untouched", valueOf(r, "on") === "None None Clubs Clubs", String(valueOf(r, "on")));
@@ -145,6 +151,7 @@ const chats = (r, mark) => fxOf(r, mark).filter((l) => /broadcast/.test(l)).join
   ok("tts teams: not set again on the next board", valueOf(r, "again") === "0", String(valueOf(r, "again")));
   ok("tts teams: off when the game is over", valueOf(r, "over") === "None None None None", String(valueOf(r, "over")));
   ok("tts teams: off after a reset", valueOf(r, "after reset") === "None None None None", String(valueOf(r, "after reset")));
+  ok("tts teams: the end takes off only the team the table set (a partner's own pick stays)", valueOf(r, "own team kept") === "None None Spades None", String(valueOf(r, "own team kept")));
   ok("tts teams: never in 2v2 (own-life teams keep hands private)", valueOf(r, "2v2") === "None None None None", String(valueOf(r, "2v2")));
 }
 
