@@ -7,6 +7,10 @@
 # The image is only needed again when Forge's own Java changes: harness sources are compiled fresh on every run, so an
 # image older than a new harness class or test still works. ManaBrewEngineAdapterTest and
 # InteractiveSnapshotExtractorTest print nothing when they pass; every class fails by its exit status.
+# The golden-master classes (GoldenFileTest's users: ProtocolGoldenTest, SnapshotGoldenTest) compare against
+# forge-harness/src/test/resources/golden. To re-record them after a deliberate behaviour change, mount a writable
+# folder and name it: -v "<dir>:/out" -e GOLDEN_WRITE=/out ... /harness-tests.sh ProtocolGoldenTest SnapshotGoldenTest,
+# then copy the files into the tree and read the diff before keeping it.
 # Exit status: 0 when every class passed. tools/deploy.js runs it with no class named and stops when any *Test.java
 # under forge-harness/src/test is missing from the list below (tests/test_deploy.js checks that rule).
 set -e
@@ -28,13 +32,14 @@ cd /build
   SnapshotSpeedTest StressCapsTest ReplacementIndexTest TieOfferTest UnboundedTokensTest HeldPassResponseTest CostBadgeTest \
   BigBoardFixesTest TeamChoiceTest LongTailTest common.GiftTargetsTest AutoPayBudgetTest BigTurnTimingTest \
   BlockBudgetTest DependencyScanTest ManaSourcesTest OpeningHandTest SnapshotViewersTest StaticPassTest TokenBatchTest \
-  common.ActionSpaceTest common.HarnessPlayPlumbingTest
+  common.ActionSpaceTest common.HarnessPlayPlumbingTest \
+  GoldenFileTest ProtocolGoldenTest SnapshotGoldenTest
 failed=""
 for c in "$@"; do
   echo "=== $c"
   # (a name with a package, common.GiftTargetsTest, is under forge.harness; a plain one under forge.harness.host)
   case "$c" in *.*) cls="forge.harness.$c" ;; *) cls="forge.harness.host.$c" ;; esac
-  if timeout 900 java -cp "/tmp/test:/tmp/main:$jar" "$cls" > "/tmp/$c.out" 2>&1; then
+  if timeout 900 java -cp "/tmp/test:/tmp/main:$jar" "$cls" ${GOLDEN_WRITE:+--write "$GOLDEN_WRITE"} > "/tmp/$c.out" 2>&1; then
     echo "exit=0"
   else
     echo "exit=$?"

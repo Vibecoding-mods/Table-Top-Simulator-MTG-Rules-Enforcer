@@ -188,6 +188,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-24 (no image; harness tests in `mtg-harness-test:engine1128`) | `engine1129-jr` (no image ids) | On top of engine1128. A review pass over `forge-harness/.../host` with golden-master photographs first. New tests `GoldenFileTest` (the recorder, 8 checks), `ProtocolGoldenTest` (353 rows: every protocol decode, agent prompts, game-start checks, checkpoint caps and thinning, runaway wording, held-pass phase rules, perks) and `SnapshotGoldenTest` (70 rows: 14 boards x 4 viewers + revisions); the recorded files are in `forge-harness/src/test/resources/golden`. Fixes: a colour answer `{"R":0,"G":1}` decoded as `R`, now the first colour with a count above 0 (`{"W":0}` still `W`); an `applyState` directive with no `ops` array refused at decode, and refused by the session with "the fix has no ops array" (before, a `ClassCastException`/NPE on the game thread); a spectator now reads a delayed trigger's text when its host is an LKI copy (Sneak Attack's end-step sacrifice), from `getLastKnownZone`. Tidy, no behaviour change: the controller's held pass is set and cleared through `holdPass`/`clearPassUntil`/`clearExhaust`; `AutoPay.payBudget` and `InteractiveSnapshotExtractor.shareCards` are `volatile`; the unused public 10-argument `snapshotJson` removed. Harness guide: five team rules listed, the game-level poison/commander limits read only with `sharedLife`/`sharedTurns`. `tools/mutate-engine-docker.js --set golden` 37 mutations, 36 caught by name, the one miss an equivalent program. Section 4 entry. | no | outer branch `worktree-agent-a3467a42910472022`; `engine/manabrew.patch` regenerated; `engine/forge.patch` unchanged | not deployed | engine1128 |
 | 2026-11-18 07:25 | `engine1128` (node `83edeb7f04e5` / relay `fe8ef72497aa`; harness test `171ba63f644b`) | engine1125 + engine1126 (team choices, chump-team) + engine1127-longtail + engine1128-gift, from main's patches (`cb1cbfc`), tree `tmp/eb-1128`, build id `eb-efe5e365beb2`. Harness 56 of 56 classes; live on test stack 3: phasing 29/29, events 51/51, new `tests/live_gift_check.js` 6/6 (fails on engine1125). Section 4 entry. | no | main `cb1cbfc` (patches from `43ebaad`) | not deployed; deploy `--image engine1128` with `MTG_MANABREW=tmp/eb-1128` | engine1125 (`tmp/eb-1125`) |
 | 2026-11-18 (no image; built in a cloud session) | `engine1128-gift` (no image ids) | On top of engine1126 + engine1127-longtail (`cloud/engine1126-combined`). A Gift spell whose targets depend on the gift (`TargetMin$ X` with `X:Count$PromisedGift`) is offered when it has legal targets with the gift promised. Long River's Pull (counter target creature spell; with the gift, instead target spell) was never offered with only a noncreature spell on the stack, and Into the Flood Maw (return a creature an opponent controls; with the gift, a nonland permanent) with only a noncreature permanent. `ActionSpace.hasValidTargets` read the target count before the cast: `Count$PromisedGift` reads `getCastSA().isGiftPromised()`, not promised until the gift is chosen at cast time (`HarnessPlayPlumbing.chooseOptionalAdditionalCosts`). Now a spell whose targets don't fit, and that has a `PromiseGift` optional cost not yet chosen, is checked again on a copy with the gift added. The copy is made the card's cast ability for the check and put back after. The action offered is the spell as it was, not promised, so its cast still asks the gift. Not checked here: a cast where the player declines the gift and the ungifted half has no legal target (Forge's own targeting step decides it). The other 24 Gift cards with `PromisedGift`: a larger count with the gift (Peerless Recycling, Wear Down: 2/1), an up-to count (Dewdrop Cure), or a target only with the gift (Consumed by Greed, Mind Spiral, Sazacap's Brew, Valley Rally, Wildfire Howl: 1/0) already passed, the count without the gift being the lower; the rest use it outside targeting. New harness test `common.GiftTargetsTest`, 11 checks: Long River's Pull and Into the Flood Maw offered for the gift's kind of target and not with none, a creature spell as before; the offered spell not promised with its gift still to choose; the card's cast ability put back; Wear Down with one target and not with none; Valley Rally with no gift target; Essence Scatter, no gift, not offered against a noncreature spell. `tools/mutate-gift-targets.js` 10 of 10 caught by name. Harness `--all` 56 of 56, `common.ActionSpaceTest` among them. | no | outer branch `cloud/gift-targets`; `engine/manabrew.patch` regenerated (`ActionSpace`, `GiftTargetsTest`); `engine/forge.patch` unchanged; `git apply --check` clean on `fd16e2f` / `e7d2b93b` | not deployed | engine1126-combined |
 | 2026-11-18 (no image; built in a cloud session) | `engine1127-longtail` (no image ids) | On top of engine1126 (`cloud/l2-team-choices`). The shared-turn long tail of 2HG Level 2 (plan §1.5 step 3), two Forge `PhaseHandler` fixes. (1) CR 800.4m with shared team turns: when a player leaves, their "until your next turn" effects (and the other until-their-turn durations `handleMultiplayerEffects` ends) last until their team's next turn would have begun. Before, they ended as the turn order passed the player's seat: a partner who left during her own team's turn had them end at the start of the other team's turn (one turn early), and a defender who left had them last a whole turn past her team's turn. Now a gone player with a teammate still in the game is ended when that team's turn begins; with the whole team gone, the seat walk stays as before; without shared team turns nothing changes. (2) `getActiveTeam` drops a player of the active team who left mid-turn (CR 800.4a takes the player out; that the partners carry on the turn is a design choice for team turns without shared life, since 2HG teams leave together, CR 810.8b), so when the first seat (the player whose turn Forge tracks) leaves, the turn goes on for the partner alone (she may still play a land, the team's steps run for her only); before, the gone first seat stayed on the active team. New harness test `LongTailTest` (18 checks: "until your next turn" for the controller and a partner, the three CR 800.4m cases (a gone partner, a gone defender, a whole gone team still on the seat walk), delayed triggers at the next end step / your next upkeep / the next upkeep firing once, a partner's extra combat with both partners attacking in each, the active team conceding mid-turn at six seats, a partner and the first seat leaving mid-turn in team turns (labelled `teamTurns`), teams of three untapping, drawing, playing lands, passing priority and attacking together, three teams of two taking turns in order), in `engine/checks/harness-tests.sh`; the two CR 800.4m checks and the first-seat check failed before the fixes. `tools/mutate-long-tail.js` 15 of 15 caught by name, every check named by one. Harness `--all` 55 of 55. Report: `docs/handoff/l2-long-tail-report.md`. | no | outer branch `cloud/l2-long-tail`; `engine/forge.patch` (`PhaseHandler`) and `engine/manabrew.patch` (`LongTailTest`) regenerated with `engine/make-patches.sh`; `git apply --check` clean on `fd16e2f` / `e7d2b93b` | not deployed | engine1126 |
@@ -310,6 +311,81 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-24 engine1129-jr: golden masters for the host package, three fixes (not built)
+- **Why:** the first review pass (photograph, structure, simplify, correctness, claims, docs) over
+  `forge-harness/src/main/java/forge/harness/host`, mainly `ManabrewProtocolAdapter`, `ManaBrewInteractiveSession`,
+  `ManaBrewInteractiveController`, `InteractiveSnapshotExtractor`, `ManaBrewEngineAdapter`, `Perks`, `TieOffer` and
+  `PriorityFastForward`. Plain-English summary: `docs/plain-english/engine.md`.
+- **Photographs (stage 0), new test classes, all in `engine/checks/harness-tests.sh`'s default list:**
+  - `GoldenFileTest`: the recorder. Rows are `<key>\t<escaped value>`; a changed value, a missing row, a row no
+    longer produced, an empty recording, a missing file and a duplicate key each fail by name; an exception is
+    recorded as `THROWS <class>: <message>`. 8 self-checks.
+  - `ProtocolGoldenTest` (`protocol_golden.txt`, 353 rows): `decodeAction` over about 115 messages (every canonical
+    type, malformed ones, and markers for a decoder that returns its input or changes it), `agentPrompt`,
+    `runawayWords`, `describeEngineError`, `checkpointCap` on both sides of every boundary, `thinCheckpoints`,
+    `invalidatedByExtraPhase`, `Perks.check`, and game starts through `parseStartGameRequest` +
+    `configureTeamRules` + `configurePlayerRules` + `configurePlayer` for Constructed and Commander (every team
+    rule, refusals, options, first player). Constants are read by reflection, so a compile-time constant changed in
+    the source is seen.
+  - `SnapshotGoldenTest` (`snapshot_golden.txt`, 70 rows): 14 boards (quiet, mixed, combat, hidden, flags, effects,
+    stack, moves, secrets, tokens, lost, delayed, fixnoops, fixopsobject) on a three-seat game, each snapshot for
+    viewers 0, 1, 2 and the spectator, plus the revision.
+  - Both files were captured twice in separate containers, byte-identical. Re-record after a deliberate change:
+    `-v "<dir>:/out" -e GOLDEN_WRITE=/out ... /harness-tests.sh ProtocolGoldenTest SnapshotGoldenTest` (the
+    script's header), then read the diff before copying the files in.
+  - **Graded:** `tools/mutate-engine-docker.js --set golden` (new set, copies only, the trees are never written):
+    37 mutations, 36 caught by name. The miss is an equivalent program: removing `faceShownTo`'s
+    `card.getController() == viewerPlayer` changes nothing, since it is called only for battlefield cards and
+    Forge's `canFaceDownBeShownTo` already shows a face-down permanent to its controller there.
+  - **Blind to:** concurrency (every fixture is single-threaded), the Rust side and the relay, real games over the
+    wire, and Forge AI decisions (AI seats take no turns in the fixtures).
+- **Fixes (stage 3, the golden rows changed on purpose):**
+  - `translateColorDecision`: a single-colour answer takes the first colour with a count above 0; with none above
+    0, the first key as before. `{"R":0,"G":1}` decoded as `R`, now `G`; `{"W":0}` (the shape every table sender
+    uses, `{[colour]: amount}`) is still `W`.
+  - `applyState`: a directive with `ops` missing, `null` or not an array is refused at decode
+    (`IllegalArgumentException: applyState needs an ops array`, on the submitting thread, as other malformed
+    directives are). Before, `"ops":null` reached `ManaBrewInteractiveSession.applyState`, whose
+    `getAsJsonArray("ops")` threw outside its try on the game thread. The session also refuses a flat action
+    without one, publishing `stateFix` `{applied:false, message:"the fix has no ops array"}`.
+  - `InteractiveSnapshotExtractor.shownTo` for the spectator reads `getLastKnownZone()` when the card has no zone.
+    Forge registers an `AtEOT` delayed trigger on an LKI copy of its host (`SpellAbilityEffect.registerDelayedTrigger`,
+    `CardCopyService.getLKICopy`, which copies the last known zone but not the zone), so the spectator saw Sneak
+    Attack's "Sacrifice Hill Giant at the beginning of the next end step." as a hidden entry with no text, while
+    every player saw it.
+- **Structure and tidy (stages 1 and 2, no behaviour change; the photographs and the full list pass unchanged):**
+  - `ManaBrewInteractiveController`: the held pass (seven fields) is set in one place, `holdPass`, and cleared by
+    `clearPassUntil` and `clearExhaust`, which `clearHeldPass` composes; before, three sites each cleared a
+    different subset by hand.
+  - `AutoPay.payBudget` and `InteractiveSnapshotExtractor.shareCards` are `volatile`, as
+    `ActionSpace.shareManaSources` already was (tests flip them while a game thread reads them).
+  - The public 10-argument `InteractiveSnapshotExtractor.snapshotJson` overload, unused, is removed.
+  - Not applied: `TieOffer.VIEWS`, a static weak map the snapshot reads instead of being passed the session's offer
+    (moving it means changing the snapshot entry point and every `TieOfferTest` read, and two offers on one game,
+    as that test makes, overwrite each other's view; in a real game there is one offer per game, so it is harmless
+    today); and the 11-parameter `snapshotJson` (a session-view record would fix its shape, together with the tie
+    offer's view).
+- **Claims (stage 3b), `forge-harness/src/main/java/forge/harness/AGENTS.md`:** the team-rules paragraph said
+  `configureTeamRules` refuses a `poisonToLose` or `commanderDamageToLose` below 1; only `sharedLife` and
+  `sharedTurns` read or check the game-level limits (`teams` and `teamTurns` ignore them; a seat's own
+  `commanderDamageToLose` is refused below 1 in every game). The sentence was corrected rather than the code,
+  since refusing ignored values could stop a room's start; it also lists all five rules now (`sharedTurns` and
+  `teamTurns` were missing). The golden rows `start teams poison zero`, `start sharedLife poison zero`, `start
+  commanderDamage zero` and `start teamTurns apart` pin each part. Reported, not changed (upstream code): the guide
+  says never to call `checkGameOverCondition()` from inside an await, and upstream's concede path in the take core
+  does.
+- **A hole the grading found:** `HeldPassResponseTest`'s fixture set the held fields by reflection, mirroring the
+  assignment, so a `holdPass` that forgot the offered actions passed. The fixture now holds through the real
+  `holdPass` with an exhaust-stack `PriorityChoice`; that mutation fails `aNewInstantEndsTheHold`.
+- **Tests:** `engine/checks/harness-tests.sh`'s default list (47 classes, 44 before) in `mtg-harness-test:engine1128`,
+  `--cpus 2`: 47 of 47 before the fixes (1137 `ok` lines, 589 s) and 47 of 47 after (1150 `ok` lines, 457 s).
+- **Files:** `ManabrewProtocolAdapter`, `ManaBrewInteractiveSession`, `ManaBrewInteractiveController`,
+  `InteractiveSnapshotExtractor`, `common/AutoPay`, `AGENTS.md` (harness), `HeldPassResponseTest`; new tests `GoldenFileTest`,
+  `ProtocolGoldenTest`, `SnapshotGoldenTest` and `src/test/resources/golden/*`. Outer repo:
+  `engine/manabrew.patch`, `engine/checks/harness-tests.sh` (default list, `GOLDEN_WRITE`),
+  `tools/mutate-engine-docker.js` (`--set golden`). No protocol, Rust or Forge change.
+- **Rollback:** engine1128 (`tmp/eb-1128`); not built or deployed.
 
 ### 2026-11-18 engine1128: engine1125 + engine1126 + engine1127-longtail + engine1128-gift, built (not deployed)
 - **What:** the engine local main carries in `engine/manabrew.patch` and `engine/forge.patch` at `cb1cbfc` (the patches
