@@ -1,0 +1,12 @@
+{
+  "label": "batch 2 live check (2026-11-12, typed mid-game): live-b2-a without the planeswalk (Interplanar Tunnel wasn't in a random planar deck): Lost Mine in Goblin Lair with Nadaar to venture; Thalia for cost badges; two Counterspells for the AI; Murder to send Mairsil back for the commander tax badge",
+  "lands": { "Island": 7, "Swamp": 7, "Mountain": 6 },
+  "mana": 30,
+  "hand": ["Valki, God of Lies", "Lightning Bolt", "Murder", "Opt", "Nadaar, Selfless Paladin", "Grizzly Bears"],
+  "dungeon": { "name": "Lost Mine of Phandelver", "room": "Goblin Lair" },
+  "opponents": {
+    "battlefield": ["Thalia, Guardian of Thraben"],
+    "hand": ["Counterspell", "Counterspell"],
+    "lands": { "Island": 4 }
+  }
+}

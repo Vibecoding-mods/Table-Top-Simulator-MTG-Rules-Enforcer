@@ -1,0 +1,28 @@
+{
+  "label": "kw-10: sacrifice Kitchen Finks, Young Wolf, Thief of Hope; Garza's Assassin recovers; Tragic Slip morbid; Ominous Harvest gravestorm",
+  "mana": 5,
+  "battlefield": [
+    "Viscera Seer",
+    "Kitchen Finks",
+    "Young Wolf",
+    "Thief of Hope"
+  ],
+  "graveyard": [
+    "Garza's Assassin",
+    "Kami of Ancient Law"
+  ],
+  "hand": [
+    "Tragic Slip",
+    "Ominous Harvest"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Craw Wurm"
+    ]
+  },
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

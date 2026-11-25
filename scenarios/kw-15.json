@@ -1,0 +1,18 @@
+{
+  "label": "kw-15: two AIs; Wyrm's Crossing Patrol myriad, Tempt with Discovery, Mob Verdict, Expropriate, Path of the Pyromancer",
+  "mana": 5,
+  "battlefield": [
+    "Wyrm's Crossing Patrol"
+  ],
+  "hand": [
+    "Tempt with Discovery",
+    "Mob Verdict",
+    "Expropriate",
+    "Path of the Pyromancer"
+  ],
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

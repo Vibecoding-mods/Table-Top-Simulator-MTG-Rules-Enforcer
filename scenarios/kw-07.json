@@ -1,0 +1,32 @@
+{
+  "label": "kw-07: Lash Out clash, two Monstrous Rage Roles, two Fatehold Charm empowers, Badgermole Cub earthbend, Eyes of Gitaxias incubate, Highway Robbery plotted",
+  "mana": 5,
+  "battlefield": [
+    "Grizzly Bears"
+  ],
+  "hand": [
+    "Lash Out",
+    "Monstrous Rage",
+    "Monstrous Rage",
+    "Fatehold Charm",
+    "Fatehold Charm",
+    "Badgermole Cub",
+    "Eyes of Gitaxias",
+    "Highway Robbery"
+  ],
+  "library": [
+    "Craw Wurm",
+    "Craw Wurm",
+    "Craw Wurm"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Hill Giant"
+    ]
+  },
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

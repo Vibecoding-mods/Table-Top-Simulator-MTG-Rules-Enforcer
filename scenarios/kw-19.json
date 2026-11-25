@@ -1,0 +1,26 @@
+{
+  "label": "kw-19: Mairsil cast first (lieutenant), Divination and Searing Barrage (opus, flurry), Hero of Goma Fada rally, Springjack Shepherd chroma, Kitchen Finks lifegain, Moseo infusion at the end step",
+  "mana": 5,
+  "battlefield": [
+    "Cori-Steel Cutter",
+    "Molten-Core Maestro",
+    "Moseo, Vein's New Dean",
+    "Loyal Apprentice"
+  ],
+  "hand": [
+    "Divination",
+    "Searing Barrage",
+    "Hero of Goma Fada",
+    "Springjack Shepherd",
+    "Kitchen Finks"
+  ],
+  "graveyard": [
+    "Grizzly Bears",
+    "Hill Giant"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Wall of Omens"
+    ]
+  }
+}

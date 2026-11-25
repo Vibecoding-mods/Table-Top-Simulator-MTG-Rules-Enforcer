@@ -1,0 +1,36 @@
+{
+  "label": "kw-03: Mountains only; Unholy Heat delirium, Fiery Impulse spell mastery, Searing Barrage adamant, raid and bloodthirst after an attack, Cackling Flames hellbent",
+  "mana": 0,
+  "lands": {
+    "Mountain": 20
+  },
+  "battlefield": [
+    "Raging Goblin"
+  ],
+  "hand": [
+    "Fiery Impulse",
+    "Unholy Heat",
+    "Searing Barrage",
+    "Mardu Heart-Piercer",
+    "Gorehorn Minotaurs",
+    "Cackling Flames"
+  ],
+  "graveyard": [
+    "Lightning Bolt",
+    "Divination",
+    "Ornithopter",
+    "Grizzly Bears",
+    "Mountain"
+  ],
+  "library": [
+    "Mountain",
+    "Mountain"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Hill Giant",
+      "Ripjaw Raptor",
+      "Wall of Omens"
+    ]
+  }
+}

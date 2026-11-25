@@ -1,0 +1,9 @@
+{
+  "label": "batch 1 live check part 2 (2026-11-12, typed mid-game): Jace Beleren so Hero's tokens ask which defender, a second Counterspell (COUNTERED pop-up), Fury for the evoke log line",
+  "hand": ["Fury"],
+  "opponents": {
+    "battlefield": ["Jace Beleren"],
+    "hand": ["Counterspell"],
+    "lands": { "Island": 3 }
+  }
+}

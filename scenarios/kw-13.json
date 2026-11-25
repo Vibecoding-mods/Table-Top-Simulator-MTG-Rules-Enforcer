@@ -1,0 +1,30 @@
+{
+  "label": "kw-13: Rootborn Defenses populates a Wolf, Analyze the Pollen collects evidence, First Day of Class learns, Starscream converted, Ratchet converts on lifegain",
+  "mana": 5,
+  "tokens": [
+    "2/2 green wolf"
+  ],
+  "hand": [
+    "Rootborn Defenses",
+    "Analyze the Pollen",
+    "First Day of Class",
+    "Starscream, Power Hungry",
+    "Ratchet, Field Medic",
+    "Kitchen Finks",
+    "Mountain"
+  ],
+  "graveyard": [
+    "Craw Wurm",
+    "Hill Giant",
+    "Ornithopter"
+  ],
+  "library": [
+    "Grizzly Bears",
+    "Grizzly Bears"
+  ],
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

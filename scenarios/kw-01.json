@@ -1,0 +1,34 @@
+{
+  "label": "kw-01: Drawbridge can't attack, Consider surveils, Ram-Gang fights a tapped Craw Wurm with wither, Glistener Elf poisons",
+  "mana": 5,
+  "battlefield": [
+    "Crashing Drawbridge",
+    "Raging Goblin",
+    "Boggart Ram-Gang",
+    "Glistener Elf"
+  ],
+  "hand": [
+    "Consider",
+    "Prey Upon",
+    "Giant Growth"
+  ],
+  "library": [
+    "Island",
+    "Island",
+    "Island"
+  ],
+  "opponents": {
+    "battlefield": [
+      {
+        "name": "Craw Wurm",
+        "tapped": true
+      }
+    ]
+  },
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 5,
+    "Forest": 1
+  }
+}

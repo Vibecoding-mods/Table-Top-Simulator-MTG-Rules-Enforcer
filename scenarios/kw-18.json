@@ -1,0 +1,22 @@
+{
+  "label": "kw-18: Huddle Up asks AI 1 to assist, Pensive Professor increments, Treetop Sentries forages, Mesmeric Sliver fateseals",
+  "mana": 5,
+  "battlefield": [
+    "Pensive Professor"
+  ],
+  "hand": [
+    "Huddle Up",
+    "Treetop Sentries",
+    "Mesmeric Sliver"
+  ],
+  "graveyard": [
+    "Island",
+    "Island",
+    "Island"
+  ],
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

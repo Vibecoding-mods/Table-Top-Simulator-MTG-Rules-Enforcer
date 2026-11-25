@@ -155,7 +155,7 @@ The user's list, in their order. Most items need a running TTS table in debug mo
     - Creatures that can't attack listed with the reason, instead of silently missing from the list.
     - Spec in progress: docs/attack-reminder-spec.md. Propaganda's tax has never been seen live (Kykar test: the AI
       never attacked into it).
-    - **Seen live 2026-11-10 ~11:48** (the user vs a friend, packaged build): White had Crawlspace and Norn's Annex.
+    - **Seen live 2026-11-10 ~11:48** (the user vs a friend on a Steam Deck, packaged build): White had Crawlspace and Norn's Annex.
       Blue sent "All attack" with 3 creatures 8 times. Forge's refusal is a bare "Attack declaration invalid" with no
       reason, and the bridge (~line 6299) words it "That attack isn't legal. Something on the table limits who can
       attack..." without naming Crawlspace's 2-creature limit. Players thought it was a glitch. The cheapest fix is

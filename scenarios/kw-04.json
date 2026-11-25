@@ -1,0 +1,31 @@
+{
+  "label": "kw-04: Jadelight explores twice, Roastmaster alliance pings, Shock on Ripjaw Raptor, Rhizome Lurcher counts the graveyard, Kona survival, Grave Researcher prepared",
+  "mana": 5,
+  "battlefield": [
+    "Grave Researcher",
+    "Witty Roastmaster",
+    "Ripjaw Raptor",
+    "Kona, Rescue Beastie"
+  ],
+  "hand": [
+    "Jadelight Ranger",
+    "Shock",
+    "Rhizome Lurcher",
+    "Wall of Omens"
+  ],
+  "graveyard": [
+    "Craw Wurm",
+    "Hill Giant",
+    "Grizzly Bears"
+  ],
+  "library": [
+    "Grizzly Bears",
+    "Grizzly Bears",
+    "Grizzly Bears"
+  ],
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

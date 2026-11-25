@@ -1,0 +1,25 @@
+{
+  "label": "kw-06: Bashtronaut start your engines, Marauders vanishing 2, Mogg War Marshal echo (declined), Ridgeback fading 2, Whispers buyback, Barbed Lightning entwined",
+  "mana": 5,
+  "battlefield": [
+    "Raging Goblin"
+  ],
+  "hand": [
+    "Burnout Bashtronaut",
+    "Keldon Marauders",
+    "Mogg War Marshal",
+    "Skyshroud Ridgeback",
+    "Whispers of the Muse",
+    "Barbed Lightning"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Hill Giant"
+    ]
+  },
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

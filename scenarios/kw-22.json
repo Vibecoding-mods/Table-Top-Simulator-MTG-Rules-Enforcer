@@ -1,0 +1,35 @@
+{
+  "label": "kw-22: Changeling Hero champions Grizzly Bears, Fall of the Titans surged, Burn Trail conspired, Channeled Dragonfire harmonized, Nessian Wilds Ravager tribute, Improvisation Capstone paradigm",
+  "mana": 5,
+  "battlefield": [
+    "Grizzly Bears",
+    "Raging Goblin",
+    "Raging Goblin",
+    "Craw Wurm"
+  ],
+  "hand": [
+    "Changeling Hero",
+    "Shock",
+    "Fall of the Titans",
+    "Burn Trail",
+    "Nessian Wilds Ravager",
+    "Improvisation Capstone"
+  ],
+  "graveyard": [
+    "Channeled Dragonfire"
+  ],
+  "library": [
+    "Hill Giant",
+    "Hill Giant"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Wall of Omens"
+    ]
+  },
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

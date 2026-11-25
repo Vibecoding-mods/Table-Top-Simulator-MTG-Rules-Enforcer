@@ -1,0 +1,33 @@
+{
+  "label": "kw-23: four typecyclers find Swamp, Island, Prodigal Sorcerer, Delighted Halfling; Goblin Grappler provokes a tapped Hill Giant",
+  "mana": 5,
+  "battlefield": [
+    "Goblin Grappler"
+  ],
+  "hand": [
+    "Troll of Khazad-dûm",
+    "Monstrosity of the Lake",
+    "Step Through",
+    "Hobbit Hole"
+  ],
+  "library": [
+    "Swamp",
+    "Island",
+    "Prodigal Sorcerer",
+    "Delighted Halfling",
+    "Island"
+  ],
+  "opponents": {
+    "battlefield": [
+      {
+        "name": "Hill Giant",
+        "tapped": true
+      }
+    ]
+  },
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "label": "kw-20: Case solved at the end step, Radical Idea jumps, Voice of Victory mobilizes; on AI 1's turn Wash Away (cleave) and Spider-Sense (web-slinging) counter two Divinations",
+  "mana": 5,
+  "battlefield": [
+    "Voice of Victory",
+    "Grizzly Bears"
+  ],
+  "hand": [
+    "Case of the Locked Hothouse",
+    "Radical Idea",
+    "Island",
+    "Wash Away",
+    "Spider-Sense",
+    "Divination",
+    "Divination"
+  ],
+  "opponents": {
+    "hand": [
+      "Divination",
+      "Divination"
+    ],
+    "lands": {
+      "Island": 6
+    }
+  },
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}
