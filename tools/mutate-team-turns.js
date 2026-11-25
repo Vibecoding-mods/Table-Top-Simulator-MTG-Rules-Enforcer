@@ -26,7 +26,7 @@ const MUTATIONS = [
   ["click: skips the chat (no host check)", R, "function onMtgSetupTeamTurns(obj, playerColor)\n  local pl = Player[playerColor]\n  if pl == nil then return end\n",
     "function onMtgSetupTeamTurns(obj, playerColor)\n  local pl = Player[playerColor]\n  if pl == nil then return end\n  if true then ENGINE_TEAM_TURNS = ENGINE_TEAM_TURNS == nil and \"shared\" or nil return end\n", TT, "click: not the host, refused, nothing changes"],
   ["label: always Own", R, "(ENGINE_TEAM_TURNS == \"shared\" and \"Shared\" or \"Own\")", "\"Own\"", TT, "click: the label says Shared"],
-  ["table: 3HG sends no team turns", R, "(ENGINE_TEAM_MODE == \"2hg\" or ENGINE_TEAM_MODE == \"3hg\")) end", "ENGINE_TEAM_MODE == \"2hg\") end", TT, "3HG: Start sends teamTurns shared (no longer ignored)"],
+  ["table: 3HG sends no team turns", R, "(ENGINE_TEAM_MODE == \"2hg\" or ENGINE_TEAM_MODE == \"3hg\") end", "ENGINE_TEAM_MODE == \"2hg\" end", TT, "3HG: Start sends teamTurns shared (no longer ignored)"],
   ["table: mtg 3hg turns not a command", R, "(rest:sub(1, 3) == \"2hg\" or rest:sub(1, 3) == \"3hg\")", "rest:sub(1, 3) == \"2hg\"", TT, "3HG: mtg 3hg turns says the setting and how"],
   ["table: said as Two-Headed Giant in 3HG", R, "local three = (engineTeamTurnsMode() and ENGINE_TEAM_MODE or word) == \"3hg\"", "local three = word == \"3hg\"", TT, "3HG: the one setting, typed as 2hg too, named by the mode set"],
   ["table: Teams label without 3HG team turns", R, "m == \"3hg\" and (ENGINE_TEAM_TURNS == \"shared\" and \"3HG team turns\" or \"3HG\")", "m == \"3hg\" and \"3HG\"", TT, "3HG: the Teams button says 3HG team turns"],
