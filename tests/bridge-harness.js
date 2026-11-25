@@ -125,6 +125,9 @@ function load({ imageCache = {}, scryfall = "up", cardFaces = {}, scryfallCards 
   try { B = require(BRIDGE); } finally {
     for (const [k, v] of Object.entries(had)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   }
+  // (the ban lists: never the live bridge's Scryfall cache, which a running bridge refreshes, so the golden always
+  // sees Forge's own list; a test of the cache configures its own file after this)
+  if (B._legality) B._legality.configure({ cacheFile: path.join(resumeDir, "no-legality-cache.json") });
 
   async function flush(limit = 400) {
     for (let k = 0; k < limit; k++) {
