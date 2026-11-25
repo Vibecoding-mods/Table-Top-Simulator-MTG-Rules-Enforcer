@@ -1,0 +1,922 @@
+[
+ {
+  "name": "surface",
+  "result": [
+   [
+    "BRIDGE_FILES",
+    "object",
+    null
+   ],
+   [
+    "COMPOSE",
+    "string",
+    null
+   ],
+   [
+    "MANIFEST",
+    "string",
+    null
+   ],
+   [
+    "TABLE_SOURCE",
+    "object",
+    null
+   ],
+   [
+    "bridgeHash",
+    "function",
+    0
+   ],
+   [
+    "containerBuild",
+    "function",
+    1
+   ],
+   [
+    "containerImages",
+    "function",
+    1
+   ],
+   [
+    "fileHash",
+    "function",
+    1
+   ],
+   [
+    "outOfStep",
+    "function",
+    2
+   ],
+   [
+    "readManifest",
+    "function",
+    0
+   ],
+   [
+    "sha8",
+    "function",
+    1
+   ],
+   [
+    "waiting",
+    "function",
+    1
+   ]
+  ]
+ },
+ {
+  "name": "BRIDGE_FILES (names)",
+  "result": [
+   "bridge.js",
+   "state-delta.js",
+   "presets.js",
+   "versions.js",
+   "editor-forward.js",
+   "home.js",
+   "gifs.js",
+   "teams.js",
+   "accomplishments.js",
+   "legality.js",
+   "legality-worker.js",
+   "format-rules.js"
+  ]
+ },
+ {
+  "name": "TABLE_SOURCE (names)",
+  "result": [
+   "tools/engine-renderer.lua",
+   "tools/engine-json.lua"
+  ]
+ },
+ {
+  "name": "outOfStep allMatch vs deployed",
+  "result": []
+ },
+ {
+  "name": "outOfStep allMatch vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep allMatch vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep allMatch vs noConfig",
+  "result": []
+ },
+ {
+  "name": "outOfStep allMatch vs configUndefMatch",
+  "result": [
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep bridgeDiff vs deployed",
+  "result": [
+   "The bridge isn't the deployed one: restart it between games."
+  ]
+ },
+ {
+  "name": "outOfStep bridgeDiff vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep bridgeDiff vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep bridgeDiff vs noConfig",
+  "result": [
+   "The bridge isn't the deployed one: restart it between games."
+  ]
+ },
+ {
+  "name": "outOfStep bridgeDiff vs configUndefMatch",
+  "result": [
+   "The bridge isn't the deployed one: restart it between games.",
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep tableNull vs deployed",
+  "result": [
+   "This table has no version: it is older than the last deploy. Load the save again."
+  ]
+ },
+ {
+  "name": "outOfStep tableNull vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep tableNull vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep tableNull vs noConfig",
+  "result": [
+   "This table has no version: it is older than the last deploy. Load the save again."
+  ]
+ },
+ {
+  "name": "outOfStep tableNull vs configUndefMatch",
+  "result": [
+   "This table has no version: it is older than the last deploy. Load the save again.",
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep tableUndef vs deployed",
+  "result": []
+ },
+ {
+  "name": "outOfStep tableUndef vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep tableUndef vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep tableUndef vs noConfig",
+  "result": []
+ },
+ {
+  "name": "outOfStep tableUndef vs configUndefMatch",
+  "result": [
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep tableDev vs deployed",
+  "result": [
+   "This table was built from source, not deployed."
+  ]
+ },
+ {
+  "name": "outOfStep tableDev vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep tableDev vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep tableDev vs noConfig",
+  "result": [
+   "This table was built from source, not deployed."
+  ]
+ },
+ {
+  "name": "outOfStep tableDev vs configUndefMatch",
+  "result": [
+   "This table was built from source, not deployed.",
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep tableDiff vs deployed",
+  "result": [
+   "This table isn't the deployed one. Load the save again, and don't save over it from an older session."
+  ]
+ },
+ {
+  "name": "outOfStep tableDiff vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep tableDiff vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep tableDiff vs noConfig",
+  "result": [
+   "This table isn't the deployed one. Load the save again, and don't save over it from an older session."
+  ]
+ },
+ {
+  "name": "outOfStep tableDiff vs configUndefMatch",
+  "result": [
+   "This table isn't the deployed one. Load the save again, and don't save over it from an older session.",
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep tableEmpty vs deployed",
+  "result": [
+   "This table isn't the deployed one. Load the save again, and don't save over it from an older session."
+  ]
+ },
+ {
+  "name": "outOfStep tableEmpty vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep tableEmpty vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep tableEmpty vs noConfig",
+  "result": [
+   "This table isn't the deployed one. Load the save again, and don't save over it from an older session."
+  ]
+ },
+ {
+  "name": "outOfStep tableEmpty vs configUndefMatch",
+  "result": [
+   "This table isn't the deployed one. Load the save again, and don't save over it from an older session.",
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep nodeNull vs deployed",
+  "result": [
+   "Can't read the engine's containers: is Docker up?"
+  ]
+ },
+ {
+  "name": "outOfStep nodeNull vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep nodeNull vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep nodeNull vs noConfig",
+  "result": [
+   "Can't read the engine's containers: is Docker up?"
+  ]
+ },
+ {
+  "name": "outOfStep nodeNull vs configUndefMatch",
+  "result": [
+   "Can't read the engine's containers: is Docker up?"
+  ]
+ },
+ {
+  "name": "outOfStep nodeUndef vs deployed",
+  "result": [
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep nodeUndef vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep nodeUndef vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep nodeUndef vs noConfig",
+  "result": []
+ },
+ {
+  "name": "outOfStep nodeUndef vs configUndefMatch",
+  "result": []
+ },
+ {
+  "name": "outOfStep nodeConfig vs deployed",
+  "result": []
+ },
+ {
+  "name": "outOfStep nodeConfig vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep nodeConfig vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep nodeConfig vs noConfig",
+  "result": [
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep nodeConfig vs configUndefMatch",
+  "result": [
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep nodeDiff vs deployed",
+  "result": [
+   "The engine isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep nodeDiff vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep nodeDiff vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep nodeDiff vs noConfig",
+  "result": [
+   "The engine isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep nodeDiff vs configUndefMatch",
+  "result": [
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep relayDiff vs deployed",
+  "result": [
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep relayDiff vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep relayDiff vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep relayDiff vs noConfig",
+  "result": [
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep relayDiff vs configUndefMatch",
+  "result": [
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep crossed vs deployed",
+  "result": [
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep crossed vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep crossed vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep crossed vs noConfig",
+  "result": [
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep crossed vs configUndefMatch",
+  "result": [
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep remote vs deployed",
+  "result": []
+ },
+ {
+  "name": "outOfStep remote vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep remote vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep remote vs noConfig",
+  "result": []
+ },
+ {
+  "name": "outOfStep remote vs configUndefMatch",
+  "result": []
+ },
+ {
+  "name": "outOfStep remoteDiff vs deployed",
+  "result": [
+   "The bridge isn't the deployed one: restart it between games.",
+   "This table isn't the deployed one. Load the save again, and don't save over it from an older session."
+  ]
+ },
+ {
+  "name": "outOfStep remoteDiff vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep remoteDiff vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep remoteDiff vs noConfig",
+  "result": [
+   "The bridge isn't the deployed one: restart it between games.",
+   "This table isn't the deployed one. Load the save again, and don't save over it from an older session."
+  ]
+ },
+ {
+  "name": "outOfStep remoteDiff vs configUndefMatch",
+  "result": [
+   "The bridge isn't the deployed one: restart it between games.",
+   "This table isn't the deployed one. Load the save again, and don't save over it from an older session."
+  ]
+ },
+ {
+  "name": "outOfStep everything vs deployed",
+  "result": [
+   "The bridge isn't the deployed one: restart it between games.",
+   "This table isn't the deployed one. Load the save again, and don't save over it from an older session.",
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep everything vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep everything vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep everything vs noConfig",
+  "result": [
+   "The bridge isn't the deployed one: restart it between games.",
+   "This table isn't the deployed one. Load the save again, and don't save over it from an older session.",
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep everything vs configUndefMatch",
+  "result": [
+   "The bridge isn't the deployed one: restart it between games.",
+   "This table isn't the deployed one. Load the save again, and don't save over it from an older session.",
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep empty vs deployed",
+  "result": [
+   "The bridge isn't the deployed one: restart it between games.",
+   "The engine isn't the deployed image.",
+   "The relay isn't the deployed image."
+  ]
+ },
+ {
+  "name": "outOfStep empty vs none",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep empty vs undef",
+  "result": [
+   "No deploy on record: can't tell whether the bridge, table and engine match."
+  ]
+ },
+ {
+  "name": "outOfStep empty vs noConfig",
+  "result": [
+   "The bridge isn't the deployed one: restart it between games."
+  ]
+ },
+ {
+  "name": "outOfStep empty vs configUndefMatch",
+  "result": [
+   "The bridge isn't the deployed one: restart it between games."
+  ]
+ },
+ {
+  "name": "outOfStep null now",
+  "threw": {
+   "type": "TypeError",
+   "message": "Cannot read properties of null (reading 'bridge')"
+  }
+ },
+ {
+  "name": "sha8 empty",
+  "result": "e3b0c442"
+ },
+ {
+  "name": "sha8 text",
+  "result": "2cf24dba"
+ },
+ {
+  "name": "sha8 unicode",
+  "result": "cd7712e4"
+ },
+ {
+  "name": "sha8 buffer",
+  "result": "039058c6"
+ },
+ {
+  "name": "fileHash one file",
+  "result": "b6a98d9c"
+ },
+ {
+  "name": "fileHash binary",
+  "result": "f474676c"
+ },
+ {
+  "name": "fileHash list",
+  "result": "6327c6ee"
+ },
+ {
+  "name": "fileHash list reversed",
+  "result": "5c9627c4"
+ },
+ {
+  "name": "fileHash list of one",
+  "result": "b6a98d9c"
+ },
+ {
+  "name": "fileHash empty list",
+  "result": "e3b0c442"
+ },
+ {
+  "name": "fileHash missing",
+  "result": null
+ },
+ {
+  "name": "fileHash list with a missing",
+  "result": null
+ },
+ {
+  "name": "containerImages two lines",
+  "result": {
+   "node": "sha256:n",
+   "relay": "sha256:r"
+  },
+  "calls": [
+   {
+    "cmd": "docker",
+    "args": [
+     "inspect",
+     "-f",
+     "{{.Image}}",
+     "golden-forge-room-1",
+     "golden-relay-1"
+    ],
+    "timeout": 8000
+   }
+  ]
+ },
+ {
+  "name": "containerImages CRLF and spaces",
+  "result": {
+   "node": "sha256:n",
+   "relay": "sha256:r"
+  },
+  "calls": [
+   {
+    "cmd": "docker",
+    "args": [
+     "inspect",
+     "-f",
+     "{{.Image}}",
+     "golden-forge-room-1",
+     "golden-relay-1"
+    ],
+    "timeout": 8000
+   }
+  ]
+ },
+ {
+  "name": "containerImages one line",
+  "result": {
+   "node": null,
+   "relay": null
+  },
+  "calls": [
+   {
+    "cmd": "docker",
+    "args": [
+     "inspect",
+     "-f",
+     "{{.Image}}",
+     "golden-forge-room-1",
+     "golden-relay-1"
+    ],
+    "timeout": 8000
+   }
+  ]
+ },
+ {
+  "name": "containerImages three lines",
+  "result": {
+   "node": null,
+   "relay": null
+  },
+  "calls": [
+   {
+    "cmd": "docker",
+    "args": [
+     "inspect",
+     "-f",
+     "{{.Image}}",
+     "golden-forge-room-1",
+     "golden-relay-1"
+    ],
+    "timeout": 8000
+   }
+  ]
+ },
+ {
+  "name": "containerImages error with output",
+  "result": {
+   "node": null,
+   "relay": null
+  },
+  "calls": [
+   {
+    "cmd": "docker",
+    "args": [
+     "inspect",
+     "-f",
+     "{{.Image}}",
+     "golden-forge-room-1",
+     "golden-relay-1"
+    ],
+    "timeout": 8000
+   }
+  ]
+ },
+ {
+  "name": "containerImages empty",
+  "result": {
+   "node": null,
+   "relay": null
+  },
+  "calls": [
+   {
+    "cmd": "docker",
+    "args": [
+     "inspect",
+     "-f",
+     "{{.Image}}",
+     "golden-forge-room-1",
+     "golden-relay-1"
+    ],
+    "timeout": 8000
+   }
+  ]
+ },
+ {
+  "name": "containerImages undefined out",
+  "result": {
+   "node": null,
+   "relay": null
+  },
+  "calls": [
+   {
+    "cmd": "docker",
+    "args": [
+     "inspect",
+     "-f",
+     "{{.Image}}",
+     "golden-forge-room-1",
+     "golden-relay-1"
+    ],
+    "timeout": 8000
+   }
+  ]
+ },
+ {
+  "name": "containerBuild set",
+  "result": "abc123",
+  "calls": [
+   {
+    "cmd": "docker",
+    "args": [
+     "inspect",
+     "-f",
+     "{{range .Config.Env}}{{println .}}{{end}}",
+     "golden-forge-room-1"
+    ],
+    "timeout": 8000
+   }
+  ]
+ },
+ {
+  "name": "containerBuild CRLF",
+  "result": "abc",
+  "calls": [
+   {
+    "cmd": "docker",
+    "args": [
+     "inspect",
+     "-f",
+     "{{range .Config.Env}}{{println .}}{{end}}",
+     "golden-forge-room-1"
+    ],
+    "timeout": 8000
+   }
+  ]
+ },
+ {
+  "name": "containerBuild missing",
+  "result": null,
+  "calls": [
+   {
+    "cmd": "docker",
+    "args": [
+     "inspect",
+     "-f",
+     "{{range .Config.Env}}{{println .}}{{end}}",
+     "golden-forge-room-1"
+    ],
+    "timeout": 8000
+   }
+  ]
+ },
+ {
+  "name": "containerBuild empty value",
+  "result": null,
+  "calls": [
+   {
+    "cmd": "docker",
+    "args": [
+     "inspect",
+     "-f",
+     "{{range .Config.Env}}{{println .}}{{end}}",
+     "golden-forge-room-1"
+    ],
+    "timeout": 8000
+   }
+  ]
+ },
+ {
+  "name": "containerBuild prefix only inside another",
+  "result": null,
+  "calls": [
+   {
+    "cmd": "docker",
+    "args": [
+     "inspect",
+     "-f",
+     "{{range .Config.Env}}{{println .}}{{end}}",
+     "golden-forge-room-1"
+    ],
+    "timeout": 8000
+   }
+  ]
+ },
+ {
+  "name": "containerBuild error",
+  "result": null,
+  "calls": [
+   {
+    "cmd": "docker",
+    "args": [
+     "inspect",
+     "-f",
+     "{{range .Config.Env}}{{println .}}{{end}}",
+     "golden-forge-room-1"
+    ],
+    "timeout": 8000
+   }
+  ]
+ },
+ {
+  "name": "containerBuild two lines, first wins",
+  "result": "one",
+  "calls": [
+   {
+    "cmd": "docker",
+    "args": [
+     "inspect",
+     "-f",
+     "{{range .Config.Env}}{{println .}}{{end}}",
+     "golden-forge-room-1"
+    ],
+    "timeout": 8000
+   }
+  ]
+ }
+]

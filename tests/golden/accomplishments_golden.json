@@ -1,0 +1,691 @@
+[
+ {
+  "name": "surface",
+  "result": [
+   [
+    "ACCOMPLISHMENTS",
+    "object",
+    {
+     "forced-tie": {
+      "name": "Stalemate",
+      "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress."
+     }
+    }
+   ],
+   [
+    "createAccomplishments",
+    "function",
+    0
+   ],
+   [
+    "steamKey",
+    "function",
+    1
+   ]
+  ]
+ },
+ {
+  "name": "steamKey \"76561198000000001\"",
+  "result": "76561198000000001"
+ },
+ {
+  "name": "steamKey \"1234\"",
+  "result": null
+ },
+ {
+  "name": "steamKey \"12345\"",
+  "result": "12345"
+ },
+ {
+  "name": "steamKey \"11111111111111111111\"",
+  "result": "11111111111111111111"
+ },
+ {
+  "name": "steamKey \"111111111111111111111\"",
+  "result": null
+ },
+ {
+  "name": "steamKey 76561198000000000",
+  "result": "76561198000000000"
+ },
+ {
+  "name": "steamKey 12345",
+  "result": "12345"
+ },
+ {
+  "name": "steamKey null",
+  "result": null
+ },
+ {
+  "name": "steamKey undefined",
+  "result": null
+ },
+ {
+  "name": "steamKey \"\"",
+  "result": null
+ },
+ {
+  "name": "steamKey \" 12345\"",
+  "result": null
+ },
+ {
+  "name": "steamKey \"12345 \"",
+  "result": null
+ },
+ {
+  "name": "steamKey \"12a45\"",
+  "result": null
+ },
+ {
+  "name": "steamKey \"-12345\"",
+  "result": null
+ },
+ {
+  "name": "steamKey \"1e10\"",
+  "result": null
+ },
+ {
+  "name": "steamKey \"00000\"",
+  "result": "00000"
+ },
+ {
+  "name": "session: memory only: earn, again, list",
+  "effects": [
+   {
+    "step": "earn",
+    "result": {
+     "id": "forced-tie",
+     "name": "Stalemate",
+     "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+     "count": 1,
+     "first": "2026-11-24",
+     "last": "2026-11-24"
+    }
+   },
+   {
+    "step": "+1 day",
+    "result": "2026-11-25T12:00:00.000Z"
+   },
+   {
+    "step": "earn again",
+    "result": {
+     "id": "forced-tie",
+     "name": "Stalemate",
+     "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+     "count": 2,
+     "first": "2026-11-24",
+     "last": "2026-11-25"
+    }
+   },
+   {
+    "step": "list",
+    "result": [
+     {
+      "id": "forced-tie",
+      "name": "Stalemate",
+      "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+      "count": 2,
+      "first": "2026-11-24",
+      "last": "2026-11-25"
+     }
+    ]
+   },
+   {
+    "step": "list other",
+    "result": []
+   }
+  ]
+ },
+ {
+  "name": "session: refused: no Steam ID, unknown id, prototype ids",
+  "effects": [
+   {
+    "step": "colour",
+    "result": null
+   },
+   {
+    "step": "null steam",
+    "result": null
+   },
+   {
+    "step": "unknown",
+    "result": null
+   },
+   {
+    "read": 1
+   },
+   {
+    "write": {
+     "version": 1,
+     "players": {
+      "76561198000000001": {
+       "toString": {
+        "count": {
+         "$n": "NaN"
+        },
+        "last": "2026-11-24"
+       }
+      }
+     }
+    }
+   },
+   {
+    "step": "toString",
+    "result": {
+     "id": "toString",
+     "count": {
+      "$n": "NaN"
+     },
+     "last": "2026-11-24"
+    }
+   },
+   {
+    "write": {
+     "version": 1,
+     "players": {
+      "76561198000000001": {
+       "toString": {
+        "count": {
+         "$n": "NaN"
+        },
+        "last": "2026-11-24"
+       },
+       "constructor": {
+        "count": {
+         "$n": "NaN"
+        },
+        "last": "2026-11-24"
+       }
+      }
+     }
+    }
+   },
+   {
+    "step": "constructor",
+    "result": {
+     "id": "constructor",
+     "count": {
+      "$n": "NaN"
+     },
+     "last": "2026-11-24"
+    }
+   },
+   {
+    "write": {
+     "version": 1,
+     "players": {
+      "76561198000000001": {
+       "toString": {
+        "count": {
+         "$n": "NaN"
+        },
+        "last": "2026-11-24"
+       },
+       "constructor": {
+        "count": {
+         "$n": "NaN"
+        },
+        "last": "2026-11-24"
+       }
+      }
+     }
+    }
+   },
+   {
+    "step": "__proto__",
+    "result": {
+     "id": "__proto__",
+     "count": {
+      "$n": "NaN"
+     },
+     "last": "2026-11-24"
+    }
+   },
+   {
+    "step": "list",
+    "result": [
+     {
+      "id": "toString",
+      "count": {
+       "$n": "NaN"
+      },
+      "last": "2026-11-24"
+     },
+     {
+      "id": "constructor",
+      "count": {
+       "$n": "NaN"
+      },
+      "last": "2026-11-24"
+     }
+    ]
+   },
+   {
+    "step": "list bad steam",
+    "result": []
+   }
+  ]
+ },
+ {
+  "name": "session: the day stamp is UTC, at midnight",
+  "effects": [
+   {
+    "step": "23:59:59.999",
+    "result": "2026-11-24T23:59:59.999Z"
+   },
+   {
+    "read": 1
+   },
+   {
+    "write": {
+     "version": 1,
+     "players": {
+      "76561198000000001": {
+       "forced-tie": {
+        "name": "Stalemate",
+        "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+        "count": 1,
+        "first": "2026-11-24",
+        "last": "2026-11-24"
+       }
+      }
+     }
+    }
+   },
+   {
+    "step": "earn",
+    "result": {
+     "id": "forced-tie",
+     "name": "Stalemate",
+     "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+     "count": 1,
+     "first": "2026-11-24",
+     "last": "2026-11-24"
+    }
+   },
+   {
+    "step": "00:00",
+    "result": "2026-11-25T00:00:00.000Z"
+   },
+   {
+    "write": {
+     "version": 1,
+     "players": {
+      "76561198000000001": {
+       "forced-tie": {
+        "name": "Stalemate",
+        "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+        "count": 2,
+        "first": "2026-11-24",
+        "last": "2026-11-25"
+       }
+      }
+     }
+    }
+   },
+   {
+    "step": "earn",
+    "result": {
+     "id": "forced-tie",
+     "name": "Stalemate",
+     "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+     "count": 2,
+     "first": "2026-11-24",
+     "last": "2026-11-25"
+    }
+   }
+  ]
+ },
+ {
+  "name": "session: file read back and cleaned",
+  "effects": [
+   {
+    "read": 1
+   },
+   {
+    "step": "S1",
+    "result": [
+     {
+      "id": "forced-tie",
+      "name": "Stalemate",
+      "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+      "count": 3,
+      "first": "2026-01-01",
+      "last": "2026-02-02"
+     }
+    ]
+   },
+   {
+    "step": "S2 (count 0)",
+    "result": []
+   },
+   {
+    "step": "3 (1.5)",
+    "result": []
+   },
+   {
+    "step": "4 ('2')",
+    "result": []
+   },
+   {
+    "step": "5 (unknown / prototype ids)",
+    "result": [
+     {
+      "id": "toString",
+      "count": 1,
+      "first": "",
+      "last": ""
+     },
+     {
+      "id": "constructor",
+      "count": 2,
+      "first": "",
+      "last": ""
+     }
+    ]
+   },
+   {
+    "step": "7 (first/last not strings)",
+    "result": [
+     {
+      "id": "forced-tie",
+      "name": "Stalemate",
+      "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+      "count": 2,
+      "first": "5",
+      "last": ""
+     }
+    ]
+   },
+   {
+    "step": "9 (first 0, last false: empty)",
+    "result": [
+     {
+      "id": "forced-tie",
+      "name": "Stalemate",
+      "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+      "count": 1,
+      "first": "",
+      "last": ""
+     }
+    ]
+   },
+   {
+    "write": {
+     "version": 1,
+     "players": {
+      "76561198000000005": {
+       "toString": {
+        "count": 1,
+        "first": "",
+        "last": ""
+       },
+       "constructor": {
+        "count": 2,
+        "first": "",
+        "last": ""
+       }
+      },
+      "76561198000000007": {
+       "forced-tie": {
+        "name": "Stalemate",
+        "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+        "count": 2,
+        "first": "5",
+        "last": ""
+       }
+      },
+      "76561198000000009": {
+       "forced-tie": {
+        "name": "Stalemate",
+        "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+        "count": 1,
+        "first": "",
+        "last": ""
+       }
+      },
+      "76561198000000001": {
+       "forced-tie": {
+        "name": "Stalemate",
+        "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+        "count": 4,
+        "first": "2026-01-01",
+        "last": "2026-11-24"
+       }
+      }
+     }
+    }
+   },
+   {
+    "step": "earn S1 keeps count and first, takes today's name",
+    "result": {
+     "id": "forced-tie",
+     "name": "Stalemate",
+     "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+     "count": 4,
+     "first": "2026-01-01",
+     "last": "2026-11-24"
+    }
+   }
+  ]
+ },
+ {
+  "name": "session: file: players missing or wrong",
+  "effects": [
+   {
+    "read": 1
+   },
+   {
+    "step": "list",
+    "result": []
+   }
+  ]
+ },
+ {
+  "name": "session: file: not an object",
+  "effects": [
+   {
+    "read": 1
+   },
+   {
+    "step": "list",
+    "result": []
+   }
+  ]
+ },
+ {
+  "name": "session: read throws with a code (message not logged)",
+  "effects": [
+   {
+    "read": 1
+   },
+   {
+    "log": "accomplishments: can't read them (EACCES)"
+   },
+   {
+    "step": "list",
+    "result": []
+   },
+   {
+    "write": {
+     "version": 1,
+     "players": {
+      "76561198000000001": {
+       "forced-tie": {
+        "name": "Stalemate",
+        "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+        "count": 1,
+        "first": "2026-11-24",
+        "last": "2026-11-24"
+       }
+      }
+     }
+    }
+   },
+   {
+    "step": "earn works",
+    "result": {
+     "id": "forced-tie",
+     "name": "Stalemate",
+     "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+     "count": 1,
+     "first": "2026-11-24",
+     "last": "2026-11-24"
+    }
+   },
+   {
+    "step": "list again (read once)",
+    "result": [
+     {
+      "id": "forced-tie",
+      "name": "Stalemate",
+      "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+      "count": 1,
+      "first": "2026-11-24",
+      "last": "2026-11-24"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "session: read throws without a code",
+  "effects": [
+   {
+    "read": 1
+   },
+   {
+    "log": "accomplishments: can't read them (Error)"
+   },
+   {
+    "step": "list",
+    "result": []
+   }
+  ]
+ },
+ {
+  "name": "session: write throws (logged, answer kept)",
+  "effects": [
+   {
+    "read": 1
+   },
+   {
+    "write": {
+     "version": 1,
+     "players": {
+      "76561198000000001": {
+       "forced-tie": {
+        "name": "Stalemate",
+        "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+        "count": 1,
+        "first": "2026-11-24",
+        "last": "2026-11-24"
+       }
+      }
+     }
+    }
+   },
+   {
+    "log": "accomplishments: can't save them (ENOSPC)"
+   },
+   {
+    "step": "earn",
+    "result": {
+     "id": "forced-tie",
+     "name": "Stalemate",
+     "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+     "count": 1,
+     "first": "2026-11-24",
+     "last": "2026-11-24"
+    }
+   },
+   {
+    "step": "list",
+    "result": [
+     {
+      "id": "forced-tie",
+      "name": "Stalemate",
+      "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+      "count": 1,
+      "first": "2026-11-24",
+      "last": "2026-11-24"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "session: order: who earned most recently is kept; past 2000 the oldest goes",
+  "effects": [
+   {
+    "bulk": 2002,
+    "sha256": "a89a28b1027c6119b94c287dd6f2ed3a619561bfcf625cac5bbda10e38b0e097"
+   },
+   {
+    "step": "bulk: 2001 players",
+    "result": [
+     0,
+     1,
+     1
+    ]
+   },
+   {
+    "bulk": 2,
+    "sha256": "7156c9f6aec84d978e871344cc98c514baaf608b082b1c86d76c2dcb8141ddb7"
+   },
+   {
+    "step": "bulk: 10000001 again, then one more",
+    "result": [
+     2,
+     0
+    ]
+   }
+  ]
+ },
+ {
+  "name": "session: returned entries are copies",
+  "effects": [
+   {
+    "read": 1
+   },
+   {
+    "write": {
+     "version": 1,
+     "players": {
+      "76561198000000001": {
+       "forced-tie": {
+        "name": "Stalemate",
+        "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+        "count": 1,
+        "first": "2026-11-24",
+        "last": "2026-11-24"
+       }
+      }
+     }
+    }
+   },
+   {
+    "step": "earn and change it",
+    "result": [
+     {
+      "id": "forced-tie",
+      "name": "Stalemate",
+      "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress.",
+      "count": 1,
+      "first": "2026-11-24",
+      "last": "2026-11-24"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "ACCOMPLISHMENTS unchanged after every session",
+  "result": {
+   "forced-tie": {
+    "name": "Stalemate",
+    "text": "Played a game to a forced tie: nobody could lose, and three full rounds went by without progress."
+   }
+  }
+ }
+]

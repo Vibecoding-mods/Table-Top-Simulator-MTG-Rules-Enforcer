@@ -1,9 +1,11 @@
 // The team modes for the bridge (docs/game-modes-spec.md §4, §4.1, §5.5, §6): Two-Headed Giant (Level 1), 2v2 and
-// Juggernaut (3v1); 2v2 in Standard only, the other two in Commander only (TEAM_MODES). The table's teams, checked at
+// Juggernaut (3v1), all three on the four-seat table; 2v2 in Standard only, the other two in Commander only
+// (TEAM_MODES). Archenemy (either table) and Three-Headed Giant (the six-seat table) below. The table's teams, checked at
 // start, the engine's gameConfig, and what a team game adds to the table's board. The table keeps the choice (ENGINE_TEAMS, ENGINE_TEAM_MODE and ENGINE_JUGG in
 // engine-renderer.lua: "mtg mode 2hg|2v2|juggernaut|ffa", "mtg team <colour> <1|2>", "mtg juggernaut ...") and sends it
 // with every start, as it sends free mulligans, so a restarted bridge needs nothing kept here. Kept out of bridge.js so
-// the other game modes' work there (Standard's MODES) and this one meet only at their call sites.
+// the other game modes' work there (Standard's MODES) and this one meet only at their call sites. In plain English:
+// docs/plain-english/teams.md. Every export is pinned by tests/test_teams_golden.js (tools/mutate-teams-golden.js).
 //
 // The three share one plumbing (§4): every player's team (and the Juggernaut's life, hand, perks, commander limit and
 // first turn) go to the node as gameConfig before StartGame; the engine's teamRules ("sharedLife" or "teams") and each
@@ -13,7 +15,10 @@
 // commander's damage (42), lose together, block for each other and see each other's hands; each player still takes their own
 // turn, the team's back to back, and the starting team skips its first draws. The engine does all of that once the
 // node's gameConfig says teamRules "sharedLife" (engine/forge.patch, forge-harness ManaBrewEngineAdapter.configureTeamRules);
-// the bridge only says who is on which team.
+// the bridge only says who is on which team. The official rules (CR 810) plus the engine's two house rules
+// (docs/game-modes-spec.md §5.9.1): a partner's life gain or loss counts as yours, and a team loses at 42 combat damage
+// from one commander summed over the team (withTeamDamage shows that sum). Each team's first seat in turn order is its
+// primary player (805.2; White and Yellow with the default sides), who settles the team's blocks and orders its triggers.
 //
 // Two-Headed Giant, Level 2 (teamRules "sharedTurns", the table's "mtg 2hg turns shared"): Level 1 plus one turn for the
 // team (CR 805, 810.2): both partners are on their turn, attack together and block together. The engine still asks one
@@ -92,16 +97,21 @@ function setupOf(m, colors = TEAM_COLORS) {
 // The team modes: what a start's teamMode can be (teams sent with none: Two-Headed Giant, as the table sent before 2v2
 // and Juggernaut), the engine's rule for each, its name in chat, and the one game mode (bridge.js MODES) it is played
 // in: 2v2 only in Standard, Two-Headed Giant and Juggernaut only in Commander (the owner's call, spec §4.1).
+// seats: the one table size a mode is played on (bridge.js startGame refuses it on another, by name). The three
+// four-seat modes' teams, sides and Juggernaut colour are the four-seat table's colours (TEAM_COLORS: its fourth seat
+// is Blue, the six-seat table's fourth is Green), so on the six-seat table a player at Green, Purple or a lone Blue
+// was sent to the engine with no team (headless check 2026-11-24); docs/m6-six-seat-spec.md keeps them four-seat.
 const TEAM_MODES = {
-  "2hg": { rule: "sharedLife", name: "Two-Headed Giant", gameMode: "commander" },
-  "2v2": { rule: "teams", name: "2v2", gameMode: "standard" },
-  juggernaut: { rule: "teams", name: "Juggernaut", gameMode: "commander" },
+  "2hg": { rule: "sharedLife", name: "Two-Headed Giant", gameMode: "commander", seats: 4 },
+  "2v2": { rule: "teams", name: "2v2", gameMode: "standard", seats: 4 },
+  juggernaut: { rule: "teams", name: "Juggernaut", gameMode: "commander", seats: 4 },
   // (either game mode, §2.7 answer 1; "teamTurns": the archenemy's opponents take one turn together, each with their
   // own life, CR 904.2 and 805)
   archenemy: { rule: "teamTurns", name: "Archenemy", gameMode: null },
   "3hg": { rule: "sharedLife", name: "Three-Headed Giant", gameMode: null, seats: 6 }, // (either game mode; the six-seat table)
 };
-const teamModeOf = (raw) => (Object.prototype.hasOwnProperty.call(TEAM_MODES, raw) ? raw : "2hg");
+// (a string only: a one-element list ["2v2"] would pass the own-property check by its text and come back a list)
+const teamModeOf = (raw) => (typeof raw === "string" && Object.prototype.hasOwnProperty.call(TEAM_MODES, raw) ? raw : "2hg");
 // Why a team mode can't be played in a game mode ("commander" | "standard"), in words for chat; null when it can.
 function teamModeProblem(teamMode, gameMode) {
   const t = TEAM_MODES[teamModeOf(teamMode)];
@@ -140,10 +150,10 @@ const plural = (n, one) => `${n} ${one}${n === 1 ? "" : "s"}`;
 function juggPerks(jugg) {
   const lines = ["Name:Juggernaut"];
   if (jugg.draw > 0) {
-    lines.push(`T:Mode$ Phase | Phase$ Draw | ValidPlayer$ You | TriggerZones$ Command | Static$ True | Execute$ JuggDraw | TriggerDescription$ At the beginning of your draw step, draw ${jugg.draw} additional card${jugg.draw === 1 ? "" : "s"}.`,
+    lines.push(`T:Mode$ Phase | Phase$ Draw | ValidPlayer$ You | TriggerZones$ Command | Static$ True | Execute$ JuggDraw | TriggerDescription$ At the beginning of your draw step, draw ${plural(jugg.draw, "additional card")}.`,
       `SVar:JuggDraw:DB$ Draw | Defined$ You | NumCards$ ${jugg.draw}`);
   }
-  if (jugg.land > 0) lines.push(`S:Mode$ Continuous | Affected$ You | AdjustLandPlays$ ${jugg.land} | EffectZone$ Command | Description$ You may play ${jugg.land} additional land${jugg.land === 1 ? "" : "s"} on each of your turns.`);
+  if (jugg.land > 0) lines.push(`S:Mode$ Continuous | Affected$ You | AdjustLandPlays$ ${jugg.land} | EffectZone$ Command | Description$ You may play ${plural(jugg.land, "additional land")} on each of your turns.`);
   if (jugg.order === "after") {
     lines.push("T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ Opponent | TriggerZones$ Command | Static$ True | Execute$ JuggTurn | TriggerDescription$ At the beginning of each opponent's upkeep, take an extra turn after this one.",
       "SVar:JuggTurn:DB$ AddTurn | Defined$ You | NumTurns$ 1",
@@ -188,10 +198,12 @@ const archWords = (arch, std) => `${archLife(std)} life, goes first, ${arch.sche
 
 // colour list -> "White + Red"
 const teamWords = (colors) => colors.join(" + ");
-// the colours of each team, in turn order: { 1: [...], 2: [...] }
-function sides(teams) {
+// the colours of each team, in turn order: { 1: [...], 2: [...] }. colors: the table's seats (the four-seat table's by
+// default, SIX_COLORS for Three-Headed Giant). A colour on neither team is on neither side, so a bad team list fails
+// teamsProblem's "two teams of two" instead of throwing.
+function sides(teams, colors = TEAM_COLORS) {
   const out = { 1: [], 2: [] };
-  for (const c of TEAM_COLORS) out[teams[c]].push(c);
+  for (const c of colors) if (Object.prototype.hasOwnProperty.call(out, teams[c])) out[teams[c]].push(c);
   return out;
 }
 
@@ -244,17 +256,29 @@ function gameConfig(teams, usernames, colors, mode = "2hg", jugg = null, std = f
 // A board's teams, from the engine's own fields (teamRules, each player's teamNumber): null outside a team game. In a
 // "teams" game (2v2, Juggernaut) a player alone on a team (the Juggernaut) has no teamNumber (the engine sends one only
 // to a player with a teammate) and is a side of its own. slotColor: slot -> colour.
+// the board's player of this id (undefined when none); the winner (falsy when the board names none)
+const playerOf = (pub, id) => (pub?.players || []).find((p) => p.id === id);
+const winnerOf = (pub) => pub.winnerId && playerOf(pub, pub.winnerId);
 const teamKey = (p) => p.teamNumber ?? `alone:${p.id}`;
-// The engine's rules where partners share life, poison and losing: Level 1 ("sharedLife", each player's own turn) and
-// Level 2 ("sharedTurns": the team's one turn as well, CR 805 and 810.2). Every shared-life piece reads both.
-const sharesLife = (pub) => pub?.teamRules?.rule === "sharedLife" || pub?.teamRules?.rule === "sharedTurns";
-// The engine's rules where a team takes one turn (CR 805): Two-Headed Giant Level 2 ("sharedTurns", with shared life)
-// and Archenemy ("teamTurns", CR 904.2: the archenemy's opponents take one turn, each with their own life). Every
-// shared-turn piece (whose turn, the team's attack and block, triggers, the table's activeTeam) reads both.
-const sharesTurns = (pub) => pub?.teamRules?.rule === "sharedTurns" || pub?.teamRules?.rule === "teamTurns";
-// The rules where each player keeps their own life and the board's teams are the engine's sides as they are: 2v2,
-// Juggernaut ("teams") and Archenemy ("teamTurns")
-const ownLifeTeams = (rule) => rule === "teams" || rule === "teamTurns";
+// What each of the engine's team rules (the board's teamRules.rule) means, in one place:
+//   life   partners share life, poison and losing: Level 1 ("sharedLife", each player's own turn) and Level 2
+//          ("sharedTurns": the team's one turn as well, CR 805 and 810.2)
+//   turns  a team takes one turn (CR 805): Two-Headed Giant Level 2 ("sharedTurns", with shared life) and Archenemy
+//          ("teamTurns", CR 904.2: the archenemy's opponents take one turn, each with their own life); every
+//          shared-turn piece (whose turn, the team's attack and block, triggers, the table's activeTeam) reads it
+//   own    each player keeps their own life and the board's teams are the engine's sides as they are: 2v2,
+//          Juggernaut ("teams") and Archenemy ("teamTurns")
+// Any other rule (none, or one this bridge doesn't know) is no team game.
+const RULES = {
+  sharedLife: { life: true },
+  sharedTurns: { life: true, turns: true },
+  teams: { own: true },
+  teamTurns: { turns: true, own: true },
+};
+const ruleIs = (rule, trait) => typeof rule === "string" && Object.prototype.hasOwnProperty.call(RULES, rule) && !!RULES[rule][trait];
+const sharesLife = (pub) => ruleIs(pub?.teamRules?.rule, "life");
+const sharesTurns = (pub) => ruleIs(pub?.teamRules?.rule, "turns");
+const ownLifeTeams = (rule) => ruleIs(rule, "own");
 function boardTeams(pub, slotColor) {
   const rules = pub?.teamRules;
   if (!rules || (!sharesLife(pub) && !ownLifeTeams(rules.rule))) return null;
@@ -293,7 +317,7 @@ function withTeamDamage(p, pub) {
 function teamsField(pub, slotColor, mode = null, archColor = null) {
   const t = boardTeams(pub, slotColor);
   if (!t) return mode === "archenemy" && archColor ? archTeamsField(pub, slotColor, archColor) : {};
-  const winner = pub.winnerId && (pub.players || []).find((p) => p.id === pub.winnerId);
+  const winner = winnerOf(pub);
   const won = winner && (winner.teamNumber != null || ownLifeTeams(t.rule)) ? t.byTeam.get(teamKey(winner)) || null : null;
   const sideList = [...t.byTeam.values()];
   if (ownLifeTeams(t.rule)) {
@@ -308,11 +332,11 @@ function teamsField(pub, slotColor, mode = null, archColor = null) {
 // Archenemy with no team numbers on the board: the engine names a team only when it has two players or more, so with
 // two players (the archenemy against one) the sides come from the archenemy's colour: the archenemy, and the rest.
 function archTeamsField(pub, slotColor, archColor) {
-  const colors = (pub.players || []).map((p) => slotColor[p.id] || p.id);
+  const colors = (pub?.players || []).map((p) => slotColor[p.id] || p.id);
   const others = colors.filter((c) => c !== archColor);
   if (!colors.includes(archColor) || !others.length) return {};
   const sideList = colors[0] === archColor ? [[archColor], others] : [others, [archColor]];
-  const winner = pub.winnerId && (pub.players || []).find((p) => p.id === pub.winnerId);
+  const winner = winnerOf(pub);
   const winColor = winner ? slotColor[winner.id] || winner.id : null;
   const won = winColor == null ? null : winColor === archColor ? [archColor] : others;
   return { teams: { rule: "teams", mode: "archenemy", sides: sideList, archenemy: archColor, ...(pub.gameOver && won ? { won } : {}) } };
@@ -347,7 +371,7 @@ function setupWords(mode, teams, jugg, std, turns = null, arch = null) {
   }
   if (mode === "2v2") return `2v2: ${teamWords(s[1])} vs ${teamWords(s[2])} (each player their own 20 life and turn; teammates can't attack each other; a team wins when both its opponents have lost).`;
   if (mode === "3hg") {
-    const t = { 1: SIX_COLORS.filter((c) => teams[c] === 1), 2: SIX_COLORS.filter((c) => teams[c] === 2) };
+    const t = sides(teams, SIX_COLORS);
     return `Three-Headed Giant: ${teamWords(t[1])} vs ${teamWords(t[2])} (shared life: ${std ? 45 : 120} a team, poison 20; each player takes their own turn, the team's back to back; the team blocks together).`;
   }
   if (turns === "shared") return `Two-Headed Giant: ${teamWords(s[1])} vs ${teamWords(s[2])} (shared life, poison 15; each team takes one turn together, attacks together and blocks together).`;
@@ -356,9 +380,10 @@ function setupWords(mode, teams, jugg, std, turns = null, arch = null) {
 
 // ── Level 2: the team's shared turn (CR 805.4-805.5, 805.10; docs/game-modes-spec.md §5.4-5.5) ──
 // The engine names one active player (the team's lead, its first seat in turn order) and still asks each question of
-// one player; in a "sharedTurns" game the turn is the whole team's, so both partners are active players (sorcery timing,
-// land plays, attacking, "Until my turn") and the other team the defending players. Outside a "sharedTurns" game each
-// of these is the one active player, exactly as before.
+// one player; in a shared-turn game (sharesTurns: Two-Headed Giant Level 2's "sharedTurns" and Archenemy's
+// "teamTurns") the turn is the whole team's, so every partner is an active player (sorcery timing, land plays,
+// attacking, "Until my turn") and the other side the defending players. Outside one each of these is the one active
+// player, exactly as before.
 
 // the ids of the players whose turn it is, the active player first: the active player's team in a shared-turn game
 // (the engine's activeTeamIds when it sends them, tests/golden/fixtures/2hg-level2-protocol.json; else the players
@@ -368,7 +393,7 @@ function turnPlayerIds(pub) {
   if (!a) return [];
   if (!sharesTurns(pub)) return [a];
   if (Array.isArray(pub.activeTeamIds) && pub.activeTeamIds.includes(a)) return [a, ...pub.activeTeamIds.filter((id) => id !== a)];
-  const lead = (pub.players || []).find((p) => p.id === a);
+  const lead = playerOf(pub, a);
   if (lead?.teamNumber == null) return [a];
   return [a, ...(pub.players || []).filter((p) => p.id !== a && p.teamNumber === lead.teamNumber).map((p) => p.id)];
 }
@@ -378,7 +403,7 @@ const isTurnOf = (pub, id) => id != null && turnPlayerIds(pub).includes(id);
 // the turn's stops, as before)
 function turnPartners(pub, a, b) {
   if (!sharesTurns(pub) || a == null || b == null || a === b) return false;
-  const pa = (pub.players || []).find((p) => p.id === a), pb = (pub.players || []).find((p) => p.id === b);
+  const pa = playerOf(pub, a), pb = playerOf(pub, b);
   return pa?.teamNumber != null && pa.teamNumber === pb?.teamNumber;
 }
 // player id's partner in a shared-turn game, or null

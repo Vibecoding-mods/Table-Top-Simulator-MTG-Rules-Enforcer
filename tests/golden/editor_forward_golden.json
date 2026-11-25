@@ -1,0 +1,4063 @@
+[
+ {
+  "name": "surface",
+  "result": [
+   [
+    "BRIDGE_EXEC_BASE",
+    "number",
+    1000000000
+   ],
+   [
+    "TABLE_CHECK_LUA",
+    "string",
+    "\nlocal mine = {}\nfor _, o in ipairs(getObjects()) do\n  if o.type == \"Card\" or o.type == \"Deck\" then\n    local gm = tostring(o.getGMNotes())\n    if not gm:find(\"^engine:\") and gm ~= \"testcard\" and gm ~= \"libcard\" then\n      mine[#mine + 1] = o.type .. \" '\" .. tostring(o.getName()):gsub(\"\\n.*\", \"\") .. \"'\" .. (o.type == \"Deck\" and (\" (\" .. o.getQuantity() .. \" cards)\") or \"\")\n    end\n  end\nend\nreturn table.concat(mine, \"; \")"
+   ],
+   [
+    "createEditorForwarder",
+    "function",
+    0
+   ],
+   [
+    "makeSaveBackup",
+    "function",
+    0
+   ]
+  ]
+ },
+ {
+  "name": "off: no forward port",
+  "effects": [
+   {
+    "created": {
+     "enabled": false,
+     "forwardPort": 0,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "offer print",
+    "result": true,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "step": "offer custom",
+    "result": true,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "started",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: env forward port",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: env both",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: option wins over env",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40005,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: option 0 wins over env (??)",
+  "effects": [
+   {
+    "created": {
+     "enabled": false,
+     "forwardPort": 0,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: port 65535",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 65535,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: port 65536",
+  "effects": [
+   {
+    "created": {
+     "enabled": false,
+     "forwardPort": 0,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: port 1",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 1,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: port -1",
+  "effects": [
+   {
+    "created": {
+     "enabled": false,
+     "forwardPort": 0,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: port float",
+  "effects": [
+   {
+    "created": {
+     "enabled": false,
+     "forwardPort": 0,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: port string",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: port junk",
+  "effects": [
+   {
+    "created": {
+     "enabled": false,
+     "forwardPort": 0,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: forward = bridge's",
+  "effects": [
+   {
+    "log": "editor forward: port 39998 is the bridge's or TTS's own; forwarding stays off"
+   },
+   {
+    "created": {
+     "enabled": false,
+     "forwardPort": 0,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: forward = TTS's",
+  "effects": [
+   {
+    "log": "editor forward: port 39999 is the bridge's or TTS's own; forwarding stays off"
+   },
+   {
+    "created": {
+     "enabled": false,
+     "forwardPort": 0,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: forward = custom tts in port",
+  "effects": [
+   {
+    "log": "editor forward: port 41000 is the bridge's or TTS's own; forwarding stays off"
+   },
+   {
+    "created": {
+     "enabled": false,
+     "forwardPort": 0,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: command = forward",
+  "effects": [
+   {
+    "log": "editor forward: command port 40001 clashes with another port; no command listener"
+   },
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: command = TTS",
+  "effects": [
+   {
+    "log": "editor forward: command port 39999 clashes with another port; no command listener"
+   },
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: command = bridge",
+  "effects": [
+   {
+    "log": "editor forward: command port 39998 clashes with another port; no command listener"
+   },
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: command without forward",
+  "effects": [
+   {
+    "created": {
+     "enabled": false,
+     "forwardPort": 0,
+     "commandPort": 40002
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "ports: bad tts ports fall back",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "start",
+    "result": "ok",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "routing: every messageID",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":0,\"scriptStates\":[]}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "0 object pushed",
+    "result": false,
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":1,\"scriptStates\":[]}"
+   },
+   {
+    "step": "1 game loaded (no Get Scripts)",
+    "result": true,
+    "stats": {
+     "forwarded": 2,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"hi\"}"
+   },
+   {
+    "step": "2 print",
+    "result": true,
+    "stats": {
+     "forwarded": 3,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":3,\"error\":\"x\"}"
+   },
+   {
+    "step": "3 error",
+    "result": true,
+    "stats": {
+     "forwarded": 4,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "step": "4 our table's",
+    "result": true,
+    "stats": {
+     "forwarded": 4,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":4,\"customMessage\":{\"t\":5}}"
+   },
+   {
+    "step": "4 t not a string",
+    "result": false,
+    "stats": {
+     "forwarded": 5,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":4}"
+   },
+   {
+    "step": "4 no customMessage",
+    "result": false,
+    "stats": {
+     "forwarded": 6,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":4,\"customMessage\":null}"
+   },
+   {
+    "step": "4 customMessage null",
+    "result": false,
+    "stats": {
+     "forwarded": 7,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "step": "5 bridge's returnID",
+    "result": true,
+    "stats": {
+     "forwarded": 7,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "step": "5 bridge's returnID as string",
+    "result": true,
+    "stats": {
+     "forwarded": 7,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":5,\"returnID\":999999999}"
+   },
+   {
+    "step": "5 just below",
+    "result": false,
+    "stats": {
+     "forwarded": 8,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":5,\"returnID\":1}"
+   },
+   {
+    "step": "5 plugin's",
+    "result": false,
+    "stats": {
+     "forwarded": 9,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":5}"
+   },
+   {
+    "step": "5 no returnID",
+    "result": false,
+    "stats": {
+     "forwarded": 10,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":6}"
+   },
+   {
+    "step": "6 game saved",
+    "result": false,
+    "stats": {
+     "forwarded": 11,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":7,\"guid\":\"abc\"}"
+   },
+   {
+    "step": "7 object created",
+    "result": false,
+    "stats": {
+     "forwarded": 12,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":8}"
+   },
+   {
+    "step": "8 unknown",
+    "result": true,
+    "stats": {
+     "forwarded": 13,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":\"2\"}"
+   },
+   {
+    "step": "string id",
+    "result": true,
+    "stats": {
+     "forwarded": 14,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"x\":1}"
+   },
+   {
+    "step": "no id",
+    "result": true,
+    "stats": {
+     "forwarded": 15,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "step": "null",
+    "result": true,
+    "stats": {
+     "forwarded": 15,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "step": "string",
+    "result": true,
+    "stats": {
+     "forwarded": 15,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "[1,2]"
+   },
+   {
+    "step": "array",
+    "result": true,
+    "stats": {
+     "forwarded": 16,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "routing: the text as received is sent, else JSON",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"a\"}  "
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "text given",
+    "result": true,
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"b\"}"
+   },
+   {
+    "step": "empty text",
+    "result": true,
+    "stats": {
+     "forwarded": 2,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"c\"}"
+   },
+   {
+    "step": "text not a string",
+    "result": true,
+    "stats": {
+     "forwarded": 3,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "routing: a throwing message is the bridge's",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "log": "editor forward: bad getter"
+   },
+   {
+    "step": "getter throws",
+    "result": true,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "get scripts window",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": 2,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "sent": "127.0.0.1:39999",
+    "text": "{\"messageID\":0}"
+   },
+   {
+    "step": "plugin asks Get Scripts",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 1,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "step": "+5000",
+    "result": 5000,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 1,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":1}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "game loaded at the edge: plugin only",
+    "result": false,
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 1,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":1}"
+   },
+   {
+    "step": "next game loaded: both",
+    "result": true,
+    "stats": {
+     "forwarded": 2,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 1,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "sent": "127.0.0.1:39999",
+    "text": "{\"messageID\":0}"
+   },
+   {
+    "step": "asks again",
+    "result": "sent",
+    "stats": {
+     "forwarded": 2,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 2,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "step": "+5001 after",
+    "result": 10001,
+    "stats": {
+     "forwarded": 2,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 2,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":1}"
+   },
+   {
+    "step": "game loaded too late: both",
+    "result": true,
+    "stats": {
+     "forwarded": 3,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 2,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "plugin down then up",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ECONNREFUSED"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "connect": "::1:40001",
+    "mode": "ECONNREFUSED"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "log": "editor forward: plugin not listening on 40001; dropping its messages for 5 s at a time"
+   },
+   {
+    "step": "print 1",
+    "result": true,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 1,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": false,
+     "queued": 0
+    }
+   },
+   {
+    "step": "print 2 while down",
+    "result": true,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 2,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": false,
+     "queued": 0
+    }
+   },
+   {
+    "step": "+4999",
+    "result": 4999,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 2,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": false,
+     "queued": 0
+    }
+   },
+   {
+    "step": "print 3 still dropped",
+    "result": true,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 3,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": false,
+     "queued": 0
+    }
+   },
+   {
+    "step": "+5000 and up",
+    "result": 5000,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 3,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": false,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"4\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "print 4 goes",
+    "result": true,
+    "stats": {
+     "forwarded": 1,
+     "dropped": 3,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"5\"}"
+   },
+   {
+    "step": "print 5 to the host that worked",
+    "result": true,
+    "stats": {
+     "forwarded": 2,
+     "dropped": 3,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "step": "reset",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 2,
+     "dropped": 3,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "IPv6 only: the second host, then sticky",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ECONNREFUSED"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "connect": "::1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "::1:40001",
+    "text": "{\"messageID\":2,\"message\":\"a\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "a",
+    "result": true,
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "::1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "::1:40001",
+    "text": "{\"messageID\":2,\"message\":\"b\"}"
+   },
+   {
+    "step": "b",
+    "result": true,
+    "stats": {
+     "forwarded": 2,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "EADDRNOTAVAIL counts as refused",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "EADDRNOTAVAIL"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "connect": "::1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "::1:40001",
+    "text": "{\"messageID\":2,\"message\":\"a\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "a",
+    "result": true,
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "another error is not refused (no host change, nothing forwarded)",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ECONNRESET"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "step": "a",
+    "result": true,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ECONNRESET"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "step": "b",
+    "result": true,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "timeout drops the message",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "timeout"
+   },
+   {
+    "setTimeout": 1234
+   },
+   {
+    "destroy": "127.0.0.1:40001"
+   },
+   {
+    "step": "a",
+    "result": true,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 1,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "plugin down with messages queued: the queue is dropped too",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ECONNREFUSED"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "connect": "::1:40001",
+    "mode": "ECONNREFUSED"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "log": "editor forward: plugin not listening on 40001; dropping its messages for 5 s at a time"
+   },
+   {
+    "step": "three at once",
+    "result": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 2
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 3,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": false,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "close with messages queued",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"c0\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "three then close",
+    "result": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    },
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "queue cap drops the oldest",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"q0\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"q3\"}"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"q4\"}"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"q5\"}"
+   },
+   {
+    "step": "six at once",
+    "result": {
+     "forwarded": 0,
+     "dropped": 2,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 3
+    },
+    "stats": {
+     "forwarded": 4,
+     "dropped": 2,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "custom hosts",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "connect": "10.0.0.9:40001",
+    "mode": "ECONNREFUSED"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "log": "editor forward: plugin not listening on 40001; dropping its messages for 5 s at a time"
+   },
+   {
+    "step": "a",
+    "result": true,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 1,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": false,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "commands relayed as sent",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": [
+     "127.0.0.1:40002",
+     "::1:40002"
+    ],
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "sent": "127.0.0.1:39999",
+    "text": "{\"messageID\":0}"
+   },
+   {
+    "step": "0 get scripts",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 1,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "sent": "127.0.0.1:39999",
+    "text": "{\"messageID\":2,\"customMessage\":{\"a\":1}}"
+   },
+   {
+    "step": "2 custom",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 2,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "sent": "127.0.0.1:39999",
+    "text": "{\"messageID\":3,\"returnID\":7,\"script\":\"return 1\"}"
+   },
+   {
+    "step": "3 exec",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 3,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "editor forward: the plugin's returnID 1000000000 is in the bridge's range; its answer will not reach the plugin"
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "sent": "127.0.0.1:39999",
+    "text": "{\"messageID\":3,\"returnID\":1000000000,\"script\":\"x\"}"
+   },
+   {
+    "step": "3 exec in the bridge's range",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 4,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "sent": "127.0.0.1:39999",
+    "text": "{\"messageID\":9}"
+   },
+   {
+    "step": "9 unknown",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 5,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "sent": "127.0.0.1:39999",
+    "text": "{\"messageID\":2}"
+   },
+   {
+    "step": "padded",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 6,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "step": "blank",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 6,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "editor forward: unreadable command from the plugin (9 bytes): Expected property name or '}' in JSON at position 1 (line 1 column 2)"
+   },
+   {
+    "step": "garbage",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 6,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "step": "json null",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 6,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "step": "json number",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 6,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "sent": "127.0.0.1:39999",
+    "text": "{\"messageID\":2}"
+   },
+   {
+    "step": "second listener too",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 7,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "step": "start again does nothing",
+    "result": 2,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 7,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "command in two chunks and too big",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "sent": "127.0.0.1:39999",
+    "text": "{\"messageID\":2}"
+   },
+   {
+    "step": "chunks",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 1,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "editor forward: unreadable command from the plugin (20 bytes): Expected ',' or '}' after property value in JSON at position 20 (line 1 column 21)"
+   },
+   {
+    "step": "exactly 20 bytes",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 1,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "editor forward: plugin command over 20 bytes dropped"
+   },
+   {
+    "commandSocketDestroyed": 1
+   },
+   {
+    "step": "21 bytes dropped",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 1,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "listen fails on IPv6 only",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": false
+   },
+   {
+    "log": "editor forward: command port 40002 unavailable on ::1: listen EAFNOSUPPORT ::1:40002"
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": [
+     "ok",
+     1
+    ],
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "listen fails on the first host",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": false
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: command port 40002 unavailable on 127.0.0.1: listen EADDRINUSE 127.0.0.1:40002"
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": [
+     "EADDRINUSE",
+     1
+    ],
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "listen fails everywhere",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": false
+   },
+   {
+    "listen": "::1:40002",
+    "ok": false
+   },
+   {
+    "log": "editor forward: command port 40002 unavailable on 127.0.0.1: listen EADDRINUSE 127.0.0.1:40002"
+   },
+   {
+    "log": "editor forward: command port 40002 unavailable on ::1: listen EADDRINUSE ::1:40002"
+   },
+   {
+    "step": "start",
+    "result": [
+     "EADDRINUSE",
+     0
+    ],
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "close stops everything",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "serverClose": "127.0.0.1:40002"
+   },
+   {
+    "serverClose": "::1:40002"
+   },
+   {
+    "step": "close",
+    "result": "closed",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "step": "offer after close",
+    "result": true,
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "step": "close again",
+    "result": "closed again",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "close before start",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 0
+    }
+   },
+   {
+    "step": "close",
+    "result": "closed",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: no gameRunning given (unknown = running)",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "[MTG bridge] Save & Play blocked: a game is running, and a reload wipes the table"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"[MTG bridge] Save & Play blocked: a game is running, and a reload wipes the table\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "save & play",
+    "result": "sent",
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 1,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: game running",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "[MTG bridge] Save & Play blocked: a game is running, and a reload wipes the table"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"[MTG bridge] Save & Play blocked: a game is running, and a reload wipes the table\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "save & play",
+    "result": "sent",
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 1,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: gameRunning throws (= running)",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "[MTG bridge] Save & Play blocked: a game is running, and a reload wipes the table"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"[MTG bridge] Save & Play blocked: a game is running, and a reload wipes the table\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "save & play",
+    "result": "sent",
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 1,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: no table check",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "[MTG bridge] Save & Play blocked: the bridge can't check the table for the player's cards"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"[MTG bridge] Save & Play blocked: the bridge can't check the table for the player's cards\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "save & play",
+    "result": "sent",
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 1,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: check rejects",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "[MTG bridge] Save & Play blocked: couldn't check the table first (exec down)"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"[MTG bridge] Save & Play blocked: couldn't check the table first (exec down)\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "save & play",
+    "result": "sent",
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 1,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: check throws",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "[MTG bridge] Save & Play blocked: couldn't check the table first (sync throw)"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"[MTG bridge] Save & Play blocked: couldn't check the table first (sync throw)\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "save & play",
+    "result": "sent",
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 1,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: check answers an error",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "[MTG bridge] Save & Play blocked: couldn't check the table first (TTS busy)"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"[MTG bridge] Save & Play blocked: couldn't check the table first (TTS busy)\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "save & play",
+    "result": "sent",
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 1,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: check answers nothing",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "[MTG bridge] Save & Play blocked: couldn't check the table first (no answer)"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"[MTG bridge] Save & Play blocked: couldn't check the table first (no answer)\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "save & play",
+    "result": "sent",
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 1,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: check times out",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "[MTG bridge] Save & Play blocked: couldn't check the table first (no answer)"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"[MTG bridge] Save & Play blocked: couldn't check the table first (no answer)\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "save & play",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 1,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: the player's cards on the table",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "[MTG bridge] Save & Play blocked: the table has the player's own cards or decks, which a reload would wipe: Deck 'Atraxa' (100 cards); xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"[MTG bridge] Save & Play blocked: the table has the player's own cards or decks, which a reload would wipe: Deck 'Atraxa' (100 cards); xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "save & play",
+    "result": "sent",
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 1,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: a game starts during the check",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "[MTG bridge] Save & Play blocked: a game started while the table was checked"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"[MTG bridge] Save & Play blocked: a game started while the table was checked\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "save & play",
+    "result": "sent",
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 1,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: the save is missing",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "mkdir": "BACKUPDIR\\backup",
+    "recursive": true
+   },
+   {
+    "copyFile": [
+     "SAVEDIR\\TS_Save_1.json",
+     "BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07.json"
+    ],
+    "excl": true
+   },
+   {
+    "log": "[MTG bridge] Save & Play blocked: couldn't back up the save first (ENOENT: no such file 'SAVEDIR\\TS_Save_1.json')"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"[MTG bridge] Save & Play blocked: couldn't back up the save first (ENOENT: no such file 'SAVEDIR\\\\TS_Save_1.json')\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "save & play",
+    "result": "sent",
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 1,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: backup folder can't be made",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "mkdir": "BACKUPDIR\\backup",
+    "recursive": true
+   },
+   {
+    "log": "[MTG bridge] Save & Play blocked: couldn't back up the save first (EACCES mkdir)"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"[MTG bridge] Save & Play blocked: couldn't back up the save first (EACCES mkdir)\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "save & play",
+    "result": "sent",
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 1,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: safe, backed up, relayed; its game loaded goes to both",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "sent": "127.0.0.1:39999",
+    "text": "{\"messageID\":0}"
+   },
+   {
+    "step": "get scripts first",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 1,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "mkdir": "BACKUPDIR\\backup",
+    "recursive": true
+   },
+   {
+    "copyFile": [
+     "SAVEDIR\\TS_Save_1.json",
+     "BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07.json"
+    ],
+    "excl": true
+   },
+   {
+    "log": "editor forward: save backed up to BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07.json"
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "sent": "127.0.0.1:39999",
+    "text": "{\"messageID\":1,\"scriptStates\":[]}"
+   },
+   {
+    "step": "save & play",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 2,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":1}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "the reload's game loaded",
+    "result": true,
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 2,
+     "pluginUp": true,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "mkdir": "BACKUPDIR\\backup",
+    "recursive": true
+   },
+   {
+    "copyFile": [
+     "SAVEDIR\\TS_Save_1.json",
+     "BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07.json"
+    ],
+    "excl": true
+   },
+   {
+    "copyFile": [
+     "SAVEDIR\\TS_Save_1.json",
+     "BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07-1.json"
+    ],
+    "excl": true
+   },
+   {
+    "log": "editor forward: save backed up to BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07-1.json"
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "sent": "127.0.0.1:39999",
+    "text": "{\"messageID\":1,\"scriptStates\":[]}"
+   },
+   {
+    "step": "again: a second backup name",
+    "result": "sent",
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 3,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: two at once",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "[MTG bridge] Save & Play blocked: another Save & Play is still being checked"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"[MTG bridge] Save & Play blocked: another Save & Play is still being checked\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "mkdir": "BACKUPDIR\\backup",
+    "recursive": true
+   },
+   {
+    "copyFile": [
+     "SAVEDIR\\TS_Save_1.json",
+     "BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07.json"
+    ],
+    "excl": true
+   },
+   {
+    "log": "editor forward: save backed up to BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07.json"
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "sent": "127.0.0.1:39999",
+    "text": "{\"messageID\":1}"
+   },
+   {
+    "step": "both",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 1,
+     "relayed": 1,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: value 0 / false counts as none",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "mkdir": "BACKUPDIR\\backup",
+    "recursive": true
+   },
+   {
+    "copyFile": [
+     "SAVEDIR\\TS_Save_1.json",
+     "BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07.json"
+    ],
+    "excl": true
+   },
+   {
+    "log": "editor forward: save backed up to BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07.json"
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "sent": "127.0.0.1:39999",
+    "text": "{\"messageID\":1,\"scriptStates\":[]}"
+   },
+   {
+    "step": "save & play",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 1,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "save&play: backupSave throws",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "log": "[MTG bridge] Save & Play blocked: couldn't back up the save first (disk full)"
+   },
+   {
+    "connect": "127.0.0.1:40001",
+    "mode": "ok"
+   },
+   {
+    "setTimeout": 1000
+   },
+   {
+    "sent": "127.0.0.1:40001",
+    "text": "{\"messageID\":2,\"message\":\"[MTG bridge] Save & Play blocked: couldn't back up the save first (disk full)\"}"
+   },
+   {
+    "log": "editor forward: plugin reachable on 40001"
+   },
+   {
+    "step": "save & play",
+    "result": "sent",
+    "stats": {
+     "forwarded": 1,
+     "dropped": 0,
+     "blocked": 1,
+     "relayed": 0,
+     "pluginUp": true,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "relay to TTS times out / errors (logged)",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "connect": "127.0.0.1:39999",
+    "mode": "timeout"
+   },
+   {
+    "setTimeout": 77
+   },
+   {
+    "log": "editor forward: TTS didn't take the plugin's command in time"
+   },
+   {
+    "destroy": "127.0.0.1:39999"
+   },
+   {
+    "step": "custom",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 1,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "relay to TTS refused (logged)",
+  "effects": [
+   {
+    "created": {
+     "enabled": true,
+     "forwardPort": 40001,
+     "commandPort": 40002
+    }
+   },
+   {
+    "listen": "127.0.0.1:40002",
+    "ok": true
+   },
+   {
+    "listen": "::1:40002",
+    "ok": true
+   },
+   {
+    "log": "editor forward: plugin messages go to 40001; its commands come in on 40002"
+   },
+   {
+    "step": "start",
+    "result": {
+     "$u": 1
+    },
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 0,
+     "pluginUp": null,
+     "queued": 0
+    }
+   },
+   {
+    "commandSocketTimeout": 30000
+   },
+   {
+    "connect": "127.0.0.2:39999",
+    "mode": "ECONNREFUSED"
+   },
+   {
+    "setTimeout": 10000
+   },
+   {
+    "log": "editor forward: plugin command to TTS failed: connect ECONNREFUSED 127.0.0.2:39999"
+   },
+   {
+    "step": "custom",
+    "result": "sent",
+    "stats": {
+     "forwarded": 0,
+     "dropped": 0,
+     "blocked": 0,
+     "relayed": 1,
+     "pluginUp": null,
+     "queued": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "makeSaveBackup: first name",
+  "result": "BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07.json",
+  "mkdir": [
+   {
+    "mkdir": "BACKUPDIR\\backup",
+    "recursive": true
+   }
+  ],
+  "copies": 1,
+  "lastCopy": {
+   "copyFile": [
+    "SAVEDIR\\TS_Save_1.json",
+    "BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07.json"
+   ],
+   "excl": true
+  }
+ },
+ {
+  "name": "makeSaveBackup: taken: -1",
+  "result": "BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07-1.json",
+  "mkdir": [
+   {
+    "mkdir": "BACKUPDIR\\backup",
+    "recursive": true
+   }
+  ],
+  "copies": 2,
+  "lastCopy": {
+   "copyFile": [
+    "SAVEDIR\\TS_Save_1.json",
+    "BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07-1.json"
+   ],
+   "excl": true
+  }
+ },
+ {
+  "name": "makeSaveBackup: taken: 0..2",
+  "result": "BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07-3.json",
+  "mkdir": [
+   {
+    "mkdir": "BACKUPDIR\\backup",
+    "recursive": true
+   }
+  ],
+  "copies": 4,
+  "lastCopy": {
+   "copyFile": [
+    "SAVEDIR\\TS_Save_1.json",
+    "BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07-3.json"
+   ],
+   "excl": true
+  }
+ },
+ {
+  "name": "makeSaveBackup: all 100 taken",
+  "threw": {
+   "type": "Error",
+   "message": "no free backup name"
+  },
+  "mkdir": [
+   {
+    "mkdir": "BACKUPDIR\\backup",
+    "recursive": true
+   }
+  ],
+  "copies": 100,
+  "lastCopy": {
+   "copyFile": [
+    "SAVEDIR\\TS_Save_1.json",
+    "BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07-99.json"
+   ],
+   "excl": true
+  }
+ },
+ {
+  "name": "makeSaveBackup: save missing",
+  "threw": {
+   "type": "Error",
+   "message": "ENOENT: no such file 'SAVEDIR\\TS_Save_1.json'"
+  },
+  "mkdir": [
+   {
+    "mkdir": "BACKUPDIR\\backup",
+    "recursive": true
+   }
+  ],
+  "copies": 1,
+  "lastCopy": {
+   "copyFile": [
+    "SAVEDIR\\TS_Save_1.json",
+    "BACKUPDIR\\backup\\TS_Save_1-2026-11-24-09-05-07.json"
+   ],
+   "excl": true
+  }
+ },
+ {
+  "name": "makeSaveBackup: other name, not .json",
+  "result": "BACKUPDIR\\backup\\My Table.sav-2026-11-24-09-05-07.json",
+  "mkdir": [
+   {
+    "mkdir": "BACKUPDIR\\backup",
+    "recursive": true
+   }
+  ],
+  "copies": 1,
+  "lastCopy": {
+   "copyFile": [
+    "SAVEDIR\\My Table.sav",
+    "BACKUPDIR\\backup\\My Table.sav-2026-11-24-09-05-07.json"
+   ],
+   "excl": true
+  }
+ },
+ {
+  "name": "makeSaveBackup: single digits padded",
+  "result": "BACKUPDIR\\backup\\TS_Save_1-2026-01-02-03-04-05.json"
+ }
+]
