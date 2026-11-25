@@ -181,5 +181,16 @@ ok("precondition: the chips' six spots on Blue's counter, read with the counters
   ok("older table: without ENGINE_MANA_PIECES the pool shows as chips again", Number(valueOf(r, "chips")) === 1, valueOf(r, "chips"));
 }
 
+// ───────── the section's own claim: "Moved, never spawned" (live-spawning many objects crashed TTS) ─────────
+// (a pin on the source, stage 3b 2026-11-24: the runs above see what the counters do, not that no spawn was added
+// beside them; the section runs from its banner to the next one, "Waiting for you")
+{
+  const from = script.indexOf("floating mana on the original table's mana counters (2026-11-24)");
+  const to = from < 0 ? -1 : script.indexOf('-- "Waiting for you', from);
+  const section = from < 0 || to < 0 ? "" : script.slice(from, to);
+  ok("claim: the mana counter section is found in the built script", section.length > 2000 && section.includes("function engineManaSlot("), section.length);
+  ok("claim: the mana counters are moved, never spawned (no spawn call in their section)", section.length > 0 && !/spawnObject|\.clone\(/.test(section), (section.match(/.{0,60}(spawnObject|\.clone\().{0,40}/) || [""])[0]);
+}
+
 console.log(`${failed ? failed + " failed, " : ""}${failed ? "" : "all "}${passed} passed`);
 process.exit(failed ? 1 : 0);

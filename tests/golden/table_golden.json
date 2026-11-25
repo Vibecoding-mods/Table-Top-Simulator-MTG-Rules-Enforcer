@@ -20823,18 +20823,13 @@
     "step": "click stack:more:White",
     "value": "clicked",
     "fx": [
-     "f892 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"choice\\\\\\\":[\\\\\\\"spell|stack-w1\\\\\\\"],\\\\\\\"color\\\\\\\":\\\\\\\"Blue\\\\\\\",\\\\\\\"promptId\\\\\\\":9903,\\\\\\\"t\\\\\\\":\\\\\\\"answer\\\\\\\"}\\\",\\\"t\\\":\\\"answer\\\"}\"",
-     "f892 \"highlightOff\" obj:s00031",
-     "f892 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
-     "f892 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
-     "f892 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
-     "f892 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
-     "f925 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#ffffff\"}"
+     "f892 \"broadcastToColor\" \"Blue\" \"[MTG] That card stands for 2 things on the stack you can choose: pick the one you mean in the Engine panel (Choices, top left).\""
     ]
    },
    {
     "step": "clear (mtg reset)",
     "fx": [
+     "f928 \"highlightOff\" obj:s00031",
      "f928 \"setInvisibleTo\" obj:8963ec {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
      "f928 \"setColorTint\" obj:8963ec {1=1,2=1,3=1,4=0}",
      "f928 \"setPosition\" obj:8963ec V(-49.586,-30,19.161)",
@@ -21151,11 +21146,15 @@
      "f928 \"UI.setAttributes\" \"eng_set_Blue\" {active=\"false\"}",
      "f928 \"UI.setAttributes\" \"eng_logbtn_Blue\" {active=\"false\"}",
      "f928 \"UI.setValue\" \"eng_status_Blue\" \"\"",
+     "f928 \"UI.setValue\" \"eng_title_Blue\" \"Waiting for other players...\"",
+     "f928 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"false\"}",
+     "f928 \"UI.setAttributes\" \"eng_opt_Blue_2\" {active=\"false\"}",
      "f928 \"UI.setAttribute\" \"eng_phase_Blue\" \"active\" \"false\"",
      "f928 \"UI.setAttribute\" \"eng_phasebg_Blue\" \"active\" \"false\"",
      "f928 \"UI.setValue\" \"eng_phase_Blue\" \"      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f928 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"false\"",
      "f928 \"UI.setValue\" \"eng_hint_Blue\" \" \"",
+     "f928 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"false\",color=\"#e8711a\",text=\" \",textColor=\"#ffffff\"}",
      "f928 \"broadcastToAll\" \"[MTG] Engine mode OFF: the table works as normal.\"",
      "f928 \"setPosition\" obj:e2f7ae V(27,1.03,27)",
      "f928 \"setPosition\" obj:c489e1 V(19,1,27)",

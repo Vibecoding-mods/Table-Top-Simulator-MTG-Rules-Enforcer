@@ -28,9 +28,12 @@ const r = simulate({ save: buildSave(), seated: ["Blue", "White", "Red"], host: 
   q("setEngineMode(true) return 'ok'", "on again"), state("after on again"),
   // a table-promoted player asks for a host-only command
   q("engineChat('mtg fx off', Player.White) return 'ok'", "white fx"),
+  // and the GIF frames' own host-only command (engineGif.chat: the same engineIsHost test)
+  q("engineChat('mtg gifs off', Player.White) return tostring(engineGif.hostOff)", "white gifs"),
   q("return JSON.decode(onSave()).enginePromoted", "saved"),
   q("setEngineMode(false) return 'ok'", "off"), state("after off"),
   q("engineChat('mtg fx off', Player.Red) return 'ok'", "red fx"),
+  q("engineChat('mtg gifs off', Player.Red) return tostring(engineGif.hostOff)", "red gifs"),
   // White and Red leave their seats (onPlayerChangeColor runs its pass two frames later)
   q("__sim.present = { White = true, Red = true } __sim.seated.White = nil __sim.seated.Red = nil onPlayerChangeColor('Grey') __sim.frames(3) return 'ok'", "leaves"), state("after leaves"),
   // and sit down again
@@ -44,6 +47,8 @@ ok("promote: every seated player but the host promoted before any engine game", 
 ok("promote: engine on leaves them promoted", valueOf(r, "after on") === "Blue=false,White=true,Red=true", valueOf(r, "after on"));
 ok("promote: engine on twice leaves them promoted (no toggle back)", valueOf(r, "after on again") === "Blue=false,White=true,Red=true", valueOf(r, "after on again"));
 ok("promote: a player the table promoted gets no host-only command", /Only the host can change the table's particle effects/.test(told(r, "white fx")), told(r, "white fx"));
+ok("promote: a player the table promoted can't turn the GIF frames off", /Only the host can turn the GIF frames on or off/.test(told(r, "white gifs")) && valueOf(r, "white gifs") !== "true", told(r, "white gifs") + " " + valueOf(r, "white gifs"));
+ok("promote: a player the host promoted can", !/Only the host/.test(told(r, "red gifs")) && valueOf(r, "red gifs") === "true", told(r, "red gifs") + " " + valueOf(r, "red gifs"));
 ok("promote: the table's list is saved with the game, as one text (not the host's own)", valueOf(r, "saved") === "sim-White", JSON.stringify(valueOf(r, "saved")));
 ok("promote: engine off keeps them promoted", valueOf(r, "after off") === "Blue=false,White=true,Red=true", valueOf(r, "after off"));
 ok("promote: a player the host promoted keeps the host-only commands", !/Only the host/.test(told(r, "red fx")), told(r, "red fx"));

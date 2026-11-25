@@ -9,12 +9,20 @@
 -- DeckCheck link: the server builds the deck from a plain list, so the tag is put on the decks it spawns
 -- (deckcheckRikTagSpawned) for the bracket and threat label (engine-renderer.lua engineDeckCheckLabels)
 DECKCHECK_RIK_TAG = {}
+-- colour -> how many deck imports that seat has started: only the latest one's DeckCheck answer may set its tag (an
+-- earlier DeckCheck import answered after a later import of another link put its tag on that other deck)
+DECKCHECK_RIK_SEQ = {}
 
 -- M.deck's request `data` with a deckcheck.co link in data.url: true, and this takes it over: an error is said to
 -- `color` in plain words and nothing is posted; else data.data = the decklist, data.url = '' and post() is called
 -- once. false for any other link (or none): the server reads it, as before.
 function deckcheckRikDeck(color, data, post)
-  if type(color) == "string" then DECKCHECK_RIK_TAG[color] = nil end
+  local seq = nil
+  if type(color) == "string" then
+    DECKCHECK_RIK_TAG[color] = nil
+    DECKCHECK_RIK_SEQ[color] = (DECKCHECK_RIK_SEQ[color] or 0) + 1
+    seq = DECKCHECK_RIK_SEQ[color]
+  end
   local url = nil
   if type(data) == "table" then url = data.url end
   if type(url) ~= "string" or not string.find(string.lower(url), "deckcheck.co/", 1, true) then return false end
@@ -43,7 +51,7 @@ function deckcheckRikDeck(color, data, post)
     if text == nil then return fail("That DeckCheck deck has no cards.") end
     data.data = text
     data.url = ''
-    DECKCHECK_RIK_TAG[color] = deckcheckTag({ id = id, bracket = info.bracket, threatIndex = info.threatIndex, maxThreat = info.maxThreat })
+    if DECKCHECK_RIK_SEQ[color] == seq then DECKCHECK_RIK_TAG[color] = deckcheckTag({ id = id, bracket = info.bracket, threatIndex = info.threatIndex, maxThreat = info.maxThreat }) end
     post()
   end)
   return true

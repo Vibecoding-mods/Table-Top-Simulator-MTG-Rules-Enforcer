@@ -3901,6 +3901,22 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     ok("counter target: a spell not offered doesn't glow", String(valueOf(r, "not offered")).startsWith("false|"), valueOf(r, "not offered"));
     ok("counter target: a spell not offered answers nothing when clicked", !sent(r, "click").includes('"choice"'), sent(r, "click").slice(0, 300));
   }
+  {
+    // (stage 3 review 2026-11-24) White's ten abilities: the bottom two folded under White's "+2 more" card. One card
+    // standing for two offered abilities can't say which was meant: a click answers nothing and says to use the panel;
+    // with only one of them offered the same click answers it.
+    const f = JSON.parse(JSON.stringify(b));
+    f.stack = Array.from({ length: 10 }, (_, i) => ({ id: `stack-w${i + 1}`, n: `Trigger ${i + 1}`, ctl: "White", tx: "Draw a card." }));
+    const folded = { msg: { t: "table", json: JSON.stringify(f) }, frames: 60, mark: "folded board" };
+    const told = (r, mark) => fxOf(r, mark).filter((l) => /broadcastToColor/.test(l)).join(" ");
+    const two = run([folded, counter(9803, [{ id: "spell|stack-w1", label: "Trigger 1" }, { id: "spell|stack-w2", label: "Trigger 2" }]),
+      glow("stack:more:White", "more glows"), click("stack:more:White", "click")]);
+    ok("counter target: precondition, the '+2 more' card glows for the folded abilities", String(valueOf(two, "more glows")).startsWith("true|") && !two.errors.length, valueOf(two, "more glows") + " " + two.errors.slice(0, 2).join(" | "));
+    ok("counter target: a card standing for two offered abilities answers nothing when clicked", !sent(two, "click").includes('"choice"'), sent(two, "click").slice(0, 300));
+    ok("counter target: and says to pick in the Engine panel", /stands for 2 things on the stack[\s\S]*Engine panel/.test(told(two, "click")), told(two, "click"));
+    const one = run([folded, counter(9804, [{ id: "spell|stack-w1", label: "Trigger 1" }, { id: "spell|stack-w9", label: "Trigger 9" }]), click("stack:more:White", "click")]);
+    ok("counter target: the '+2 more' card standing for one offered ability answers with it", sent(one, "click").includes('"choice":["spell|stack-w1"]'), sent(one, "click").slice(0, 300));
+  }
 }
 console.log(failed ? `\n${failed} table checks failed (${passed} passed)` : `all ${passed} table checks pass`);
 process.exit(failed ? 1 : 0);

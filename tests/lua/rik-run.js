@@ -10,9 +10,10 @@ const { lua, lauxlib, lualib, to_luastring } = require("fengari");
 // rikrassen's script alone on the fake TTS, its `api` module (M.deck) reached through one line added here only;
 // `answers`: url -> web answer; any other GET fails as no answer. `build`: the server's /build answer (ndjson text),
 // handed to the importer's callback; without it a POST gets no answer. `first`: a request the same seat makes before
-// `data`, in the same table (spawned then lists both imports' objects, in order). -> { gets, posts: [{url, body}], said, next,
+// `data`, in the same table (spawned then lists both imports' objects, in order); `overlap`: `first` is still waiting
+// for its answers when `data` is asked (both in one frame). -> { gets, posts: [{url, body}], said, next,
 // spawned: [{type, gm}], error }
-function runDeck(script, data, { color = "White", answers = {}, build = null, first = null } = {}) {
+function runDeck(script, data, { color = "White", answers = {}, build = null, first = null, overlap = false } = {}) {
   const L = lauxlib.luaL_newstate();
   lualib.luaL_openlibs(L);
   const run = (code, name) => {
@@ -58,7 +59,8 @@ function runDeck(script, data, { color = "White", answers = {}, build = null, fi
   setString("__color", color);
   if (first !== null) {
     setString("__first", JSON.stringify(first));
-    const f0 = run("__rikApi.deck(__color, JSON.decode(__first), function() end) __sim.frames(30) __fx = {} __gets = {} __posts = {} return 'ok'", "=first");
+    const f0 = run(overlap ? "__rikApi.deck(__color, JSON.decode(__first), function() end) return 'ok'"
+      : "__rikApi.deck(__color, JSON.decode(__first), function() end) __sim.frames(30) __fx = {} __gets = {} __posts = {} return 'ok'", "=first");
     if (f0.error) return { error: `first request: ${f0.error}` };
   }
   const r = run("__next = false __rikApi.deck(__color, JSON.decode(__data), function() __next = true end) __sim.frames(30) return 'ok'", "=deck");

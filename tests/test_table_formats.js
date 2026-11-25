@@ -192,5 +192,18 @@ ok("a 60-card format drops 2HG, said", valueOf(r, "2hg") === "2hg" && valueOf(r,
 // in a game
 ok("in a game: the Format, switch and Banned list buttons are hidden", !/onMtgSetupMode|onMtgSetupBanned|onMtgSetupRestricted|onMtgSetupBanlist/.test(String(valueOf(r, "tile in game"))), valueOf(r, "tile in game"));
 
+// The section's claim "engineFormatChanged is the one place that sets ENGINE_GAME_MODE, through engineSetGameMode"
+// (a pin on the source, stage 3b 2026-11-24: a second writer would let the game mode drift from the format's)
+{
+  const src = save.LuaScript || "";
+  const writes = (src.match(/ENGINE_GAME_MODE = /g) || []).length;
+  // the function each engineSetGameMode( call sits in (the definition itself names engineSetGameMode)
+  const caller = (i) => { const f = src.lastIndexOf("\nfunction ", i) + 10; return src.slice(f, src.indexOf("(", f)); };
+  const calls = [...src.matchAll(/engineSetGameMode\(/g)].map((m) => caller(m.index)).filter((c) => c !== "engineSetGameMode");
+  ok("claim: ENGINE_GAME_MODE is set in two places only (its start value and engineSetGameMode)",
+    writes === 2 && /\nENGINE_GAME_MODE = "commander"/.test(src) && /function engineSetGameMode\(mode\)[\s\S]{0,400}ENGINE_GAME_MODE = mode/.test(src), writes);
+  ok("claim: engineSetGameMode is called by engineFormatChanged only", calls.join() === "engineFormatChanged", calls.join());
+}
+
 console.log(failed ? `FAILED: ${failed} failed, ${passed} passed` : `PASSED: ${passed} passed, 0 failed`);
 process.exit(failed ? 1 : 0);

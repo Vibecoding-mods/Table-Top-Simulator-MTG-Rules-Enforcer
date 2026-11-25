@@ -380,10 +380,15 @@ end
 -- (the user, 2026-11-13 and 2026-11-23: "people can't move or delete their cards before game starts", before and after
 -- New game). Only players the table promoted are demoted again, when they leave their seat. A player the host
 -- promoted stays promoted. The list survives a reload (onSave in engine-renderer.lua). They do not get the host-only
--- "mtg" commands (engineChat's isHost). A player who disconnects is dropped from the list the next time this runs
+-- "mtg" commands (engineIsHost). A player who disconnects is dropped from the list the next time this runs
 -- while they are back and not promoted.
 -- (The user, 2026-11-14: "allow the other players the same privileges the host has when the engine is on".)
 ENGINE_PROMOTED = {} -- steam_id -> true: promoted by this table, not by the host
+-- who may use the host-only "mtg" commands: the host, or a player the host promoted or made admin; never one this
+-- table promoted (enginePromoteSeated). The one test, for engineChat here and engineGif.chat in engine-renderer.lua.
+function engineIsHost(pl)
+  return pl.host or ((pl.admin or pl.promoted) and not (ENGINE_PROMOTED or {})[tostring(pl.steam_id)])
+end
 function enginePromoteSeated()
   for _, pl in ipairs(Player.getPlayers()) do
     local sid = tostring(pl.steam_id)
@@ -471,9 +476,8 @@ function engineChat(message, pl)
   -- text passed ~55 characters, tmp/pattern-trap/audit.md)
   local cmd, restAt = lower:match("^%s*mtg%s*(%a*)%s*()")
   local rest = (lower:sub(restAt):gsub("%s+$", ""))
-  -- (a player the table promoted for engine mode, enginePromoteSeated, is not a host here: the host-only commands stay the
-  -- host's and their own promoted players')
-  local isHost = pl.host or ((pl.admin or pl.promoted) and not (ENGINE_PROMOTED or {})[tostring(pl.steam_id)])
+  -- (a player the table promoted for engine mode, enginePromoteSeated, is not a host here: engineIsHost)
+  local isHost = engineIsHost(pl)
   -- (the team modes' "mtg mode 2hg|2v2|juggernaut|ffa", "mtg team ...", "mtg juggernaut ..." and "mtg 2hg turns ...": engineTeamChat, engine-renderer.lua)
   if engineTeamChat ~= nil and engineTeamChat(cmd, rest, pl, isHost) then return false end
   -- (the format, its two switches and its ban list: "mtg format", "mtg banned", "mtg restricted", "mtg banlist": engineFormatChat)
