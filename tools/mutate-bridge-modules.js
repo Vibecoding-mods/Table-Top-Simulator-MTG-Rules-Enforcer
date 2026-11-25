@@ -40,7 +40,7 @@ const MODULES = {
       ["teamsProblem: wrap-round off by one", "Math.abs(at(a) - at(b)) === TEAM_COLORS.length - 1;", "Math.abs(at(a) - at(b)) === TEAM_COLORS.length;"],
       ["gameConfig: commander damage 21 sent anyway", "...(jugg.cmd !== 21 ? { commanderDamageToLose: jugg.cmd } : {})", "...({ commanderDamageToLose: jugg.cmd })"],
       ["sharesLife: shared turns don't share life", "const sharesLife = (pub) => pub?.teamRules?.rule === \"sharedLife\" || pub?.teamRules?.rule === \"sharedTurns\";", "const sharesLife = (pub) => pub?.teamRules?.rule === \"sharedLife\";"],
-      ["withTeamDamage: Number() dropped (text added as text)", "total[cid] = (total[cid] || 0) + (Number(n) || 0);", "total[cid] = (total[cid] || 0) + n;"],
+      ["withTeamDamage: Number() dropped (text added as text) [equivalent: Forge sends commander damage as JSON numbers; a missing one is no entry]", "total[cid] = (total[cid] || 0) + (Number(n) || 0);", "total[cid] = (total[cid] || 0) + n;"],
       ["teamsField: winners before the game is over", "sides: sideList, ...(t.rule === \"sharedTurns\" ? { turns: \"shared\" } : {}),\n    ...(pub.gameOver && won ? { won } : {}) } };", "sides: sideList, ...(t.rule === \"sharedTurns\" ? { turns: \"shared\" } : {}),\n    ...(won ? { won } : {}) } };"],
       ["archTeamsField: the archenemy always first", "const sideList = colors[0] === archColor ? [[archColor], others] : [others, [archColor]];", "const sideList = [[archColor], others];"],
       ["teamWinWords: wins / win swapped", "${won.length === 1 ? \"wins\" : \"win\"}", "${won.length === 1 ? \"win\" : \"wins\"}"],
