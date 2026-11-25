@@ -64,6 +64,13 @@ table takes off only the teams it set itself.
 While you choose attackers, each attacker you have picked so far gets a line to whoever it will attack. The line is
 drawn like a block line: solid, thin and low, in a light shade of your seat colour.
 
+## Attack all split evenly button (2026-11-25)
+
+When the bridge offers "Attack all split evenly" (more than 10 creatures that can attack), the corner shows it as a
+third green button above No attacks and All attack, while no creature is picked yet. Pressing it sends that answer.
+Picking a creature hides it, as All attack is replaced by Attack (n). The same purple button is used for "Resolve N×"
+at other times, and it turns purple again for those.
+
 ## A counterspell's target glows (2026-11-24)
 
 When a question asks which spell or ability on the stack to target (Counterspell, Stifle), the thing that shows it on

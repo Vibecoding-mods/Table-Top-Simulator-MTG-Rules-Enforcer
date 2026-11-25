@@ -95,3 +95,14 @@ When a player tapped a land and hasn't spent the mana, the engine lets them unta
 them at a priority it would otherwise pass for them, so they don't lose the mana. The passes the player asked for
 themselves (End turn, Resolve all, `mtg skip`, Auto-resolve, a repeat or loop they accepted) still pass. Whether mana is
 unspent is read from the mana pool, because the engine's undo list can be out of date.
+
+## Attack all split evenly (2026-11-25)
+
+When more than 10 of a player's creatures can attack, the attack question has a third quick choice after All attack:
+"Attack all split evenly". It sends every creature that can attack, including ones that must attack, and shares them
+out over the opponents it can attack. Each opponent gets the same number of creatures, give or take one, and inside
+that the power is kept as even as it can be: the biggest creature goes first, each to the opponent with the least
+power so far. A creature that can attack only one opponent goes to that one. Planeswalkers and battles are left out,
+except for a creature that can attack nothing else. Nothing more is asked ("whom?" is skipped). It is checked like All
+attack: a limit such as Crawlspace stops it with a message that names "Attack all split evenly", and an attack tax is
+still asked. Once sent, chat says the split, for example "Split evenly: 6 at Blue (14 power), 6 at Red (13 power).".
