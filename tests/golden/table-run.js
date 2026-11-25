@@ -891,11 +891,13 @@ function cardEntry(s1) {
 // game's first board. That path is tested in tests/test_table_effects.js ("links").
 const NO_BUNDLE = "engineFxBundle = { fx = nil, sounds = nil }";
 
+// one scenario (tools/mutate-table.js runs them one at a time and stops at the first that differs)
+function runOne(save, sc, stop = null) {
+  const r = simulate({ save, steps: sc.steps, prelude: NO_BUNDLE, stop, ...(sc.seated ? { seated: sc.seated } : {}) });
+  return { name: sc.name, errors: r.errors, steps: r.steps };
+}
 function runAll(save = buildSave()) {
-  return scenarios().map((sc) => {
-    const r = simulate({ save, steps: sc.steps, prelude: NO_BUNDLE, ...(sc.seated ? { seated: sc.seated } : {}) });
-    return { name: sc.name, errors: r.errors, steps: r.steps };
-  });
+  return scenarios().map((sc) => runOne(save, sc));
 }
 
-module.exports = { runAll, buildSave, scenarios };
+module.exports = { runAll, runOne, buildSave, scenarios };

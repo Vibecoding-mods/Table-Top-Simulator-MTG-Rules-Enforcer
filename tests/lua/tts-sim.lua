@@ -49,6 +49,24 @@ SIM.hash = hash
 unpack = unpack or table.unpack
 loadstring = loadstring or load
 math.pow = math.pow or function(a, b) return a ^ b end
+-- MoonSharp differences, measured on TTS's own interpreter 2026-11-02 (tests/test_tts_sim_contract.js):
+-- error(table) arrives as a string (a string error keeps its level: the wrapper is not a tail call, so level + 1)
+do
+  local rawError = error
+  error = function(e, level)
+    if type(e) == "table" then rawError(tostring(e), 0) end
+    if level == 0 then rawError(e, 0) end
+    rawError(e, (level or 1) + 1)
+  end
+end
+-- select("#") with no arguments is 1 (inside a script function: for i = 1, select("#", ...) runs once on nil)
+do
+  local rawSelect = select
+  select = function(n, ...)
+    if n == "#" then local k = rawSelect("#", ...) if k == 0 then return 1 end return k end
+    return rawSelect(n, ...)
+  end
+end
 
 -- ───────── Vector ─────────
 local V = {}
@@ -420,8 +438,47 @@ function M.highlightOn(o, c, d) o.__d.highlight = c fx("highlightOn", o, c) end
 function M.highlightOff(o, c) o.__d.highlight = nil fx("highlightOff", o) end
 function M.addContextMenuItem(o, label, fn) o.__d.menu[#o.__d.menu + 1] = { label = label, fn = fn } fx("menu+", o, label) end
 function M.clearContextMenu(o) if #o.__d.menu > 0 then fx("menu clear", o) end o.__d.menu = {} end
+-- ───────── what real TTS draws where it differs from what the script asked (tests/test_tts_sim_contract.js) ─────────
+-- The record keeps what the script asked; these say what real TTS would show, and run-sim makes a hidden label an error.
+-- (1) a button on a scripting zone (the playmats) or on the middle tile (GM notes in SIM.mirrorTags) is drawn with its
+-- local x mirrored: live 2026-11-10 (the tile: a button meant at x -48 showed at +48) and 2026-11-14 (a mat's team panel)
+SIM.mirrorTags = { mtgsetup = true }
+function SIM.mirrors(o) return o.__d.zoneType == "Scripting" or SIM.mirrorTags[tostring(o.__d.gm or "")] == true end
+function SIM.buttonDrawnAt(o, i)
+  local b = o.__d.buttons[i]
+  if b == nil then return nil end
+  local p = vec(b.position or { 0, 0, 0 })
+  if SIM.mirrors(o) then p.x = -p.x end
+  return M.positionToWorld(o, p)
+end
+-- (2) a button's label fades with its background colour's alpha: a see-through background (alpha under 0.1) with a
+-- background to draw (width and height above 0; TTS's defaults are 100) shows no label at all, live 2026-11-24 (the
+-- mana counters: alpha 0 and 0.01 drew nothing, the same label with width 0 showed). Each such label is listed in
+-- SIM.hiddenLabels as it is made or edited.
+local function alphaOf(c)
+  if type(c) == "table" then return tonumber(c[4] or c.a) or 1 end
+  if type(c) == "string" and c:sub(1, 1) == "#" and #c == 9 then return (tonumber(c:sub(8, 9), 16) or 255) / 255 end
+  return 1
+end
+function SIM.labelShown(o, i)
+  local b = o.__d.buttons[i]
+  if b == nil then return false end
+  local label = tostring(b.label or "")
+  if not label:find("%S") then return false end
+  local w, h = tonumber(b.width or 100) or 100, tonumber(b.height or 100) or 100
+  if w > 0 and h > 0 and alphaOf(b.color) < 0.1 then return false end
+  return alphaOf(b.font_color) >= 0.1
+end
+SIM.hiddenLabels = {}
+local function checkLabel(o, i)
+  local b = o.__d.buttons[i]
+  if b ~= nil and tostring(b.label or ""):find("%S") and not SIM.labelShown(o, i) then
+    SIM.hiddenLabels[#SIM.hiddenLabels + 1] = { guid = o.__guid, label = tostring(b.label) }
+  end
+end
 function M.createButton(o, p)
   o.__d.buttons[#o.__d.buttons + 1] = p
+  checkLabel(o, #o.__d.buttons)
   -- (the colour too: the table's setup buttons say "Start" in yellow or green)
   local c = p.color
   local pos = p.position
@@ -435,7 +492,7 @@ function M.editButton(o, p)
   fx("editButton", o, p.index, p.label or "")
   -- (the button itself changes too, as in TTS: a later getButtons sees the new label)
   local b = o.__d.buttons[(p.index or 0) + 1]
-  if b ~= nil then for k, v in pairs(p) do if k ~= "index" then b[k] = v end end end
+  if b ~= nil then for k, v in pairs(p) do if k ~= "index" then b[k] = v end end checkLabel(o, (p.index or 0) + 1) end
 end
 function M.removeButton(o, i) fx("removeButton", o, i) table.remove(o.__d.buttons, i + 1) end
 function M.clearButtons(o) o.__d.buttons = {} end
@@ -815,6 +872,7 @@ local function uiSet(id)
   return uiShort(id)
 end
 SIM.longIds = {}
+SIM.buttonValues = {}
 -- the screen XML with the long ids back in (tests read the built XML by them)
 function SIM.longXml() local m = uiMap() if not m then return SIM.xml end return (SIM.xml:gsub(' id="([%w_]+)"', function(c) return ' id="' .. (m.l[c] or c) .. '"' end)) end
 UI = {
@@ -823,7 +881,14 @@ UI = {
   setAttribute = function(id, k, v) id = uiSet(id) SIM.attrs[id .. "|" .. k] = tostring(v) redraw(id, { [k] = v }) fx("UI.setAttribute", uiLong(id), k, tostring(v)) end,
   setAttributes = function(id, t) id = uiSet(id) for k, v in pairs(t) do SIM.attrs[id .. "|" .. k] = tostring(v) end redraw(id, t) fx("UI.setAttributes", uiLong(id), t) end,
   getAttribute = function(id, k) return SIM.attrs[uiShort(id) .. "|" .. k] end,
-  setValue = function(id, v) id = uiSet(id) SIM.values[id] = v fx("UI.setValue", uiLong(id), v) end,
+  -- (real TTS ignores UI.setValue on a Button, it draws the text attribute: live 2026-11-02. The call is recorded,
+  -- the value is not kept, and the call is listed in SIM.buttonValues, which run-sim makes an error)
+  setValue = function(id, v)
+    id = uiSet(id)
+    if SIM.btn ~= nil and SIM.btn[id] ~= nil then SIM.buttonValues[#SIM.buttonValues + 1] = tostring(uiLong(id))
+    else SIM.values[id] = v end
+    fx("UI.setValue", uiLong(id), v)
+  end,
   getValue = function(id) return SIM.values[uiShort(id)] end,
   show = function(id) fx("UI.show", id) end,
   hide = function(id) fx("UI.hide", id) end,
@@ -909,5 +974,6 @@ function SIM.load(save)
     end
   end
   SIM.xml = save.XmlUI or ""
+  readButtons(SIM.xml) -- (the save's own screen UI is what TTS starts with: its Buttons ignore setValue too)
 end
 return SIM
