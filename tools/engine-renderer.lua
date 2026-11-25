@@ -10230,10 +10230,12 @@ local function seatedSetupColors()
   return out
 end
 
--- one button on `obj` at world position `at`, readable from the seat `facing` (nil: as the object lies). tileTurn:
--- the button is on the middle tile, where real TTS draws a button's x mirrored and turned half a turn (2026-11-10: a
--- button meant at x -48 showed at x +48, upside down from White), so x is negated and tileTurn is its rotation there
--- (180 reads from the White/Red side, 90 is that turned a quarter left, seen from White); font: its size (220)
+-- one button on `obj` at world position `at`, readable from the seat `facing` (nil: as the object lies). Real TTS
+-- draws a button on the middle tile or on a playmat (a scripting zone) with its local x mirrored, so x is always
+-- negated: 2026-11-10 a tile button meant at x -48 showed at x +48, upside down from White; 2026-11-25 the READY
+-- buttons, unmirrored, sat 12.4 units toward the table's middle on Red's and Blue's mats and 3.6 off on White's and
+-- Yellow's. tileTurn: the button's rotation on the tile (180 reads from the White/Red side, 90 is that turned a
+-- quarter left, seen from White); font: its size (220)
 local function setupButton(obj, click, label, color, at, facing, width, height, tileTurn, font)
   local s = obj.getScale()
   local rotY = tileTurn or 0
@@ -10242,7 +10244,7 @@ local function setupButton(obj, click, label, color, at, facing, width, height, 
     rotY = ((hand and hand.rotation.y or 0) + 180) - obj.getRotation().y
   end
   local pos = obj.positionToLocal(at)
-  if tileTurn ~= nil then pos.x = -pos.x end
+  pos.x = -pos.x
   -- (the playmats and the tile are stretched objects: the scale undoes that, then makes the button readable from a
   -- seat. TTS stretches a button along its object's axes after turning it, so a quarter-turned one takes the other
   -- axis's stretch: live 2026-11-10, the 90-turned mulligan button's text ran off its box on the 2.2 x 1.5 tile)
