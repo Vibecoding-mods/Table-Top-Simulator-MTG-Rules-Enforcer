@@ -52,11 +52,18 @@ Repository: `Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer` (the name i
   `fd16e2f` and reproduces every changed file; `engine/make-patches.sh` now diffs against the clean tree's commit, so
   our local manabrew commit is included). Redo it after any later harness change.
 - [ ] Optional: GitHub Actions running the bridge golden + claims tests on every push (no Docker or TTS needed).
-- [ ] Table sounds (docs/sounds.md "Licences and sources", 2026-11-11): the user confirms the sources found for wipe,
-  instant, exile (p0ss, CC-BY-SA 3.0) and damage (Independent.nu, CC0), and names the pages of death and lifegain
-  (unknown, so not cleared; the wipe bursts mix death in). Or replace those two with clips made like counter and
-  knockout (`tools/make-effect-sounds.js`). Then add the sound credits to README "Credits and legal" and to the
-  Workshop / itch.io description (text in docs/sounds.md), and exclude the sounds from README's public-domain line.
+- [ ] Table sounds: inventory and licences in `docs/sound-credits.md` (2026-11-25; evidence in docs/sounds.md
+  "Licences and sources").
+  - Done 2026-11-25: README "Credits and legal" credits the cleared sounds (p0ss and qubodup, CC-BY-SA 3.0, with the
+    "changed" note and share-alike; Independent.nu and Amarikah, CC0 as a courtesy; knockout ours), and README's
+    public-domain line now excludes the sound effects. The Workshop / itch.io text is in docs/sound-credits.md.
+  - Still open: the user confirms the probable p0ss pack (wipe, instant, exile) and the likely damage pack.
+  - Still open, **not cleared**: death (so also treasurespend and the wipe bursts), lifegain, countered, counter,
+    playerhit, bighit and their bursts, plus the sound bundle `mtg-sounds.unity3d` that holds them all. Their sources
+    are unknown (web searches 2026-11-12 and 2026-11-25 found nothing). Either the user names each page, or each is
+    replaced: CC0 candidates and ready-made ones (Kenney countered, our generated counter) are listed in
+    docs/sound-credits.md. Then update docs/sound-credits.md, README's credits, THIRD-PARTY-NOTICES.md and the
+    Workshop / itch.io text.
 
 ## Not in scope of the first release
 
