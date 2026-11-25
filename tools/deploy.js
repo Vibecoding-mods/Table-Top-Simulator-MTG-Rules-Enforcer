@@ -30,11 +30,14 @@ GATES.push(
   "test_gif_key_file",
   "test_gifs_golden",
   "test_home_paths",
+  "test_mutate_table_anchors",
   "test_patch_save_write",
   "test_publish_release",
   "test_state_delta_golden",
+  "test_table_golden_gaps",
   "test_teams_golden",
   "test_tts_push_global",
+  "test_tts_sim_contract",
   "test_versions_golden",
 );
 // Every tests/test_*.js is a gate above or here, with why it isn't one (tests/test_alignment.js "deploy: no gate left out")

@@ -2,12 +2,13 @@
 //   const { simulate } = require("./run-sim");  simulate({ save, seated, steps, prelude })
 // steps: [{ msg: { t, json } } | { frames: n } | { lua: "code" } | { mark: "label" }]
 // prelude: Lua run before the Global script loads (sets a global the script keeps: `x = x or default`)
+// stop(steps, errors): called after each recorded step; true ends the run there (the golden's first-fail mode)
 const fs = require("fs");
 const path = require("path");
 require("./moonsharp-patterns"); // (fails on the patterns TTS fails on)
 const { lua, lauxlib, lualib, to_luastring, to_jsstring } = require("fengari");
 
-function simulate({ save, seated = ["Blue"], host = "Blue", steps = [], framesPerMsg = 6, prelude = "" }) {
+function simulate({ save, seated = ["Blue"], host = "Blue", steps = [], framesPerMsg = 6, prelude = "", stop = null }) {
   const L = lauxlib.luaL_newstate();
   lualib.luaL_openlibs(L);
   const errors = [];
@@ -38,8 +39,14 @@ function simulate({ save, seated = ["Blue"], host = "Blue", steps = [], framesPe
     const r = run(`local out = __fx __fx = {} return JSON.encode(out)`, "=fx");
     return JSON.parse(r.value || "[]");
   };
+  // a button label real TTS draws see-through (so not at all), and a UI.setValue on a Button (ignored by real TTS)
+  const drift = () => run(`local out = {}
+    for _, h in ipairs(__sim.hiddenLabels) do out[#out + 1] = "button label " .. string.format("%q", h.label) .. " on " .. h.guid .. " has a see-through background: real TTS hides it" end
+    for _, id in ipairs(__sim.buttonValues) do out[#out + 1] = "UI.setValue on a Button (" .. id .. "): real TTS ignores it, set its text attribute" end
+    __sim.hiddenLabels = {} __sim.buttonValues = {}
+    return table.concat(out, "; ")`, "=drift").value;
   const out = [];
-  const record = (label, extra) => { const e = fx(); out.push({ step: label, ...(extra || {}), fx: e }); };
+  const record =(label, extra) => { const e = fx(); out.push({ step: label, ...(extra || {}), fx: e }); };
 
   if (prelude) { const p = run(prelude, "=prelude"); if (p.error) errors.push(`prelude: ${p.error}`); }
   const loaded = run(save.LuaScript, "=Global");
@@ -47,9 +54,13 @@ function simulate({ save, seated = ["Blue"], host = "Blue", steps = [], framesPe
   // TTS calls onLoad, and the older lowercase onload (the base table script uses that one)
   const onLoad = run(`local st = ${JSON.stringify(save.LuaScriptState || "")} if onLoad then onLoad(st) end if onload then onload(st) end __sim.frames(30)`, "=onLoad");
   if (onLoad.error) errors.push(`onLoad: ${onLoad.error}`);
+  const unseenAtLoad = drift();
+  if (unseenAtLoad) errors.push(`onLoad: ${unseenAtLoad}`);
   record("load", onLoad.error ? { error: onLoad.error } : undefined);
 
-  steps.forEach((s, i) => {
+  for (let i = 0; i < steps.length; i++) {
+    if (stop && stop(out, errors)) break;
+    const s = steps[i];
     let r = {};
     if (s.msg) {
       setGlobalString("__msgT", s.msg.t);
@@ -61,9 +72,12 @@ function simulate({ save, seated = ["Blue"], host = "Blue", steps = [], framesPe
     // (a screen-UI set by a long id that has a short one changes nothing in TTS: engineUI was missed, tts-sim.lua)
     const long = run(`local t = __sim.longIds __sim.longIds = {} return table.concat(t, ", ")`, "=longIds").value;
     if (long) errors.push(`step ${i} (${s.msg ? s.msg.t : s.mark || "lua"}): screen UI set by its long id (not through engineUI): ${long.slice(0, 200)}`);
-    if (s.mark) { record(s.mark, r.error ? { error: r.error } : (r.value ? { value: r.value } : undefined)); return; }
+    // (what real TTS would not show: tts-sim.lua's model, pinned by tests/test_tts_sim_contract.js)
+    const unseen = drift();
+    if (unseen) errors.push(`step ${i} (${s.msg ? s.msg.t : s.mark || "lua"}): ${unseen}`);
+    if (s.mark) { record(s.mark, r.error ? { error: r.error } : (r.value ? { value: r.value } : undefined)); continue; }
     record(`${i} ${s.msg ? s.msg.t : s.lua ? "lua" : "frames"}`, r.error ? { error: r.error } : (r.value ? { value: r.value } : undefined));
-  });
+  }
   return { steps: out, errors };
 }
 
