@@ -1051,8 +1051,9 @@ end
 -- teammates in TTS see each other's hand and hidden zones, so the partner sees the real cards, live, and the look-only
 -- stand-ins (engineTeamHands) aren't placed. A shared-life game's sides only (2HG, 3HG: the board's teams without
 -- rule "teams"; 2v2 and the other own-life modes keep hands private). Each side gets its own TTS team, in the board's
--- order; a seated player not on theirs is put on it. engineTtsTeamsSet: colour -> the team the table put them on, so the
--- end of the game (engineTtsTeamsClear) takes off only what the table set.
+-- order; a seated player not on theirs is put on it, and a seated player on no side is taken off a team a side uses.
+-- engineTtsTeamsSet: colour -> the team the table put them on (kept in the save, onSave), so the end of the game
+-- (engineTtsTeamsClear) takes off only what the table set, after a reload too.
 ENGINE_TTS_TEAMS = { "Hearts", "Clubs", "Spades", "Diamonds" }
 engineTtsTeamsSet = {}
 -- true when every seated partner is on their TTS team for this board (false: a team didn't take, and the stand-ins
@@ -1064,9 +1065,12 @@ function engineTtsTeams(m)
     return false
   end
   local all = true
+  local used, onSide = {}, {}
   for i, side in ipairs(t.sides) do
     local want = ENGINE_TTS_TEAMS[i]
+    if want ~= nil then used[want] = true end
     for _, c in ipairs(side) do
+      onSide[c] = true
       local p = Player[c]
       if p ~= nil and p.seated then
         if want ~= nil and p.team ~= want then pcall(function() p.team = want end) end
@@ -1074,7 +1078,20 @@ function engineTtsTeams(m)
       end
     end
   end
+  -- (a seated player on no side, but on a team a side uses, would see that side's hands: taken off it)
+  for _, c in ipairs(getSeatedPlayers()) do
+    local p = Player[c]
+    if not onSide[c] and p ~= nil and used[p.team] then pcall(function() p.team = "None" end) end
+  end
   return all
+end
+-- the save's text of engineTtsTeamsSet ("White=Hearts,Red=Hearts", onSave) read back after a reload
+function engineTtsTeamsLoad(text)
+  if type(text) ~= "string" then return end
+  for pair in text:gmatch("[^,]+") do
+    local eq = pair:find("=", 1, true)
+    if eq ~= nil then engineTtsTeamsSet[pair:sub(1, eq - 1)] = pair:sub(eq + 1) end
+  end
 end
 function engineTtsTeamsClear()
   for c, team in pairs(engineTtsTeamsSet) do
@@ -8672,7 +8689,11 @@ function onSave()
   -- (and the players this table promoted for engine mode, as one text: steam ids joined by commas, never as keys)
   local promoted = {}
   for sid in pairs(ENGINE_PROMOTED or {}) do promoted[#promoted + 1] = sid end
-  return JSON.encode({ engineStash = s, engineFx = engineFxMode, enginePromoted = table.concat(promoted, ",") })
+  -- (and the TTS teams the table put 2HG partners on, as one text "White=Hearts,Red=Hearts": a reload forgets
+  -- engineTtsTeamsSet, and the partners would stay on one team, seeing each other's hand, after the game)
+  local tts = {}
+  for c, team in pairs(engineTtsTeamsSet or {}) do tts[#tts + 1] = c .. "=" .. team end
+  return JSON.encode({ engineStash = s, engineFx = engineFxMode, enginePromoted = table.concat(promoted, ","), engineTtsTeams = table.concat(tts, ",") })
 end
 
 Wait.frames(function()
@@ -8688,6 +8709,8 @@ Wait.frames(function()
     for sid in saved.enginePromoted:gmatch("[^,]+") do ENGINE_PROMOTED[sid] = true end
   end
   if enginePromoteSeated ~= nil then pcall(enginePromoteSeated) end
+  -- (the TTS teams the table set before the reload, remembered, so the game's end or a reset still takes them off)
+  if ok and type(saved) == "table" and engineTtsTeamsLoad ~= nil then engineTtsTeamsLoad(saved.engineTtsTeams) end
   if ok and type(saved) == "table" and (saved.engineFx == "on" or saved.engineFx == "low" or saved.engineFx == "off") then engineFxMode = saved.engineFx end
   sweepEngineCards()
   restoreStash()

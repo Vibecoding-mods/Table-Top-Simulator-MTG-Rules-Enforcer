@@ -155,5 +155,36 @@ const chats = (r, mark) => fxOf(r, mark).filter((l) => /broadcast/.test(l)).join
   ok("tts teams: never in 2v2 (own-life teams keep hands private)", valueOf(r, "2v2") === "None None None None", String(valueOf(r, "2v2")));
 }
 
+// ── (merge review 2026-11-24) a seated player on no side is taken off a team a side uses (else they'd see that side's
+// hands), but kept on one no side uses; the teams the table set survive a reload, so the end still takes them off ──
+{
+  const teamsOf = (mark) => q('return Player.Yellow.team .. " " .. Player.Blue.team .. " " .. Player.Green.team .. " " .. Player.Pink.team', mark);
+  const r = simulate({ save, seated: ["Yellow", "Blue", "Green", "Pink"], host: "Blue", steps: [
+    q('Player.Green.team = "Clubs" Player.Pink.team = "Spades" engineAutoPace.Yellow = false engineAutoPace.Blue = false engineChat("mtg start ai 2", Player.Blue) return "ok"', "prelude"),
+    { msg: { t: "started", json: STARTED } },
+    { msg: { t: "table", json: board({}, HANDS) }, frames: 90 },
+    teamsOf("onlooker"),
+    q("return onSave()", "saved"),
+  ] });
+  ok("tts teams: onlooker run has no errors", !r.errors.length, r.errors.join(" | "));
+  ok("tts teams: a seated player on no side is taken off a side's team, kept on an unused one", valueOf(r, "onlooker") === "Clubs Clubs None Spades", String(valueOf(r, "onlooker")));
+  const savedText = String(valueOf(r, "saved") || "");
+  ok("tts teams: the save keeps the teams the table set", /"engineTtsTeams":"[^"]*Yellow=Clubs/.test(savedText) && /Blue=Clubs/.test(savedText), savedText.slice(0, 300));
+
+  // (run-sim's onLoad runs the load before a step can set Global.script_state, so the read-back is called by hand here;
+  // the load block's call of it is pinned by the source check below)
+  const r2 = simulate({ save, seated: ["Yellow", "Blue"], host: "Blue", steps: [
+    q('engineTtsTeamsSet = {} engineTtsTeamsLoad("Yellow=Clubs,Blue=Clubs") Player.Yellow.team = "Clubs" Player.Blue.team = "Clubs" return "ok"', "state"),
+    q('engineAutoPace.Yellow = false engineAutoPace.Blue = false engineChat("mtg start ai 2", Player.Blue) return "ok"', "prelude"),
+    { msg: { t: "started", json: STARTED } },
+    { msg: { t: "table", json: board({ gameOver: true, winner: "Blue" }, HANDS) }, frames: 30 },
+    q('return Player.Yellow.team .. " " .. Player.Blue.team', "after reload"),
+  ] });
+  ok("tts teams: reload run has no errors", !r2.errors.length, r2.errors.join(" | "));
+  ok("tts teams: after a reload the game's end still takes off the teams the table set", valueOf(r2, "after reload") === "None None", String(valueOf(r2, "after reload")));
+  const src = require("fs").readFileSync(require("path").join(__dirname, "..", "tools", "engine-renderer.lua"), "utf8");
+  ok("tts teams: the reload reads the saved teams back (engineTtsTeamsLoad(saved.engineTtsTeams) in the load)", src.includes("engineTtsTeamsLoad(saved.engineTtsTeams)"));
+}
+
 console.log(`${failed ? "FAIL" : "PASS"} test_table_teams: ${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
