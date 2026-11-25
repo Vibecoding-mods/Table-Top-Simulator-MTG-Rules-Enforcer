@@ -18,6 +18,10 @@ const turnOf = (gv, id) => (teams2hg.sharesTurns(gv) ? teams2hg.isTurnOf(gv, id)
 // whether a stack item's controller ctl is on the other side from player who: everyone but who, and in a shared-turn
 // game not who's partner either (a partner's spell is the team's own, not one to answer)
 const notOurs = (gv, ctl, who) => ctl !== who && !teams2hg.turnPartners(gv, ctl, who);
+// whether players a and b are teammates on board gv: one team of the board's teams (boardTeams: 2HG Level 1 and 2, 2v2,
+// Juggernaut, Archenemy), never outside a team game; a player with no team number is a side of its own
+const teammateOf = (gv, a, b) => a != null && b != null && a !== b
+  && [...(teams2hg.boardTeams(gv, {})?.byTeam.values() || [])].some((t) => t.includes(a) && t.includes(b));
 const home = require("./home"); // where the data and logs are (MTG_HOME, MTG_LOG_DIR; unset: the repo)
 const legality = require("./legality"); // the ban lists: Scryfall's, cached under tmp/, else Forge's (docs/format-banlist-spec.md §4)
 
@@ -11626,7 +11630,8 @@ function onPrompt(seat, prompt) {
           ...(otherwiseDo === "library" ? { text: `Chosen: ${names}. Each one you don't pay for goes back on top of your library. Or drag one of them onto your library.` }
             : otherwiseDo === "sacrifice" ? { text: `Or drag ${src} to your graveyard to sacrifice it.` } : xv ? { text: `${xv.why}: ${xv.n}.` } : {}) };
         const taxCtl = byId[prompt.sourceCard?.id]?.controllerId ?? prompt.sourceCard?.controllerId;
-        if (!u && !paysFor && prompt.sourceCard?.id && taxCtl != null && taxCtl !== seat.slot) tax = { card: prompt.sourceCard.id, name: src };
+        // (a teammate's is no tax: the partner's Rhystic Tutor asks every player, and Always pay paid {2} to stop it)
+        if (!u && !paysFor && prompt.sourceCard?.id && taxCtl != null && taxCtl !== seat.slot && !teammateOf(gv, taxCtl, seat.slot)) tax ={ card: prompt.sourceCard.id, name: src };
         toOutput = (a) => {
           if (u && a[0] !== "yes") u.awaitingPick = true;
           // (Pay: the payment that follows is the player's own, paid from the pool by itself, see payManaCost; Springheart
