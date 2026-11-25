@@ -1,0 +1,37 @@
+{
+  "label": "kw-14: Krosan Grip past an AI Counterspell, Archpriest backup, Sidisi exploits, Assembler prototype, Insatiable Avarice both modes, Pyromatics replicated twice",
+  "mana": 5,
+  "battlefield": [
+    "Grizzly Bears",
+    "Raging Goblin"
+  ],
+  "hand": [
+    "Krosan Grip",
+    "Craw Wurm",
+    "Archpriest of Shadows",
+    "Sidisi, Undead Vizier",
+    "Autonomous Assembler",
+    "Insatiable Avarice",
+    "Pyromatics"
+  ],
+  "library": [
+    "Craw Wurm",
+    "Craw Wurm"
+  ],
+  "opponents": {
+    "hand": [
+      "Counterspell"
+    ],
+    "lands": {
+      "Island": 2
+    },
+    "battlefield": [
+      "Batterskull"
+    ]
+  },
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

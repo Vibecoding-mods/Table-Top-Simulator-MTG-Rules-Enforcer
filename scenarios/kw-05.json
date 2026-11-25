@@ -1,0 +1,27 @@
+{
+  "label": "kw-05: Crawler converge 4, Tribal Flames domain 5, Pentad Prism sunburst 2, Outland Liberator day/night, Teferi's Drake phasing, Leaf-Crowned Elder kinship",
+  "mana": 0,
+  "lands": 0,
+  "battlefield": [
+    "Plains",
+    "Island",
+    "Swamp",
+    "Forest",
+    {
+      "name": "Mountain",
+      "tapped": true
+    },
+    "Outland Liberator",
+    "Teferi's Drake",
+    "Leaf-Crowned Elder"
+  ],
+  "hand": [
+    "Crystalline Crawler",
+    "Tribal Flames",
+    "Pentad Prism"
+  ],
+  "library": [
+    "Elvish Visionary",
+    "Elvish Visionary"
+  ]
+}

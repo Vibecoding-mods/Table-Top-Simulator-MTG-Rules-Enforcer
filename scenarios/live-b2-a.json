@@ -1,0 +1,29 @@
+{
+  "label": "batch 2 live check (2026-11-12): planechase on; planeswalk to Interplanar Tunnel; Lost Mine in Goblin Lair with Nadaar to venture; Thalia for cost badges; two Counterspells for the AI (COUNTERED pop-up on Tibalt and a plain spell); Murder to send Mairsil back for the commander tax badge (needs the plane in the pool first: mtg planes Interplanar Tunnel; ... then mtg planechase on, see README)",
+  "mana": 30,
+  "hand": [
+    "Valki, God of Lies",
+    "Lightning Bolt",
+    "Murder",
+    "Opt",
+    "Nadaar, Selfless Paladin",
+    "Grizzly Bears"
+  ],
+  "dungeon": {
+    "name": "Lost Mine of Phandelver",
+    "room": "Goblin Lair"
+  },
+  "opponents": {
+    "battlefield": [
+      "Thalia, Guardian of Thraben"
+    ],
+    "hand": [
+      "Counterspell",
+      "Counterspell"
+    ],
+    "lands": {
+      "Island": 4
+    }
+  },
+  "planeswalk": "Interplanar Tunnel"
+}

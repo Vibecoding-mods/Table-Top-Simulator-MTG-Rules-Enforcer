@@ -21,7 +21,10 @@ Repository: `Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer` (the name i
 - [x] Privacy scan of everything that would be published:
   - no API keys, tokens, passwords or email addresses;
   - local paths (`C:\Users\<name>\...`) replaced with repo-relative paths in all docs and reports;
-  - the table author's Steam ID redacted in our docs.
+  - the table author's Steam ID redacted in our docs;
+  - personal names (2026-11-25): no tracked file contains the Windows username, the host's or a friend's Steam name
+    (`git grep -inE` for them is empty); the host's Steam name and a local path were painted over in 16 screenshots
+    (`docs/release-check-2026-11-10/`, `docs/tutorials/`), found by OCR. Git history is unchanged.
     It remains in `tools/make-engine-copy.js`, as the pattern that *removes* that permission from the table; needed for
     the patch to work.
 - [x] `bridge/state-delta.js` rewritten from Manabrew's CC-BY protocol specification (no AGPL code left), with its own test (`tests/test_state_delta.js`, 26 checks).

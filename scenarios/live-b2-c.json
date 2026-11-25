@@ -1,0 +1,5 @@
+{
+  "label": "batch 2 live check (2026-11-12, typed mid-game): two Counterspells, a second Valki and an Opt for White to counter their own spells (the AI held its Counterspells), Thalia back for AI 1",
+  "hand": ["Counterspell", "Counterspell", "Valki, God of Lies", "Opt"],
+  "opponents": { "battlefield": ["Thalia, Guardian of Thraben"] }
+}

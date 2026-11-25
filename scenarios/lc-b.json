@@ -1,0 +1,9 @@
+{
+  "label": "live check 2026-11-17 b: 2HG shared turns, the team block panel and the team leader notice, team life",
+  "lands": 10,
+  "keepHand": false,
+  "hand": ["Lightning Bolt", "Giant Growth", "Grizzly Bears"],
+  "battlefield": ["Grizzly Bears", "Hill Giant", "Craw Wurm"],
+  "mana": 10,
+  "opponents": { "battlefield": ["Hill Giant", "Craw Wurm", "Serra Angel"], "lands": 6 }
+}

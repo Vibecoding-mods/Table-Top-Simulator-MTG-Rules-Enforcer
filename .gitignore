@@ -47,3 +47,8 @@ tools/loopback-rec/*.exe
 server.json
 bridge/tts-console.log.*
 *.log.old
+
+# The bridge's live game log (bridge.js GAME_LOG, written beside the bridge)
+bridge/game-log.txt
+# Claude Code agent worktrees and local settings
+.claude/

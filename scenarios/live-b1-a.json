@@ -1,0 +1,13 @@
+{
+  "label": "batch 1 live check (2026-11-12): Hero of Bladehold tokens + token stack, attack taxes and limits (Propaganda, Sphere of Safety, Crawlspace), Thalia cost badges, Time Walk extra-turn badge, Counterspell COUNTERED pop-up, Valki other side, Syr Konrad for mill",
+  "mana": 30,
+  "hand": ["Time Walk", "Time Walk", "Lightning Bolt", "Shock", "Valki, God of Lies", "Murder", "Opt"],
+  "battlefield": ["Hero of Bladehold", "Syr Konrad, the Grim"],
+  "tokens": ["1/1 white soldier", "1/1 white soldier", "1/1 white soldier", "1/1 white soldier", "1/1 white soldier", "1/1 white soldier"],
+  "library": ["Grizzly Bears", "Hill Giant", "Opt"],
+  "opponents": {
+    "battlefield": ["Thalia, Guardian of Thraben", "Propaganda", "Sphere of Safety", "Crawlspace", "Grizzly Bears", "Hill Giant"],
+    "hand": ["Counterspell"],
+    "lands": { "Island": 4 }
+  }
+}

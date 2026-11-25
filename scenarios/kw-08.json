@@ -1,0 +1,27 @@
+{
+  "label": "kw-08: Human Torch power-up, Broodship station with Craw Wurm and Hill Giant, Gudul Lurker megamorph, Swordtooth ascend, Firebending Student attacks, Cyclonic Rift overloaded",
+  "mana": 5,
+  "battlefield": [
+    "Exploration Broodship",
+    "Craw Wurm",
+    "Hill Giant",
+    "Firebending Student"
+  ],
+  "hand": [
+    "Human Torch, Johnny Storm",
+    "Gudul Lurker",
+    "Wayward Swordtooth",
+    "Cyclonic Rift"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Grizzly Bears",
+      "Ornithopter"
+    ]
+  },
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

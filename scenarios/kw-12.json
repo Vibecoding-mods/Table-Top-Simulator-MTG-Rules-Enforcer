@@ -1,0 +1,32 @@
+{
+  "label": "kw-12: six evasive attackers and Grizzly Bears into one Craw Wurm; Thunderous Wrath miracle",
+  "mana": 5,
+  "battlefield": [
+    "Herald of Hoofbeats",
+    "Bladetusk Boar",
+    "Furtive Homunculus",
+    "Zodiac Rooster",
+    "Ayumi, the Last Visitor",
+    "Hazezon, Shaper of Sand",
+    "Grizzly Bears"
+  ],
+  "library": [
+    "Thunderous Wrath",
+    "Thunderous Wrath"
+  ],
+  "opponents": {
+    "lands": [
+      "Plains",
+      "Gaea's Cradle",
+      "Shefet Dunes"
+    ],
+    "battlefield": [
+      "Craw Wurm"
+    ]
+  },
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

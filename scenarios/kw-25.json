@@ -1,0 +1,42 @@
+{
+  "label": "kw-25: White at 5; Courageous Resolve then Night's Whisper (no life lost), Shock tripled, Radical Idea from the graveyard (paradox), Page grandeur, Squirming Emergence, Gisela and Bruna meld",
+  "mana": 5,
+  "life": 5,
+  "battlefield": [
+    "Flaming Tyrannosaurus",
+    "Fiery Emancipation",
+    "Page, Loose Leaf",
+    "Gisela, the Broken Blade",
+    "Bruna, the Fading Light"
+  ],
+  "hand": [
+    "Courageous Resolve",
+    "Night's Whisper",
+    "Shock",
+    "Page, Loose Leaf",
+    "Squirming Emergence"
+  ],
+  "graveyard": [
+    "Radical Idea",
+    "Craw Wurm",
+    "Hill Giant",
+    "Grizzly Bears",
+    "Ornithopter",
+    "Island",
+    "Island"
+  ],
+  "library": [
+    "Divination",
+    "Island",
+    "Island",
+    "Island",
+    "Island",
+    "Island",
+    "Island"
+  ],
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

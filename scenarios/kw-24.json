@@ -1,0 +1,32 @@
+{
+  "label": "kw-24: no pool (real lands only, so the mana question shows undaunted cost); Kíli enduring story, Fleshwrither finds Hill Giant, Rot-Curse Rakshasa decays, Curtains' Call undaunted, Blast-Furnace Hellkite offering, Endless Swarm epic",
+  "mana": 0,
+  "battlefield": [
+    "Ornithopter",
+    "Ornithopter",
+    "Fleshwrither",
+    "Rot-Curse Rakshasa"
+  ],
+  "hand": [
+    "Kíli the Resourceful",
+    "Curtains' Call",
+    "Blast-Furnace Hellkite",
+    "Endless Swarm"
+  ],
+  "library": [
+    "Hill Giant",
+    "Hill Giant"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Grizzly Bears",
+      "Wall of Omens"
+    ]
+  },
+  "lands": {
+    "Plains": 3,
+    "Swamp": 10,
+    "Mountain": 10,
+    "Forest": 9
+  }
+}

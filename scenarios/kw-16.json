@@ -1,0 +1,30 @@
+{
+  "label": "kw-16: Riveteers Decoy blitzed, Batterskull Germ, Black Mage's Rod Hero, Relic Seeker renowned, Usher boasts, HULK SMASH! with teamwork",
+  "mana": 5,
+  "battlefield": [
+    "Relic Seeker",
+    "Usher of the Fallen",
+    "Grizzly Bears",
+    "Hill Giant"
+  ],
+  "hand": [
+    "Riveteers Decoy",
+    "Batterskull",
+    "Black Mage's Rod",
+    "HULK SMASH!"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Pentad Prism",
+      {
+        "name": "Raging Goblin",
+        "tapped": true
+      }
+    ]
+  },
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

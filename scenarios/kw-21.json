@@ -1,0 +1,27 @@
+{
+  "label": "kw-21: Airbending Lesson on Hill Giant, Lyev Skyknight detains Wall of Omens, Fortress Kin-Guard endures, Cryptic Coat cloaks, Long Lake Nuisance recruits, Time Beetle time-travels Keldon Marauders",
+  "mana": 5,
+  "battlefield": [
+    "Time Beetle"
+  ],
+  "hand": [
+    "Keldon Marauders",
+    "Airbending Lesson",
+    "Lyev Skyknight",
+    "Fortress Kin-Guard",
+    "Cryptic Coat",
+    "Long Lake Nuisance",
+    "Craw Wurm"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Hill Giant",
+      "Wall of Omens"
+    ]
+  },
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

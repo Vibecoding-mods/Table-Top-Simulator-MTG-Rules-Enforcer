@@ -1,0 +1,13 @@
+{
+  "label": "live check 2026-11-17 a: battle, adventure, split and flashback cost badges, hideaway, token runs, grouped triggers, a big hand, attack lines, repeated yes/no",
+  "lands": 20,
+  "keepHand": false,
+  "hand": ["Invasion of Ikoria", "Bonecrusher Giant", "Fire // Ice", "Mosswort Bridge", "Krenko's Command", "Bone Splinters",
+    "Opt", "Opt", "Opt", "Opt", "Shock", "Shock", "Shock", "Shock",
+    "Llanowar Elves", "Llanowar Elves", "Llanowar Elves", "Llanowar Elves", "Llanowar Elves", "Llanowar Elves"],
+  "graveyard": ["Faithless Looting", "Think Twice"],
+  "battlefield": ["Impact Tremors", "Grizzly Bears", "Grizzly Bears", "Grizzly Bears", "Hill Giant"],
+  "tokens": ["treasure", "treasure", "treasure", "treasure", "treasure", "treasure"],
+  "mana": 20,
+  "opponents": { "battlefield": ["Rhystic Study"], "life": 40 }
+}

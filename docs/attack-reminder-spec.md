@@ -23,7 +23,7 @@ Short names used below:
 
 ## 1. The problem, seen live
 
-On 2026-11-10 at about 11:48 (the user against a friend, packaged build), White had Crawlspace and Norn's Annex
+On 2026-11-10 at about 11:48 (the user against a friend on a Steam Deck, packaged build), White had Crawlspace and Norn's Annex
 out. Blue pressed "All attack" with 3 creatures, 8 times in a row. Each time Forge refused it, and each time the
 bridge told Blue:
 

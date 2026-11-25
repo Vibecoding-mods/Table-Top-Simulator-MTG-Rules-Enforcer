@@ -1,0 +1,40 @@
+{
+  "label": "kw-09: Boseiju channel, coven double strike, formidable fight, Glistener Elf poisons 4, Anoint corrupted, Blessed Alliance escalated untaps Oreskos (inspired), Explosive Prodigy vivid",
+  "mana": 5,
+  "battlefield": [
+    "Glistener Elf",
+    "Oreskos Sun Guide",
+    "Duelcraft Trainer",
+    "Craw Wurm",
+    "Gimli's Reckless Might"
+  ],
+  "hand": [
+    "Boseiju, Who Endures",
+    "Giant Growth",
+    "Anoint with Affliction",
+    "Blessed Alliance",
+    "Explosive Prodigy"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Pentad Prism",
+      {
+        "name": "Grizzly Bears",
+        "tapped": true
+      },
+      {
+        "name": "Hill Giant",
+        "tapped": true
+      },
+      {
+        "name": "Ulamog's Crusher",
+        "tapped": true
+      }
+    ]
+  },
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

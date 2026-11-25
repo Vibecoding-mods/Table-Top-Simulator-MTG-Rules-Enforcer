@@ -1,0 +1,39 @@
+{
+  "label": "kw-02: no pool; Ring threshold, Galvanic Blast metalcraft, Frogmite free, Foundry Assembler by improvise, Stoke by convoke, River Spirit by waterbend",
+  "mana": 0,
+  "lands": {
+    "Mountain": 2,
+    "Island": 2
+  },
+  "battlefield": [
+    "Barbarian Ring",
+    "Ornithopter",
+    "Ornithopter",
+    "Ornithopter",
+    "Ornithopter",
+    "Ornithopter",
+    "Raging Goblin",
+    "Raging Goblin",
+    "Raging Goblin",
+    "Raging Goblin",
+    "Grizzly Bears",
+    "Grizzly Bears",
+    "Grizzly Bears"
+  ],
+  "hand": [
+    "Galvanic Blast",
+    "Frogmite",
+    "Foundry Assembler",
+    "Stoke the Flames",
+    "Benevolent River Spirit"
+  ],
+  "graveyard": [
+    "Island",
+    "Island",
+    "Swamp",
+    "Swamp",
+    "Mountain",
+    "Divination",
+    "Hill Giant"
+  ]
+}

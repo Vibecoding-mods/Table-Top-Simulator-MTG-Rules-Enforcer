@@ -1,0 +1,29 @@
+{
+  "label": "kw-11: Benalish Cavalry, Skyhunter Strike Force, a flying Assassin Initiate, Aven Interrupter (Rogue), Raging Goblin and Ulamog's Crusher attack; Donatello's Technique sneak, Notorious Throng prowl, Overpowering Attack freerunning",
+  "mana": 5,
+  "battlefield": [
+    "Benalish Cavalry",
+    "Skyhunter Strike Force",
+    "Assassin Initiate",
+    "Aven Interrupter"
+  ],
+  "hand": [
+    "Donatello's Technique",
+    "Notorious Throng",
+    "Overpowering Attack"
+  ],
+  "opponents": {
+    "lands": {
+      "Plains": 3
+    },
+    "battlefield": [
+      "Hill Giant",
+      "Wall of Omens"
+    ]
+  },
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

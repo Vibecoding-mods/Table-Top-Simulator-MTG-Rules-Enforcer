@@ -1,0 +1,32 @@
+{
+  "label": "kw-17: Faithless Looting discards Electro's Bolt, Bolt cast by mayhem, Tesak unleashed, Last Thoughts encoded, Coastal Discovery awakened, Elder Deep-Fiend emerged",
+  "mana": 5,
+  "battlefield": [
+    "Grizzly Bears",
+    "Raging Goblin"
+  ],
+  "hand": [
+    "Faithless Looting",
+    "Electro's Bolt",
+    "Tesak, Judith's Hellhound",
+    "Last Thoughts",
+    "Coastal Discovery",
+    "Elder Deep-Fiend"
+  ],
+  "library": [
+    "Island",
+    "Island",
+    "Island"
+  ],
+  "opponents": {
+    "battlefield": [
+      "Hill Giant",
+      "Craw Wurm"
+    ]
+  },
+  "lands": {
+    "Island": 7,
+    "Swamp": 7,
+    "Mountain": 6
+  }
+}

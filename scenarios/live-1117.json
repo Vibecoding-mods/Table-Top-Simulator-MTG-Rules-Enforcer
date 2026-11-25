@@ -1,0 +1,8 @@
+{
+  "label": "live check of the engine1117 deploy: grouped Soul Warden triggers, No xN against Smothering Tithe, Faerie Mastermind with Howling Mine and a rewind, floating mana chips",
+  "lands": { "Plains": 10, "Island": 10 },
+  "keepHand": false,
+  "hand": ["Raise the Alarm", "Divination", "Opt", "Dark Ritual"],
+  "battlefield": ["Soul Warden", "Soul Warden", "Soul Warden", "Soul Warden", "Faerie Mastermind", "Howling Mine"],
+  "opponents": { "battlefield": ["Smothering Tithe"], "lands": 3 }
+}
