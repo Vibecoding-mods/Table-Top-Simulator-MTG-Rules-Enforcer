@@ -6,9 +6,9 @@
 //     4-player table's measured 1.258: the profiles hold neither). Live, White's frame lay at (4.2, -7.9) on it.
 //  2. A playable row card from exile says FROM EXILE (engineCostParts), its hover where it is cast from and why when
 //     known; the bridge sends og "exile" (and ogw) for it, as og "graveyard" before.
-//  3. The planned attack line is clearly visible (as wide as a target line, a quarter towards white, a target line's arc,
-//     ten dashes) and bends around the attacker's own life counter (ENGINE_LINE_AVOID.arc): White to Red on the 4-player
-//     table ran over White's counter.
+//  3. The planned attack line is clearly visible: a block line's width and arc, solid, a quarter towards white. (The
+//     bend around the attacker's own life counter, ENGINE_LINE_AVOID, was unused from 2026-11-19 and deleted
+//     2026-11-24 at the user's word.)
 //   node tests/test_table_live_check_1.js
 const fs = require("fs");
 const path = require("path");
@@ -37,8 +37,8 @@ const field = (re) => { const m = SRC.match(re); if (!m) fail(`${re} is gone`); 
 const SCALE = 1.258;
 const GIF = { SIZE: Number(field(/\n  SIZE = ([\d.]+),/)), R: field(/\n  SPOTS_R = (\{[^}]*\})/), F: field(/\n  SPOTS_F = (\{[^}]*\})/) };
 const LUA = [
-  line("ENGINE_MARKS_FIT = {"), line("BADGE.from = {"), line("ENGINE_LINE_AVOID = {"),
-  ...["engineMarksOutward", "engineMarksStrip", "engineMarksStripHit", "engineGif.freeSpot", "engineCostChange", "engineCostParts", "ENGINE_LINE_AVOID.hit", "ENGINE_LINE_AVOID.arc"].map(fn),
+  line("ENGINE_MARKS_FIT = {"), line("BADGE.from = {"),
+  ...["engineMarksOutward", "engineMarksStrip", "engineMarksStripHit", "engineGif.freeSpot", "engineCostChange", "engineCostParts"].map(fn),
 ].join("\n");
 const STUBS = `
 local vmt = {}
@@ -143,36 +143,7 @@ ok("line: the planned line is about a block line's width", Math.abs(thick.planne
 ok("line: its width is its own (lines are told apart by width)", new Set(Object.values(thick).map((t) => t.toFixed(4))).size === 5, JSON.stringify(thick));
 ok("line: drawn solid on a block line's arc (engineDrawLines' call)", SRC.includes("plannedStyle(pa[3]), 0.3)"));
 ok("line: a quarter towards white, not halfway (White's own stays white)", SRC.includes("{ (1 + 3 * rgb[1]) / 4, (1 + 3 * rgb[2]) / 4, (1 + 3 * rgb[3]) / 4 }"));
-const arc = (a, b, avoid, mat, lift = "nil") => JSON.parse(q(`local pts = ENGINE_LINE_AVOID.arc(Vector(${a.x}, 1.2, ${a.z}), Vector(${b.x}, 1.2, ${b.z}), ${lift}, ${avoid ? `Vector(${avoid.x}, 1, ${avoid.z})` : "nil"}, ${mat ? `Vector(${mat.x}, 1, ${mat.z})` : "nil"}) local out = {} for _, p in ipairs(pts) do out[#out + 1] = string.format("[%.3f,%.3f,%.3f]", p[1], p[2], p[3]) end return "[" .. table.concat(out, ",") .. "]"`));
-const AV = (() => { const t = line("ENGINE_LINE_AVOID = {"); const g = (k) => Number(t.match(new RegExp(`\\b${k} = ([\\d.]+)`))[1]); return { hx: g("hx"), hz: g("hz") }; })();
-const onCounter = (p, t) => Math.abs(p[0] - t.x) < AV.hx && Math.abs(p[2] - t.z) < AV.hz;
-{
-  const w = FOUR.seat.White, r = FOUR.seat.Red;
-  // White's front-row creatures near the middle, attacking Red: the straight line runs over White's counter
-  const froms = [{ x: 9, z: -6 }, { x: 11, z: -5 }, { x: 8.5, z: -7.5 }, { x: 13, z: -9 }];
-  const straightHits = froms.filter((a) => arc(a, r.lifeTracker, null, null).slice(3).some((p) => onCounter(p, w.lifeTracker)));
-  ok("line: the finding: a straight line from White's front row to Red runs over White's own counter", straightHits.length > 0);
-  for (const a of froms) {
-    const pts = arc(a, r.lifeTracker, w.lifeTracker, w.playmat);
-    const at = `from ${a.x}, ${a.z}`;
-    ok(`line: White to Red ${at} keeps off White's own life counter`, !pts.slice(3).some((p) => onCounter(p, w.lifeTracker)), JSON.stringify(pts.filter((p) => onCounter(p, w.lifeTracker))));
-    const end = pts.at(-1);
-    ok(`line: White to Red ${at} still starts on the attacker and ends on Red's counter`, Math.abs(pts[0][0] - a.x) < 0.01 && Math.abs(end[0] - r.lifeTracker.x) < 0.01 && Math.abs(end[2] - r.lifeTracker.z) < 0.01, JSON.stringify([pts[0], end]));
-    ok(`line: White to Red ${at} bends towards the middle of the table, not over the marks boxes`, pts.every((p) => p[2] >= Math.min(a.z, r.lifeTracker.z) - 0.01), JSON.stringify(pts.map((p) => p[2].toFixed(2))));
-  }
-  // a line that never comes near the counter is not bent: on the 6-player table, White to Red, White's counter at the
-  // far end of White's mat (the 4-player table's middle is too crowded for one: every counter is within 7 of another)
-  const sixFar = arc({ x: 20, z: -9 }, SIX.seat.Red.lifeTracker, SIX.seat.White.lifeTracker, SIX.seat.White.playmat), sixPlain = arc({ x: 20, z: -9 }, SIX.seat.Red.lifeTracker, null, null);
-  same("line: a line clear of the counter is not bent", sixFar, sixPlain);
-  // high enough to read over the cards: its middle well over the table (the old fixed lift 0.5 put it at 0.8)
-  const mid = arc(froms[0], r.lifeTracker, w.lifeTracker, w.playmat)[10];
-  ok("line: on a target line's arc, its middle at least 1.5 over its ends", mid[1] - 1.2 >= 1.5, JSON.stringify(mid));
-  same("line: 21 points, ten dashes when drawn dashed", arc(froms[0], r.lifeTracker, w.lifeTracker, w.playmat).length, 21);
-  // the six-player table: White to Red, the counters far apart, nothing in the way
-  const sw = SIX.seat.White, sr = SIX.seat.Red;
-  const six = arc({ x: 20, z: -9 }, sr.lifeTracker, sw.lifeTracker, sw.playmat);
-  ok("line: on the 6-player table White to Red keeps off White's counter", !six.slice(3).some((p) => onCounter(p, sw.lifeTracker)));
-}
+ok("line: the old bend around the life counter is gone (ENGINE_LINE_AVOID deleted 2026-11-24)", !SRC.includes("ENGINE_LINE_AVOID"));
 
 // ── the bridge: og "exile" ──
 (async () => {

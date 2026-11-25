@@ -43,12 +43,6 @@ const MUTATIONS = [
     "line: a quarter towards white, not halfway (White's own stays white)"],
   ["the low arc again, no counter passed", R, "plannedStyle(pa[3]), nil, true, lifeSpot(pa[3]), g and g.mat or nil)", "plannedStyle(pa[3]), 0.5, true)",
     "line: drawn on a target line's arc, bent around the planner's own counter (engineDrawLines' call)"],
-  ["never bent", R, "    if avoid == nil or push >= 2 * ENGINE_LINE_AVOID.most or not ENGINE_LINE_AVOID.hit(pts, avoid, 4) then return pts end\n", "    if true then return pts end\n",
-    "line: White to Red from 9, -6 keeps off White's own life counter"],
-  ["bent to whichever side", R, "  if avoid ~= nil and mat ~= nil and nx * (avoid.x - mat.x) + nz * (avoid.z - mat.z) < 0 then nx, nz = -nx, -nz end\n", "",
-    "line: White to Red from 9, -6 bends towards the middle of the table, not over the marks boxes"],
-  ["eleven points, five dashes", R, "    for i = 0, 20 do\n      local t = i / 20\n", "    for i = 0, 10 do\n      local t = i / 10\n",
-    "line: 21 points, ten dashes when drawn dashed"],
 ];
 function runTests() {
   const failed = [];

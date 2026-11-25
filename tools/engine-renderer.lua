@@ -2604,9 +2604,9 @@ end
 -- colour, to whom it will attack (enginePlannedAttacks); the declared board's attack lines replace them.
 -- (Live check 1: the planned line was too thin and faint to see, 0.12 wide, halfway to white, on a low arc under the
 -- cards; now as wide as a target line, a quarter towards white, on a target line's arc, ten dashes. And from White to
--- Red on the 4-player table it ran over White's own life counter, the two counters 7 apart at the middle: it bends
--- around the attacker's own counter, towards the middle of the table, ENGINE_LINE_AVOID. The user 2026-11-19: "i want
--- [it] the same as the blocker lines": a solid line on a block line's low arc, as thin, still in the seat's shade.)
+-- Red on the 4-player table it ran over White's own life counter, the two counters 7 apart at the middle; it bent
+-- around that counter until the user 2026-11-19: "i want [it] the same as the blocker lines": a solid line on a block
+-- line's low arc, as thin, still in the seat's shade. The bend was deleted 2026-11-24, the user: delete it.)
 do -- (its own scope, as the setup buttons below: the main chunk is at standard Lua's 200-locals limit)
 local LINE_STYLE = { target = { color = {0.35, 0.85, 1}, thickness = 0.3001 }, attack = { color = {1, 0.32, 0.4}, thickness = 0.2201 },
   block = { color = {1, 0.8, 0.25}, thickness = 0.1601 }, planned = { color = {1, 0.75, 0.8}, thickness = 0.1651 } }
@@ -2662,43 +2662,6 @@ local function arc(a, b, lift)
     pts[#pts + 1] = { a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t + 0.3 + 4 * h * t * (1 - t), a.z + (b.z - a.z) * t }
   end
   return pts
-end
--- The life counter's footprint a planned attack line keeps off (world half-sizes across and along the table from the
--- counter's centre: the heart, its +/- buttons and the commander-damage icons, at the tracker's 1.258 scale), how far
--- outside it the line stays, and the most it bends (world units of the curve's middle)
-ENGINE_LINE_AVOID = { hx = 3.4, hz = 2.7, clear = 0.4, most = 14 }
--- (ENGINE_LINE_AVOID.hit, .arc: functions on the global, no new locals)
--- whether a curve's points (from `from` on) reach into the footprint around t
-function ENGINE_LINE_AVOID.hit(pts, t, from)
-  local A = ENGINE_LINE_AVOID
-  for i = from, #pts do
-    if math.abs(pts[i][1] - t.x) < A.hx + A.clear and math.abs(pts[i][3] - t.z) < A.hz + A.clear then return true end
-  end
-  return false
-end
--- a raised curve from a to b, 21 points, bent around the life counter at `avoid` when the straight one would cross it:
--- a quadratic curve whose middle is pushed sideways, to the side of the line away from the attacker's mat (`mat`, so
--- it bends towards the middle of the table, not over the marks boxes under the counter), as little as clears it
-function ENGINE_LINE_AVOID.arc(a, b, lift, avoid, mat)
-  local d = math.sqrt((b.x - a.x) ^ 2 + (b.z - a.z) ^ 2)
-  local h = lift or (0.5 + d * 0.12)
-  local nx, nz = 0, 0
-  if d > 0.001 then nx, nz = -(b.z - a.z) / d, (b.x - a.x) / d end
-  if avoid ~= nil and mat ~= nil and nx * (avoid.x - mat.x) + nz * (avoid.z - mat.z) < 0 then nx, nz = -nx, -nz end
-  local pts = {}
-  local push = 0
-  while true do
-    pts = {}
-    local cx, cz = (a.x + b.x) / 2 + nx * push, (a.z + b.z) / 2 + nz * push
-    for i = 0, 20 do
-      local t = i / 20
-      local u = 1 - t
-      pts[#pts + 1] = { u * u * a.x + 2 * u * t * cx + t * t * b.x, a.y + (b.y - a.y) * t + 0.3 + 4 * h * t * (1 - t), u * u * a.z + 2 * u * t * cz + t * t * b.z }
-    end
-    -- (the curve's start may lie on the counter itself, a creature dropped there: only the part past it is checked)
-    if avoid == nil or push >= 2 * ENGINE_LINE_AVOID.most or not ENGINE_LINE_AVOID.hit(pts, avoid, 4) then return pts end
-    push = push + 1
-  end
 end
 -- Attack lunge (the player, 2026-10-22, as in Arena): when combat damage is dealt, each attacking card swings all of
 -- the way into what it hits (its blocker, the planeswalker or battle, or the back centre of the defending player's
@@ -2797,8 +2760,7 @@ function engineDrawLines(m, stackSpot)
   if m ~= nil and m.gameOver then m = nil end -- (the game is over: no attack or target lines stay on the table)
   local ours = {}
   local drawn = {} -- (one line per pair of spots: twenty tokens in one stack attacking one player are one line)
-  -- (every line is solid on arc(): the dashed planned line bent around the life counter, ENGINE_LINE_AVOID.arc, went
-  -- 2026-11-19 when it was drawn as a block line; ENGINE_LINE_AVOID stays, tested, for a line that needs it again)
+  -- (every line is solid on arc())
   local function add(a, b, style, lift)
     if a == nil or b == nil then return end
     local key = string.format("%.2f,%.2f,%.2f,%.2f,%.4f", a.x, a.z, b.x, b.z, style.thickness)
