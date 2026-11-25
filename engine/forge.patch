@@ -1265,7 +1265,7 @@ index 32394268..e7c90cb7 100644
          }
          print("---- choose ability  (phase = " + phaseStr + ")");
 diff --git a/forge-game/src/main/java/forge/game/Game.java b/forge-game/src/main/java/forge/game/Game.java
-index 8d204538..c41c160c 100644
+index 8d204538..1f8c12f4 100644
 --- a/forge-game/src/main/java/forge/game/Game.java
 +++ b/forge-game/src/main/java/forge/game/Game.java
 @@ -101,6 +101,10 @@ public class Game {
@@ -1297,7 +1297,7 @@ index 8d204538..c41c160c 100644
      // turn is low THOUSANDS of objects/trigger-fires, so the cap sits an
      // order of magnitude above any legitimate game, yet 25k Cards is far
      // below 3g-heap exhaustion. Tunable at boot without a rebuild
-@@ -1134,33 +1138,155 @@ public class Game {
+@@ -1134,33 +1138,180 @@ public class Game {
          }
      }
  
@@ -1314,6 +1314,8 @@ index 8d204538..c41c160c 100644
 +    // is marked unbounded ("infinitely many" on the table). Every rule keeps reading the real cards. This is the number
 +    // of iterations the shortcut rules let a player name for a loop, chosen for them.
 +    public static final int UNBOUNDED_TOKENS = 500;
++
++    private final Set<String> unboundedTokenKeys = new HashSet<>();
  
 -    // The per-turn caps bound memory, not time. Every token that enters
 -    // rescans the statics of a board that just grew by one, so a doubling
@@ -1324,9 +1326,6 @@ index 8d204538..c41c160c 100644
 -    // So one effect asking for more copies of a token than this trips the
 -    // same Draw. No printed effect asks for a hundred copies of one token.
 -    public static final int DEFAULT_RUNAWAY_TOKENS_PER_EFFECT = 100;
-+    private final Set<String> unboundedTokenKeys = new HashSet<>();
- 
--    private static volatile int runawayTokensPerEffectCap = DEFAULT_RUNAWAY_TOKENS_PER_EFFECT;
 +    public void markUnboundedTokens(final String pileKey) {
 +        unboundedTokenKeys.add(pileKey);
 +    }
@@ -1337,8 +1336,7 @@ index 8d204538..c41c160c 100644
 +        return unboundedTokenKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(new HashSet<>(unboundedTokenKeys));
 +    }
  
--    public static void setRunawayTokensPerEffectCap(final int cap) {
--        runawayTokensPerEffectCap = cap > 0 ? cap : Integer.MAX_VALUE;
+-    private static volatile int runawayTokensPerEffectCap = DEFAULT_RUNAWAY_TOKENS_PER_EFFECT;
 +    public void pruneUnboundedTokenKeys() {
 +        if (unboundedTokenKeys.isEmpty()) {
 +            return;
@@ -1350,14 +1348,16 @@ index 8d204538..c41c160c 100644
 +            }
 +        }
 +        unboundedTokenKeys.retainAll(present);
-     }
++    }
  
--    public void recordTokenRequest(final int count) {
+-    public static void setRunawayTokensPerEffectCap(final int cap) {
+-        runawayTokensPerEffectCap = cap > 0 ? cap : Integer.MAX_VALUE;
 +    /** A token in an unbounded pile (exact for the battlefield: a pile with no token left has no card to match). */
 +    public boolean isUnboundedToken(final Card c) {
 +        return !unboundedTokenKeys.isEmpty() && c.isToken() && unboundedTokenKeys.contains(TokenPile.key(c));
-+    }
-+
+     }
+ 
+-    public void recordTokenRequest(final int count) {
 +    void copyUnboundedTokenKeysTo(final Game to) {
 +        to.unboundedTokenKeys.clear();
 +        to.unboundedTokenKeys.addAll(unboundedTokenKeys);
@@ -1375,7 +1375,9 @@ index 8d204538..c41c160c 100644
 +    // asks again. A no, or no hook, ends the game as the Draw below (CR 104.4b: a loop nobody can stop is a draw).
 +    // The card cap is passed while a card is being made, so it is only marked there and asked at the next trigger
 +    // fire or token effect. Before any ask, a heap over RUNAWAY_HEAP_LIMIT ends the game at once: the turn could take
-+    // every game on the JVM with it.
++    // every game on the JVM with it. The share read counts garbage not yet collected, so a read over the limit first
++    // frees it (System.gc(), at most once every HEAP_FREE_SECONDS: a later read in that window goes by the share left
++    // after the last one) and only a heap still over the limit after that ends the game.
 +    public interface RunawayChoice {
 +        boolean keepGoing(Game game, String what, int count, int cap);
 +    }
@@ -1393,8 +1395,20 @@ index 8d204538..c41c160c 100644
 +    private static volatile java.util.function.DoubleSupplier heapUsed = RUNTIME_HEAP;
 +
 +    /** Tests only: what share of the heap is in use (null: the runtime's). */
-+    public static void setHeapReader(final java.util.function.DoubleSupplier reader) {
++    public static synchronized void setHeapReader(final java.util.function.DoubleSupplier reader) {
 +        heapUsed = reader == null ? RUNTIME_HEAP : reader;
++        heapFreedAt = 0;
++    }
++
++    public static final long HEAP_FREE_SECONDS = 5;
++    private static volatile Runnable heapFreer = System::gc;
++    private static long heapFreedAt;
++    private static double heapAfterFree;
++
++    /** Tests only: what frees unused memory before the heap is read again (null: System.gc()). */
++    public static synchronized void setHeapFreer(final Runnable freer) {
++        heapFreer = freer == null ? System::gc : freer;
++        heapFreedAt = 0;
 +    }
 +
 +    private RunawayChoice runawayChoice;
@@ -1407,8 +1421,10 @@ index 8d204538..c41c160c 100644
 +
 +    public void setRunawayChoice(final RunawayChoice choice) {
 +        runawayChoice = choice;
-+    }
-+
+     }
+ 
+-    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
+-    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
 +    /** Why the engine ended this game as a draw (a runaway limit, the heap, a stuck loop, a tie), or null. */
 +    public String getDrawReason() {
 +        return drawReason;
@@ -1422,8 +1438,19 @@ index 8d204538..c41c160c 100644
 +        return cap > Integer.MAX_VALUE - extra ? Integer.MAX_VALUE : cap + extra;
 +    }
 +
-+    private boolean heapNearlyFull() {
-+        return heapUsed.getAsDouble() > RUNAWAY_HEAP_LIMIT;
++    private static boolean heapNearlyFull() {
++        if (heapUsed.getAsDouble() <= RUNAWAY_HEAP_LIMIT) {
++            return false;
++        }
++        synchronized (Game.class) {
++            final long now = System.nanoTime();
++            if (heapFreedAt == 0 || now - heapFreedAt >= HEAP_FREE_SECONDS * 1_000_000_000L) {
++                heapFreer.run();
++                heapAfterFree = heapUsed.getAsDouble();
++                heapFreedAt = now == 0 ? 1 : now;
++            }
++            return heapAfterFree > RUNAWAY_HEAP_LIMIT;
++        }
 +    }
 +
 +    private void askOrDraw(final int count, final int limit, final String what) {
@@ -1462,17 +1489,15 @@ index 8d204538..c41c160c 100644
 +        cardsCapPending = false;
 +        askOrDraw(cardsCreatedThisTurn, addCap(runawayCardsPerTurnCap, cardsAllowedThisTurn), "cards created");
 +        cardsAllowedThisTurn = addCap(cardsAllowedThisTurn, runawayCardsPerTurnCap);
-     }
- 
--    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
--    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
++    }
++
 +    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CARDS_PER_TURN;
 +    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_TRIGGERS_PER_TURN;
 +    private static volatile int runawayStackItemsCap = RUNAWAY_STACK_ITEMS;
  
      public static void setRunawayCardsPerTurnCap(final int cap) {
          runawayCardsPerTurnCap = cap > 0 ? cap : Integer.MAX_VALUE;
-@@ -1168,6 +1294,9 @@ public class Game {
+@@ -1168,6 +1319,9 @@ public class Game {
      public static void setRunawayTriggersPerTurnCap(final int cap) {
          runawayTriggersPerTurnCap = cap > 0 ? cap : Integer.MAX_VALUE;
      }
@@ -1482,7 +1507,7 @@ index 8d204538..c41c160c 100644
  
      private int runawayTurnStamp = -1;
      private int cardsCreatedThisTurn = 0;
-@@ -1186,17 +1315,21 @@ public class Game {
+@@ -1186,17 +1340,21 @@ public class Game {
              runawayTurnStamp = turnNow;
              cardsCreatedThisTurn = 0;
              triggersFiredThisTurn = 0;
@@ -1508,7 +1533,7 @@ index 8d204538..c41c160c 100644
              runawayFinalizing = true;
              try {
                  // Mirror the engine's OWN draw path, GameDrawEffect.resolve():
-@@ -1220,16 +1353,75 @@ public class Game {
+@@ -1220,16 +1378,75 @@ public class Game {
       *  TriggerHandler.runWaitingTriggers(). */
      public void recordTriggerFired() {
          resetRunawayWindowOnTurnChange();
@@ -1586,7 +1611,7 @@ index 8d204538..c41c160c 100644
          return ++cardIdCounter;
      }
      public int nextHiddenCardId() {
-@@ -1410,7 +1602,8 @@ public class Game {
+@@ -1410,7 +1627,8 @@ public class Game {
              player.onCleanupPhase();
          }
          for (final Card c : getCardsIncludePhasingIn(ZoneType.Battlefield)) {
@@ -1596,7 +1621,7 @@ index 8d204538..c41c160c 100644
          }
          for (final Card card : getCardsInGame()) {
              card.resetActivationsPerTurn();
-@@ -1479,6 +1672,23 @@ public class Game {
+@@ -1479,6 +1697,23 @@ public class Game {
          countersRemovedThisTurn.clear();
      }
  
@@ -1620,7 +1645,7 @@ index 8d204538..c41c160c 100644
      public void addCounterRemovedThisTurn(CounterType cType, Card card, Integer value) {
          countersRemovedThisTurn.put(cType, Pair.of(CardCopyService.getLKICopy(card), value));
      }
-@@ -1590,6 +1800,9 @@ public class Game {
+@@ -1590,6 +1825,9 @@ public class Game {
      public Boolean getDayTime() {
          return this.daytime;
      }
@@ -1630,7 +1655,7 @@ index 8d204538..c41c160c 100644
      public void setDayTime(Boolean value) {
          if (StaticAbilityCantChangeDayTime.cantChangeDay(this, value)) {
              return;
-@@ -1613,6 +1826,9 @@ public class Game {
+@@ -1613,6 +1851,9 @@ public class Game {
      public int getAITimeout() {
          return AI_TIMEOUT;
      }
@@ -6370,7 +6395,7 @@ index dde410ae..46b5b7ae 100644
  
          CardCollection attackers = (CardCollection) runParams.get(AbilityKey.Attackers);
 diff --git a/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java b/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
-index 627c7d49..073ac155 100644
+index 627c7d49..2bdf6f74 100644
 --- a/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
 +++ b/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
 @@ -91,6 +91,15 @@ public class TriggerHandler {
@@ -6389,10 +6414,41 @@ index 627c7d49..073ac155 100644
      public final void handlePlayerDefinedDelTriggers(final Player player) {
          final List<Trigger> playerTriggers = playerDefinedDelayedTriggers.removeAll(player);
          playerTriggers.stream().filter(CardTraitPredicates.hasParam("ThisTurn")).forEach(thisTurnDelayedTriggers::add);
-@@ -354,6 +363,11 @@ public class TriggerHandler {
+@@ -278,13 +287,16 @@ public class TriggerHandler {
+ 
+         boolean haveWaiting = false;
+         for (final TriggerWaiting wt : waiting) {
+-            // Endstep patch 24: count waiting-trigger fires toward the
+-            // per-turn runaway soft cap — an unbounded mandatory-trigger
+-            // cascade never returns to the priority loop patch 21 bounds.
+-            // Throws Game.RunawayGameException past the cap (game already
+-            // force-ended as a Draw). See Game.recordTriggerFired().
+-            game.recordTriggerFired();
+             haveWaiting |= runWaitingTrigger(wt);
++            // Endstep patch 24: count the triggers that really fired since the last count (runSingleTriggerInternal: put
++            // on the stack, or a static one run; this event's and any run straight away) toward the per-turn runaway
++            // soft cap — an unbounded mandatory-trigger cascade never returns to the priority loop patch 21 bounds.
++            // An event no trigger answers counts nothing (counting every
++            // waiting event asked the Kykar loop after ~65 spells, ~75 events a spell for 3 or 4 triggers). Throws
++            // Game.RunawayGameException past the cap (game already force-ended as a Draw). See Game.recordTriggerFired().
++            for (int n = takeTriggersFired(); n > 0; n--) {
++                game.recordTriggerFired();
++            }
+         }
+ 
+         return haveWaiting;
+@@ -354,6 +366,19 @@ public class TriggerHandler {
          return checkStatics;
      }
  
++    private int triggersFired;
++
++    private int takeTriggersFired() {
++        final int n = triggersFired;
++        triggersFired = 0;
++        return n;
++    }
++
 +    public void removeWaitingTapsForMana(final Card source) {
 +        waitingTriggers.removeIf(wt -> wt.getMode() == TriggerType.TapsForMana
 +                && (source == null || source.equals(wt.getParams().get(AbilityKey.Card))));
@@ -6401,7 +6457,15 @@ index 627c7d49..073ac155 100644
      public void clearWaitingTriggers() {
          waitingTriggers.clear();
      }
-@@ -586,6 +600,25 @@ public class TriggerHandler {
+@@ -537,6 +562,7 @@ public class TriggerHandler {
+         }
+ 
+         regtrig.triggerRun();
++        triggersFired++;
+ 
+         boolean removeBoon = host.isBoon();
+         if (regtrig.hasParam("BoonAmount")) {
+@@ -586,6 +612,25 @@ public class TriggerHandler {
          } 
      }
  

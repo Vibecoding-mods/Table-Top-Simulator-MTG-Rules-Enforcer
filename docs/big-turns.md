@@ -67,19 +67,20 @@ Second Harvest), in `mtg-harness-test:l2-ai` with the big-turns overlay:
 
 - **Engine:** a held exhaust pass now also ends once 20 of its stack items have resolved
   (`PriorityFastForward.EXHAUST_RESOLUTIONS`). The holder is asked again every 20, so their table catches up and they get a
-  chance to stop.
-- **Bridge (`heldPass`):** when the bridge passes a priority by itself and the **whole** stack is one run of at least
-  `HELD_MIN` (5) of the same untargeted ability (`stackRun`), it sends `{ type: "pass", exhaustStack: true }`. That covers
+  chance to stop. Since 2026-11-25 (4.5) the pass covers the run on top of the stack only (`topRunIds`) and ends when the
+  item under it is on top, and once the same run has been held for a minute (`LONG_RUN_SECONDS`) it is no longer cut at 20.
+- **Bridge (`heldPass`):** when the bridge passes a priority by itself and the **top** of the stack is one run of at least
+  `HELD_MIN` (5) of the same untargeted ability (`stackRun`; until 2026-11-25 the whole stack had to be the run), it sends `{ type: "pass", exhaustStack: true }`. That covers
   Arena-style passing, End turn, Resolve all, Resolve N×, auto-resolve and `mtg skip`. A plain "Resolve" press is still one
   pass. The opponent's half is held too: Yellow's prompts were the other half of the live cost. Nothing else changes:
   every trigger still resolves on its own in Forge, and any question (a "may", a target, an order) is still asked.
   "Resolve all" counts the triggers a held pass resolved (`heldResolved`), so its cap and "Resolve N×" stay right.
 - **One chat line** for a run longer than 20: "75 Scute Swarm triggers resolve back to back; the table catches up every
-  20. Type "mtg stop" to stop at the next one."
+  20, and after a minute only once the rest are done. Type "mtg stop" to stop at the next catch-up."
 - **`mtg stop`** (chat; `stopchain` to the bridge): the seat's next priority with something on the stack is asked,
   whatever would have passed it. "Resolve all" and a "×N" yes/no run end at once. Because of the held pass it takes effect
   within 20 triggers.
-- **Not held:** a stack with anything else on it (a spell, another trigger, a targeted ability), runs of fewer than 5
+- **Not held:** a spell or another ability on top of the run (a spell under it is fine since 2026-11-25), a targeted run, runs of fewer than 5
   (`tests/golden` stays unchanged, and a few prompts cost little), and a player this seat controls (Mindslaver).
 
 Expected effect on the live case: about 2 × 75 prompts become about 2 × 4, so roughly 75 × (two prompt costs) is
@@ -142,6 +143,57 @@ resolution and could act on any of them. With no gate (AI-only games, the parity
 So the merge does not touch the landfall case; 4.1 does. Merging is for Soul Warden swarms, where each trigger was a full
 priority round.
 
+### 4.5 Long chains: heap, trigger count, skip to the result (engine + bridge, 2026-11-25)
+
+The Kykar stress runs (Kykar + Hullbreaker Horror + Third Path Iconoclast loop, and a Monastery Mentor variant with 150
+prowess Monk tokens) were asked "keep going?" long before anything ran away, and long trigger chains took minutes.
+
+- **Heap (Forge `Game.java`):** the heap share is read with garbage counted, so a read over `RUNAWAY_HEAP_LIMIT` (0.85)
+  first frees unused memory (`System.gc()`, at most once every `HEAP_FREE_SECONDS`, 5 s) and reads again. Only a heap
+  still over the limit ends the game. Tests swap the freer with `Game.setHeapFreer`.
+- **Trigger count (Forge `TriggerHandler.java`):** the per-turn trigger limit counted every waiting event
+  (`runWaitingTriggers` called `recordTriggerFired` once per `TriggerWaiting`), about 75 events a spell in the Kykar loop
+  for 3-4 real triggers, so the 5,000 limit was hit after about 65 spells. It now counts the triggers that really ran
+  (`runSingleTriggerInternal`: put on the stack, or a static trigger run). A real infinite loop of triggers still reaches
+  the limit, and the 5,000/2,500/1,000 caps and the watchdog are unchanged.
+- **Held pass on the top run (harness `PriorityFastForward.topRunIds`):** a held pass covers the run of alike abilities
+  on top of the stack and ends when the item under it is on top. Before, the bridge held only when the whole stack was
+  the run, so Mentor's prowess triggers above the spell that made them were passed one prompt at a time.
+- **After a minute, the result (harness `ManaBrewInteractiveController.heldRunLong`):** once the same run (controller,
+  source name, ability text) has been held for `LONG_RUN_SECONDS` (60), the hold is no longer cut every 20: the rest
+  of the run resolves and the table sees the result. Every trigger still resolves in Forge, every player still gets
+  priority after each one, any question is still asked, and a new object on the stack still stops it. A hold after a
+  hold that ended at the 20 keeps the start time; any other answer starts it over.
+- **Repeat ×N (bridge `loopStep`) is not skipped on the engine side:** each Kykar loop pass needs the player's own
+  answers (cast, pay, order triggers), so there is no run of passes to hold; what it spends besides Forge is snapshots,
+  relay hops and the table redraw.
+
+**Measured** (headless, `tools/kykar-loop-bench.js`, harness-test image, `--cpus 2`, HotSpot):
+
+| Case | Prompts a pass | Time a pass | Per prompt: game / snapshot |
+|---|---|---|---|
+| Kykar loop, 0 tokens | 23 | 1.92 s | 69.6 ms / 21.2 ms (2 builds) |
+| Kykar loop, 150 Soldier tokens | 23 | 3.09 s | 114.6 ms / 52.7 ms |
+| Mentor + 150 prowess Monks (about 300 triggers a pass), no hold | 324 | 30.6 s | 65.6 ms / 47.6 ms |
+| same, held top run (cut every 20) | 38 | 18.1 s | |
+| same, engine1130-ff, held top run (run back to back with the line above: 17.7 s) | 39.7 | 18.6 s | |
+| same, engine1130-ff, no hold (what the bridge sent here before: the spell under the run blocked the hold) | 324 | 33.4 s | 53.2 s game, 32.8 s snapshots over 2 passes |
+| Mentor + 900 Monks (about 1,800 triggers a pass, about 215 ms each), engine1129, held | 117 | 415 s | 385 s game, 30.3 s snapshots |
+| same, engine1130-ff, held (the minute rule on) | 54 | 404 s | 387 s game, 16.4 s snapshots |
+
+- So for the bridge, the top-run hold takes the Mentor case from 324 to 40 prompts a pass and from 33.4 s to 18.6 s
+  (1.8x) headless. The one-minute rule halves the prompts again on a run longer than a minute (117 to 54 at 900
+  tokens; 29 held passes instead of about 90) and halves the snapshot time, but the pass is only 3% faster headless:
+  Forge's own resolution of each trigger (about 215 ms with 900 tokens on the board) is 95% of it and is not skipped.
+  Live, each prompt saved is also about 4 snapshot builds in the node, a relay hop and a table redraw of the whole
+  board, so the live saving is larger than the headless one; it was not measured on the live stack.
+
+- In the 150-token Kykar loop the game thread spends about 38% in Forge (resolve, state effects), about 56% in the
+  harness (the mana-payment snapshot, mana abilities, card-map sorting, action listing) and 6% in AI. The node builds
+  about 4 snapshots a prompt (each human seat and the observer, on the revision and on the prompt).
+- With Mentor, about 69% of what is left after holding is Forge's own resolution (`CardCopyService.getLKICopy`,
+  `Card.getTempToughnessBoost`), plus AI 8% and the response probe 4%. That cannot be skipped and stay rules-correct.
+
 ## 5. Tests
 
 - **Engine** (`forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java`, 21 checks): the held pass ends after
@@ -154,16 +206,23 @@ priority round.
   container): 16 fail named checks. The one that does not: turning off the trigger check in `StackMerge.watched` (even
   together with the waiting-trigger check) still leaves Pridemate unmerged, because its trigger is already pending after
   the first gain and `hasSimultaneousStackEntries` stops the merge. The watcher check is a second guard, not the only one.
+  Since then other changes grew the class to 39 checks; 4.5 added 9 (48 in all): only triggers that fire count, an event
+  no trigger answers counts nothing, a heap the collector frees does not draw, the heap is freed at most once in 5 s, the
+  held pass ends at the item under the run, a long held run is not cut at 20, a run held a minute goes on to the end, a
+  catch-up keeps the minute, another answer starts it over. Break-its (7 mutations, copies only, originals checked by
+  sha256): each fails named checks.
 - **Timing** (`BigTurnTimingTest`, prints the tables in section 2; `ARGS=25,50,100,200,400`).
-- **Bridge** (`tests/test_bridge_big_turns.js`, 36 checks): held pass, presses, `mtg stop`, the runaway question, the
-  table's `mtg stop` and `mtg help`. Break-its: 10 mutations, each failing named checks.
+- **Bridge** (`tests/test_bridge_big_turns.js`, 44 checks): held pass, presses, `mtg stop`, the runaway question, the
+  table's `mtg stop` and `mtg help`. Break-its: 10 mutations, each failing named checks; for 4.5, the old whole-stack
+  rule fails "a run on top of the spell under it: held".
 - **Unchanged:** `tests/test_bridge_golden.js` (1076 scenarios), `tests/test_table_golden.js` (6 games), bridge claims
   (1498), table claims (1393), trigger-group tests.
 
 ## 6. Open, for the owner to decide
 
 1. **Hold size 20** (`EXHAUST_RESOLUTIONS` in the engine, `HELD_RESOLUTIONS` in the bridge; keep them equal). It sets how
-   often the table catches up and how soon `mtg stop` lands.
+   often the table catches up and how soon `mtg stop` lands. After a run has been held a minute (`LONG_RUN_SECONDS`,
+   4.5) there is no catch-up until the run ends, so `mtg stop` lands only then.
 2. **3 "Keep going" a turn**, and the active person is the one asked (the first person when the active player is an AI).
 3. **Merging is off whenever an AI plays.** In games with AI seats only 4.1 helps. Letting the AI waive priority between
    merged life gains would need a rules call.

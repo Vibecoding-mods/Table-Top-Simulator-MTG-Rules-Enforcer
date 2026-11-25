@@ -188,6 +188,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-25 17:36 (tree `tmp/eb-1130-ff`, build id `eb-3a5bee0d4000`) | `engine1130-ff` (node `ed30edf4b227` / relay `eab59c676c92`; harness test `c87bd1cd4350`) | On top of engine1129. Long chains: (1) a heap read over 85% first frees unused memory (`System.gc()`, at most once in 5 s) and only a heap still over 85% ends the game; (2) the per-turn trigger limit counts triggers that really fire, not every waiting event (the Kykar loop was asked after about 65 spells); (3) a held exhaust pass covers the run on top of the stack (a spell under it no longer stops the bridge holding) and, once the same run has been held for 60 s, is no longer cut every 20: the rest resolves and the table sees the result. Bridge `heldPass` holds a run on top of a spell. Section 4 entry. | no | outer branch `worktree-agent-ab1b273006f20c952`; both patches regenerated | not deployed; deploy `--image engine1130-ff` with `MTG_MANABREW=tmp/eb-1130-ff` | engine1129 (`--image engine1129`, `MTG_MANABREW=tmp/eb-1129`) |
 | 2026-11-24 23:36 (built as `engine1129`, tree `tmp/eb-1129`, build id `eb-07211d1b4974`) | `engine1129-jr` (node `4d8a2b3da23a` / relay `6e05f8c02bcf`) | On top of engine1128. A review pass over `forge-harness/.../host` with golden-master photographs first. New tests `GoldenFileTest` (the recorder, 8 checks), `ProtocolGoldenTest` (353 rows: every protocol decode, agent prompts, game-start checks, checkpoint caps and thinning, runaway wording, held-pass phase rules, perks) and `SnapshotGoldenTest` (70 rows: 14 boards x 4 viewers + revisions); the recorded files are in `forge-harness/src/test/resources/golden`. Fixes: a colour answer `{"R":0,"G":1}` decoded as `R`, now the first colour with a count above 0 (`{"W":0}` still `W`); an `applyState` directive with no `ops` array refused at decode, and refused by the session with "the fix has no ops array" (before, a `ClassCastException`/NPE on the game thread); a spectator now reads a delayed trigger's text when its host is an LKI copy (Sneak Attack's end-step sacrifice), from `getLastKnownZone`. Tidy, no behaviour change: the controller's held pass is set and cleared through `holdPass`/`clearPassUntil`/`clearExhaust`; `AutoPay.payBudget` and `InteractiveSnapshotExtractor.shareCards` are `volatile`; the unused public 10-argument `snapshotJson` removed. Harness guide: five team rules listed, the game-level poison/commander limits read only with `sharedLife`/`sharedTurns`. `tools/mutate-engine-docker.js --set golden` 37 mutations, 36 caught by name, the one miss an equivalent program. Section 4 entry. | no | outer branch `worktree-agent-a3467a42910472022`; `engine/manabrew.patch` regenerated; `engine/forge.patch` unchanged | deployed 2026-11-24 23:36 (`--image engine1129`, `MTG_MANABREW=tmp/eb-1129`; the deploy's engine tests passed, 59 classes); table `46f58b44`, save `dc11c2c0` | engine1128 (`--image engine1128`, `MTG_MANABREW=tmp/eb-1128`) |
 | 2026-11-18 07:25 | `engine1128` (node `83edeb7f04e5` / relay `fe8ef72497aa`; harness test `171ba63f644b`) | engine1125 + engine1126 (team choices, chump-team) + engine1127-longtail + engine1128-gift, from main's patches (`cb1cbfc`), tree `tmp/eb-1128`, build id `eb-efe5e365beb2`. Harness 56 of 56 classes; live on test stack 3: phasing 29/29, events 51/51, new `tests/live_gift_check.js` 6/6 (fails on engine1125). Section 4 entry. | no | main `cb1cbfc` (patches from `43ebaad`) | not deployed; deploy `--image engine1128` with `MTG_MANABREW=tmp/eb-1128` | engine1125 (`tmp/eb-1125`) |
 | 2026-11-18 (no image; built in a cloud session) | `engine1128-gift` (no image ids) | On top of engine1126 + engine1127-longtail (`cloud/engine1126-combined`). A Gift spell whose targets depend on the gift (`TargetMin$ X` with `X:Count$PromisedGift`) is offered when it has legal targets with the gift promised. Long River's Pull (counter target creature spell; with the gift, instead target spell) was never offered with only a noncreature spell on the stack, and Into the Flood Maw (return a creature an opponent controls; with the gift, a nonland permanent) with only a noncreature permanent. `ActionSpace.hasValidTargets` read the target count before the cast: `Count$PromisedGift` reads `getCastSA().isGiftPromised()`, not promised until the gift is chosen at cast time (`HarnessPlayPlumbing.chooseOptionalAdditionalCosts`). Now a spell whose targets don't fit, and that has a `PromiseGift` optional cost not yet chosen, is checked again on a copy with the gift added. The copy is made the card's cast ability for the check and put back after. The action offered is the spell as it was, not promised, so its cast still asks the gift. Not checked here: a cast where the player declines the gift and the ungifted half has no legal target (Forge's own targeting step decides it). The other 24 Gift cards with `PromisedGift`: a larger count with the gift (Peerless Recycling, Wear Down: 2/1), an up-to count (Dewdrop Cure), or a target only with the gift (Consumed by Greed, Mind Spiral, Sazacap's Brew, Valley Rally, Wildfire Howl: 1/0) already passed, the count without the gift being the lower; the rest use it outside targeting. New harness test `common.GiftTargetsTest`, 11 checks: Long River's Pull and Into the Flood Maw offered for the gift's kind of target and not with none, a creature spell as before; the offered spell not promised with its gift still to choose; the card's cast ability put back; Wear Down with one target and not with none; Valley Rally with no gift target; Essence Scatter, no gift, not offered against a noncreature spell. `tools/mutate-gift-targets.js` 10 of 10 caught by name. Harness `--all` 56 of 56, `common.ActionSpaceTest` among them. | no | outer branch `cloud/gift-targets`; `engine/manabrew.patch` regenerated (`ActionSpace`, `GiftTargetsTest`); `engine/forge.patch` unchanged; `git apply --check` clean on `fd16e2f` / `e7d2b93b` | not deployed | engine1126-combined |
@@ -311,6 +312,53 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-25 engine1130-ff: heap check, trigger count, held runs go to the end after a minute (not deployed)
+- **Why:** the Kykar stress runs (Kykar + Hullbreaker Horror + Third Path Iconoclast + Sensei's Divining Top loop, and a
+  Monastery Mentor variant with 150 prowess Monk tokens) were asked "keep going?" long before anything ran away, and long
+  chains of triggers took minutes. The user: anything longer than a minute should give the result.
+- **Forge `Game.java` (Endstep patch 24 area):** `heapNearlyFull` reads the heap share; over `RUNAWAY_HEAP_LIMIT` (0.85)
+  it runs `heapFreer` (`System.gc()`) at most once every `HEAP_FREE_SECONDS` (5) and reads again; only a share still
+  over the limit counts as full. Tests: `Game.setHeapFreer` (null = `System.gc()`); `setHeapReader` now also resets the
+  free time.
+- **Forge `TriggerHandler.java`:** `runWaitingTriggers` called `game.recordTriggerFired()` once per `TriggerWaiting`,
+  so every event counted, whether or not a trigger answered it (about 75 a spell in the Kykar loop for 3-4 triggers).
+  Now `runSingleTriggerInternal` counts each trigger it runs (`triggersFired`, after `regtrig.triggerRun()`), and
+  `runWaitingTriggers` records that many after each `runWaitingTrigger`. The caps (5,000 triggers, 2,500 cards, 1,000
+  stack), the 60 s watchdog and the heap guard are unchanged, so a real loop of triggers still trips the limit.
+- **Harness `PriorityFastForward`:** `topRunIds`/`topRunKey`/`runKey` (the top item and the items under it with the
+  same controller, source name and `sourceAbilityText`; a spell is a run of one); `exhaustEnded(game, ids, unlimited)`,
+  `limitReached`, `heldResolutionsLeft(game, ids, unlimited)`, `LONG_RUN_SECONDS = 60`. The held pass now ends when the
+  item under the run is on top.
+- **Harness `ManaBrewInteractiveController`:** `heldRunKey`, `heldRunSince`, `heldEndedAtLimit`, `heldClock`
+  (`System::nanoTime`, swapped by tests), `heldRunLong()`. `holdPass` keeps the run's start time when the hold follows a
+  hold of the same run that ended at the 20; any other answer starts it over. Once `heldRunLong()` the pass is not cut
+  at 20 and goes to the end of the run. Every trigger still resolves in Forge, every player still gets priority after
+  each, questions are still asked, and a new object on the stack still ends the pass.
+- **Bridge `heldPass`:** holds when the top of the stack is a run of 5 or more (the whole stack had to be the run);
+  `resolveStack.held` is the run's ids; the chat line now says "and after a minute only once the rest are done".
+- **Repeat ×N is not skipped engine-side:** each Kykar pass needs the player's own answers (cast, pay, order), so there
+  is no stretch of passes to hold.
+- **Measured** (`tools/kykar-loop-bench.js`, new; `engine/checks/HeadlessGameServer.java` gained a `profile` command,
+  a 2 ms sampler of the game thread): Kykar loop 23 prompts a pass, 1.92 s with 0 tokens (69.6 ms game + 21.2 ms
+  snapshots a prompt), 3.09 s with 150 tokens (114.6 + 52.7 ms; the node builds about 4 snapshots a prompt); game
+  thread at 150 tokens: Forge 38%, harness 56% (mana-payment snapshot, mana abilities, card-map sorting, action list),
+  AI 6%. Mentor + 150 Monks (about 300 triggers a pass): 324 prompts, 30.6-33.4 s a pass without a hold (what the bridge sent before: the spell under the run blocked it), 39.7
+  prompts and 18.6 s with the top-run hold (1.8x). Mentor + 900 Monks (about 1,800 triggers a pass, about 215 ms each),
+  one pass held: engine1129 117 prompts, 415 s (385 s game, 30.3 s snapshots); engine1130-ff 54 prompts (29 held instead
+  of about 90), 404 s (387 s game, 16.4 s snapshots): the minute rule halves prompts and snapshots, 3% faster headless,
+  more live (4 node snapshot builds, a relay hop and a table redraw per prompt; not measured live). What is
+  left is Forge's own resolution (about 69%: `CardCopyService.getLKICopy`, `Card.getTempToughnessBoost`), AI 8%, the
+  response probe 4%.
+- **Tests:** `BigTurnsTest` 48 checks (9 new: everyTriggerThatFiresCounts, anEventNoTriggerAnswersCountsNothing,
+  aHeapTheCollectorFreesDoesNotDraw, theHeapIsFreedAtMostOnceInAWhile, aHeldPassEndsAtTheItemUnderTheRun,
+  aLongHeldRunIsNotCutAtTwenty, aRunHeldForAMinuteGoesOnToTheEnd, aCatchUpKeepsTheMinute,
+  anotherAnswerStartsTheMinuteOver); full `harness-tests.sh` on the new image and the published patches: 58 of 58 classes passed. Break-its (copies, originals
+  checked by sha256), each failing named checks: engine1129's TriggerHandler (2 checks), no free before the draw (2),
+  free on every read (1), the held pass covers the whole stack (1), a long run still cut at 20 (2), every hold starts
+  the minute over (1), a plain pass keeps the minute (1). Bridge `tests/test_bridge_big_turns.js` 44 checks; the old
+  whole-stack rule fails "a run on top of the spell under it: held".
+- **Rollback:** engine1129.
 
 ### 2026-11-24 engine1129-jr: golden masters for the host package, three fixes (not built)
 - **Why:** the first review pass (photograph, structure, simplify, correctness, claims, docs) over
