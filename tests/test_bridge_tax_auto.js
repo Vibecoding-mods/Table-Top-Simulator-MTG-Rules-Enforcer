@@ -149,6 +149,65 @@ const chats = (h, mark = 0) => h.effects.slice(mark).filter((e) => e.tts?.t === 
     ok("always pay: a Tithe payment after another question is shown", shown(h, mark).some((p) => p.promptId === 562) && !calls.some((c) => c.promptId === 562), JSON.stringify(calls));
     harness.restore();
   }
+  // 10. the edges the 2026-11-24 mutation pass found unchecked (tools/mutate-bridge.js "tx ...")
+  // (never pay: a later payment for that card is not made by Auto-pay)
+  {
+    const h = harness.load();
+    const { seat, calls } = setup(h);
+    await send(h, "taxauto", { color: "Blue", mode: "no" });
+    h.B.onPrompt(seat, payAsk(570)); await h.flush();
+    const mark = h.effects.length;
+    h.B.onPrompt(seat, payment(571)); await h.flush();
+    ok("never pay: a later Tithe payment is shown, not auto-paid", shown(h, mark).some((p) => p.promptId === 571) && !calls.some((c) => c.promptId === 571), JSON.stringify(calls));
+    harness.restore();
+  }
+  // (a question asked for a player Blue controls, Mindslaver's: that player's choice, never Blue's setting)
+  {
+    const h = harness.load();
+    const { seat, calls } = setup(h);
+    const gv = seat.board.state.gameView;
+    gv.players = [{ id: "player-0", manaPool: {} }, { id: "player-1", manaPool: {}, controlledBy: "player-0" }, { id: "player-2", manaPool: {} }];
+    const tithe2 = { ...titheCard, controllerId: "player-2" };
+    seat.actingFor = { p: "player-1", card: tithe2.id, turn: 4 };
+    await send(h, "taxauto", { color: "Blue", mode: "no" });
+    const mark = h.effects.length;
+    h.B.onPrompt(seat, payAsk(575, tithe2)); await h.flush();
+    ok("controlled player: the tax question is shown", shown(h, mark).some((p) => p.promptId === 575) && !calls.some((c) => c.promptId === 575), JSON.stringify(calls));
+    harness.restore();
+  }
+  // (the board's controller over the question's: a Tithe Blue has taken is Blue's own, never answered by the setting)
+  {
+    const h = harness.load();
+    const { seat, calls } = setup(h);
+    seat.board.state.gameView.zones = [{ zone: "battlefield", ownerId: "player-1", cards: [{ ...titheCard, controllerId: "player-0" }] }];
+    await send(h, "taxauto", { color: "Blue", mode: "no" });
+    const mark = h.effects.length;
+    h.B.onPrompt(seat, payAsk(578)); await h.flush();
+    ok("stolen Tithe: the board says it is Blue's, the question is shown", shown(h, mark).some((p) => p.promptId === 578) && !calls.some((c) => c.promptId === 578), JSON.stringify(calls));
+    harness.restore();
+  }
+  // (always pay: the payment named only by its card id is still the Pay's)
+  {
+    const h = harness.load();
+    const { seat, calls } = setup(h);
+    await send(h, "taxauto", { color: "Blue", mode: "pay" });
+    h.B.onPrompt(seat, payAsk(580)); await h.flush();
+    const p = payment(581); delete p.input.cardName;
+    h.B.onPrompt(seat, p); await h.flush();
+    ok("always pay: a payment with only the card id is auto-paid", calls.some((c) => c.promptId === 581 && c.out?.auto === true), JSON.stringify(calls));
+    harness.restore();
+  }
+  // (another player's "you may pay {1}. If you do, ..." is a choice to buy something, not a tax: shown)
+  {
+    const h = harness.load();
+    const { seat, calls } = setup(h);
+    await send(h, "taxauto", { color: "Blue", mode: "pay" });
+    const mark = h.effects.length;
+    const BUY = "Whenever you cast a spell, you may pay {1}. If you do, draw a card.";
+    h.B.onPrompt(seat, payAsk(585, { ...titheCard, identity: { name: "Some Bazaar" }, text: BUY }, "nothing", BUY, "{1}")); await h.flush();
+    ok("pay-for: another player's 'If you do' is shown", shown(h, mark).some((p) => p.promptId === 585) && !calls.some((c) => c.promptId === 585), JSON.stringify(calls));
+    harness.restore();
+  }
   process.stdout.write(failed ? `FAILED: ${passed} passed, ${failed} failed\n` : `PASSED: ${passed} passed, 0 failed\n`);
   process.exit(failed ? 1 : 0);
 })();

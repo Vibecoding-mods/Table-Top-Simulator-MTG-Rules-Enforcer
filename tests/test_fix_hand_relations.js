@@ -446,6 +446,10 @@ const MIXED = [B_TO_GY, B_CAST, LIFE, R_CAST, B_ACT_FIELD, TAP, R_LAND];
     const src = fs.readFileSync(path.resolve(process.env.BRIDGE_PATH || path.join(__dirname, "..", "bridge", "bridge.js")), "utf8");
     const K = Number(src.match(/const FIX_ANSWER_MS = (\d+)/)?.[1]);
     ok("R12 precondition: FIX_ANSWER_MS read from the bridge", K > 1000, String(K));
+    // (the harness runs no setInterval, so the bridge's own tick is read from its source: the watchdog has to be on it,
+    // or nothing ever calls it live; mutation pass 2026-11-24 "fix: watchdog off the tick")
+    const tick = src.match(/setInterval\(\(\) => \{([^}]*)\}, (\d+)\)/);
+    ok("R12 the 5-second tick runs the fix watchdog", !!tick && /guarded\("fix watchdog", fixWatchdog\)/.test(tick[1]) && Number(tick[2]) <= 5000, tick && tick[0]);
     // runs a solo hand fix, then the events at their times (ms after the apply); returns the fix state seen at `checkAt`
     const at = (t, fn) => new Promise((resolve) => { const ms = t - Date.now(); global.setTimeout(() => { try { resolve(fn()); } catch (e) { resolve(`crash: ${e.message}`); } }, ms); });
     const scenario = async ({ askAt = null, answerAt = null, checkAfter, red = false, asker = "Blue" }) => {

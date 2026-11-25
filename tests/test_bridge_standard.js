@@ -168,6 +168,41 @@ async function check(h, e, mode) {
     ok("ai seat: in Commander a Standard preset is refused as before", !r8.ok && /no Commander deck/.test(r8.message), r8.message);
   });
 
+  // ── the edges the 2026-11-24 mutation pass found unchecked (tools/mutate-bridge.js "fm ...") ──
+  await run(async (h) => {
+    const G = h.B._gameMode, C = h.B._aiSeatChoice;
+    say(h, "mode", { color: "Blue", mode: " Standard " });
+    ok("edges: the mode's case and spaces folded", G.mode === "standard", G.mode);
+    same("edges: one player in Standard is just Standard", [h.B.modeWords("standard", 1), h.B.modeWords("standard", 2), h.B.modeWords("standard", 3)], ["Standard", "Standard, 1v1", "Standard, free-for-all (3)"]);
+    G.mode = "commander";
+    ok("edges: a Commander deck set in Commander", h.B.setAiSeat("Yellow", "forge", { preset: "neheb_minotaur_commander" }).ok);
+    const said = () => chats(h).filter((t) => /the AI seat Yellow set with a Commander deck/.test(t)).length;
+    say(h, "format", { color: "White", format: "modern", mode: "standard" });
+    say(h, "format", { color: "White", format: "pioneer", mode: "standard" });
+    await h.flush();
+    ok("edges: a format change within the same mode doesn't say the AI seats again", said() === 1, JSON.stringify(chats(h)));
+  });
+  await run(async (h) => {
+    const C = h.B._aiSeatChoice;
+    ok("edges: a Commander deck set", h.B.setAiSeat("Yellow", "forge", { preset: "neheb_minotaur_commander" }).ok);
+    delete C.Yellow.deck.deck.format; // (a deck saved before decks said their format: a Commander one)
+    say(h, "mode", { color: "Blue", mode: "commander" });
+    await h.flush();
+    ok("edges: a deck with no format is a Commander deck", !chats(h).some((t) => /the AI seat Yellow set with/.test(t)), JSON.stringify(chats(h)));
+  });
+  // (the Format button's table is sent the new ban list after a refresh; an older table that never said "format" is not)
+  await run(async (h) => {
+    h.B._onBanlistChanged(null, "Ban lists: updated.");
+    await h.flush();
+    ok("edges: an older table is sent no ban list on a refresh", !h.effects.some((e) => e.tts?.t === "banlist"), JSON.stringify(h.effects.map((e) => e.tts?.t)));
+    say(h, "format", { color: "White", format: "modern", mode: "standard" });
+    await h.flush();
+    const mark = h.effects.length;
+    h.B._onBanlistChanged(null, "Ban lists: updated.");
+    await h.flush();
+    ok("edges: after a format message a refresh sends the ban list", h.effects.slice(mark).some((e) => e.tts?.t === "banlist"), JSON.stringify(h.effects.slice(mark).map((e) => e.tts?.t)));
+  });
+
   // ── a Standard game set up: Blue (a ready Standard deck) vs 1 Forge AI ──
   const startStandard = async (h, bots, mode = "standard", extra = () => {}) => {
     await check(h, entry(RAKDOS, mode === "standard" ? [] : ["Ingris Stingerquill"], "My Rakdos"), mode === "standard" ? mode : undefined);

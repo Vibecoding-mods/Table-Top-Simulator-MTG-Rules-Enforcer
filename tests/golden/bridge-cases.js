@@ -970,6 +970,10 @@ add(intentCase("tapmana: the same mana two ways, told apart", mainB, prompt("cho
   { id: "tap:engine-card-64:0", type: "activateAbility", cardId: "engine-card-64", isManaAbility: true, description: "{T}: Add {C}.", producedMana: [{ amount: 1, color: "C" }] },
   { id: "tap:engine-card-64:1:G", type: "activateAbility", cardId: "engine-card-64", isManaAbility: true, description: "{T}: Add {B} or {G}. Llanowar Wastes deals 1 damage to you.", producedMana: [{ amount: 1, color: "G" }] },
   { id: "tap:engine-card-64:2", type: "activateAbility", cardId: "engine-card-64", isManaAbility: true, description: "{T}: Add {G}.", producedMana: [{ amount: 1, color: "G" }] }] }), [{ kind: "tapmana", id: "engine-card-64" }]));
+// (and by text that isn't damage: the one above is told apart by its pain note too; mutation pass 2026-11-24)
+add(intentCase("tapmana: the same mana two ways, told apart (not by its damage)", mainB, prompt("chooseAction", { actions: [...acts,
+  { id: "tap:engine-card-64:0", type: "activateAbility", cardId: "engine-card-64", isManaAbility: true, description: "{T}: Add {G}. You gain 1 life.", producedMana: [{ amount: 1, color: "G" }] },
+  { id: "tap:engine-card-64:1", type: "activateAbility", cardId: "engine-card-64", isManaAbility: true, description: "{T}: Add {G}.", producedMana: [{ amount: 1, color: "G" }] }] }), [{ kind: "tapmana", id: "engine-card-64" }]));
 // turning a card that has no mana ability uses its {T} ability (Hermit Druid, a fetch land); two of them ask which
 const tapAbilP = prompt("chooseAction", { actions: [...acts,
   { id: "ab-druid", type: "activateAbility", cardId: "engine-card-22", description: "{G}, {T}: Reveal cards from the top of your library until you reveal a basic land card." },

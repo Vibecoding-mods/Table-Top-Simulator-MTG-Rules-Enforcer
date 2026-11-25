@@ -103269,6 +103269,144 @@
   }
  },
  {
+  "name": "tapmana: the same mana two ways, told apart (not by its damage)",
+  "effects": [
+   {
+    "wsOpen": "ws://127.0.0.1:9443"
+   },
+   {
+    "log": "special actions Blue (main1): Cast Hurloon Minotaur (WebSlinging) {\"type\":\"alternative\",\"cost\":\"webSlinging\"} | Cast Heated Debate {\"type\":\"backFaceLand\"} | Cast Vraska's Fall {\"type\":\"foretellExile\"} | Ninjutsu {1}{B} {}"
+   },
+   {
+    "log": "prompt Blue #900: chooseAction \"Your priority\""
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Your priority\": Next | End turn | Fire-Belly Changeling: ability | Cast Hurloon Minotaur | Cast Hurloon Minotaur — web slinging | Cast Hurloon Minotaur (option 2) | Cast Heated Debate — back face | Cast Vraska's Fall — foretell (exile it face down) | ... (11)\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "title": "Your priority",
+     "mode": "single",
+     "options": [
+      {
+       "id": "__pass",
+       "label": "Next"
+      },
+      {
+       "id": "__endturn",
+       "label": "End turn"
+      },
+      {
+       "id": "a-land",
+       "cardId": "engine-card-74",
+       "label": "Fire-Belly Changeling: ability"
+      },
+      {
+       "id": "a-cast1",
+       "cardId": "engine-card-75",
+       "label": "Cast Hurloon Minotaur"
+      },
+      {
+       "id": "a-cast2",
+       "cardId": "engine-card-75",
+       "label": "Cast Hurloon Minotaur — web slinging"
+      },
+      {
+       "id": "a-cast3",
+       "cardId": "engine-card-75",
+       "label": "Cast Hurloon Minotaur (option 2)"
+      },
+      {
+       "id": "a-back",
+       "cardId": "engine-card-97",
+       "label": "Cast Heated Debate — back face"
+      },
+      {
+       "id": "a-fore",
+       "cardId": "engine-card-43",
+       "label": "Cast Vraska's Fall — foretell (exile it face down)"
+      },
+      {
+       "id": "a-abil",
+       "cardId": "engine-card-200",
+       "label": "Ashling, the Limitless: Ninjutsu {1}{B}",
+       "ab": "Ninjutsu {1}{B}"
+      },
+      {
+       "id": "__mana:engine-card-94",
+       "cardId": "engine-card-94",
+       "label": "Mana: tap Simian Spirit Guide"
+      },
+      {
+       "id": "__mana:engine-card-35",
+       "cardId": "engine-card-35",
+       "label": "Mana: tap Venomous Changeling"
+      }
+     ],
+     "kind": "priority",
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   },
+   {
+    "intent": {
+     "kind": "tapmana",
+     "id": "engine-card-64"
+    }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   tapmana Mountain\n"
+   },
+   {
+    "log": "intent Blue: tapmana engine-card-64 (Mountain)"
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   is asked #900 \"Tap Mountain for which mana?\": {G} (You gain 1 life) | {G} (nothing else) | Cancel\n"
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "Blue",
+     "promptId": 900,
+     "step": 0,
+     "title": "Tap Mountain for which mana?",
+     "mode": "single",
+     "kind": "choice",
+     "options": [
+      {
+       "id": "tap:engine-card-64:0",
+       "label": "{G} (You gain 1 life)"
+      },
+      {
+       "id": "tap:engine-card-64:1",
+       "label": "{G} (nothing else)"
+      },
+      {
+       "id": "__back",
+       "label": "Cancel"
+      }
+     ],
+     "text": "",
+     "min": 1,
+     "max": 1
+    }
+   }
+  ],
+  "result": {
+   "open": {
+    "type": "chooseAction",
+    "picks": []
+   }
+  }
+ },
+ {
   "name": "tapmana: a {T} ability without mana",
   "effects": [
    {
