@@ -268,6 +268,19 @@ How each test works and what it can't see: [TESTING.md](TESTING.md).
 - DeckCheck deck links (bracket and threat level): [DeckCheck](https://deckcheck.co) through its public API
   ([deckcheck.co/docs/api](https://deckcheck.co/docs/api)), read-only, one request per import, nothing stored.
   Not affiliated with DeckCheck.
+- Sound effects (played from Steam Cloud links; no audio files are in this repo):
+  - Wipe, instant and exile: "Spell Sounds Starter Pack" by p0ss
+    ([OpenGameArt](https://opengameart.org/content/spell-sounds-starter-pack)),
+    [CC-BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). We trimmed, levelled, padded, stacked and
+    amplified them; our edited clips are CC-BY-SA 3.0 too.
+  - Sorcery: "PowerDrain" by Iwan 'qubodup' Gabovitch ([qubodup.net](http://qubodup.net)),
+    [CC-BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). We reversed it, changed its speed, levelled it
+    and added our own sounds; our edited clip is CC-BY-SA 3.0 too.
+  - Damage: "37 hits/punches" by Independent.nu ([OpenGameArt](https://opengameart.org/content/37-hitspunches)), CC0.
+  - Treasure: "Sack of Gold" by Amarikah ([OpenGameArt](https://opengameart.org/content/sack-of-gold)), CC0.
+  - Knockout: ours (public domain, like the code).
+  - The sources of the death, lifegain, countered, counter, player-hit and big-hit sounds are not yet identified;
+    they are to be credited or replaced. Full list: [docs/sound-credits.md](docs/sound-credits.md).
 - Magic: The Gathering is © Wizards of the Coast. This is unofficial Fan Content permitted under the
   [Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy). Not approved/endorsed by Wizards.
   Portions of the materials used are property of Wizards of the Coast. © Wizards of the Coast LLC.
@@ -275,4 +288,5 @@ How each test works and what it can't see: [TESTING.md](TESTING.md).
 See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 **Licence: public domain** ([The Unlicense](LICENSE)). Do whatever you like with this project's code. That covers our
-code only, not Manabrew, Forge (or our changes to them), the Workshop table or Magic's cards (see the notices).
+code only, not Manabrew, Forge (or our changes to them), the Workshop table, the table's sound effects (above) or
+Magic's cards (see the notices).
