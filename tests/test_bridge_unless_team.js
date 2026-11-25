@@ -29,13 +29,13 @@ const foeTithe = card("engine-card-203", "player-3", "Smothering Tithe", TITHE);
 const myRemora = card("engine-card-204", "player-0", "Mystic Remora", REMORA);
 const searches = (who) => `${who} searches their library for a card, puts it into their hand, then shuffles.`;
 
-// rule: the board's teamRules.rule ("sharedLife" 2HG Level 1, "sharedTurns" Level 2, "teams" 2v2), or null: no teams
+// rule: the board's teamRules.rule ("sharedLife" 2HG Level 1, "sharedTurns" Level 2, "teams" 2v2, "teamTurns" Archenemy: Blue and Red are the archenemy's opponents), or null: no teams
 function setup(h, rule) {
   const seat = new h.B.Seat("Blue", "neheb_minotaur_commander");
   seat.slot = "player-0";
   const players = [0, 1, 2, 3].map((i) => ({ id: `player-${i}`, manaPool: {}, ...(rule ? { teamNumber: i < 2 ? 1 : 2 } : {}) }));
   seat.board = { state: { gameView: { turn: 5, step: "main1", activePlayerId: "player-1", priorityPlayerId: "player-0", stack: [], zones: [],
-    players, ...(rule ? { teamRules: { rule, poisonToLose: rule === "teams" ? 10 : 15 } } : {}) } } };
+    players, ...(rule ? { teamRules: { rule, poisonToLose: rule === "sharedLife" || rule === "sharedTurns" ? 15 : 10 } } : {}) } } };
   h.B._setGame({ seats: new Map([["Blue", seat]]), bots: 0, total: 4, playerOrder: USERS,
     slotNames: { "player-0": "Blue", "player-1": "Red", "player-2": "White", "player-3": "Yellow" },
     slotColor: { "player-0": "Blue", "player-1": "Red", "player-2": "White", "player-3": "Yellow" },
@@ -65,7 +65,7 @@ async function ask(rule, mode, q) {
 }
 
 (async () => {
-  const MODES = [["2HG Level 1", "sharedLife"], ["2HG Level 2", "sharedTurns"], ["2v2 / Teams", "teams"]];
+  const MODES = [["2HG Level 1", "sharedLife"], ["2HG Level 2", "sharedTurns"], ["2v2 / Teams", "teams"], ["Archenemy", "teamTurns"]];
   let n = 300;
   for (const [label, rule] of MODES) {
     // the partner's Rhystic Tutor: never another player's tax
