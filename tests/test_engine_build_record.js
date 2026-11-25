@@ -63,7 +63,7 @@ const build = (fake) => new Promise((done) => { answer = fake; versions.containe
   for (const d of [tagged, byte, pin, crlf, swapped]) fs.rmSync(d, { recursive: true, force: true });
 
   const deploy = fs.readFileSync(path.join(ROOT, "tools", "deploy.js"), "utf8");
-  ok("deploy: records this tree's id as engineBuild, refuses a running engine of another", /const engineBuild = engineBuildId\(\);/.test(deploy) && /if \(running && running !== engineBuild\) stop\(/.test(deploy) && /\.\.\.images, engineBuild, at:/.test(deploy));
+  ok("deploy: records this tree's id as engineBuild, refuses a running engine of another", /const engineBuild = d\.engineBuildId\(\);/.test(deploy) && /if \(running && running !== engineBuild\) stop\(/.test(deploy) && /\.\.\.images, engineBuild, at:/.test(deploy));
   const pkg = fs.readFileSync(path.join(ROOT, "tools", "make-friend-package.js"), "utf8");
   ok("package: version.json carries engineBuild", /engineBuild: deployed\.engineBuild \|\| null,/.test(pkg));
   ok("package: deployed.json keeps the deploy's fields (engineBuild among them)", /const out = \{ \.\.\.deployed, bridge, save, at \};/.test(pkg));
