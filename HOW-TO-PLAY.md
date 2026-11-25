@@ -160,7 +160,12 @@ anyone into your server's games.
   to sacrifice, such as a Treasure); or press **Q/E** on a glowing land or mana source to tap it. Mana already in your
   pool pays for a spell or ability you just started by itself, as on Arena.
 - **Attack:** Q/E on a glowing creature makes it attack (click a life counter, planeswalker or battle to pick what it
-  attacks), then Done.
+  attacks), then Done. **All attack** sends every creature (one with several players or planeswalkers to attack asks
+  whom). With more than 10 creatures that can attack, **Attack all split evenly** (the third corner button) sends all of
+  them spread over your opponents (players only, not planeswalkers or battles): each opponent gets the same number of
+  creatures, give or take one, with the power as even as it can be, and nothing more is asked. Chat says the split
+  ("Split evenly: 6 at Blue (14 power), 6 at Red (13 power)."). An attack tax or a limit such as Crawlspace works as
+  with All attack.
 - **Block:** click your glowing creature, then the attacker. Done.
 - **Tokens:** up to four identical tokens lie side by side; from five they stack as one card with an "xN" label.
   Clicking a stack to attack sends the whole stack (a life counter then aims all of them). To use only some of them,

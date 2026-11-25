@@ -5064,7 +5064,7 @@ function optionColor(p, index, picked)
   local kind = describePrompt(p).kind
   -- (combat clarity, the user 2026-11-09: the attack parts green, the block parts red, as you are the one attacked;
   -- docs/engine-ui-spec.md 9)
-  if o.id == "__allattack" then return ENGINE_COMBAT.attackOn end
+  if o.id == "__allattack" or o.id == "__allsplit" then return ENGINE_COMBAT.attackOn end
   if o.id == "__noattack" then return "#2e3a59" end
   if o.id == "__agree" then return ENGINE_COMBAT.agree end
   if kind == "attack" then return picked and ENGINE_COMBAT.attackOn or ENGINE_COMBAT.attack end
@@ -5544,9 +5544,12 @@ function engineUpdateCorner(color, p)
     big, bigLabel = "confirm", "Done"
     -- attacks, as Arena: nothing chosen yet: No attacks / All attack; some chosen: Attack (n) / No attacks. (The
     -- second button used to be overwritten with "Attack", so No attacks never showed, playtest 2026-10-24.)
-    local all, none, agree
+    -- (and "Attack all split evenly", the bridge's __allsplit for more than 10 attackers, the third button beside All
+    -- attack while nothing is chosen, the user 2026-11-25)
+    local all, none, agree, split
     for i, o in ipairs(p.options or {}) do
       if o.id == "__allattack" then all = i end
+      if o.id == "__allsplit" then split = i end
       if o.id == "__noattack" then none = i end
       if o.id == "__agree" then agree = i end
     end
@@ -5562,6 +5565,7 @@ function engineUpdateCorner(color, p)
         if none ~= nil then big, bigLabel = none, "No attacks" else big, bigLabel = "confirm", "No attacks" end
         bigColor = "#2e3a59"
         if all ~= nil then small, smallLabel = all, "All attack" end
+        if split ~= nil then group, groupLabel, groupTip = split, "Attack all split evenly", "Attack all split evenly" end
       else
         big, bigLabel = "confirm", "Attack (" .. n .. ")"
         if none ~= nil then small, smallLabel, smallColor = none, "No attacks", "#2e3a59" end
@@ -5616,7 +5620,10 @@ function engineUpdateCorner(color, p)
     fontSize = smallTwo and ENGINE_CORNER_WRAP.smallFont or "18", tooltip = smallTwo and smallFull or "" })
   -- (no call while it was never shown: the XML has it hidden, and the hint at its usual place)
   if group ~= nil then
-    setButton("eng_big3_" .. color, { active = "true", text = groupLabel, tooltip = groupTip })
+    -- (green for the attack split, as All attack; purple again for a group after it: the colour is only set once changed)
+    local splitOn = p ~= nil and p.options[group] ~= nil and p.options[group].id == "__allsplit"
+    setButton("eng_big3_" .. color, { active = "true", text = groupLabel, tooltip = groupTip,
+      color = splitOn and ENGINE_COMBAT.attackOn or (uiCache["eng_big3_" .. color .. "|color"] ~= nil and ENGINE_GROUP_COLOR or nil) })
   elseif uiCache["eng_big3_" .. color .. "|active"] == "true" then
     setButton("eng_big3_" .. color, { active = "false" })
   end

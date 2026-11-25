@@ -8185,6 +8185,77 @@ function attackSplit(gv, input, byAttacker, slot, E) {
   return out;
 }
 
+// "Attack all split evenly" (the user 2026-11-25: "When someone has more than 10 creatures add another button next to
+// attack all ... that split a full swing evenly"): offered on the attack question once more than 10 creatures can
+// attack (ATTACK_SPLIT_MIN). Every creature that can attack goes in, must-attack ones too, spread over the players it
+// can attack (validTargetIds; not planeswalkers or battles: one that can attack only those goes to its first target,
+// as All attack sends it). With N creatures and k players each player gets floor(N/k), N mod k of them one more, so
+// the counts differ by at most one; within that the power is balanced: the creatures with the fewest players to pick
+// from first (so one that can attack a single player has its place), then the highest power first, each to the player
+// with room that has the least power so far (then the fewest creatures, then seat order from the attacker's left).
+// One whose every player is full goes to its player with the fewest creatures. In Two-Headed Giant and the team modes
+// the players are the ones the engine offers. Ties by seat order and label(attackerId), so it is deterministic.
+// slot: the attacking player. Returns byAttacker: attacker id -> target id, for every creature that can attack.
+const ATTACK_SPLIT_MIN = 11;
+function attackSplitEvenly(gv, input, slot, label) {
+  const byId = cardIndex(gv);
+  const out = {};
+  const isPlayer = (t) => String(t).startsWith("player-");
+  const ids = (gv.players || []).map((p) => p.id);
+  const from = ids.indexOf(slot);
+  const seatOrder = from < 0 ? ids : [...ids.slice(from + 1), ...ids.slice(0, from + 1)];
+  const seatOf = (p) => (seatOrder.includes(p) ? seatOrder.indexOf(p) : seatOrder.length);
+  const playersOf = (at) => at.validTargetIds.filter(isPlayer);
+  const split = [];
+  for (const at of input.attackers || []) {
+    if (!(at.validTargetIds || []).length) continue;
+    if (playersOf(at).length) split.push(at); else out[at.attackerId] = at.validTargetIds[0];
+  }
+  const players = [...new Set(split.flatMap(playersOf))].sort((a, b) => seatOf(a) - seatOf(b) || String(a).localeCompare(String(b)));
+  if (!players.length) return out;
+  const power = (at) => Number(byId[at.attackerId]?.power) || 0;
+  const az = (x, y) => String(label(x.attackerId)).localeCompare(String(label(y.attackerId)), undefined, { numeric: true });
+  const lo = Math.floor(split.length / players.length);
+  const extra = split.length % players.length;
+  const count = Object.fromEntries(players.map((p) => [p, 0]));
+  const sum = Object.fromEntries(players.map((p) => [p, 0]));
+  let over = 0;
+  const lighter = (a, b) => sum[a] - sum[b] || count[a] - count[b] || players.indexOf(a) - players.indexOf(b);
+  const order = [...split].sort((x, y) => playersOf(x).length - playersOf(y).length || power(y) - power(x) || az(x, y));
+  for (const at of order) {
+    const mine = players.filter((p) => at.validTargetIds.includes(p));
+    const room = mine.filter((p) => count[p] < lo || (count[p] === lo && over < extra));
+    const pick = room.length ? [...room].sort(lighter)[0] : [...mine].sort((a, b) => count[a] - count[b] || lighter(a, b))[0];
+    if (room.length && count[pick] === lo) over++;
+    count[pick]++;
+    sum[pick] += power(at);
+    out[at.attackerId] = pick;
+  }
+  return out;
+}
+
+// The chat line of a split attack: "Split evenly: 6 at Blue (14 power), 6 at Red (13 power)." from what was sent
+// (sent: [{ attackerId, targetId }]), players in seat order from the attacker's left, then any planeswalker or battle
+function attackSplitLine(gv, sent, slot) {
+  const byId = cardIndex(gv);
+  const ids = (gv.players || []).map((p) => p.id);
+  const from = ids.indexOf(slot);
+  const seatOrder = from < 0 ? ids : [...ids.slice(from + 1), ...ids.slice(0, from + 1)];
+  const at = new Map();
+  for (const a of sent) {
+    const s = at.get(a.targetId) || { n: 0, power: 0 };
+    s.n++;
+    s.power += Number(byId[a.attackerId]?.power) || 0;
+    at.set(a.targetId, s);
+  }
+  const rank = (t) => (String(t).startsWith("player-") ? (seatOrder.includes(t) ? seatOrder.indexOf(t) : seatOrder.length) : seatOrder.length + 1);
+  const parts = [...at.keys()].sort((a, b) => rank(a) - rank(b)).map((t) => {
+    const who = String(t).startsWith("player-") ? nameOf(t) : byId[t]?.identity?.name || t;
+    return `${at.get(t).n} at ${who} (${at.get(t).power} power)`;
+  });
+  return `Split evenly: ${parts.join(", ")}.`;
+}
+
 // a tax in one number for ordering: its generic mana, one for every other symbol, and its life ("{2}{W/P}" 3, "2 life" 2)
 function taxSize(cost) {
   const life = /(\d+) life/i.exec(String(cost || ""));
@@ -12334,7 +12405,11 @@ function onPrompt(seat, prompt) {
       }
       const must = input.attackers.filter((a) => a.mustAttack && a.validTargetIds.length);
       // "All attack" sends every creature; "No attacks" none (except those that must attack, at their first target).
-      const quick = pairs.length ? [{ id: "__allattack", label: "All attack" }, { id: "__noattack", label: "No attacks" }] : [];
+      // "Attack all split evenly" (more than 10 creatures that can attack) sends every one spread over the players, no
+      // "whom?" asked (attackSplitEvenly).
+      const canSplit = input.attackers.filter((a) => a.validTargetIds.length).length >= ATTACK_SPLIT_MIN;
+      const quick = pairs.length ? [{ id: "__allattack", label: "All attack" }, ...(canSplit ? [{ id: "__allsplit", label: "Attack all split evenly" }] : []),
+        { id: "__noattack", label: "No attacks" }] : [];
       // (who must attack, said on the question and again if the attack is refused: Kardur, Doomscourge sent four of Red's
       // Dragons in, and all they saw was "Attack declaration invalid", 15 times, game 2026-11-01)
       seat.mustAttack = must.map((m) => cname(m.attackerId));
@@ -12358,13 +12433,14 @@ function onPrompt(seat, prompt) {
       // the declaration once every attacker has its target. "All attack" over a limit the table can read (Crawlspace,
       // Silent Arbiter, a creature that can only attack alone) is stopped here and the limit said, nothing sent: Forge
       // would only refuse it (the user's pick (a), 2026-11-10). Creatures picked one by one still go to Forge, whose
-      // refusal is explained as before.
-      const declare = (byAttacker, all, quiet = false) => {
+      // refusal is explained as before. all: the quick pick's name ("All attack", "Attack all split evenly") or false;
+      // said(sent): a chat line once the attack is sent (the split's), or null.
+      const declare = (byAttacker, all, quiet = false, said = null) => {
         const assignments = Object.entries(byAttacker).map(([attackerId, targetId]) => ({ attackerId, targetId }));
         if (all) {
           const { broken } = attackRefusalReason(gv, assignments, attackData);
           if (broken.length) {
-            const stop = `"All attack" would break a limit, so nothing was sent. ${broken.join(" ")} Pick the attackers yourself.`;
+            const stop = `"${all}" would break a limit, so nothing was sent. ${broken.join(" ")} Pick the attackers yourself.`;
             chat(`[MTG] ${stop}`, seat.color);
             return next({ ...askUi, text: [[stop, mustLine].filter(Boolean).join(" "), ...remind.lines].join("\n"), note: stop }, toOutput);
           }
@@ -12373,6 +12449,7 @@ function onPrompt(seat, prompt) {
           seat.lastAttack = sent;
           seat.attackRefused = null;
           seat.taxPlan = taxPlan;
+          if (said && sent.length) chat(`[MTG] ${said(sent)}`, seat.color);
           return { type: "declareAttackers", assignments: sent };
         };
         // (the attack tax at the lethal minimum, asked per taxed defender; the plan's payments then answer by
@@ -12387,7 +12464,10 @@ function onPrompt(seat, prompt) {
         // (No attacks alone keeps a must-attack creature at its first target, as End turn does: nothing is asked then)
         const none = !a.some((v) => v !== "__noattack");
         for (const m of must) byAttacker[m.attackerId] = many(m) && !none ? "?" : m.validTargetIds[0];
-        if (a.includes("__allattack")) for (const at of input.attackers) if (at.validTargetIds.length) byAttacker[at.attackerId] ??= many(at) ? "?" : at.validTargetIds[0];
+        // (the split sets every creature that can attack, must-attack ones too, so nothing is left at "whom?")
+        const split = a.includes("__allsplit");
+        if (split) Object.assign(byAttacker, attackSplitEvenly(gv, input, forP || seat.slot, attackerLabel));
+        else if (a.includes("__allattack")) for (const at of input.attackers) if (at.validTargetIds.length) byAttacker[at.attackerId] ??= many(at) ? "?" : at.validTargetIds[0];
         // (a target picked wins over "whom?" for the same creature, in any order)
         for (const v of a) {
           if (v.startsWith("__")) continue;
@@ -12397,9 +12477,10 @@ function onPrompt(seat, prompt) {
         // (a token stack still waiting for "whom?" is split among the players by itself, one stack each: attackSplit)
         Object.assign(byAttacker, attackSplit(gv, input, byAttacker, forP || seat.slot, attackData));
         const asked = input.attackers.filter((at) => byAttacker[at.attackerId] === "?");
-        if (!asked.length) return declare(byAttacker, a.includes("__allattack"), none);
+        const all = split ? "Attack all split evenly" : a.includes("__allattack") && "All attack";
+        if (!asked.length) return declare(byAttacker, all, none, split ? (sent) => attackSplitLine(gv, sent, forP || seat.slot) : null);
         return attackWhom({ asked, byAttacker, cname: attackerLabel, defender: (id) => defenderWords(gv, input, id), taxAt: remind.taxAt,
-          done: (chosen) => declare(chosen, a.includes("__allattack")), back: () => next(askUi, toOutput) });
+          done: (chosen) => declare(chosen, all), back: () => next(askUi, toOutput) });
       };
       // "End turn" in your main phase skips the attack too, as on Arena (it stopped at "Choose attackers", hp-07
       // 2026-10-27); creatures that must attack still do
