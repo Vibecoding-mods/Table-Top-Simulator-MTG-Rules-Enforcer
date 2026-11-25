@@ -2,6 +2,7 @@
 //   TTS Global Lua ⇄ External Editor API (localhost 39999/39998) ⇄ this bridge ⇄ Manabrew relay (one session per TTS seat)
 // Run: node bridge.js [--relay ws://127.0.0.1:9443] [--key tts-local] [--room tts-commander]
 // Node 22+ (built-in WebSocket). No dependencies.
+// What it does, in plain English: docs/plain-english/bridge.md; technical reference: docs/our-code-reference.md §3.
 const net = require("net");
 const fs = require("fs");
 const path = require("path");
@@ -1130,16 +1131,13 @@ function standardProblems(cards, commanders = [], sideboard = []) {
 
 // ── The formats' ban lists (format-banlist-spec §6.3). The data is bridge/legality.js's (piece A), read when first
 // needed; without it, Standard is checked against Forge's own list (forge-formats.json) and another format's list is
-// said not checked. A refresh that changes the list re-checks the ready decks (onLegalityChanged).
-let legalData; // undefined: not read yet; null: none
+// said not checked. A refresh that changes the list re-checks the ready decks (onLegalityChanged, from the one
+// subscription onBanlistChanged at the end of the file: registered at load, not when the data is first read).
+let legalData; // undefined: not read yet; null: none (a read that failed: today's Standard check, the rest not checked)
 function legalityNow() {
   if (legalData === undefined) {
     legalData = null;
-    try {
-      const L = require("./legality");
-      legalData = L.loadLegality() || null;
-      if (typeof L.onLegalityChanged === "function") L.onLegalityChanged((l) => guarded("ban list refresh", () => onLegalityChanged(l)));
-    } catch (e) { if (e?.code !== "MODULE_NOT_FOUND") log(`ban list data: ${e.message}`); }
+    try { legalData = legality.loadLegality() || null; } catch (e) { log(`ban list data: ${e.message}`); }
   }
   return legalData;
 }
@@ -1148,7 +1146,7 @@ function listFor(key) {
   const f = formatRules.formatOf(key);
   if (!f.list) return null;
   const l = legalityNow();
-  if (l && typeof l.status === "function" && (typeof l.has !== "function" || l.has(f.key))) {
+  if (l && l.has(f.key)) {
     return { status: (k, n) => l.status(k, n), source: l.source || null, date: l.date || null, hash: String(l.hash ?? "") };
   }
   if (f.key === "standard") {
@@ -1819,10 +1817,11 @@ class Seat {
   // - a loop's "Repeat ×N": the one under way, this turn's answers it repeats, the pass offered (loopStep): loop,
   //   loopLog, loopOffer; another seat's loop passed on (loopQuietOn): loopQuiet;
   // - copies' "Keep targets for all ×N" still answering (offerKeepTargets): keepTargets;
-  // - a "Sacrifice X" run's sources still to sacrifice (sacRunStep): sacRun.
+  // - a "Sacrifice X" run's sources still to sacrifice (sacRunStep): sacRun;
+  // - the Taxes setting's Pay, whose payment is made next with Auto-pay (taxAnswer): taxPay.
   static FOLLOW_UPS = ["endTurnAt", "resolveStack", "queuedPlay", "attachTo", "targetPicks", "cardsDone", "unless", "autoPayCard",
     "autoPayFailedFor", "smartPay", "tappedFor", "payingCost", "textWord", "mustAttack", "attackData", "attackRefused", "lastAttack", "repeatAnswer",
-    "loop", "loopLog", "loopOffer", "loopQuiet", "keepTargets", "sacRun"];
+    "loop", "loopLog", "loopOffer", "loopQuiet", "keepTargets", "sacRun", "taxPay"];
   // resume: { username, slot, roomId } of a seat saved before the bridge stopped (resumeGame): it logs in again under
   // the same name as a reconnect (AuthResult below), so the relay hands back its seat and RequestResync the game
   constructor(color, deckId, resume = null) {
@@ -10453,6 +10452,8 @@ const tloopIsTrig = (s) => !!s && (s.isTrigger || /^(When|Whenever|At)\b/.test(S
 const tloopKey = (prompt, ui) => `${prompt.sourceCard?.id}|${prompt.input?.type}|${ui.title}`;
 // (an answer kept for the run: never one of the bridge's own buttons)
 const tloopKeep = (tl, key, toOutput) => (a) => { if (tl && !String(a[0] ?? "").startsWith("__")) tl.answers.set(key, [...a]); return toOutput(a); };
+// (the key of a loop not to offer again: its step and its lead trigger; game.tloopNo)
+const tloopNoKey = (at, lead) => `${at.turn}|${at.step}|${lead}`;
 const tloopWord = (n) => (n === Infinity ? "until it ends" : `×${n}`);
 // The new stack items of this board counted (each once), and the run's passes with them
 function tloopTrack(gv) {
@@ -10514,7 +10515,7 @@ function tloopEnd(why = "") {
   const tl = game?.tloop;
   if (!tl) return;
   game.tloop = null;
-  game.tloopNo = `${tl.turn}|${tl.step}|${tl.lead}`; // (not offered again in this step)
+  game.tloopNo = tloopNoKey(tl, tl.lead); // (not offered again in this step)
   const done = Math.min(tl.done, tloopLimit(tl));
   const n = done === 1 ? "once" : `${done} times`;
   chat(why ? `[MTG] The loop stopped after ${n} (${tl.name}): ${why}.` : `[MTG] The loop ran ${n} (${tl.name}).`);
@@ -10592,7 +10593,7 @@ function tloopOffer(seat, prompt, gv, ui, toOutput, forP) {
   if (!game || game.tloop || forP || !prompt.sourceCard?.id || !ui?.options?.length) return { ui, toOutput };
   const found = tloopFound(gv);
   if (!found || found.ctl !== seat.slot || !found.srcs.has(prompt.sourceCard.id)) return { ui, toOutput };
-  if (game.tloopNo === `${gv.turn}|${gv.step}|${found.lead}`) return { ui, toOutput };
+  if (game.tloopNo === tloopNoKey(gv, found.lead)) return { ui, toOutput };
   const start = (n) => { const tl = tloopBegin(found, gv, n, true, seat); return next(ui, tloopKeep(tl, tloopKey(prompt, ui), toOutput)); };
   const ask = { title: `${found.name} keep triggering: run the loop how many times?`, mode: "single", min: 1, max: 1, kind: "loop",
     text: `${found.at} times so far this step. The others are asked to accept it, or fewer. Then answer this question once: the same answer is given each time after. Anyone may respond when they get priority, and that stops it.`,
@@ -10600,8 +10601,8 @@ function tloopOffer(seat, prompt, gv, ui, toOutput, forP) {
   return { ui: ask, toOutput: (a) => {
     const v = tloopPick(a[0]);
     if (v === "some") return next({ title: `Run the loop how many times? (1 to ${LOOP_MAX})`, mode: "number", kind: "number", min: 0, max: LOOP_MAX, default: 10, onTimeout: "0", text: "0 answers as usual." },
-      (b) => { const n = Math.min(LOOP_MAX, Math.floor(Number(b[0])) || 0); if (n >= 1) return start(n); game.tloopNo = `${gv.turn}|${gv.step}|${found.lead}`; return next(ui, toOutput); });
-    if (v === 0 || v === null) { game.tloopNo = `${gv.turn}|${gv.step}|${found.lead}`; return next(ui, toOutput); }
+      (b) => { const n = Math.min(LOOP_MAX, Math.floor(Number(b[0])) || 0); if (n >= 1) return start(n); game.tloopNo = tloopNoKey(gv, found.lead); return next(ui, toOutput); });
+    if (v === 0 || v === null) { game.tloopNo = tloopNoKey(gv, found.lead); return next(ui, toOutput); }
     return start(v);
   } };
 }
@@ -10643,7 +10644,7 @@ function tloopPriorityOffer(seat, gv, ui, toOutput, forP) {
   const found = tl ? null : tloopFound(gv);
   const loop = tl || found;
   if (!loop || loop.ctl === seat.slot || (tl && seat.color in tl.acc)) return toOutput;
-  if (!tl && game.tloopNo === `${gv.turn}|${gv.step}|${found.lead}`) return toOutput;
+  if (!tl && game.tloopNo === tloopNoKey(gv, found.lead)) return toOutput;
   if (!(gv.stack || []).some((s) => loop.sigs.has(tloopSig(s)))) return toOutput;
   const label = tl?.proposed ? `Accept ${nameOf(tl.ctl)}'s loop ${tloopWord(tl.total)}…` : "Pass for this loop…";
   const at = ui.options.findIndex((o) => o.id === "__endturn");
@@ -10943,11 +10944,14 @@ function onPrompt(seat, prompt) {
         if (seat.prompt) closePrompt(seat);
         return;
       }
-      // mana you tapped for and haven't spent can be taken back (the engine's undo for that source): you are always
-      // asked then, so the land can be turned back instead of the mana being lost (playtest 2026-10-23: "I gotta be
-      // able to untap without the full undo")
-      // (only while mana floats: Forge keeps the undo list after an "unless you pay" cost paid during a trigger, so
-      // Mystic Remora's upkeep left one "Untap Forest (mana back)" per land for mana already spent, hp-05)
+      // mana you tapped for and haven't spent can be taken back (the engine's undo for that source): a priority the
+      // Arena-style passing below would pass is asked instead, on anyone's turn, so the land can be turned back instead
+      // of the mana being lost (playtest 2026-10-23: "I gotta be able to untap without the full undo"). The passes the
+      // player chose above still pass (End turn, Resolve all, mtg skip, Auto-resolve, a repeat or a loop of triggers
+      // they run or accepted).
+      // "Unspent" is read from the pool, not from the undo list: Forge keeps the undo list after an "unless you pay"
+      // cost paid during a trigger, so Mystic Remora's upkeep left one "Untap Forest (mana back)" per land for mana
+      // already spent, hp-05. No pool sent at all (an older engine) keeps the undo offered.
       const pool = gv.players?.find((p) => p.id === who)?.manaPool;
       const floating = !pool || Object.values(pool).some((n) => n > 0);
       const undos = floating ? (input.actions || []).filter((a) => a.type === "undoMana" && a.cardId) : [];
@@ -11915,7 +11919,7 @@ function onPrompt(seat, prompt) {
       // (proliferate: what helps you comes picked, see proliferateHelps)
       if (/^Choose any number of permanents and\/or players for proliferate$/i.test(String(input.presentation?.description || "").trim()) && Array.isArray(ui.options)) {
         const allies = alliesOf(seat.slot, gv);
-        const card = new Map(input.cards.map((c) => [c.id, c]));
+        const card = new Map((input.cards || []).map((c) => [c.id, c]));
         for (const o of ui.options) {
           const c = card.get(o.id) || byId[o.id];
           if (c && proliferateHelps(c.counters, allies.has(c.controllerId ?? seat.slot))) o.on = true;
@@ -15438,7 +15442,9 @@ const debugServer = http.createServer((req, res) => {
 
 // ───── The ban lists (docs/format-banlist-spec.md §4.2, §6.3): the table's "banlist" messages, the daily check ─────
 // The format the table last said (piece B keeps it in gameMode.format); none said is Casual Commander, which has no list.
-const banlistFormat = (m) => String(m?.format || gameMode.format || "casualcommander").trim().toLowerCase();
+// (read as noteMode reads it, formatRules.formatKey: "Pauper Commander" is "paupercommander", or the table's Banned list
+// button showed another format's count than the deck check used; a format no rules know is none said)
+const banlistFormat = (m) => formatRules.formatKey(m?.format) || gameMode.format || formatRules.DEFAULT_FORMAT;
 // a table script that knows formats says one in its hello (an older one doesn't, and is sent nothing new)
 const tableKnowsFormats = (m) => m.format !== undefined || m.formats === true;
 function sendBanlist(format = banlistFormat()) { toTTS(legality.banlistMessage(format)); }
@@ -15458,7 +15464,12 @@ function onBanlist(m) {
 }
 // a refresh that changed the lists: everyone is told, and the table gets the new version (piece B re-checks READY decks)
 let tableHasFormats = false; // a hello said format / formats: an older table script is sent no "banlist" after a refresh
-function onBanlistChanged(l, summary) { chat(`[MTG] ${summary}`); if (tableHasFormats) sendBanlist(); }
+// (the one subscription: the news and the table's new version first, then the READY decks checked again)
+function onBanlistChanged(l, summary) {
+  chat(`[MTG] ${summary}`);
+  if (tableHasFormats) sendBanlist();
+  guarded("ban list refresh", () => onLegalityChanged(l));
+}
 legality.onLegalityChanged(onBanlistChanged);
 function startBanlists() {
   legality.configure({ log, busy: () => !!game?.started });

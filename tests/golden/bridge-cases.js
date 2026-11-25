@@ -7566,4 +7566,212 @@ add(promptCase("rebuilt #7: an opponent's reveal said once as theirs", D2.board,
     lifeLog(h, 4, lifeBoard([40, 40, 40, 40], null, 2, whisperOn), lifeBoard([40, 38, 40, 40], null, 2, whisperDone)) });
 }
 
+// ── 2026-11-18..24 features (jr suite stage 0, 2026-11-24): the trigger-loop shortcut, the Taxes setting, the exile
+// link, the formats' deck check, proliferate picks, Sacrifice X, the hand-land question. Each answer the bridge gives
+// the engine is recorded as a { respond } effect (Seat.respond sends nothing in the harness). The focused tests
+// (test_bridge_trigger_loop, _tax_auto, _exile_link, _formats, _sac_x_mana) hold the named checks; these photograph
+// the whole of what is sent, so a refactor that changes any of it fails by scenario name.
+{
+  const ZN = ["library", "hand", "graveyard", "exile", "battlefield", "command"];
+  const recorded = (h, s) => { const respond = s.respond.bind(s); s.respond = (promptId, type, out) => { h.effects.push({ respond: { color: s.color, promptId, type, out } }); return respond(promptId, type, out); }; };
+  const send = async (h, t, m) => { h.effects.push({ said: { t, ...m } }); h.B.onTTS({ t, json: JSON.stringify(m) }); await h.flush(); };
+  // (each scenario's prompt ids start over at its first seat: the capture runs every scenario twice in one process)
+  const mkSeat = (h, color, slot, gv) => { if (!h.B._getGame()?.seats?.size) pid = 1700; const s = new h.B.Seat(color, "neheb_minotaur_commander"); s.slot = slot; s.stops = new Set(); s.board = { state: { gameView: gv }, fingerprint: null }; recorded(h, s); return s; };
+  const twoSeats = (h, gv, names = { "player-0": "Blue", "player-1": "White" }) => {
+    const blue = mkSeat(h, "Blue", "player-0", gv), white = mkSeat(h, "White", "player-1", gv);
+    h.B._setGame({ seats: new Map([["Blue", blue], ["White", white]]), bots: 0, total: 2, playerOrder: ["tts-Blue-ab12", "tts-White-cd34"],
+      slotNames: names, slotColor: { "player-0": "Blue", "player-1": "White" }, started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {}, eventSeq: 10 });
+    return { blue, white };
+  };
+  let pid = 1700;
+  const ask = async (h, s, gv, input, extra = {}) => { s.board.state.gameView = gv; const id = ++pid; h.B.onPrompt(s, { promptId: id, decidingPlayerId: s.slot, input, ...extra }); await h.flush(); return id; };
+  const answer = (h, promptId, choice, color = "Blue") => send(h, "answer", { color, promptId, choice: [choice] });
+  const open = (s) => (s.prompt ? { id: s.prompt.promptId, title: s.prompt.ui?.title, options: (s.prompt.ui?.options || []).map((o) => `${o.id}=${o.label}${o.on ? " (on)" : ""}`) } : null);
+
+  // the trigger loop: Blue's Sanguine Bond + Exquisite Blood, White the other person, with a Bolt to respond with
+  const BOND = "Whenever you gain life, target opponent loses that much life.";
+  const BLOOD = "Whenever an opponent loses life, you gain that much life.";
+  const tlBoard = ({ stack = [], step = "main1", turn = 5 } = {}) => ({ turn, step, activePlayerId: "player-0", priorityPlayerId: "player-0", stack,
+    players: [{ id: "player-0", life: 40, manaPool: {} }, { id: "player-1", life: 40, manaPool: {} }],
+    zones: ["player-0", "player-1"].flatMap((ownerId) => ZN.map((zone) => ({ zone, ownerId, count: 0, cards: zone === "battlefield" && ownerId === "player-0"
+      ? [{ id: "engine-card-10", controllerId: "player-0", ownerId: "player-0", identity: { name: "Sanguine Bond" }, types: ["Enchantment"], text: BOND },
+        { id: "engine-card-11", controllerId: "player-0", ownerId: "player-0", identity: { name: "Exquisite Blood" }, types: ["Enchantment"], text: BLOOD }] : [] }))) });
+  const trig = (id, src, name, text) => ({ id, sourceId: src, controllerId: "player-0", identity: { name }, isTrigger: true, sourceAbilityText: text, text: `${name} - ${text}` });
+  const bond = (i) => trig(`engine-stack-${100 + i}`, "engine-card-10", "Sanguine Bond", BOND);
+  const blood = (i) => trig(`engine-stack-${300 + i}`, "engine-card-11", "Exquisite Blood", BLOOD);
+  const bolt = { id: "prompt-action-0", type: "cast", cardId: "engine-card-40", label: "Cast Lightning Bolt", mode: { type: "normal" } };
+  const prio = (h, s, gv) => ask(h, s, gv, { type: "chooseAction", actions: [bolt], presentation: { title: "Your priority" } });
+  const bondTarget = (h, s, i, step) => ask(h, s, tlBoard({ stack: [bond(i)], step }),
+    { type: "chooseBoardTargets", minTargets: 1, maxTargets: 1, candidates: [{ id: "player-1", kind: "player" }], presentation: { title: "Choose target opponent" } },
+    { sourceCard: { id: "engine-card-10", identity: { name: "Sanguine Bond" } }, sourceAbilityText: BOND });
+  // one pass of the loop: Blue's target (answered when asked), White's priority over each trigger (passed when asked)
+  const tlPass = async (h, blue, white, i) => {
+    const t = await bondTarget(h, blue, i);
+    if (blue.prompt?.promptId === t) await answer(h, t, "player|player-1");
+    for (const item of [bond(i), blood(i)]) { const w = await prio(h, white, tlBoard({ stack: [item] })); if (white.prompt?.promptId === w) await answer(h, w, "__pass", "White"); }
+  };
+  add({ name: "trigger loop: found on the third pass, Blue runs it x10, White accepts 2, it ends after 2 and is not offered again", run: async (h) => {
+    const { blue, white } = twoSeats(h, tlBoard());
+    await tlPass(h, blue, white, 0);
+    await tlPass(h, blue, white, 1);
+    const t = await bondTarget(h, blue, 2);
+    const offer = open(blue);
+    await answer(h, t, "__tl:10");
+    if (blue.prompt) await answer(h, blue.prompt.promptId, "player|player-1");
+    const panel = h.effects.filter((e) => e.tts?.t === "prompt" && e.tts.color === "White" && e.tts.promptId === "__tloop").map((e) => e.tts.title);
+    await send(h, "answer", { color: "White", promptId: "__tloop", choice: ["__tl:some"] });
+    await send(h, "answer", { color: "White", promptId: "__tloop", choice: ["2"] });
+    for (let i = 3; i < 7 && h.B._getGame().tloop; i++) await tlPass(h, blue, white, i);
+    const after = h.B._getGame().tloop;
+    const again = await bondTarget(h, blue, 9);
+    return { offer, panel, runAfter: after ? { done: after.done, acc: after.acc } : null, offeredAgain: open(blue)?.title || null, tloopNo: h.B._getGame().tloopNo, again };
+  } });
+  add({ name: "trigger loop: a rewind forgets the run and the triggers counted toward one", run: async (h) => {
+    const { blue, white } = twoSeats(h, tlBoard());
+    await tlPass(h, blue, white, 0);
+    await tlPass(h, blue, white, 1);
+    const t = await bondTarget(h, blue, 2);
+    await answer(h, t, "__tl:all");
+    const before = { run: !!h.B._getGame().tloop, seen: !!h.B._getGame().tloopSeen };
+    blue.lastTurn = 6; // (the board's turn 5 after turn 6: a rewind)
+    h.B._checkRestored(blue);
+    await h.flush();
+    const g = h.B._getGame();
+    await bondTarget(h, blue, 3);
+    return { before, after: { run: g.tloop, seen: g.tloopSeen ? [...g.tloopSeen.counts] : null, no: g.tloopNo }, open: open(blue) };
+  } });
+  add({ name: "trigger loop: the game ending during the run says how many times it ran, before Game over", run: async (h) => {
+    const { blue, white } = twoSeats(h, tlBoard());
+    await tlPass(h, blue, white, 0);
+    await tlPass(h, blue, white, 1);
+    const t = await bondTarget(h, blue, 2);
+    await answer(h, t, "__tl:100");
+    if (blue.prompt) await answer(h, blue.prompt.promptId, "player|player-1");
+    await tlPass(h, blue, white, 3);
+    await ask(h, blue, tlBoard(), { type: "gameOver", presentation: { title: "Game over", description: "Blue won" } });
+    return { run: h.B._getGame().tloop, chats: h.effects.filter((e) => e.tts?.t === "chat").map((e) => e.tts.text).filter((x) => /loop|Game over/.test(x)) };
+  } });
+  add({ name: "trigger loop: an AI's loop, White passes for it x10 from its priority", run: async (h) => {
+    const gv = (stack) => { const b = tlBoard({ stack }); for (const z of b.zones) for (const c of z.cards) { c.controllerId = "player-1"; } return b; };
+    const own = (x) => ({ ...x, controllerId: "player-1" });
+    const white = mkSeat(h, "White", "player-0", gv([]));
+    h.B._setGame({ seats: new Map([["White", white]]), bots: 1, total: 2, playerOrder: ["tts-White-cd34", "self-hosted-node-77-bot"],
+      slotNames: { "player-0": "White", "player-1": "AI 1" }, slotColor: { "player-0": "White" }, started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {}, eventSeq: 10 });
+    for (let i = 0; i < 2; i++) for (const x of [bond(i), blood(i)]) { const w = await prio(h, white, gv([own(x)])); if (white.prompt?.promptId === w) await answer(h, w, "__pass", "White"); }
+    const w = await prio(h, white, gv([own(bond(2))]));
+    const offered = open(white);
+    await answer(h, w, "__tlaccept", "White");
+    const ui = open(white);
+    if (white.prompt) await answer(h, white.prompt.promptId, "__tl:10", "White");
+    const passed = await prio(h, white, gv([own(blood(2))]));
+    return { offered, ui, run: h.B._getGame().tloop ? { total: h.B._getGame().tloop.total, acc: h.B._getGame().tloop.acc, proposed: h.B._getGame().tloop.proposed } : null, passedOpen: open(white), passed };
+  } });
+
+  // the Taxes setting: Smothering Tithe's "Pay {2}?" (the AI's), Mystic Remora's (Blue's own)
+  const TITHE = "Whenever an opponent draws a card, that player may pay {2}. If the player doesn't, you create a Treasure token.";
+  const REMORA = "At the beginning of your upkeep, sacrifice Mystic Remora unless you pay {1}.";
+  const tithe = { id: "engine-card-101", controllerId: "player-1", identity: { name: "Smothering Tithe" }, text: TITHE };
+  const remora = { id: "engine-card-103", controllerId: "player-0", identity: { name: "Mystic Remora" }, text: REMORA };
+  const taxGv = () => ({ turn: 4, step: "draw", activePlayerId: "player-0", priorityPlayerId: "player-0", stack: [], zones: [], players: [{ id: "player-0", manaPool: {} }, { id: "player-1", manaPool: {} }] });
+  const taxAsk = (src, text, cost) => [{ type: "chooseBoolean", confirmLabel: "Pay", denyLabel: "Decline", presentation: { title: `Pay ${cost}?`, text: "otherwise: \"something\"" } }, { sourceCard: src, sourceAbilityText: text }];
+  const taxPayment = (name, cost, cardId) => ({ type: "payManaCost", manaCost: cost, cardName: name, cardId, actions: [{ id: "tap:engine-card-7", type: "activateManaAbility", cardId: "engine-card-7", description: "Island for {U}" },
+    { id: "tap:engine-card-8", type: "activateManaAbility", cardId: "engine-card-8", description: "Island for {U}" }] });
+  add({ name: "taxes: the hello's settings, never pay, always pay with Auto-pay, your own card asked, a question open when it changes", run: async (h) => {
+    const seat = mkSeat(h, "Blue", "player-0", taxGv());
+    h.B._setGame({ seats: new Map([["Blue", seat]]), bots: 1, total: 2, playerOrder: ["tts-Blue-ab12", "self-hosted-node-77-bot"],
+      slotNames: { "player-0": "Blue", "player-1": "AI 1" }, slotColor: { "player-0": "Blue", "player-1": "White" }, started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
+    await send(h, "hello", { again: true, tax: { Blue: "no", Nobody: "pay", Red: "maybe" } });
+    await ask(h, seat, taxGv(), ...taxAsk(tithe, TITHE, "{2}"));
+    const afterNo = open(seat);
+    await send(h, "taxauto", { color: "Blue", mode: "pay" });
+    await ask(h, seat, taxGv(), ...taxAsk(tithe, TITHE, "{2}"));
+    await ask(h, seat, taxGv(), taxPayment("Smothering Tithe", "{2}", tithe.id));
+    await ask(h, seat, taxGv(), taxPayment("Lightning Bolt", "{R}", "engine-card-90"));
+    const boltShown = open(seat);
+    await answer(h, seat.prompt.promptId, "__cancel");
+    await ask(h, seat, taxGv(), ...taxAsk(remora, REMORA, "{1}"));
+    const ownShown = open(seat);
+    await answer(h, seat.prompt.promptId, "no");
+    await send(h, "taxauto", { color: "Blue", mode: "ask" });
+    const id = await ask(h, seat, taxGv(), ...taxAsk(tithe, TITHE, "{2}"));
+    await send(h, "taxauto", { color: "Blue", mode: "no" });
+    return { afterNo, boltShown, ownShown, lastOpen: open(seat), id, taxPay: seat.taxPay ?? null };
+  } });
+
+  // the exile link: which exiled cards keep ew (laid with the card that exiled them)
+  add({ name: "exile link: the Emperor's exile goes to the pile; Oblivion Ring, Banishing Light, play-through and a face-down host keep the link", run: async (h) => {
+    const host = (id, name, text, more = {}) => ({ id, identity: { name }, text, ...more });
+    const hosts = [host("engine-card-700", "The Wandering Emperor", "Flash\n−2: Exile target tapped creature. You gain 2 life."),
+      host("engine-card-701", "Oblivion Ring", "When Oblivion Ring enters, exile another target nonland permanent.\nWhen Oblivion Ring leaves the battlefield, return the exiled card to the battlefield under its owner's control."),
+      host("engine-card-702", "Banishing Light", "When Banishing Light enters, exile target nonland permanent an opponent controls until Banishing Light leaves the battlefield."),
+      host("engine-card-703", "Path Keeper", "When this creature enters, exile target creature an opponent controls."),
+      host("engine-card-799", null, "", { isFaceDown: true })];
+    h.B._setGame({ tableCtx: { byId: Object.fromEntries(hosts.map((x) => [x.id, x])), field: new Set(hosts.map((x) => x.id)) }, cardText: {}, slotColor: { "player-0": "White", "player-1": "Blue" } });
+    const ex = (hostId, more = {}) => ({ id: "engine-card-650", identity: { name: "Grizzly Bears" }, types: ["Creature"], exiledWith: hostId, ownerId: "player-1", ...more });
+    const cases = { emperor: ex("engine-card-700"), oring: ex("engine-card-701"), banish: ex("engine-card-702"), keeper: ex("engine-card-703"),
+      keeperReturns: ex("engine-card-703", { returnsWhenHostLeaves: true }), keeperMayPlay: ex("engine-card-703", { mayPlay: true }), faceDownHost: ex("engine-card-799"),
+      encoded: ex(null, { encodedOn: "engine-card-700" }), encodedLinked: ex("engine-card-701", { encodedOn: "engine-card-700" }) };
+    const out = {};
+    for (const [k, c] of Object.entries(cases)) { const t = h.B.tableCard(c, { zone: "exile" }); out[k] = { ew: t?.ew ?? null, rl: t?.rl ?? null, enc: t?.enc ?? null, notes: t?.nt ?? t?.notes ?? null, linked: h.B._exileLinkMatters(c) }; }
+    return out;
+  } });
+
+  // the formats: the Format button's Modern, a banned card, the Banned switch, a refresh between READY and Start
+  const fmtStub = (table, hash) => ({ source: "Scryfall", date: "2026-11-18", hash, has: () => true, status: (f, n) => table[f]?.[n] ?? "l",
+    list: (f) => ({ banned: Object.keys(table[f] || {}).filter((n) => table[f][n] === "b"), restricted: [] }) });
+  const sixty = (extra) => [...Array.from({ length: 60 - extra.length }, () => ({ n: "Mountain", f: null })), ...extra.map((n) => ({ n, f: null }))];
+  add({ name: "formats: Modern from the Format button, a banned card refused, Banned off lets it through, a refresh drops it, the start refused", run: async (h) => {
+    h.B._setLegality(fmtStub({ modern: { "Lightning Bolt": "l", "Hired Claw": "b" } }, "h1"));
+    await send(h, "format", { color: "White", format: "modern" });
+    const mode1 = { ...h.B._gameMode, key: h.B.rulesKey(), words: h.B.rulesWords(h.B.rulesKey()) };
+    const claws = { deckName: "Claws", commander: [], library: sixty(["Hired Claw", "Lightning Bolt"]) };
+    await send(h, "decks", { seats: { Blue: claws }, request: 7, format: "modern" });
+    const refused = h.B._readyDecks.Blue ?? null;
+    await send(h, "format", { color: "White", format: "modern", banned: false });
+    const mode2 = { ...h.B._gameMode, key: h.B.rulesKey(), words: h.B.rulesWords(h.B.rulesKey()) };
+    await send(h, "decks", { seats: { Blue: claws }, request: 8, format: "modern", banned: false });
+    const readied = h.B._readyDecks.Blue?.rules ?? null;
+    const forGame = { sameSwitches: h.B._readyForGame("Blue", "modern|false|true|h0"), otherSwitches: h.B._readyForGame("Blue", "modern|true|true|h1") };
+    // (Banned back on: the deck readied with it off is not ready for these rules, and the start says so)
+    await send(h, "format", { color: "White", format: "modern" });
+    await send(h, "start", { color: "Blue", seats: ["Blue"], bots: 1, format: "modern", requireReady: true });
+    const started = !!h.B._getGame();
+    // (a refresh that bans a card of a deck readied under the format: no longer ready, said to its owner)
+    await send(h, "decks", { seats: { Blue: { deckName: "Bolts", commander: [], library: sixty(["Lightning Bolt"]) } }, request: 9, format: "modern" });
+    const bolts = h.B._readyDecks.Blue?.rules ?? null;
+    h.B._onLegalityChanged(fmtStub({ modern: { "Lightning Bolt": "b" } }, "h2"));
+    await h.flush();
+    return { mode1, refused, mode2, readied, forGame, started, bolts, afterRefresh: h.B._readyDecks.Blue?.rules ?? null };
+  } });
+
+  // Sacrifice X: three Treasures paying {2}{B}, x2 for {B} then the run
+  add({ name: "sacrifice X: three Treasures paying {2}{B}, x2 for black, the second answered unseen", run: async (h) => {
+    const TT = "{T}, Sacrifice this token: Add one mana of any color.";
+    const tr = (n) => ({ id: `engine-card-${n}`, identity: { name: "Treasure Token", isToken: true }, types: ["Artifact"], ownerId: "player-0", controllerId: "player-0", text: TT });
+    const t = [tr(91), tr(92), tr(93)];
+    const acts = (c) => ["W", "U", "B", "R", "G"].map((col) => ({ type: "activateManaAbility", id: `tap:${c.id}:0:${col}`, cardId: c.id, abilityIndex: 0, description: "Treasure Token", isManaAbility: true, cost: "{T}, Sacrifice this token", producedMana: [{ color: col, amount: 1 }] }));
+    const gv = (cards) => ({ turn: 4, step: "main1", activePlayerId: "player-0", priorityPlayerId: "player-0", stack: [], zones: [{ zone: "battlefield", ownerId: "player-0", cards }, { zone: "hand", ownerId: "player-0", cards: [] }],
+      players: [{ id: "player-0", manaPool: {} }, { id: "player-1", manaPool: {} }] });
+    const seat = mkSeat(h, "Blue", "player-0", gv(t));
+    h.B._setGame({ seats: new Map([["Blue", seat]]), bots: 1, total: 2, playerOrder: ["tts-Blue-ab12", "self-hosted-node-77-bot"],
+      slotNames: { "player-0": "Blue", "player-1": "AI 1" }, slotColor: { "player-0": "Blue", "player-1": "White" }, started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {} });
+    const payIn = (cards, cost) => ({ type: "payManaCost", manaCost: cost, cardName: "Phyrexian Obliterator", cardId: "engine-card-75", actions: cards.flatMap(acts), presentation: { title: `Pay ${cost}` } });
+    const p1 = await ask(h, seat, gv(t), payIn(t, "{2}{B}"));
+    const first = open(seat);
+    await answer(h, p1, "__sacx:g0");
+    const colour = open(seat);
+    if (seat.prompt) await answer(h, seat.prompt.promptId, "__sacx:c:B");
+    const count = open(seat);
+    if (seat.prompt) await answer(h, seat.prompt.promptId, "__sacx:2");
+    await ask(h, seat, gv(t.slice(1)), { type: "chooseBoolean", confirmLabel: "Accept", denyLabel: "Decline", presentation: { title: "Sacrifice Treasure Token?", targets: [] } }, { sourceCard: { id: "engine-card-91", identity: { name: "Treasure Token" } } });
+    await ask(h, seat, gv(t.slice(1)), payIn(t.slice(1), "{1}{B}"));
+    return { first, colour, count, run: seat.sacRun ? { left: seat.sacRun.left, last: seat.sacRun.last } : null, open: open(seat) };
+  } });
+
+  // the hand-land question (Zimone and Dina's "Search your hand?"), and the Citadel's look-only top card
+  add({ name: "yes/no words: putting a land from your hand onto the battlefield says so", run: async (h) => ({
+    zimone: h.B.yesNoWords("Search your hand?", "Zimone and Dina", { type: "chooseBoolean", abilityText: "you may put a land card from your hand onto the battlefield tapped.", presentation: { title: "Search your hand?" } }),
+    plain: h.B.yesNoWords("Search your hand?", "Some Card", { type: "chooseBoolean", abilityText: "Look at your hand.", presentation: { title: "Search your hand?" } }) }) });
+}
+
 module.exports = cases;

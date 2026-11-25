@@ -1614,3 +1614,23 @@ Pinned by `tests/test_bridge_claims.js` ("flashback: ...", "queued play: ...", "
 | table | `frameOn`, `engineFrameQueue`, `engineFramePump`, `engineFrameBuild`, `ENGINE_FRAME_BUILDS` | a frame's first build is queued, 4 a frame (each build in a pcall: one bad card doesn't stop the queue); a frame hidden before its build is dropped, and a hide never touches another colour's frame; the build keeps the card's other UI and cuts out only an older `eng_play` panel, found by counting its Panels |
 
 Pinned by `tests/test_table_claims.js` ("permanent glow: ...", "frame queue: ...", "combat colours: ...", "combat tabs: ...", "block confirm: ...") and `tests/test_bridge_claims.js` ("blockers: ...").
+
+### Formats, Taxes, the trigger loop, the exile link (2026-11-18 to 11-24, bridge side)
+
+Plain-English companion: [docs/plain-english/bridge.md](plain-english/bridge.md).
+
+| side | name | what |
+|---|---|---|
+| bridge | `noteMode`, `onFormat`, `gameMode.{format,banned,restricted}` | the table's Format button (`format` message; `hello`/`decks`/`start` carry it too): the mode follows the format; no format is Casual Commander (an older table's messages are today's checks) |
+| bridge | `legalityNow`, `listFor`, `deckFormatCheck`, `rulesKey`, `rulesOf`, `rulesWords` | the ban list data from `bridge/legality.js` (read once, `legalData`; a read that fails is no data: Standard falls back to Forge's list, other formats say "not checked"). A deck's rules key is `format\|banned\|restricted\|hash` |
+| bridge | `readyFor`, `readyForGame`, `noHash` | READY is per rules key; a seat joining a started game compares the format and switches only (a refresh in between re-checked the deck) |
+| bridge | `onBanlistChanged` -> `onLegalityChanged` | the one subscription to a changed list (registered at load): chat, the table's new list, then every READY deck under a format checked again (failed: no longer ready, `deckReport` with `ready: []`) |
+| bridge | `taxAuto`, `setTaxAuto`, `taxAnswer`, `seat.taxPay` | the Taxes button (`taxauto`, and `hello.tax`): another player's "unless you pay" question answered Pay (then that card's payment with Auto-pay) or No; `taxPay` is a `Seat.FOLLOW_UPS` field (a rewind drops it) |
+| bridge | `tloopTrack`, `tloopFound`, `tloopOffer`, `tloopOwn`, `tloopPasses`, `tloopPriorityOffer`, `tloopPanel*`, `tloopEnd`, `tloopNoKey` | the trigger-loop shortcut: `TLOOP_AT` (3) of one trigger in a step, one controller, not a batch, not from casts. `game.tloop` runs until `tloopLimit` passes, a foreign stack item, a new step, the game's end, the runaway question or `mtg stop`; `game.tloopNo` (`tloopNoKey`) keeps it from being offered again in that step; `checkRestored` clears all three |
+| bridge | `loopNote`, `loopFind` | Repeat xN: the runaway question (`RUNAWAY_TITLE`) is never a step; a pass begins at the latest same-board priority from which something resolved |
+| bridge | `exileLinkMatters`, `EXILE_LINK_WORDS`, `exiledWithNote` | `ew`/`rl` and "Exiled with X" only for a linked exile: `returnsWhenHostLeaves`, `mayPlay`, the host's text (`EXILE_LINK_WORDS`), or a host whose text is unknown (face down) |
+| bridge | `proliferateHelps`, `alliesOf`, `COUNTERS_GOOD/BAD` | proliferate options pre-picked (`on`) when the counters' sum helps the deciding player's side |
+| bridge | `sacGroups`, `sacPicker`, `sacStart`, `sacRunStep` | Sacrifice X for mana, paying and at priority; `seat.sacRun` is a follow-up |
+| bridge | priority's mana-back stop (`floating`, `undos`) | an Arena-style pass is asked instead while mana floats and an undo is offered; the player's chosen passes above it (End turn, Resolve all, skip, Auto-resolve, repeat, loop) still pass. Pinned by `tests/test_open_items_relations.js` U1-U5 |
+
+Golden scenarios (tests/golden/bridge-cases.js, "2026-11-18..24 features"): trigger loop x4, taxes, exile link, formats, Sacrifice X, the hand-land question. Named checks: `test_bridge_trigger_loop`, `_tax_auto`, `_exile_link`, `_formats`, `_legality`, `_sac_x_mana`, `_repeat_loop`, and `test_bridge_claims` ("rewind: every follow-up kept for the player is dropped", now with `sacRun` and `taxPay`).

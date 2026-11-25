@@ -3,7 +3,8 @@
 // though it is exiled for good: it belongs in the exile pile (the user, 2026-11-24). Linked: it comes back when that
 // card leaves, it may be played through it, or the card's text speaks of what it exiled.
 //   node tests/test_bridge_exile_link.js
-const bridge = require("../bridge/bridge.js");
+// (BRIDGE_PATH: a copy, as tests/bridge-harness.js takes it: a break-it pass edits a copy, never the bridge)
+const bridge = require(process.env.BRIDGE_PATH ? require("path").resolve(process.env.BRIDGE_PATH) : "../bridge/bridge.js");
 let failed = 0, passed = 0;
 const ok = (name, cond, why) => { if (cond) { passed++; console.log(`ok   ${name}`); } else { failed++; console.log(`FAIL ${name}${why !== undefined ? `: ${String(why).slice(0, 400)}` : ""}`); } };
 

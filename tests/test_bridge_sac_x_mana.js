@@ -348,6 +348,24 @@ const opt = (p, id) => (p?.options || []).find((o) => o.id === id);
     harness.restore();
   }
 
+  // a run of one (x1 while paying): the pool that then covers the cost pays it, as after a tap by hand (sacStart's
+  // tappedFor: the run's later steps set it too, so only a run of one depends on sacStart's)
+  {
+    const h = harness.load();
+    const t = [treasure(91), treasure(92), treasure(93)];
+    const { seat, calls } = setup(h, [swamp, ...t]);
+    h.B.onPrompt(seat, pay(620, "{2}{B}", [swampAct, ...t.flatMap((c) => payActs(c))])); await h.flush();
+    await answer(h, 620, "__sacx:g0");
+    await answer(h, 620, "__sacx:c:B");
+    await answer(h, 620, "__sacx:1");
+    h.B.onPrompt(seat, confirmSac(621, t[0])); await h.flush();
+    seat.board.state.gameView.zones[0].cards = [swamp, t[1], t[2]];
+    seat.board.state.gameView.players[0].manaPool = { B: 3 };
+    h.B.onPrompt(seat, pay(622, "{2}{B}", [swampAct, ...t.slice(1).flatMap((c) => payActs(c))], { canConfirmFromPool: true })); await h.flush();
+    ok("run of one: the pool then pays the cost", calls.at(-1)?.promptId === 622 && calls.at(-1).out.type === "pay" && calls.at(-1).out.auto === false, JSON.stringify(calls));
+    harness.restore();
+  }
+
   process.stdout.write(failed ? `\n${failed} failed, ${passed} passed\n` : `PASSED: ${passed} passed, 0 failed\n`);
   process.exit(failed ? 1 : 0);
 })();

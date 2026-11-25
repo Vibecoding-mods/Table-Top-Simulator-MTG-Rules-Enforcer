@@ -175,6 +175,18 @@ const write = (name, data) => { const f = path.join(dir, name); realWrite(f, typ
       say(h, "hello", { t: "hello", color: "White", format: "modern" });
       await h.flush();
       same("bridge: hello with a format sends banlist once", h.effects.slice(mark).filter((e) => e.tts?.t === "banlist").map((e) => e.tts), [L.banlistMessage("modern")]);
+      // (the format read as the deck check reads it, formatRules.formatKey: a spaced or capitalised name is the same format)
+      const markP = h.effects.length;
+      say(h, "format", { t: "format", color: "White", format: "Pauper Commander" });
+      await h.flush();
+      same("bridge: a format said as words answers banlist for its key", h.effects.slice(markP).filter((e) => e.tts?.t === "banlist").map((e) => e.tts.format), ["paupercommander"]);
+      // (the deck check reads the same data, legalityNow: a Modern READY is checked against the cache's list and hash)
+      say(h, "decks", { t: "decks", seats: { Blue: { deckName: "Mountains", commander: [], library: Array.from({ length: 60 }, () => ({ n: "Mountain", f: null })) } }, request: 3, format: "modern" });
+      await h.flush();
+      ok("bridge: a READY deck is checked against the ban list data read from disk", !!L.loadLegality().hash && h.B._readyDecks.Blue?.rules === `modern|true|true|${L.loadLegality().hash}`,
+        `${h.B._readyDecks.Blue?.rules} vs ${L.loadLegality().hash}`);
+      say(h, "format", { t: "format", color: "White", format: "casualcommander" });
+      await h.flush();
       const mark2 = h.effects.length;
       say(h, "hello", { t: "hello", color: "White" });
       say(h, "hello", { t: "hello", color: "White", format: "modern", again: true });
@@ -207,8 +219,13 @@ const write = (name, data) => { const f = path.join(dir, name); realWrite(f, typ
     });
     await run(async (h) => {
       refreshWorld(h, "2026-11-19T10:00:00Z", (c) => { c.formats.modern.banned = []; });
+      // (a deck READY under Modern before the refresh: the one subscription re-checks it, so it passes under the new hash)
+      const before = `modern|true|true|${L.loadLegality().hash}`;
+      h.B._readyDecks.Blue = { deckName: "Mountains", cards: Array(60).fill("Mountain"), commanders: [], images: {}, mode: "standard", sideboard: [], rules: before };
       say(h, "banlist", { t: "banlist", color: "White", refresh: true, format: "modern" });
       await settle(h);
+      const after = h.B._readyDecks.Blue?.rules;
+      ok("bridge: a changed refresh re-checks a READY deck (it carries the new list's hash)", after && after !== before && after === `modern|true|true|${L.loadLegality().hash}`, `${before} -> ${after}`);
       const chats = h.effects.filter((e) => e.tts?.t === "chat").map((e) => [e.tts.color || null, e.tts.text]);
       ok("bridge: a refresh that changed the lists says so to everyone",
         chats.some(([c, t]) => !c && t === "[MTG] Ban lists updated (Scryfall, 2026-11-19): Modern +1 banned."), JSON.stringify(chats));
