@@ -9877,14 +9877,19 @@ function resolvingStops(seat, gv) {
   if (seen >= RESOLVE_LOOP_REPEATS) return `${rs.label} stopped: the same stack came back ${seen} times (a loop?). Press it again to go on.`;
   return null;
 }
-// ── Big turns (docs/big-turns.md): a priority this bridge passes by itself while the WHOLE stack is one run of the same
-// untargeted ability (stackRun: Scute Swarm's 75 landfall triggers, live 2026-11-15, one second each, two prompts a
+// ── Big turns (docs/big-turns.md): a priority this bridge passes by itself while the top of the stack is one run of the
+// same untargeted ability (stackRun: Scute Swarm's 75 landfall triggers, live 2026-11-15, one second each, two prompts a
 // trigger) is passed with exhaustStack. The engine then passes this player's priority itself, with no prompt and no
-// board, until the stack is empty, something new goes on it, or HELD_RESOLUTIONS of the run have resolved
-// (PriorityFastForward.EXHAUST_RESOLUTIONS in the engine), and asks again: the table catches up then, and "mtg stop"
-// (seat.stopChain) is seen then. Each trigger still resolves on its own, and questions (a "may", a target) are still
-// asked. Not for a player this seat controls (forP), not for a stack with anything else on it, and not for a run
-// shorter than HELD_MIN (a few prompts cost little, and every prompt shows the table the stack as it shrinks).
+// board, until the run is gone (the stack is empty or the item under the run is on top: PriorityFastForward.topRunIds),
+// something new goes on it, or HELD_RESOLUTIONS of the run have resolved (PriorityFastForward.EXHAUST_RESOLUTIONS in
+// the engine), and asks again: the table catches up then, and "mtg stop" (seat.stopChain) is seen then. Once the same
+// run has been held for a minute (PriorityFastForward.LONG_RUN_SECONDS) the engine no longer stops every 20: the
+// rest of the run resolves and the table sees the result (the user 2026-11-25: "anything longer than 1 min gives the
+// output"). Each trigger still resolves on its own in Forge, every player still gets priority after each one, and
+// questions (a "may", a target) are still asked. The spell under a run of its own triggers (Monastery Mentor's prowess
+// tokens under the spell that triggered them, the Kykar stress run 2026-11-25) no longer stops it: until then a held
+// pass needed the WHOLE stack to be the run. Not for a player this seat controls (forP), and not for a run shorter
+// than HELD_MIN (a few prompts cost little, and every prompt shows the table the stack as it shrinks).
 const HELD_RESOLUTIONS = 20;
 const HELD_MIN = 5;
 // the engine's question at its runaway limit (ManaBrewInteractiveSession.keepGoingPastCap), told by its exact title
@@ -9906,13 +9911,13 @@ function heldPass(seat, gv, forP) {
   const stack = gv.stack || [];
   const top = stack[stack.length - 1];
   const run = top && !forP ? stackRun(stack, top.controllerId, gv) : { n: 0 };
-  if (run.n < HELD_MIN || run.n !== stack.length) return { type: "pass" };
-  if (seat.resolveStack) seat.resolveStack.held = new Set(stack.map((x) => x.id));
+  if (run.n < HELD_MIN) return { type: "pass" };
+  if (seat.resolveStack) seat.resolveStack.held = new Set(stack.slice(-run.n).map((x) => x.id));
   // (said once a turn per run that is longer than one hold, to the seat being passed)
   const said = `${gv.turn}\u0003${run.key}`;
   if (run.n > HELD_RESOLUTIONS && seat.heldRunSaid !== said) {
     seat.heldRunSaid = said;
-    chat(`[MTG] ${run.n} ${run.name} triggers resolve back to back; the table catches up every ${HELD_RESOLUTIONS}. Type "mtg stop" to stop at the next one.`, seat.color);
+    chat(`[MTG] ${run.n} ${run.name} triggers resolve back to back; the table catches up every ${HELD_RESOLUTIONS}, and after a minute only once the rest are done. Type "mtg stop" to stop at the next catch-up.`, seat.color);
   }
   return { type: "pass", exhaustStack: true };
 }

@@ -2,9 +2,10 @@
 // limit. Live 2026-11-15 ~23:06: 75 Scute Swarm landfall triggers took 73.5 s, about one second each, two priority
 // prompts per trigger (Blue's and Yellow's, each passed by the bridge in 0 ms); then Second Harvest hit the limit and
 // the game ended in a draw nobody was asked about. The checks:
-//  - held pass (heldPass): a priority the bridge passes by itself while the whole stack is one run of the same
-//    untargeted trigger, five or more, is passed with exhaustStack (the engine then passes it itself for up to 20
-//    resolutions); a stack with anything else on it, a run of four, a targeted run: a plain pass
+//  - held pass (heldPass): a priority the bridge passes by itself while the top of the stack is one run of the same
+//    untargeted trigger, five or more (a spell under it too), is passed with exhaustStack (the engine then passes it
+//    itself for up to 20 resolutions, or to the run's end after a minute); a spell on top, a run of four, a targeted
+//    run: a plain pass
 //  - "Resolve all" / "Resolve N×" / "End turn" pressed over such a run pass held, a plain "Resolve" doesn't; the run's
 //    count and the cap of passes count the triggers a held pass resolved (heldResolved)
 //  - one chat line for a run longer than one hold, once a turn
@@ -72,8 +73,13 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     ok("held pass: the same run again that turn is not said twice", r.held && !r.said.length, JSON.stringify(r.said));
     r = await prio(h, seat, scutes(10), { more: { turn: 8 } });
     ok("held pass: a run of 20 or fewer says nothing", r.held && !r.said.length, JSON.stringify(r.said));
-    r = await prio(h, seat, [{ ...BOLT, controllerId: "player-0", targets: [] }, ...scutes(5)].map((s, i) => (i === 0 ? { ...s, isPermanentSpell: false, sourceAbilityText: "" } : s)));
-    ok("held pass: a spell under the run: a plain pass", r.passed && !r.held, JSON.stringify(r));
+    const spell = { ...BOLT, controllerId: "player-0", targets: [], isPermanentSpell: false, sourceAbilityText: "" };
+    r = await prio(h, seat, [spell, ...scutes(5)]);
+    ok("held pass: a run on top of the spell under it: held (the engine stops at the spell)", r.passed && r.held, JSON.stringify(r));
+    r = await prio(h, seat, [...scutes(5), spell]);
+    ok("held pass: a spell on top of a run: a plain pass", r.passed && !r.held, JSON.stringify(r));
+    r = await prio(h, seat, [spell, ...scutes(4)]);
+    ok("held pass: a run of four on top of a spell: a plain pass", r.passed && !r.held, JSON.stringify(r));
     r = await prio(h, seat, scutes(4));
     ok("held pass: a run of four: a plain pass", r.passed && !r.held, JSON.stringify(r));
     r = await prio(h, seat, scutes(5));
