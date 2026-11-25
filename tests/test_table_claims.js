@@ -404,6 +404,21 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
   ok("setup buttons: a stale middle tile alone is drawn again", valueOf(r, "after tile") === valueOf(r, "drawn"), String(valueOf(r, "after tile")));
   ok("setup buttons: wiped or stale, they are drawn again within 2 s", valueOf(r, "after") === valueOf(r, "drawn"), `${valueOf(r, "drawn")} -> ${valueOf(r, "after")}`);
 }
+// READY is drawn where its comment says: just past the seat's Draw button, toward the player. Real TTS draws a mat
+// zone's button with its local x mirrored (live 2026-11-25: unmirrored, Red's and Blue's READY sat ~12 units toward the
+// table's middle, White's and Yellow's ~3.6 off); the fake TTS's __sim.buttonDrawnAt models that mirroring.
+{
+  const spots = 'local out = {} for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do local mat = data[c].playmat local d = nil ' +
+    'for i, b in ipairs(mat.getButtons() or {}) do if b.click_function == "onMtgSetupReady" then d = __sim.buttonDrawnAt(mat, i) end end ' +
+    'local s = engineDrawButtonSpot(c) local m = mat.getPosition() local v = Vector(s.x - m.x, 0, s.z - m.z) local len = math.sqrt(v.x ^ 2 + v.z ^ 2) ' +
+    'local want = Vector(s.x + v.x * 1.4 / len, 0, s.z + v.z * 1.4 / len) ' +
+    'out[#out + 1] = d == nil and (c .. " none") or string.format("%s %.2f", c, math.sqrt((d.x - want.x) ^ 2 + (d.z - want.z) ^ 2)) end return table.concat(out, "|")';
+  const r = simulate({ save, seated: ["White", "Red", "Yellow", "Blue"], host: "Blue", steps: [{ lua: 'setEngineMode(true)', frames: 120 }, q(spots, "ready spots")] });
+  const got = String(valueOf(r, "ready spots"));
+  const off = got.split("|").map((e) => e.split(" "));
+  ok("READY: drawn just past each seat's Draw button, where real TTS draws it (x mirrored), on all four mats",
+    off.length === 4 && off.every(([, d]) => d !== "none" && Number(d) < 0.05), got);
+}
 // "Waiting for X..." flashes rainbow colours after 5 s of waiting, and goes back to normal when the wait ends
 {
   const col = (mark) => q('return tostring(UI.getAttribute("eng_hint_Blue", "color")) .. "|" .. tostring(engineWaiting.Blue and engineWaiting.Blue.who)', mark);
