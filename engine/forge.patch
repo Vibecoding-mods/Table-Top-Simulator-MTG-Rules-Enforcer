@@ -1265,7 +1265,7 @@ index 32394268..e7c90cb7 100644
          }
          print("---- choose ability  (phase = " + phaseStr + ")");
 diff --git a/forge-game/src/main/java/forge/game/Game.java b/forge-game/src/main/java/forge/game/Game.java
-index 8d204538..fc3cbad9 100644
+index 8d204538..47512c5d 100644
 --- a/forge-game/src/main/java/forge/game/Game.java
 +++ b/forge-game/src/main/java/forge/game/Game.java
 @@ -101,6 +101,10 @@ public class Game {
@@ -1342,7 +1342,7 @@ index 8d204538..fc3cbad9 100644
      // turn is low THOUSANDS of objects/trigger-fires, so the cap sits an
      // order of magnitude above any legitimate game, yet 25k Cards is far
      // below 3g-heap exhaustion. Tunable at boot without a rebuild
-@@ -1134,33 +1158,203 @@ public class Game {
+@@ -1134,33 +1158,213 @@ public class Game {
          }
      }
  
@@ -1482,8 +1482,19 @@ index 8d204538..fc3cbad9 100644
 +    }
 +
 +    private static boolean heapNearlyFull() {
-+        if (heapUsed.getAsDouble() <= RUNAWAY_HEAP_LIMIT) {
-+            return false;
++        return heapShareAfterFree() > RUNAWAY_HEAP_LIMIT;
+     }
+ 
+-    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
+-    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
++    // The share of the heap in use, after freeing when the first read is over the limit. The heap and the collector
++    // belong to the JVM, not to a game, so the last free is shared by every game on it (one System.gc() every
++    // HEAP_FREE_SECONDS for all of them); the share is returned, not read back from the shared field another game's
++    // thread may be writing.
++    private static double heapShareAfterFree() {
++        final double share = heapUsed.getAsDouble();
++        if (share <= RUNAWAY_HEAP_LIMIT) {
++            return share;
 +        }
 +        synchronized (Game.class) {
 +            final long now = System.nanoTime();
@@ -1492,7 +1503,7 @@ index 8d204538..fc3cbad9 100644
 +                heapAfterFree = heapUsed.getAsDouble();
 +                heapFreedAt = now == 0 ? 1 : now;
 +            }
-+            return heapAfterFree > RUNAWAY_HEAP_LIMIT;
++            return heapAfterFree;
 +        }
 +    }
 +
@@ -1505,7 +1516,7 @@ index 8d204538..fc3cbad9 100644
 +    private long heapReadAt = Long.MIN_VALUE;
 +
 +    private void checkHeap() {
-+        if (runawayFinalizing || runawayAsking || runawayTripped) {
++        if (runawayFinalizing || runawayAsking || runawayTripped || isGameOver()) {
 +            return;
 +        }
 +        final long now = loopClock.getAsLong();
@@ -1513,9 +1524,10 @@ index 8d204538..fc3cbad9 100644
 +            return;
 +        }
 +        heapReadAt = now;
-+        if (heapNearlyFull()) {
++        final double share = heapShareAfterFree();
++        if (share > RUNAWAY_HEAP_LIMIT) {
 +            drawReason = "heap";
-+            endRunawayGame((int) Math.round(heapAfterFree * 100), (int) Math.round(RUNAWAY_HEAP_LIMIT * 100), "% of the heap in use");
++            endRunawayGame((int) Math.round(share * 100), (int) Math.round(RUNAWAY_HEAP_LIMIT * 100), "% of the heap in use");
 +        }
 +    }
 +
@@ -1555,17 +1567,15 @@ index 8d204538..fc3cbad9 100644
 +        cardsCapPending = false;
 +        askOrDraw(cardsCreatedThisTurn, addCap(runawayCardsPerTurnCap, cardsAllowedThisTurn), "cards created");
 +        cardsAllowedThisTurn = addCap(cardsAllowedThisTurn, runawayCardsPerTurnCap);
-     }
- 
--    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
--    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
++    }
++
 +    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CARDS_PER_TURN;
 +    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_TRIGGERS_PER_TURN;
 +    private static volatile int runawayStackItemsCap = RUNAWAY_STACK_ITEMS;
  
      public static void setRunawayCardsPerTurnCap(final int cap) {
          runawayCardsPerTurnCap = cap > 0 ? cap : Integer.MAX_VALUE;
-@@ -1168,6 +1362,9 @@ public class Game {
+@@ -1168,6 +1372,9 @@ public class Game {
      public static void setRunawayTriggersPerTurnCap(final int cap) {
          runawayTriggersPerTurnCap = cap > 0 ? cap : Integer.MAX_VALUE;
      }
@@ -1575,7 +1585,7 @@ index 8d204538..fc3cbad9 100644
  
      private int runawayTurnStamp = -1;
      private int cardsCreatedThisTurn = 0;
-@@ -1186,17 +1383,21 @@ public class Game {
+@@ -1186,17 +1393,21 @@ public class Game {
              runawayTurnStamp = turnNow;
              cardsCreatedThisTurn = 0;
              triggersFiredThisTurn = 0;
@@ -1601,7 +1611,7 @@ index 8d204538..fc3cbad9 100644
              runawayFinalizing = true;
              try {
                  // Mirror the engine's OWN draw path, GameDrawEffect.resolve():
-@@ -1220,16 +1421,77 @@ public class Game {
+@@ -1220,16 +1431,77 @@ public class Game {
       *  TriggerHandler.runWaitingTriggers(). */
      public void recordTriggerFired() {
          resetRunawayWindowOnTurnChange();
@@ -1681,7 +1691,7 @@ index 8d204538..fc3cbad9 100644
          return ++cardIdCounter;
      }
      public int nextHiddenCardId() {
-@@ -1410,7 +1672,8 @@ public class Game {
+@@ -1410,7 +1682,8 @@ public class Game {
              player.onCleanupPhase();
          }
          for (final Card c : getCardsIncludePhasingIn(ZoneType.Battlefield)) {
@@ -1691,7 +1701,7 @@ index 8d204538..fc3cbad9 100644
          }
          for (final Card card : getCardsInGame()) {
              card.resetActivationsPerTurn();
-@@ -1479,6 +1742,23 @@ public class Game {
+@@ -1479,6 +1752,23 @@ public class Game {
          countersRemovedThisTurn.clear();
      }
  
@@ -1715,7 +1725,7 @@ index 8d204538..fc3cbad9 100644
      public void addCounterRemovedThisTurn(CounterType cType, Card card, Integer value) {
          countersRemovedThisTurn.put(cType, Pair.of(CardCopyService.getLKICopy(card), value));
      }
-@@ -1590,6 +1870,9 @@ public class Game {
+@@ -1590,6 +1880,9 @@ public class Game {
      public Boolean getDayTime() {
          return this.daytime;
      }
@@ -1725,7 +1735,7 @@ index 8d204538..fc3cbad9 100644
      public void setDayTime(Boolean value) {
          if (StaticAbilityCantChangeDayTime.cantChangeDay(this, value)) {
              return;
-@@ -1613,6 +1896,9 @@ public class Game {
+@@ -1613,6 +1906,9 @@ public class Game {
      public int getAITimeout() {
          return AI_TIMEOUT;
      }
