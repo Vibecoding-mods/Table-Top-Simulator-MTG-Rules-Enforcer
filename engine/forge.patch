@@ -1265,7 +1265,7 @@ index 32394268..e7c90cb7 100644
          }
          print("---- choose ability  (phase = " + phaseStr + ")");
 diff --git a/forge-game/src/main/java/forge/game/Game.java b/forge-game/src/main/java/forge/game/Game.java
-index 8d204538..47512c5d 100644
+index 8d204538..e160ad03 100644
 --- a/forge-game/src/main/java/forge/game/Game.java
 +++ b/forge-game/src/main/java/forge/game/Game.java
 @@ -101,6 +101,10 @@ public class Game {
@@ -1279,7 +1279,7 @@ index 8d204538..47512c5d 100644
  
      public boolean EXPERIMENTAL_RESTORE_SNAPSHOT = false;
      // While this is false here, its really set by the Match/Preferences
-@@ -219,13 +223,31 @@ public class Game {
+@@ -219,21 +223,48 @@ public class Game {
          return true;
      }
  
@@ -1289,6 +1289,8 @@ index 8d204538..47512c5d 100644
 +    // board size. Every zone copy made since the last call (these and copyLastState(ZoneType)'s, the ones a cost
 +    // payment keeps) is released here (Zone.releaseLastStateCards). Weakly held: a copy nothing else keeps is not kept.
 +    private final List<java.lang.ref.WeakReference<Zone>> lastStateZones = Lists.newArrayList();
++    private static final int LAST_STATE_ZONES_PRUNE_MIN = 64;
++    private int lastStateZonesPruneAt = LAST_STATE_ZONES_PRUNE_MIN;
 +
      public void copyLastState() {
 +        for (final java.lang.ref.WeakReference<Zone> held : lastStateZones) {
@@ -1298,6 +1300,7 @@ index 8d204538..47512c5d 100644
 +            }
 +        }
 +        lastStateZones.clear();
++        lastStateZonesPruneAt = LAST_STATE_ZONES_PRUNE_MIN;
          lastStateBattlefield.clear();
          lastStateGraveyard.clear();
          Map<Integer, Card> cachedMap = Maps.newHashMap();
@@ -1313,8 +1316,12 @@ index 8d204538..47512c5d 100644
          }
      }
  
-@@ -233,7 +255,9 @@ public class Game {
+     public CardCollectionView copyLastState(ZoneType type) {
          CardCollection result = new CardCollection();
++        if (lastStateZones.size() >= lastStateZonesPruneAt) {
++            lastStateZones.removeIf(held -> held.get() == null);
++            lastStateZonesPruneAt = Math.max(LAST_STATE_ZONES_PRUNE_MIN, 2 * lastStateZones.size());
++        }
          Map<Integer, Card> cachedMap = Maps.newHashMap();
          for (final Player p : getPlayers()) {
 -            result.addAll(p.getZone(type).getLKICopy(cachedMap));
@@ -1324,7 +1331,7 @@ index 8d204538..47512c5d 100644
          }
          return result;
      }
-@@ -1016,7 +1040,7 @@ public class Game {
+@@ -1016,7 +1047,7 @@ public class Game {
                  planarController = getNextPlayerAfter(p);
              }
              CardCollection planesLeavingGame =  new CardCollection();
@@ -1333,7 +1340,7 @@ index 8d204538..47512c5d 100644
                  if (c.getOwner().equals(p)) {
                      planesLeavingGame.add(c);
                      planarController.removeCurrentPlane(c);
-@@ -1115,7 +1139,7 @@ public class Game {
+@@ -1115,7 +1146,7 @@ public class Game {
      // on its next allocation and re-throws: strong termination pressure.
      //
      // Calibration (false-positive draw on a legitimate big turn is the key
@@ -1342,7 +1349,7 @@ index 8d204538..47512c5d 100644
      // turn is low THOUSANDS of objects/trigger-fires, so the cap sits an
      // order of magnitude above any legitimate game, yet 25k Cards is far
      // below 3g-heap exhaustion. Tunable at boot without a rebuild
-@@ -1134,33 +1158,213 @@ public class Game {
+@@ -1134,33 +1165,213 @@ public class Game {
          }
      }
  
@@ -1483,10 +1490,8 @@ index 8d204538..47512c5d 100644
 +
 +    private static boolean heapNearlyFull() {
 +        return heapShareAfterFree() > RUNAWAY_HEAP_LIMIT;
-     }
- 
--    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
--    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
++    }
++
 +    // The share of the heap in use, after freeing when the first read is over the limit. The heap and the collector
 +    // belong to the JVM, not to a game, so the last free is shared by every game on it (one System.gc() every
 +    // HEAP_FREE_SECONDS for all of them); the share is returned, not read back from the shared field another game's
@@ -1567,15 +1572,17 @@ index 8d204538..47512c5d 100644
 +        cardsCapPending = false;
 +        askOrDraw(cardsCreatedThisTurn, addCap(runawayCardsPerTurnCap, cardsAllowedThisTurn), "cards created");
 +        cardsAllowedThisTurn = addCap(cardsAllowedThisTurn, runawayCardsPerTurnCap);
-+    }
-+
+     }
+ 
+-    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
+-    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
 +    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CARDS_PER_TURN;
 +    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_TRIGGERS_PER_TURN;
 +    private static volatile int runawayStackItemsCap = RUNAWAY_STACK_ITEMS;
  
      public static void setRunawayCardsPerTurnCap(final int cap) {
          runawayCardsPerTurnCap = cap > 0 ? cap : Integer.MAX_VALUE;
-@@ -1168,6 +1372,9 @@ public class Game {
+@@ -1168,6 +1379,9 @@ public class Game {
      public static void setRunawayTriggersPerTurnCap(final int cap) {
          runawayTriggersPerTurnCap = cap > 0 ? cap : Integer.MAX_VALUE;
      }
@@ -1585,7 +1592,7 @@ index 8d204538..47512c5d 100644
  
      private int runawayTurnStamp = -1;
      private int cardsCreatedThisTurn = 0;
-@@ -1186,17 +1393,21 @@ public class Game {
+@@ -1186,17 +1400,21 @@ public class Game {
              runawayTurnStamp = turnNow;
              cardsCreatedThisTurn = 0;
              triggersFiredThisTurn = 0;
@@ -1611,7 +1618,7 @@ index 8d204538..47512c5d 100644
              runawayFinalizing = true;
              try {
                  // Mirror the engine's OWN draw path, GameDrawEffect.resolve():
-@@ -1220,16 +1431,77 @@ public class Game {
+@@ -1220,16 +1438,77 @@ public class Game {
       *  TriggerHandler.runWaitingTriggers(). */
      public void recordTriggerFired() {
          resetRunawayWindowOnTurnChange();
@@ -1691,7 +1698,7 @@ index 8d204538..47512c5d 100644
          return ++cardIdCounter;
      }
      public int nextHiddenCardId() {
-@@ -1410,7 +1682,8 @@ public class Game {
+@@ -1410,7 +1689,8 @@ public class Game {
              player.onCleanupPhase();
          }
          for (final Card c : getCardsIncludePhasingIn(ZoneType.Battlefield)) {
@@ -1701,7 +1708,7 @@ index 8d204538..47512c5d 100644
          }
          for (final Card card : getCardsInGame()) {
              card.resetActivationsPerTurn();
-@@ -1479,6 +1752,23 @@ public class Game {
+@@ -1479,6 +1759,23 @@ public class Game {
          countersRemovedThisTurn.clear();
      }
  
@@ -1725,7 +1732,7 @@ index 8d204538..47512c5d 100644
      public void addCounterRemovedThisTurn(CounterType cType, Card card, Integer value) {
          countersRemovedThisTurn.put(cType, Pair.of(CardCopyService.getLKICopy(card), value));
      }
-@@ -1590,6 +1880,9 @@ public class Game {
+@@ -1590,6 +1887,9 @@ public class Game {
      public Boolean getDayTime() {
          return this.daytime;
      }
@@ -1735,7 +1742,7 @@ index 8d204538..47512c5d 100644
      public void setDayTime(Boolean value) {
          if (StaticAbilityCantChangeDayTime.cantChangeDay(this, value)) {
              return;
-@@ -1613,6 +1906,9 @@ public class Game {
+@@ -1613,6 +1913,9 @@ public class Game {
      public int getAITimeout() {
          return AI_TIMEOUT;
      }
@@ -6637,10 +6644,31 @@ index 8ab7dbe3..43ca371f 100644
  
      @Override
 diff --git a/forge-game/src/main/java/forge/game/zone/MagicStack.java b/forge-game/src/main/java/forge/game/zone/MagicStack.java
-index 35ea040c..e8444fe3 100644
+index 35ea040c..5c97de2a 100644
 --- a/forge-game/src/main/java/forge/game/zone/MagicStack.java
 +++ b/forge-game/src/main/java/forge/game/zone/MagicStack.java
-@@ -76,6 +76,8 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -20,6 +20,9 @@ package forge.game.zone;
+ import com.google.common.collect.Lists;
+ import com.google.common.collect.Sets;
+ 
++import forge.card.CardRules;
++import forge.card.CardStateName;
++import forge.card.ICardFace;
+ import forge.game.*;
+ import forge.game.ability.AbilityKey;
+ import forge.game.ability.AbilityUtils;
+@@ -27,8 +30,10 @@ import forge.game.ability.ApiType;
+ import forge.game.ability.effects.PlayEffect;
+ import forge.game.card.Card;
+ import forge.game.card.CardCopyService;
++import forge.game.card.CardState;
+ import forge.game.event.*;
+ import forge.game.keyword.Keyword;
++import forge.game.keyword.KeywordInterface;
+ import forge.game.mana.Mana;
+ import forge.game.mana.ManaRefundService;
+ import forge.game.player.Player;
+@@ -76,6 +81,8 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
      private final List<SpellAbility> thisTurnActivated = Lists.newArrayList();
  
      private Card curResolvingCard = null;
@@ -6649,7 +6677,101 @@ index 35ea040c..e8444fe3 100644
  
      private final Game game;
  
-@@ -259,13 +261,8 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -138,8 +145,10 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+             if (ability.equals(source.getCastSA())) {
+                 SpellAbility cause = ability.copy(CardCopyService.getLKICopy(source), true);
+ 
+-                cause.setLastStateBattlefield(game.getLastStateBattlefield());
+-                cause.setLastStateGraveyard(game.getLastStateGraveyard());
++                if (readsStateAsCast(source)) {
++                    cause.setLastStateBattlefield(game.getLastStateBattlefield());
++                    cause.setLastStateGraveyard(game.getLastStateGraveyard());
++                }
+ 
+                 source.setCastSA(cause);
+             }
+@@ -152,6 +161,80 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+         } // else is for mana abilities
+     }
+ 
++    private boolean readsStateAsCast(final Card source) {
++        if (readsAsCast(source)) {
++            return true;
++        }
++        if (!source.isPermanent()) {
++            return false;
++        }
++        for (final Card c : game.getCardsInGame()) {
++            if (readsAsCast(c)) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    private static boolean readsAsCast(final Card card) {
++        if (card.getRules() != null) {
++            return readsStateAsCast(card.getRules());
++        }
++        for (final CardStateName name : card.getStates()) {
++            final CardState state = card.getState(name);
++            if (state == null) {
++                continue;
++            }
++            for (final String value : state.getSVars().values()) {
++                if (readsStateAsCast(value)) {
++                    return true;
++                }
++            }
++            for (final KeywordInterface keyword : state.getIntrinsicKeywords()) {
++                if (readsStateAsCast(keyword.getOriginal())) {
++                    return true;
++                }
++            }
++            for (final Iterable<? extends CardTraitBase> traits : List.of(state.getSpellAbilities(), state.getTriggers(),
++                    state.getReplacementEffects(), state.getStaticAbilities())) {
++                for (final CardTraitBase trait : traits) {
++                    for (final String value : trait.getMapParams().values()) {
++                        if (readsStateAsCast(value)) {
++                            return true;
++                        }
++                    }
++                }
++            }
++        }
++        return false;
++    }
++
++    private static boolean readsStateAsCast(final CardRules rules) {
++        for (final ICardFace face : rules.getAllFaces()) {
++            if (face == null) {
++                continue;
++            }
++            for (final Iterable<String> lines : List.of(face.getAbilities(), face.getTriggers(), face.getReplacements(),
++                    face.getStaticAbilities(), face.getKeywords())) {
++                for (final String line : lines) {
++                    if (readsStateAsCast(line)) {
++                        return true;
++                    }
++                }
++            }
++            for (final Map.Entry<String, String> variable : face.getVariables()) {
++                if (readsStateAsCast(variable.getValue())) {
++                    return true;
++                }
++            }
++        }
++        return false;
++    }
++
++    private static boolean readsStateAsCast(final String text) {
++        return text != null && (text.contains("WithFallback") || text.contains("Presence_"));
++    }
++
+     public final void unfreezeStack() {
+         frozen = false;
+         primaryAbility = null;
+@@ -259,13 +342,8 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          Player activator = sp.getActivatingPlayer();
  
          // Stop infinite loop. E.g. Scalelord Reckoner mirrormatch with only triggering targets is a draw.
@@ -6665,7 +6787,7 @@ index 35ea040c..e8444fe3 100644
  
          recordUndoableActions(sp, activator);
  
-@@ -565,6 +562,7 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -565,6 +643,7 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
      }
  
      public final void resolveStack() {
@@ -6673,7 +6795,7 @@ index 35ea040c..e8444fe3 100644
          // freeze the stack while we're in the middle of resolving
          freezeStack(null);
          setResolving(true);
-@@ -637,6 +635,10 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -637,6 +716,10 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
  
          finishResolving(sa, thisHasFizzled);
  
@@ -6684,7 +6806,7 @@ index 35ea040c..e8444fe3 100644
          game.copyLastState();
          if (isEmpty() && !hasSimultaneousStackEntries()) {
              // assuming that if the stack is empty, no reason to hold on to old LKI data (everything is a new object)
-@@ -644,6 +646,52 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -644,6 +727,56 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          }
      }
  
@@ -6707,26 +6829,30 @@ index 35ea040c..e8444fe3 100644
 +            return;
 +        }
 +        int merged = 0;
-+        while (left > 0 && !isEmpty() && !game.isGameOver() && !hasSimultaneousStackEntries()
-+                && !game.getTriggerHandler().hasWaitingTriggers()) {
-+            final SpellAbility next = peekAbility();
-+            if (!StackMerge.alike(first, next) || hasFizzled(next, null)) {
-+                break;
++        try {
++            while (left > 0 && !isEmpty() && !game.isGameOver() && !hasSimultaneousStackEntries()
++                    && !game.getTriggerHandler().hasWaitingTriggers()) {
++                final SpellAbility next = peekAbility();
++                if (!StackMerge.alike(first, next) || hasFizzled(next, null)) {
++                    break;
++                }
++                game.noteLoopProgress();
++                freezeStack(null);
++                setResolving(true);
++                curResolvingCard = next.getHostCard();
++                AbilityUtils.handleRemembering(next);
++                AbilityUtils.resolve(next);
++                final Map<AbilityKey, Object> runParams = AbilityKey.mapFromCard(next.getHostCard());
++                runParams.put(AbilityKey.SpellAbility, next);
++                game.getTriggerHandler().runTrigger(TriggerType.AbilityResolves, runParams, false);
++                game.fireEvent(new GameEventSpellResolved(next, false));
++                finishResolving(next, false);
++                mergedResolutions++;
++                merged++;
++                left = Math.min(left - 1, mergeGate.allowed(game));
 +            }
-+            game.noteLoopProgress();
-+            freezeStack(null);
-+            setResolving(true);
-+            curResolvingCard = next.getHostCard();
-+            AbilityUtils.handleRemembering(next);
-+            AbilityUtils.resolve(next);
-+            final Map<AbilityKey, Object> runParams = AbilityKey.mapFromCard(next.getHostCard());
-+            runParams.put(AbilityKey.SpellAbility, next);
-+            game.getTriggerHandler().runTrigger(TriggerType.AbilityResolves, runParams, false);
-+            game.fireEvent(new GameEventSpellResolved(next, false));
-+            finishResolving(next, false);
-+            mergedResolutions++;
-+            merged++;
-+            left = Math.min(left - 1, mergeGate.allowed(game));
++        } finally {
++            setResolving(false);
 +        }
 +        if (merged > 0) {
 +            game.fireEvent(new GameEventAddLog(GameLogEntryType.STACK_RESOLVE, (merged + 1) + " \u00d7 "
@@ -6737,7 +6863,7 @@ index 35ea040c..e8444fe3 100644
      private void finishResolving(final SpellAbility sa, final boolean fizzle) {
          // SpellAbility is removed from the stack here
          // temporarily removed removing SA after resolution
-@@ -838,6 +886,16 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -838,6 +971,16 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          List<Player> players = game.getPlayersInTurnOrder(playerTurn);
  
          boolean result = false;
@@ -6754,7 +6880,7 @@ index 35ea040c..e8444fe3 100644
          // CR 603.3b
          for (Player p : players) {
              result |= chooseOrderOfSimultaneousStackEntry(p, false);
-@@ -849,6 +907,63 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -849,6 +992,63 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          return result;
      }
  
@@ -6818,7 +6944,7 @@ index 35ea040c..e8444fe3 100644
      private boolean chooseOrderOfSimultaneousStackEntry(final Player activePlayer, boolean isAbilityTriggered) {
          if (!activePlayer.isInGame()) {
              return false;
-@@ -931,6 +1046,12 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -931,6 +1131,12 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
      public final List<Card> getSpellsCastLastTurn() {
          return lastTurnCast;
      }
@@ -6831,7 +6957,7 @@ index 35ea040c..e8444fe3 100644
  
      public final void onNextTurn() {
          final Player active = game.getPhaseHandler().getPlayerTurn();
-@@ -959,6 +1080,22 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -959,6 +1165,22 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          return thisTurnActivated;
      }
  
@@ -6856,10 +6982,10 @@ index 35ea040c..e8444fe3 100644
              return false;
 diff --git a/forge-game/src/main/java/forge/game/zone/StackMerge.java b/forge-game/src/main/java/forge/game/zone/StackMerge.java
 new file mode 100644
-index 00000000..4be1817d
+index 00000000..c8fc0b8b
 --- /dev/null
 +++ b/forge-game/src/main/java/forge/game/zone/StackMerge.java
-@@ -0,0 +1,257 @@
+@@ -0,0 +1,273 @@
 +package forge.game.zone;
 +
 +import java.util.EnumSet;
@@ -6921,7 +7047,9 @@ index 00000000..4be1817d
 + * more, and has no triggers, statics or replacements and only {@link #TOKEN_KEYWORDS} (Monk with prowess, Spirit with
 + * flying, Soldier artifact): each token is its own event as before. Not when anything could see a token arrive: a
 + * ChangesZone trigger that is not only its own card's, a ChangesZoneAll or TokenCreated trigger, or a CreateToken or
-+ * Moved replacement (Anointed Procession, Doubling Season, enters-with-counters effects).</li>
++ * Moved replacement that can apply to a card entering the battlefield (Anointed Procession, Doubling Season,
++ * enters-with-counters effects; Rest in Peace's graveyard replacement and a land's own "enters tapped" do not stop
++ * it).</li>
 + * <li><b>Mana</b> fixed colours, a number: no state-based action. Not when a ManaAdded trigger or a ProduceMana
 + * replacement exists. The new mana can make a response affordable; the gate, asked after each item, ends the batch
 + * then, as it ended the hold.</li>
@@ -7075,7 +7203,7 @@ index 00000000..4be1817d
 +        final Set<ReplacementType> replaced = REPLACED_BY.get(api);
 +        for (final Card c : game.getCardsInGame()) {
 +            for (final ReplacementEffect re : c.getReplacementEffects()) {
-+                if (replaced.contains(re.getMode()) && re.zonesCheck(game.getZoneOf(c))) {
++                if (replaced.contains(re.getMode()) && re.zonesCheck(game.getZoneOf(c)) && mayMeet(re, api)) {
 +                    return true;
 +                }
 +            }
@@ -7086,6 +7214,20 @@ index 00000000..4be1817d
 +            }
 +        }
 +        return false;
++    }
++
++    private static boolean mayMeet(final ReplacementEffect re, final ApiType api) {
++        if (api != ApiType.Token || re.getMode() != ReplacementType.Moved) {
++            return true;
++        }
++        if ("Card.Self".equals(re.getParam("ValidCard"))) {
++            return false;
++        }
++        if (re.hasParam("Destination") && !ZoneType.listValueOf(re.getParam("Destination")).contains(ZoneType.Battlefield)) {
++            return false;
++        }
++        return !re.hasParam("ExcludeDestination")
++                || !ZoneType.listValueOf(re.getParam("ExcludeDestination")).contains(ZoneType.Battlefield);
 +    }
 +
 +    private static boolean onlyItsOwnCard(final Trigger t) {
