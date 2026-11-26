@@ -188,6 +188,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-26 (tree `tmp/eb-1134c`, build id `eb-1b51db47fea9`) | `engine1134c` (node `4d4ee3f8a82f` / relay `ced675d235c0`; harness test `40c4732d7633`) | On top of engine1134b. The live slowdown blamed on engine1134b is the AI opponent's hand (damage spells), seen on engine1131 and engine1133-heapdraw too; engine1134b plays the identical game in the same time. Made cheaper: the AI's block prediction stops when no creature can block, damage predictions read each card's name once, and `Card.getName` skips an empty changed-name table (29% less game time on the slow headless seed, the game unchanged). Section 4 entry. | no | outer branch `engine1134c`; both patches regenerated | not deployed; deploy `--image engine1134c` with `MTG_MANABREW=tmp/eb-1134c` | engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`) |
 | 2026-11-26 (tree `tmp/eb-1134b`, build id `eb-b0494608ff19`) | `engine1134b` (node `b28a69581f33` / relay `9eb23cee5e46`; harness test `bea0066eb45d`) | engine1134 after its jr-programmer-suite review: the cast-board reader gate also reads every card's current states (a copy of a reader whose original left the game) and the `CastSA>` route to the board; the game scan visits cards instead of listing them; `heldRunBatches` reuses `asksHuman`. Section 4 entry. | no | outer branch `engine1134`; both patches regenerated | not deployed; deploy `--image engine1134b` with `MTG_MANABREW=tmp/eb-1134b` | engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`) |
 | 2026-11-26 (tree `tmp/eb-1134`, build id `eb-9da4ad19cd07`) | `engine1134` (node `cb20db51db12` / relay `b666051b13d6`; harness test `09578c9d5af8`) | On top of engine1133-heapdraw. A cast spell keeps the board as cast only when a script in the game can read it (the castSA board growth of the Kykar loop); a held run Forge can batch has no 20-cut and resolves in one step when every player is a person holding it; review nits (the resolving flag on a throw, Moved replacements that cannot touch a token entering no longer stop token batching, cleared cost-copy references pruned). Section 4 entry. | no | outer branch `engine1134`; both patches regenerated | not deployed; deploy `--image engine1134` with `MTG_MANABREW=tmp/eb-1134` | engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`) |
 | 2026-11-26 (tree `tmp/eb-heapdraw`, build id `eb-91ece5ec6e5e`) | `engine1133-heapdraw` (node `3efcf079a507` / relay `59e0bd228a4e`; harness test `6a2243c0852e`) | On top of engine1132-heap. A runaway draw thrown from inside the game loop (the heap guard at a resolution or a trigger, and any limit drawn there) now ends the session as a normal game over, a draw with its `drawReason`, instead of an engine error the node reported as `fatal`. `checkHeap` also skips a game already over, and the heap share it draws on is the one it read. Section 4 entry. | no | outer branch `engine1132-heap`; both patches regenerated | deployed 2026-11-26 (table `d1d68fff`, save `75d78b1b`; live Kykar stress ended as a clean game over); deploy `--image engine1133-heapdraw` with `MTG_MANABREW=tmp/eb-heapdraw` | engine1132-heap (`--image engine1132-heap`, `MTG_MANABREW=tmp/eb-heap`) |
@@ -317,6 +318,52 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-26 engine1134c: the AI's slow hand on a big board costs less; the 1134b "regression" was the AI's hand (not deployed)
+- **The report:** the live Kykar stress (`tmp/stress/kykar-loop.js`) was much slower on engine1134b than on
+  engine1133-heapdraw (pass 40 23.86 s against 9.76 s, pass 70 115.6 s against 30.5 s; `tmp/stress/run-1133.log`,
+  `run-1134b.log`).
+- **Cause: not an engine1134 change.** The game turns slow whenever the AI opponent's hand holds damage spells, which
+  happens on every engine. On a private relay + node pair (`tmp/perf1134/prun.sh`, the driver's copy stopped at pass
+  30, runs alternated between the two images), pass 30 took 15.27 / 16.56 (pass 29) / 13.48 / 6.20 / 6.07 s on
+  engine1133-heapdraw and 1.77 / 6.75 / 17.96 (pass 28) / 15.27 / 5.79 s on engine1134b. Earlier engines show it too:
+  engine1131's stress log has 15.14 s at pass 30, engine1132 and engine1133 5.49 and 6.03 s. Counters in a throwaway
+  instrumented engine1134b node: a fast run spent 2.3 s in 1,952 AI decisions, a slow one 113.6 s in 2,117; the same
+  number of decisions, about 50 times the cost each. Headless (`tmp/perf1134/bench-probe-x.js`, the Neheb deck the node
+  gives its AI, a fixed seed) the three engines play the identical game (the same prompts and tokens every pass) and
+  engine1133-heapdraw and engine1134b take the same time: seed 1 (a slow hand) 84.7 s against 86.4 s of game time,
+  seeds 2 and 3 (fast hands) 41.3 / 44.2 s and 44.1 / 42.5 s.
+- **Where the slow hand's time goes:** each AI decision runs `DamageDealAi` for every damage spell in hand, before the
+  cost is checked (Forge's `canPlayAndPayForFace` order). That predicts the next combat (`ComputerUtil.evaluateBoardPosition`,
+  `aiLifeInDanger`), and with no creature that can block, `AiBlockController.assignBlockers` still ran about ten full
+  danger checks over every attacker (the Kykar board's 120 tokens); every damage prediction (`Card` and
+  `Player.staticReplaceDamage`) also read each permanent's name up to 18 times, through the changed-name table.
+- **Fix (Forge, behaviour unchanged):** `AiBlockController.assignBlockers` stops once no creature that can block is left
+  (nothing it does after that can add a block); the two `staticReplaceDamage` loops read each card's name once;
+  `Card.getName` skips the changed-name table when a card has no changed name. The headless games stay identical
+  (prompts and tokens of every pass, three seeds). Seed 1 game time 86.4 s on engine1134b, 60.6 s with the fix (pass 19
+  9.34 s to 6.16 s, 29% less); the fast seeds are unchanged (42.6 and 41.1 s). It does not remove the slow hand: the
+  AI still weighs its damage spells every decision.
+- **Tests:** `BlockBudgetTest` gains 3 checks (14 in all). Fails by name on engine1134b:
+  `no blockers: a defender with no creature that can block works out no combat damage for its blocks` (the blocks asked
+  120 pump costs where one danger check asks 12). Guards that pass on both: a defender with a Giant Spider still works
+  the damage out; a Hill Giant renamed Furnace of Rath doubles predicted damage to a creature and to a player, and a
+  Furnace of Rath renamed Hill Giant does not.
+- **Break-its** (`engine/checks/mutate-in-image.sh` on `mtg-harness-test:engine1134b` with the Forge overlay, mutated
+  copies only, originals checked by sha256 after, the unchanged control passes 14/14): 6 mutations, 6 fail named
+  checks (no early return; an early return every time, which also fails 4 older checks; an early return only with no
+  creature at all; `getName` ignoring changed names; the card loop reading the printed name; the player loop reading
+  the source's name).
+- **Build:** patches regenerated (`ENGINE_WORK_DIR=tmp/eb-1134c-work ENGINE_BUILD_DIR=tmp/eb-1134c-clean bash
+  engine/make-patches.sh`; forge.patch 492 files, manabrew.patch 114), then `ENGINE_BUILD_DIR=tmp/eb-1134c bash
+  engine/build-images.sh engine1134c` (log `tmp/build-1134c.log`, build id `eb-1b51db47fea9`): node `4d4ee3f8a82f`, relay `ced675d235c0`; harness test `40c4732d7633`
+  (`docker build --target java-builder`, log `tmp/build-1134c-harness.log`). **Proof:** full `harness-tests.sh` in
+  `mtg-harness-test:engine1134c` on `tmp/eb-1134c/forge-harness`: all 60 classes passed, 1,321 `ok` lines
+  (`tmp/harness-1134c.log`); `tools/live-check.sh engine1134c tests/live_phasing_check.js` 29 of 29. The headless seed
+  1 on the built test image: 61.8 s of game time (pass 19 5.96 s), the same game, heap 99 MB at pass 19 as on
+  engine1134b. The bridge is unchanged. Deploy `--image engine1134c` with `MTG_MANABREW=tmp/eb-1134c`.
+- **Rollback:** engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`); engine1134b is not
+  deployed either.
 
 ### 2026-11-26 engine1134 / engine1134b: cast spells keep no board, batchable held runs go to the end (not deployed)
 - **engine1134b (jr-programmer-suite review of engine1134, same day):** the reader gate missed two cases and is fixed

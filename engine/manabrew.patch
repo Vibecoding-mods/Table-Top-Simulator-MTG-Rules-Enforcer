@@ -12292,10 +12292,10 @@ index 0000000..5ba4d8c
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/BlockBudgetTest.java b/forge-harness/src/test/java/forge/harness/host/BlockBudgetTest.java
 new file mode 100644
-index 0000000..752d3a6
+index 0000000..722a612
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/BlockBudgetTest.java
-@@ -0,0 +1,435 @@
+@@ -0,0 +1,500 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -12350,6 +12350,9 @@ index 0000000..752d3a6
 +        CHECKS.put("team: past the deadline, lethal on the partner is chump-blocked (shared team life)", BlockBudgetTest::partnerLethalShared);
 +        CHECKS.put("team: past the deadline, an attack on the partner that isn't lethal gets no forced blocks", BlockBudgetTest::partnerSafeShared);
 +        CHECKS.put("team: past the deadline, lethal on the partner is chump-blocked (team turns, the partner's own life)", BlockBudgetTest::partnerLethalOwnLife);
++        CHECKS.put("no blockers: a defender with no creature that can block works out no combat damage for its blocks", BlockBudgetTest::noBlockersNoDamageWorkedOut);
++        CHECKS.put("no blockers: a defender with a creature that can block still works out the damage", BlockBudgetTest::aBlockerStillWorksOutTheDamage);
++        CHECKS.put("damage prediction: a permanent renamed Furnace of Rath doubles the damage, the real one renamed does not", BlockBudgetTest::renamedFurnaceOfRath);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
 +            check(e.getKey(), e.getValue());
 +        }
@@ -12482,6 +12485,68 @@ index 0000000..752d3a6
 +
 +    private static void sameKeywords() {
 +        same(BlockBudgetTest::keywords, 7, "keywords at 7 life");
++    }
++
++    private static Combat dragonsAttack(final Fixture f) {
++        for (int i = 0; i < 6; i++) {
++            f.add("Shivan Dragon", f.white);
++            f.add("Mountain", f.white);
++        }
++        f.add("Mountain", f.blue);
++        final Combat combat = f.attackWithAll(20);
++        f.game.AI_TIMEOUT = 600;
++        return combat;
++    }
++
++    private static long pumpChecksOfBlocks(final Fixture f, final Combat combat) {
++        final long c0 = ComputerUtilCombat.getPumpCostChecks();
++        new AiBlockController(f.blue, false).assignBlockersForCombat(combat);
++        return ComputerUtilCombat.getPumpCostChecks() - c0;
++    }
++
++    private static long pumpChecksOfOneDangerCheck(final Fixture f, final Combat combat) {
++        final long c0 = ComputerUtilCombat.getPumpCostChecks();
++        expect(ComputerUtilCombat.lifeInDanger(f.blue, combat), "precondition: six Shivan Dragons at 20 life are no danger");
++        return ComputerUtilCombat.getPumpCostChecks() - c0;
++    }
++
++    private static void noBlockersNoDamageWorkedOut() {
++        final Fixture f = new Fixture();
++        final Card tapped = f.add("Grizzly Bears", f.blue);
++        final Combat combat = dragonsAttack(f);
++        tapped.setTapped(true);
++        final long danger = pumpChecksOfOneDangerCheck(f, combat);
++        expect(danger > 0, "precondition: a danger check asked no pump cost, so the count shows nothing");
++        final long blocks = pumpChecksOfBlocks(f, combat);
++        expect(combat.getAllBlockers().isEmpty(), "blockers out of nothing: " + f.describe(combat));
++        expect(blocks == 0, "the blocks of a defender with no creature asked " + blocks + " pump costs (one danger check asks " + danger + ")");
++    }
++
++    private static void aBlockerStillWorksOutTheDamage() {
++        final Fixture f = new Fixture();
++        f.add("Giant Spider", f.blue);
++        final Combat combat = dragonsAttack(f);
++        final long danger = pumpChecksOfOneDangerCheck(f, combat);
++        final long blocks = pumpChecksOfBlocks(f, combat);
++        expect(blocks >= danger, "the blocks of a defender with a Giant Spider asked " + blocks + " pump costs, one danger check asks " + danger);
++    }
++
++    private static void renamedFurnaceOfRath() {
++        final Fixture f = new Fixture();
++        final Card bears = f.add("Grizzly Bears", f.blue);
++        final Card source = f.add("Hill Giant", f.white);
++        final Card fake = f.add("Hill Giant", f.white);
++        expect(ComputerUtilCombat.predictDamageTo(bears, 2, source, false) == 2, "precondition: 2 damage is predicted as "
++                + ComputerUtilCombat.predictDamageTo(bears, 2, source, false));
++        fake.addChangedName("Furnace of Rath", false, f.game.getNextTimestamp(), 0);
++        expect(ComputerUtilCombat.predictDamageTo(bears, 2, source, false) == 4, "with a Hill Giant named Furnace of Rath 2 damage is predicted as "
++                + ComputerUtilCombat.predictDamageTo(bears, 2, source, false));
++        expect(ComputerUtilCombat.predictDamageTo(f.blue, 2, source, false) == 4, "to a player, with a Hill Giant named Furnace of Rath 2 damage is predicted as "
++                + ComputerUtilCombat.predictDamageTo(f.blue, 2, source, false));
++        final Card furnace = f.add("Furnace of Rath", f.white);
++        furnace.addChangedName("Hill Giant", false, f.game.getNextTimestamp(), 0);
++        expect(ComputerUtilCombat.predictDamageTo(bears, 2, source, false) == 4, "with a Furnace of Rath named Hill Giant beside it 2 damage is predicted as "
++                + ComputerUtilCombat.predictDamageTo(bears, 2, source, false));
 +    }
 +
 +    private static Combat bigAttack(final Fixture f, final int life) {
