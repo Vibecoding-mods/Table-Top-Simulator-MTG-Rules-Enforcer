@@ -62,6 +62,12 @@ public final class HeadlessGameServer {
                     case "profile":
                         out.println(reply("ok", Sampler.dumpAndReset()));
                         break;
+                    case "heap":
+                        out.println(reply("ok", Retainers.heapAfterGc()));
+                        break;
+                    case "retainers":
+                        out.println(reply("ok", Retainers.walk(adapter, rest.isBlank() ? 25 : Integer.parseInt(rest.trim()))));
+                        break;
                     case "quit":
                         out.println(reply("ok", ""));
                         System.exit(0);
@@ -178,6 +184,163 @@ public final class HeadlessGameServer {
                 TOP.clear();
                 samples = 0;
             }
+            return o.toString();
+        }
+    }
+
+    // "heap": the heap in use after a System.gc(), in MB. "retainers [n]": a breadth-first walk of everything the
+    // adapter reaches (instance fields by reflection, JDK collections through their API, the card database left out);
+    // every Card reached that is not one of the live game's cards is counted by the path it was first reached on
+    // (class.field steps, indices dropped), and the n most common paths are listed. Finds what keeps copies alive.
+    static final class Retainers {
+        static String heapAfterGc() {
+            final Runtime rt = Runtime.getRuntime();
+            System.gc();
+            final JsonObject o = new JsonObject();
+            o.addProperty("usedMb", (rt.totalMemory() - rt.freeMemory()) / 1048576.0);
+            o.addProperty("maxMb", rt.maxMemory() / 1048576.0);
+            return o.toString();
+        }
+
+        private static boolean skipped(final Class<?> c) {
+            final String n = c.getName();
+            return n.startsWith("forge.card.") || n.startsWith("forge.item.") || n.equals("forge.StaticData")
+                    || n.startsWith("forge.localinstance.") || n.startsWith("forge.itemmanager.")
+                    || n.startsWith("forge.gui.") || n.startsWith("forge.util.Localizer")
+                    || Thread.class.isAssignableFrom(c) || ClassLoader.class.isAssignableFrom(c) || c == Class.class
+                    || n.startsWith("java.lang.reflect.") || n.startsWith("java.lang.invoke.")
+                    || n.startsWith("java.util.concurrent.locks.") || n.startsWith("java.io.") || n.startsWith("java.nio.")
+                    || n.startsWith("sun.") || n.startsWith("jdk.") || n.startsWith("org.tinylog.");
+        }
+
+        static String walk(final Object root, final int top) {
+            final java.util.IdentityHashMap<Object, String> seen = new java.util.IdentityHashMap<>();
+            final java.util.IdentityHashMap<Object, Object> parent = new java.util.IdentityHashMap<>();
+            final java.util.ArrayDeque<Object> queue = new java.util.ArrayDeque<>();
+            seen.put(root, "root");
+            queue.add(root);
+            forge.game.Game live = null;
+            final List<forge.game.card.Card> cards = new ArrayList<>();
+            final java.util.Map<String, Integer> byClass = new java.util.HashMap<>();
+            while (!queue.isEmpty()) {
+                final Object o = queue.poll();
+                final Class<?> c = o.getClass();
+                if (o instanceof forge.game.card.Card card) {
+                    cards.add(card);
+                }
+                if (live == null && o instanceof ManaBrewInteractiveSession s) {
+                    try {
+                        final java.lang.reflect.Field f = ManaBrewInteractiveSession.class.getDeclaredField("game");
+                        f.setAccessible(true);
+                        live = (forge.game.Game) f.get(s);
+                    } catch (final ReflectiveOperationException ignored) {
+                    }
+                }
+                byClass.merge(c.getName(), 1, Integer::sum);
+                final List<Object[]> kids = new ArrayList<>();
+                if (c.isArray()) {
+                    if (!c.getComponentType().isPrimitive()) {
+                        for (final Object k : (Object[]) o) {
+                            kids.add(new Object[] { k, "[]" });
+                        }
+                    }
+                } else if (c.getName().startsWith("java.") || c.getName().startsWith("javax.")) {
+                    try {
+                        if (o instanceof java.util.Map<?, ?> m) {
+                            for (final java.util.Map.Entry<?, ?> e : new ArrayList<>(m.entrySet())) {
+                                kids.add(new Object[] { e.getKey(), "{k}" });
+                                kids.add(new Object[] { e.getValue(), "{v}" });
+                            }
+                        } else if (o instanceof Iterable<?> it) {
+                            final List<Object> copy = new ArrayList<>();
+                            for (final Object k : it) {
+                                copy.add(k);
+                            }
+                            for (final Object k : copy) {
+                                kids.add(new Object[] { k, "[]" });
+                            }
+                        } else if (o instanceof java.util.Optional<?> opt && opt.isPresent()) {
+                            kids.add(new Object[] { opt.get(), ".get" });
+                        } else if (o instanceof java.util.concurrent.atomic.AtomicReference<?> ref) {
+                            kids.add(new Object[] { ref.get(), ".get" });
+                        }
+                    } catch (final RuntimeException ignored) {
+                    }
+                } else {
+                    for (Class<?> k = c; k != null && k != Object.class; k = k.getSuperclass()) {
+                        if (k.getName().startsWith("java.")) {
+                            break;
+                        }
+                        for (final java.lang.reflect.Field f : k.getDeclaredFields()) {
+                            if (java.lang.reflect.Modifier.isStatic(f.getModifiers()) || f.getType().isPrimitive()) {
+                                continue;
+                            }
+                            try {
+                                f.setAccessible(true);
+                                kids.add(new Object[] { f.get(o), k.getSimpleName() + "." + f.getName() });
+                            } catch (final RuntimeException | IllegalAccessException ignored) {
+                            }
+                        }
+                    }
+                }
+                for (final Object[] kid : kids) {
+                    final Object k = kid[0];
+                    if (k == null || seen.containsKey(k) || skipped(k.getClass()) || k instanceof String
+                            || k instanceof Number || k instanceof Boolean || k instanceof Enum<?>) {
+                        continue;
+                    }
+                    seen.put(k, (String) kid[1]);
+                    parent.put(k, o);
+                    queue.add(k);
+                }
+            }
+            final java.util.Set<forge.game.card.Card> liveCards = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+            if (live != null) {
+                for (final forge.game.card.Card c : live.getCardsInGame()) {
+                    liveCards.add(c);
+                }
+            }
+            final java.util.Map<String, Integer> paths = new java.util.HashMap<>();
+            int other = 0;
+            for (final forge.game.card.Card card : cards) {
+                if (liveCards.contains(card)) {
+                    continue;
+                }
+                other++;
+                final List<String> steps = new ArrayList<>();
+                Object at = card;
+                while (at != null && steps.size() < 400) {
+                    final String edge = seen.get(at);
+                    final Object up = parent.get(at);
+                    if (up == null) {
+                        break;
+                    }
+                    steps.add(up.getClass().getSimpleName() + edge.replaceAll("^[^.\\[{]*", ""));
+                    at = up;
+                }
+                java.util.Collections.reverse(steps);
+                final List<String> squeezed = new ArrayList<>();
+                for (final String s : steps) {
+                    if (squeezed.isEmpty() || !squeezed.get(squeezed.size() - 1).equals(s)) {
+                        squeezed.add(s);
+                    }
+                }
+                paths.merge(String.join(" > ", squeezed.subList(Math.max(0, squeezed.size() - 14), squeezed.size()))
+                        + (card.getGame() == live ? " [live game]" : " [other game]") + (card.isLKI() ? " LKI" : ""), 1, Integer::sum);
+            }
+            final JsonObject o = new JsonObject();
+            o.addProperty("objects", seen.size());
+            o.addProperty("cards", cards.size());
+            o.addProperty("liveCards", liveCards.size());
+            o.addProperty("otherCards", other);
+            final JsonObject p = new JsonObject();
+            paths.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(top)
+                    .forEach(e -> p.addProperty(e.getKey(), e.getValue()));
+            o.add("paths", p);
+            final JsonObject cl = new JsonObject();
+            byClass.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(30)
+                    .forEach(e -> cl.addProperty(e.getKey(), e.getValue()));
+            o.add("classes", cl);
             return o.toString();
         }
     }

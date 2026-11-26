@@ -188,6 +188,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-26 (tree `tmp/eb-heap`, build id `eb-e4bd2113f096`) | `engine1132-heap` (node `1c1e208bf129` / relay `7f852af6e36a`; harness test `5b5821c4d701`) | On top of engine1131-batch. (1) The heap guard reads the heap between the limits too: at every trigger fired, ability resolved and replacement run, at most once every 50 ms (`HEAP_READ_MILLIS`), so a long turn is drawn (`drawReason` "heap") before an OutOfMemoryError; before, the heap was read only when a limit asked, and a Kykar + Mentor stress turn died of OOM 40 minutes after its one question. (2) A card that left the battlefield or graveyard no longer keeps a whole board of last-state copies alive for the rest of the turn (`Game.copyLastState` releases the zone copies it replaces). Section 4 entry. | no | outer branch `engine1132-heap`; both patches regenerated | not deployed; deploy `--image engine1132-heap` with `MTG_MANABREW=tmp/eb-heap` | engine1131-batch (`--image engine1131-batch`, `MTG_MANABREW=tmp/eb-batch`) |
 | 2026-11-25 (tree `tmp/eb-batch`, build id `eb-04829797aeeb`) | `engine1131-batch` (node `abc03f5d3012` / relay `eedcbb724704`; harness test `6b5580206108`) | On top of engine1130-ff. Trigger batching: while every player holds a run (the existing held-pass gate, asked again after every item), Forge `StackMerge` resolves a run of identical simple triggers in one engine step: fixed life gain for you, a self pump by +N/+N (prowess), +1/+1 counters on itself, plain tokens for you, fixed mana; each only when nothing active watches or replaces that event and no conditional static grant is in play. The log says "N × <card> resolved at once: <ability>". The merge is no longer capped at 20 by itself; the 20-cut, the minute rule and the response probe still end it. Section 4 entry. | no | outer worktree branch; both patches regenerated | deployed 2026-11-26 (main `47642f7`, table `d1d68fff`, save `75d78b1b`); deploy `--image engine1131-batch` with `MTG_MANABREW=tmp/eb-batch` | engine1130-ff (`--image engine1130-ff`, `MTG_MANABREW=tmp/eb-1130-ff`) |
 | 2026-11-25 17:36 (tree `tmp/eb-1130-ff`, build id `eb-3a5bee0d4000`) | `engine1130-ff` (node `ed30edf4b227` / relay `eab59c676c92`; harness test `c87bd1cd4350`) | On top of engine1129. Long chains: (1) a heap read over 85% first frees unused memory (`System.gc()`, at most once in 5 s) and only a heap still over 85% ends the game; (2) the per-turn trigger limit counts triggers that really fire, not every waiting event (the Kykar loop was asked after about 65 spells); (3) a held exhaust pass covers the run on top of the stack (a spell under it no longer stops the bridge holding) and, once the same run has been held for 60 s, is no longer cut every 20: the rest resolves and the table sees the result. Bridge `heldPass` holds a run on top of a spell. Section 4 entry. | no | outer branch `worktree-agent-ab1b273006f20c952`; both patches regenerated | deployed 2026-11-25 19:40 (main `6845532`); deploy `--image engine1130-ff` with `MTG_MANABREW=tmp/eb-1130-ff` | engine1129 (`--image engine1129`, `MTG_MANABREW=tmp/eb-1129`) |
 | 2026-11-24 23:36 (built as `engine1129`, tree `tmp/eb-1129`, build id `eb-07211d1b4974`) | `engine1129-jr` (node `4d8a2b3da23a` / relay `6e05f8c02bcf`) | On top of engine1128. A review pass over `forge-harness/.../host` with golden-master photographs first. New tests `GoldenFileTest` (the recorder, 8 checks), `ProtocolGoldenTest` (353 rows: every protocol decode, agent prompts, game-start checks, checkpoint caps and thinning, runaway wording, held-pass phase rules, perks) and `SnapshotGoldenTest` (70 rows: 14 boards x 4 viewers + revisions); the recorded files are in `forge-harness/src/test/resources/golden`. Fixes: a colour answer `{"R":0,"G":1}` decoded as `R`, now the first colour with a count above 0 (`{"W":0}` still `W`); an `applyState` directive with no `ops` array refused at decode, and refused by the session with "the fix has no ops array" (before, a `ClassCastException`/NPE on the game thread); a spectator now reads a delayed trigger's text when its host is an LKI copy (Sneak Attack's end-step sacrifice), from `getLastKnownZone`. Tidy, no behaviour change: the controller's held pass is set and cleared through `holdPass`/`clearPassUntil`/`clearExhaust`; `AutoPay.payBudget` and `InteractiveSnapshotExtractor.shareCards` are `volatile`; the unused public 10-argument `snapshotJson` removed. Harness guide: five team rules listed, the game-level poison/commander limits read only with `sharedLife`/`sharedTurns`. `tools/mutate-engine-docker.js --set golden` 37 mutations, 36 caught by name, the one miss an equivalent program. Section 4 entry. | no | outer branch `worktree-agent-a3467a42910472022`; `engine/manabrew.patch` regenerated; `engine/forge.patch` unchanged | deployed 2026-11-24 23:36 (`--image engine1129`, `MTG_MANABREW=tmp/eb-1129`; the deploy's engine tests passed, 59 classes); table `46f58b44`, save `dc11c2c0` | engine1128 (`--image engine1128`, `MTG_MANABREW=tmp/eb-1128`) |
@@ -313,6 +314,56 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-26 engine1132-heap: the heap guard between limits, a departed card keeps no board (not deployed)
+- **Why:** on engine1131-batch the live stress run `node tmp/stress/kykar-loop.js --goal 500 --minutes 45` (Kykar +
+  Monastery Mentor, one long turn, 60 held passes, 236 tokens, about 120 mana) ended at 2499 s with
+  `java.lang.OutOfMemoryError: Garbage-collected heap size exceeded` ("hosted engine exited with a fatal error") instead
+  of a draw. Passes slowed 82 s -> 126 s -> 185 s -> 310 s first (the collector thrashing). Output:
+  `tmp/stress/run-1131.log`, `tmp/stress/run-1795669924038/`.
+- **Cause 1, the guard:** `Game.heapNearlyFull` was read only in `askOrDraw`, that is when a limit asked (5,000 triggers,
+  the card or stack cap, the watchdog). That turn reached one question (724 s) and never another, so the heap filled
+  unchecked. The node is a GraalVM native image (G1, `-R:MaxHeapSize=1100m`, `FORGE_MAX_HEAP` in the node Dockerfile);
+  the message is native-image's. The harness now logs `[mana-brew] heap at game start: max .. MB, in use .. MB` so the
+  node log shows what `Runtime.maxMemory()` reports there.
+- **Fix 1 (Forge `Game.java`):** `checkHeap()` at every `recordTriggerFired` and `checkLoopWatchdog` (each ability
+  resolution and replacement run), at most once every `HEAP_READ_MILLIS` (50 ms of the loop clock), never after the game
+  ended. Over `RUNAWAY_HEAP_LIMIT` (0.85) it frees first (`System.gc()`, at most once in 5 s, as before) and draws only a
+  heap still over the limit: `drawReason` "heap", no question. Not at `nextCardId` (a game copy, such as a rewind
+  checkpoint, makes cards too). The draw path is the existing one (`endRunawayGame`).
+- **Cause 2, what grew** (headless bench below with a reflective walk from the adapter, `HeadlessGameServer` `heap` and
+  `retainers` commands): `Game.copyLastState` makes LKI copies of every battlefield and graveyard into a new `Zone`, and
+  each copy's zone is that `Zone`, which lists the whole board. A card that leaves the battlefield or graveyard keeps
+  its copy for the turn (`leftBattlefieldThisTurn`, `leftGraveyardThisTurn`, the new zone's cards added this turn), and
+  so a whole board of copies. Sacrificing a Spirit for mana (the cost's own copy, `copyLastState(ZoneType)`), Hullbreaker
+  bouncing Sol Ring and the Top all did it, twice or more a pass, on a board that grew 4 tokens a pass: the heap grew
+  with the square of the pass count. Top retainer at pass 20: 4,284 board copies through
+  `Game.leftBattlefieldThisTurn > Card.currentZone > Zone.cardList` (of 9,514 copies not in the live game).
+- **Fix 2 (Forge `Game.copyLastState`, `Zone.releaseLastStateCards`):** every zone copy made since the last
+  `copyLastState()` (its own and `copyLastState(ZoneType)`'s, held weakly) has its card list emptied when the next one
+  is made. The copies stay readable through the lists that hold them (`lastStateBattlefield`, a cost's table, a cast
+  spell's last state); only `lki.getZone().getCards()` of an old copy is now empty (its zone type is unchanged).
+- **Not fixed, the second retainer:** each cast spell's `castSA` keeps the whole last-state battlefield it was cast
+  with (`MagicStack.addAndUnfreeze`, kept in `thisTurnCast`): 2,100 copies at pass 20, still growing with the square.
+  Forge reads it after the spell resolves (`Count$LastStateBattlefieldWithFallback`, `Count$Presence_` for the
+  "revealed or controlled a Dragon as you cast" cards' enters triggers), so dropping it is a rules change.
+- **Measured** (`tools/kykar-loop-bench.js --tokens 0 --opponent person --held --cards "Monastery Mentor"`, the live
+  driver's loop, headless HotSpot, heap after `System.gc()` each pass): engine1131-batch 120 MB at pass 0, 154 at 8,
+  266 at 20 (146 MB in 20 passes, the step growing every pass); engine1132-heap 119, 137, 182 (63 MB, 57% less). Copies
+  outside the live game at pass 20: 9,514 -> 5,323 (the rest: 2,100 cast spells' last state, about 2,100 in the 11
+  rewind checkpoints, which do not grow within a turn). The native node reports `max 1100 MB, in use 46 MB, committed 394 MB` at game start (live-check, so `Runtime.maxMemory()` there is the 1,100 MB the 0.85 limit is taken of).
+- **Tests:** new `HeapGuardTest` (14 checks): a full heap draws at a trigger between limits, at an ability resolving
+  and at a replacement run, without asking; a card made reads no heap; 84% does not draw; a heap the collector frees
+  does not draw; the heap is read once per 50 ms (1,000 triggers in one instant read it once, 49.999 ms later not
+  again, 50 ms later again); an ended game reads none; a card that left the battlefield, one moved with a cost's copy
+  and one that left the graveyard keep at most one copy; the latest last state keeps its board; Count$LeftBattlefieldThisTurn
+  and revolt count the same; 60 departures from a 40-card board keep 60 copies (2,400 before). 11 of the 14 failed by name on
+  engine1131-batch; the other three (a card made, the latest last state, the counts) hold on both. Full `harness-tests.sh`: all 60 classes passed on `mtg-harness-test:engine1132-heap` (5b5821c4d701); `tools/live-check.sh engine1132-heap tests/live_phasing_check.js` 29 of 29.
+- **Break-its** (copies of Game.java/Zone.java compiled over the image with `engine/checks/mutate-in-image.sh`,
+  originals checked by sha256 after): 12 mutations, 12 fail named checks: no check at a trigger, none at a resolution,
+  no read throttle, the throttle off by one, reads after the game ended, no draw reason, no free before the draw, the
+  old zones kept, a cost's copy not tracked, the new zones released, the release a no-op, graveyard zones kept.
+- **Rollback:** engine1131-batch (`--image engine1131-batch`, `MTG_MANABREW=tmp/eb-batch`).
 
 ### 2026-11-25 engine1131-batch: a held run of identical simple triggers resolves in one step (not deployed)
 - **Why:** a held run of hundreds of identical triggers (Monastery Mentor's prowess on 150 or 900 Monk tokens) still
