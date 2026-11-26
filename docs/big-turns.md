@@ -116,7 +116,8 @@ longer the bottleneck. It is the next step if a 3,000-token board is still slow 
 
 ### 4.4 Merge (engine): Forge's `StackMerge`, allowlist only
 
-After a stack item resolves, up to 19 more alike items below it resolve at once. Each goes through the usual
+After a stack item resolves, the alike items below it resolve at once, as many as the gate allows (asked again after
+every item; see 4.6 for the effects allowed since engine1131-batch). Each goes through the usual
 `AbilityUtils.resolve` with its own source, and the game fires its usual events. What is skipped between them is the
 priority round, the state-based-action check, the static-ability pass and the LKI copy. Those run once after the last.
 
@@ -131,13 +132,14 @@ resolution and could act on any of them. With no gate (AI-only games, the parity
 |---|---|---|
 | GainLife, untargeted, "you", a fixed number (Soul Warden, Soul's Attendant, Bloodfell Caves-style lands) | Gaining life never causes a state-based action (704.5a is life 0 or less). The amount is a number and does not read the board. Each item still calls `Player.gainLife` with its own source, so life gained this turn and the times gained count each one. | A LifeGained or AbilityResolves trigger is active or delayed (Ajani's Pridemate, a "whenever you gain life" emblem; in the usual order each one's trigger goes above the rest of the run). A GainLife replacement is anywhere (Boon Reflection, Rhox Faithmender; a replacement may ask which applies first). The trigger is optional (it asks), has an intervening "if" or a resolving check (`IsPresent`, `CheckSVar`, `ResolvingCheck`), conditions, an unless cost, remembering, a sub-ability or a controller change. A trigger is waiting to go on the stack. |
 
-**Left out on purpose:**
+**Left out on purpose** (4.6 adds plain tokens, self +1/+1 counters, self pumps and mana, each only when nothing
+watches them):
 
-- **Token creation** (the Scute Swarm case): a batch of tokens is one "one or more" event, and copies of a token differ by
-  source. Merging changes what triggers and how often.
+- **Token creation while anything watches it** (the Scute Swarm case is a token with its own trigger): a batch of
+  tokens is one "one or more" event, and copies of a token differ by source. Merging changes what triggers and how often.
 - **Life loss:** players can leave the game between items.
 - **Damage:** each item has its own source, and lifelink, infect and damage watchers see each one.
-- **Counters:** Hardened Scales-style replacements apply per event.
+- **Counters while anything replaces or watches them:** Hardened Scales-style replacements apply per event.
 - **Drawing:** Alms Collector-style "two or more" replacements; an empty library is a state-based action.
 
 So the merge does not touch the landfall case; 4.1 does. Merging is for Soul Warden swarms, where each trigger was a full
@@ -194,6 +196,50 @@ prowess Monk tokens) were asked "keep going?" long before anything ran away, and
 - With Mentor, about 69% of what is left after holding is Forge's own resolution (`CardCopyService.getLKICopy`,
   `Card.getTempToughnessBoost`), plus AI 8% and the response probe 4%. That cannot be skipped and stay rules-correct.
 
+### 4.6 Trigger batching (engine, engine1131-batch, 2026-11-25, not deployed)
+
+A held run of identical simple triggers (Mentor's 600 prowess triggers) used to resolve one by one with a catch-up every
+20. The merge (4.4) now takes more effects and is no longer stopped at 20 by the merge itself, so a held run resolves in
+one engine step as far as the hold reaches, and the log says "N × <card> resolved at once: <ability>".
+
+- **Still only while held:** the gate (`heldByEveryone`) is asked again after every merged item, so the batch ends
+  exactly where the held pass would: at the 20 before a run has been held a minute, at the end of the run after it,
+  and at once when a player gains a new possible response (the response probe runs per item). Any AI or Manabot seat
+  turns it off. A new object on the stack (a waiting or simultaneous trigger) ends it.
+- **Effects allowed** (untargeted, no sub-ability, not optional, no intervening "if" or resolving check, only the listed
+  parameters, same controller and the same ability text as the item above):
+
+| Effect | Not batched when |
+|---|---|
+| GainLife, a fixed number, you | a LifeGained trigger, a GainLife replacement |
+| Pump Self by fixed +N/+N (prowess) | nothing extra (no trigger reads a pump) |
+| PutCounter P1P1 on Self, a fixed number | the source has a -1/-1 counter (they annihilate as an SBA); a counter-added/removed trigger; an AddCounter/RemoveCounter replacement (Doubling Season, Hardened Scales) |
+| Token, a fixed number, you, a plain token | a ChangesZone trigger other than a card's own "when this enters", TokenCreated triggers; CreateToken or Moved replacements (Anointed Procession, Doubling Season); a plain token is one script, not legendary/world/planeswalker, toughness 1 or more, no triggers, statics or replacements, keywords only from a short list (flying, prowess, haste, ...) |
+| Mana, fixed colours and amount | a ManaAdded trigger, a ProduceMana replacement |
+
+- For every effect: no AbilityResolves or Always trigger anywhere, and no continuous static that grants something on a
+  condition or to cards picked by power, toughness, counters or life (those would change between items). Statics and
+  replacements count only where they work (`zonesCheck`: a Doubling Season in a library does not stop a batch; the
+  first build counted every card in the game and so never batched a real deck).
+- **Counts:** every trigger is still counted when it fires and every token when it is made, so the runaway caps see a
+  batch the same as one by one.
+- **Not proved, guarded instead:** static abilities are not re-applied between batched items. The guard is the static
+  check above, a list of words in `Affected` and the condition parameters; a static that changes on a batched effect in
+  a way those words miss would see the board only at the end. Targeted triggers are not batched at all.
+
+**Measured** (`tools/kykar-loop-bench.js --opponent person --held --token w_1_1_monk_prowess --cards "Monastery
+Mentor"`, headless, both people holding, another job running alongside each run):
+
+| Case | engine1130-ff | engine1131-batch |
+|---|---|---|
+| 150 Monks, a pass (3 passes) | 29.5 s (104 s game, 16.8 s snapshots in all), 72 prompts | 26.1 s (72 s game, 23.7 s snapshots), 72 prompts |
+| 900 Monks, one pass | 894 s (863 s game, 30 s snapshots), 67 prompts | 341 s (292 s game, 49 s snapshots), 117 prompts |
+| 300 prowess triggers in Forge (`TriggerBatchTest`) | 20.8 s one by one | 0.67 s batched |
+
+The prompts stay: each person is still asked at every 20 before the minute. At 900 there are more of them because
+each 20 now resolves quickly, so the run reaches the one-minute rule later; the owner can drop the 20-cut for
+batchable runs (section 6, item 3).
+
 ## 5. Tests
 
 - **Engine** (`forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java`, 21 checks): the held pass ends after
@@ -211,6 +257,16 @@ prowess Monk tokens) were asked "keep going?" long before anything ran away, and
   held pass ends at the item under the run, a long held run is not cut at 20, a run held a minute goes on to the end, a
   catch-up keeps the minute, another answer starts it over. Break-its (7 mutations, copies only, originals checked by
   sha256): each fails named checks.
+- **Trigger batching** (4.6, `TriggerBatchTest`, 33 checks): one by one and batched on the same board give the same
+  digest (life, counters, mana pool, every card's zone, P/T, counters, keywords, the per-turn trigger and card counts,
+  the log) for prowess, self counters, Soldier and Monk tokens, mana, life gain, a source gone mid-run and watchers sitting in a library; boards that
+  must not batch say why (a "creature enters" watcher, Anointed Procession, Doubling Season, Hardened Scales, a -1/-1
+  counter on the source, an optional trigger, a targeted trigger whose target is gone, a conditional static grant,
+  damage, a token with a trigger, an intervening "if", an extra parameter, a shrinking pump); a 300-trigger run
+  resolves in one step; the log line; the gate is asked after every item; two people holding batch 20 at a time and a
+  run held a minute goes to the end; an AI seat stops it; a response the mana pays for ends it; the caps still count.
+  `BigTurnsTest`'s "20 at once" check now expects the whole run. Break-its (18 mutations, copies only, originals checked
+  by sha256): see engine-changes.md.
 - **Timing** (`BigTurnTimingTest`, prints the tables in section 2; `ARGS=25,50,100,200,400`).
 - **Bridge** (`tests/test_bridge_big_turns.js`, 44 checks): held pass, presses, `mtg stop`, the runaway question, the
   table's `mtg stop` and `mtg help`. Break-its: 10 mutations, each failing named checks; for 4.5, the old whole-stack
@@ -224,7 +280,9 @@ prowess Monk tokens) were asked "keep going?" long before anything ran away, and
    often the table catches up and how soon `mtg stop` lands. After a run has been held a minute (`LONG_RUN_SECONDS`,
    4.5) there is no catch-up until the run ends, so `mtg stop` lands only then.
 2. **3 "Keep going" a turn**, and the active person is the one asked (the first person when the active player is an AI).
-3. **Merging is off whenever an AI plays.** In games with AI seats only 4.1 helps. Letting the AI waive priority between
+3. **Merging and trigger batching are off whenever an AI plays.** In games with AI seats only 4.1 helps. Batching
+   also stops at every 20 before a run has been held a minute, because that is where the held pass gives each player
+   priority back; batching through those would need the owner to accept that the 20-cut no longer exists. Letting the AI waive priority between
    merged life gains would need a rules call.
 4. **The 100-token-per-effect limit** now asks at 101 or more. Stacked doublers make 128 or 256 from one effect.
 5. **Second Harvest's quadratic cost inside Forge is not fixed.** 800 tokens is about 24 s in Forge itself. A fix means

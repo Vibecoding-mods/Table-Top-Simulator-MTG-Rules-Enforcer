@@ -22,7 +22,7 @@ index b363b43..228c02a 100644
 +  }
  ]
 diff --git a/forge-harness/src/main/java/forge/harness/AGENTS.md b/forge-harness/src/main/java/forge/harness/AGENTS.md
-index 54173c6..fd8ca58 100644
+index 54173c6..166cc08 100644
 --- a/forge-harness/src/main/java/forge/harness/AGENTS.md
 +++ b/forge-harness/src/main/java/forge/harness/AGENTS.md
 @@ -15,7 +15,7 @@ Dependency rule (do not violate): `parity → common`, `host → common`, `Main
@@ -30,7 +30,7 @@ index 54173c6..fd8ca58 100644
  - **common** — anything used by both engines: RNG (`CountingRandom`), logging (`DecisionLog`, `ParityLog`), snapshot base (`SnapshotExtractor`), GUI bootstrap (`HeadlessGuiBase`), deterministic ordering / id mapping / reset (`ParityOrder`, `ParityCardMap`, `ForgeEngineReset`), the shared decision/cost/play plumbing (`ActionSpace`, `ChoiceSpace`, `CombatChoiceSpace`, `AutoPay`, `HarnessCostPlumbing`, `HarnessPlayPlumbing`, `HarnessPlayHooks`), and the prompt acceptance-rule facade (`EngineHandler`). `EngineHandler` is the one entrypoint for Forge GUI/controller legality: per prompt it returns the legal choice set (so a caller only offers valid picks) and post-validates the submitted answer for whole-answer constraints a per-option set can't express (e.g. `CombatUtil.validateBlocks`). Heavy mechanics stay in `ActionSpace`/`ChoiceSpace`/`CombatChoiceSpace`; `EngineHandler` unifies them.
  - **parity** — `DeterministicController`, `DeterministicLobbyPlayer`, `PresetDecks`.
 -- **host** — `ManaBrewEngineAdapter` (the in-process facade Rust j4rs talks to), `ManaBrewInteractiveSession`, `ManaBrewInteractiveController`, `ManaBrewInteractiveLobbyPlayer`, `InteractiveSnapshotExtractor`, `PriorityFastForward` (`reachedTarget`/`canSkip`: skips priority windows with no roundtrip while the player has a standing **held** pass-until whose target is a `(player, phase)` slot — a bare phase can't tell "my end" from an opponent's. The controller holds the declaration across windows and clears it on reaching the target, on casting, when the target player has lost — their slot would never arrive — when the holder begins an extra turn while the target points at another player (the client computed the slot assuming normal turn order, so honoring it would silently fast-forward the holder's own extra turn), or when the phase sequence steps backward within a turn (`invalidatedByExtraPhase`: an inserted extra phase — Moraug, Aggravated Assault — breaks the linear phase model the client computed the target from; without the clear, the hold swallows the repeated combat, empty attacker declaration included); mirrors `manabrew-engine` `priority.rs` and the `AdvanceTurn` clear in `game_loop/phase_handler.rs` — the extra-phase clear is NOT yet mirrored in the Rust engine). `PriorityFastForward` also carries the exhaust-stack pass (`stackIds`/`exhaustEnded`, host-only — the Rust engine ignores the protocol's `exhaustStack` flag for now): the controller snapshots the stack-instance ids at declaration and silently passes priority until the stack empties, stopping early as soon as any new object — spell, activated ability, or trigger — enters the stack, so the holder can respond to it.
-+- **host** — `ManaBrewEngineAdapter` (the in-process facade Rust j4rs talks to), `ManaBrewInteractiveSession`, `ManaBrewInteractiveController`, `ManaBrewInteractiveLobbyPlayer`, `InteractiveSnapshotExtractor`, `PriorityFastForward` (`reachedTarget`/`canSkip`: skips priority windows with no roundtrip while the player has a standing **held** pass-until whose target is a `(player, phase)` slot — a bare phase can't tell "my end" from an opponent's. The controller holds the declaration across windows and clears it on reaching the target, on casting, when the target player has lost — their slot would never arrive — when the holder begins an extra turn while the target points at another player (the client computed the slot assuming normal turn order, so honoring it would silently fast-forward the holder's own extra turn), or when the phase sequence steps backward within a turn (`invalidatedByExtraPhase`: an inserted extra phase — Moraug, Aggravated Assault — breaks the linear phase model the client computed the target from; without the clear, the hold swallows the repeated combat, empty attacker declaration included); mirrors `manabrew-engine` `priority.rs` and the `AdvanceTurn` clear in `game_loop/phase_handler.rs` — the extra-phase clear is NOT yet mirrored in the Rust engine). `PriorityFastForward` also carries the exhaust-stack pass (`stackIds`/`exhaustEnded`, host-only — the Rust engine ignores the protocol's `exhaustStack` flag for now): the controller snapshots the ids of the run on top of the stack at declaration (`topRunIds`: the top item and the items under it with the same controller, source name and ability text; a spell is a run of one) and silently passes priority until that run is gone (the stack empties or the item under the run is on top), stopping early as soon as any new object — spell, activated ability, or trigger — enters the stack, so the holder can respond to it. It also ends once `EXHAUST_RESOLUTIONS` (20) of the declared items have left the stack, so a held pass over a huge run of triggers still asks the holder (and refreshes their board) every 20 resolutions, until the same run (`topRunKey`) has been held for `LONG_RUN_SECONDS` (60): from then on it is not cut at 20 and runs to the end of the run (`heldRunLong`, clock `heldClock`). A hold that follows a hold ended at the 20 keeps the run's start time; any other answer starts it over. While every player still in the game is a person holding such a pass, the session's merge gate (`heldByEveryone`, installed with `MagicStack.setMergeGate`) lets Forge's `StackMerge` resolve allowlisted alike items back to back, up to where the first of those passes ends; an AI or Manabot seat in the game turns merging off. The session is also Forge's `Game.RunawayChoice` (`keepGoingPastCap`): at the per-turn trigger, card or per-effect token limit it asks the active person, else the first person, "Keep going" or "End in a draw" (a pass or timeout is the draw), at most `Game.RUNAWAY_CONTINUES_PER_TURN` times a turn; with no person to ask the limit is a draw as before.
++- **host** — `ManaBrewEngineAdapter` (the in-process facade Rust j4rs talks to), `ManaBrewInteractiveSession`, `ManaBrewInteractiveController`, `ManaBrewInteractiveLobbyPlayer`, `InteractiveSnapshotExtractor`, `PriorityFastForward` (`reachedTarget`/`canSkip`: skips priority windows with no roundtrip while the player has a standing **held** pass-until whose target is a `(player, phase)` slot — a bare phase can't tell "my end" from an opponent's. The controller holds the declaration across windows and clears it on reaching the target, on casting, when the target player has lost — their slot would never arrive — when the holder begins an extra turn while the target points at another player (the client computed the slot assuming normal turn order, so honoring it would silently fast-forward the holder's own extra turn), or when the phase sequence steps backward within a turn (`invalidatedByExtraPhase`: an inserted extra phase — Moraug, Aggravated Assault — breaks the linear phase model the client computed the target from; without the clear, the hold swallows the repeated combat, empty attacker declaration included); mirrors `manabrew-engine` `priority.rs` and the `AdvanceTurn` clear in `game_loop/phase_handler.rs` — the extra-phase clear is NOT yet mirrored in the Rust engine). `PriorityFastForward` also carries the exhaust-stack pass (`stackIds`/`exhaustEnded`, host-only — the Rust engine ignores the protocol's `exhaustStack` flag for now): the controller snapshots the ids of the run on top of the stack at declaration (`topRunIds`: the top item and the items under it with the same controller, source name and ability text; a spell is a run of one) and silently passes priority until that run is gone (the stack empties or the item under the run is on top), stopping early as soon as any new object — spell, activated ability, or trigger — enters the stack, so the holder can respond to it. It also ends once `EXHAUST_RESOLUTIONS` (20) of the declared items have left the stack, so a held pass over a huge run of triggers still asks the holder (and refreshes their board) every 20 resolutions, until the same run (`topRunKey`) has been held for `LONG_RUN_SECONDS` (60): from then on it is not cut at 20 and runs to the end of the run (`heldRunLong`, clock `heldClock`). A hold that follows a hold ended at the 20 keeps the run's start time; any other answer starts it over. While every player still in the game is a person holding such a pass, the session's merge gate (`heldByEveryone`, installed with `MagicStack.setMergeGate`) lets Forge's `StackMerge` resolve allowlisted alike items as one batch (life gain, prowess-style +N/+N on its own source, +1/+1 counters on its own source, plain tokens, fixed mana; each item still its own event, each checked as it comes), up to where the first of those passes ends; Forge asks the gate again after every item, so a new response (`heldActionsChanged`) ends the batch where it would have ended the hold; an AI or Manabot seat in the game turns batching off. The session is also Forge's `Game.RunawayChoice` (`keepGoingPastCap`): at the per-turn trigger, card or per-effect token limit it asks the active person, else the first person, "Keep going" or "End in a draw" (a pass or timeout is the draw), at most `Game.RUNAWAY_CONTINUES_PER_TURN` times a turn; with no person to ask the limit is a draw as before.
  
  ### Host payability probes must stay silent
  
@@ -11231,10 +11231,10 @@ index 0000000..4e0fa6e
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java b/forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java
 new file mode 100644
-index 0000000..a8439c7
+index 0000000..d5d964b
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java
-@@ -0,0 +1,912 @@
+@@ -0,0 +1,910 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonObject;
@@ -11309,7 +11309,7 @@ index 0000000..a8439c7
 +        check("theSessionAsksTheActivePlayerInPlainWords", BigTurnsTest::theSessionAsksTheActivePlayerInPlainWords);
 +        check("theSessionsNoIsADraw", BigTurnsTest::theSessionsNoIsADraw);
 +        check("aGameWithNoPersonDrawsAtTheCap", BigTurnsTest::aGameWithNoPersonDrawsAtTheCap);
-+        check("aMergeResolvesTwentyAndCountsEveryGain", BigTurnsTest::aMergeResolvesTwentyAndCountsEveryGain);
++        check("aMergeResolvesTheWholeRunAndCountsEveryGain", BigTurnsTest::aMergeResolvesTheWholeRunAndCountsEveryGain);
 +        check("withoutAGateNothingMerges", BigTurnsTest::withoutAGateNothingMerges);
 +        check("theGateBoundsTheMerge", BigTurnsTest::theGateBoundsTheMerge);
 +        check("aLifeGainedTriggerStopsTheMerge", BigTurnsTest::aLifeGainedTriggerStopsTheMerge);
@@ -11950,19 +11950,17 @@ index 0000000..a8439c7
 +        expect("noPerson".equals(game.getDrawReason()), "draw reason " + game.getDrawReason());
 +    }
 +
-+    private static void aMergeResolvesTwentyAndCountsEveryGain() {
++    private static void aMergeResolvesTheWholeRunAndCountsEveryGain() {
 +        final Game game = aiGame();
 +        final Player p = game.getPlayers().get(0);
 +        wardens(game, p, 30);
 +        game.getStack().setMergeGate(g -> 100);
 +        final int life = p.getLife();
 +        resolveOne(game);
-+        expect(game.getStack().size() == 10, "20 did not resolve at once: " + game.getStack().size() + " left");
-+        expect(game.getStack().getMergedResolutions() == 19, "merged " + game.getStack().getMergedResolutions());
-+        expect(p.getLife() == life + 20, "life " + p.getLife() + " from " + life);
-+        expect(p.getLifeGainedTimesThisTurn() == 20, "times gained " + p.getLifeGainedTimesThisTurn());
-+        resolveOne(game);
-+        expect(game.getStack().isEmpty() && p.getLife() == life + 30, "the rest: " + game.getStack().size() + " left, life " + p.getLife());
++        expect(game.getStack().isEmpty(), "30 did not resolve at once: " + game.getStack().size() + " left");
++        expect(game.getStack().getMergedResolutions() == 29, "merged " + game.getStack().getMergedResolutions());
++        expect(p.getLife() == life + 30, "life " + p.getLife() + " from " + life);
++        expect(p.getLifeGainedTimesThisTurn() == 30, "times gained " + p.getLifeGainedTimesThisTurn());
 +    }
 +
 +    private static void withoutAGateNothingMerges() {
@@ -29063,6 +29061,699 @@ index 0000000..0d3cd37
 +            field.setAccessible(true);
 +            return new ArrayList<>((List<SpellAbility>) field.get(game.getStack()));
 +        }
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/TriggerBatchTest.java b/forge-harness/src/test/java/forge/harness/host/TriggerBatchTest.java
+new file mode 100644
+index 0000000..41142d3
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/TriggerBatchTest.java
+@@ -0,0 +1,687 @@
++package forge.harness.host;
++
++import com.google.gson.JsonArray;
++import com.google.gson.JsonElement;
++import com.google.gson.JsonObject;
++import com.google.gson.JsonParser;
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.card.MagicColor;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameLogEntry;
++import forge.game.GameLogEntryType;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.card.Card;
++import forge.game.card.CardFactory;
++import forge.game.card.CounterEnumType;
++import forge.game.keyword.KeywordInterface;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.spellability.SpellAbilityStackInstance;
++import forge.game.zone.StackMerge;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.item.PaperToken;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.lang.reflect.Field;
++import java.util.ArrayList;
++import java.util.Comparator;
++import java.util.List;
++import java.util.Set;
++import java.util.TreeSet;
++import java.util.concurrent.locks.ReentrantLock;
++
++public final class TriggerBatchTest {
++    private TriggerBatchTest() {}
++
++    private static final long SECOND = 1_000_000_000L;
++    private static int failed;
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        check("prowessBatchedIsTheSameAsOneByOne", () -> same(TriggerBatchTest::prowess, true));
++        check("selfCountersBatchedAreTheSameAsOneByOne", () -> same(TriggerBatchTest::hydras, true));
++        check("soldierTokensBatchedAreTheSameAsOneByOne", () -> same(TriggerBatchTest::iconoclasts, true));
++        check("monkTokensBatchedAreTheSameAsOneByOne", () -> same(TriggerBatchTest::mentors, true));
++        check("manaBatchedIsTheSameAsOneByOne", () -> same(TriggerBatchTest::priests, true));
++        check("lifeGainBatchedIsTheSameAsOneByOne", () -> same(TriggerBatchTest::wardens, true));
++        check("watchersInALibraryDoNotStopBatching", () -> same(TriggerBatchTest::tokensWithWatchersInTheLibrary, true));
++        check("aSourceGoneMidRunIsTheSameAsOneByOne", () -> same(TriggerBatchTest::prowessOneMonkGone, true));
++        check("aCreatureEntersWatcherStopsTokenBatching", () -> refused(TriggerBatchTest::iconoclastsWithAWarden, false, true));
++        check("anointedProcessionStopsTokenBatching", () -> refused(TriggerBatchTest::iconoclastsWithProcession, false, true));
++        check("doublingSeasonStopsCounterBatching", () -> refused(TriggerBatchTest::hydrasWithDoublingSeason, false, true));
++        check("hardenedScalesStopsCounterBatching", () -> refused(TriggerBatchTest::hydrasWithHardenedScales, false, true));
++        check("aMinusCounterOnTheSourceStopsCounterBatching", () -> refused(TriggerBatchTest::hydrasOneWithAMinusCounter, true, false));
++        check("anOptionalTriggerIsNotBatched", () -> refused(TriggerBatchTest::feathers, true, false));
++        check("aTargetedTriggerWithAnIllegalTargetIsNotBatched", () -> refused(TriggerBatchTest::visitorsTargetGone, true, false));
++        check("aStaticThatGrantsOnAConditionStopsBatching", () -> refused(TriggerBatchTest::iconoclastsWithGoddric, false, true));
++        check("aDamageRunIsNotBatched", () -> refused(TriggerBatchTest::guttersnipes, true, false));
++        check("anInterveningIfIsNotBatched", () -> refused(TriggerBatchTest::hydrasWithAnInterveningIf, true, false));
++        check("anAbilityWithAnotherParameterIsNotBatched", () -> refused(TriggerBatchTest::hydrasWithAnotherParameter, true, false));
++        check("aShrinkingPumpIsNotBatched", () -> refused(TriggerBatchTest::monksThatShrink, true, false));
++        check("aTokenWithATriggerIsNotBatched", () -> refused(TriggerBatchTest::witches, true, false));
++        check("aWholeRunResolvesInOneStep", TriggerBatchTest::aWholeRunResolvesInOneStep);
++        check("theLogSaysHowManyResolvedAtOnce", TriggerBatchTest::theLogSaysHowManyResolvedAtOnce);
++        check("theGateIsAskedAfterEveryItem", TriggerBatchTest::theGateIsAskedAfterEveryItem);
++        check("anotherPlayersRunIsNotBatchedWithIt", TriggerBatchTest::anotherPlayersRunIsNotBatchedWithIt);
++        check("theSpellUnderTheRunIsNotBatched", TriggerBatchTest::theSpellUnderTheRunIsNotBatched);
++        check("aBatchStillCountsTowardTheCardCap", TriggerBatchTest::aBatchStillCountsTowardTheCardCap);
++        check("aBatchStillCountsTriggersThatFire", TriggerBatchTest::aBatchStillCountsTriggersThatFire);
++        check("twoPeopleHoldingBatchTwentyAtATime", TriggerBatchTest::twoPeopleHoldingBatchTwentyAtATime);
++        check("aMinuteIntoAHeldRunTheRestResolvesAtOnce", TriggerBatchTest::aMinuteIntoAHeldRunTheRestResolvesAtOnce);
++        check("anAiSeatStopsBatching", TriggerBatchTest::anAiSeatStopsBatching);
++        check("aResponseTheManaPaysForEndsTheBatch", TriggerBatchTest::aResponseTheManaPaysForEndsTheBatch);
++        check("batchingIsFaster", TriggerBatchTest::batchingIsFaster);
++        System.out.println(failed == 0 ? "PASS TriggerBatchTest" : "FAIL TriggerBatchTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private interface Board {
++        void build(Game game, Player blue, Player yellow);
++    }
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        } finally {
++            Game.setRunawayTriggersPerTurnCap(Game.DEFAULT_RUNAWAY_TRIGGERS_PER_TURN);
++            Game.setRunawayCardsPerTurnCap(Game.DEFAULT_RUNAWAY_CARDS_PER_TURN);
++            Game.setRunawayStackItemsCap(Game.RUNAWAY_STACK_ITEMS);
++            Game.setHeapReader(() -> 0.1);
++            Game.setHeapFreer(null);
++        }
++    }
++
++    private static final class Run {
++        String state;
++        int merged;
++        long nanos;
++        Game game;
++    }
++
++    private static Run resolve(final Board board, final boolean batched) {
++        final Run run = new Run();
++        final Game game = aiGame();
++        run.game = game;
++        board.build(game, game.getPlayers().get(0), game.getPlayers().get(1));
++        if (batched) {
++            game.getStack().setMergeGate(g -> 100_000);
++        }
++        final long start = System.nanoTime();
++        try {
++            while (!game.getStack().isEmpty() && !game.isGameOver()) {
++                resolveOne(game);
++            }
++        } catch (final Game.RunawayGameException ended) {
++            expect(game.isGameOver(), "a runaway exception without a game over");
++        }
++        run.nanos = System.nanoTime() - start;
++        run.merged = game.getStack().getMergedResolutions();
++        run.state = digest(game);
++        return run;
++    }
++
++    private static void same(final Board board, final boolean batches) {
++        final Run one = resolve(board, false);
++        final Run again = resolve(board, false);
++        expect(one.state.equals(again.state), "the board is not the same twice one by one:\n" + firstDifference(one.state, again.state));
++        final Run batch = resolve(board, true);
++        expect(one.state.equals(batch.state), "batched differs from one by one:\n" + firstDifference(one.state, batch.state));
++        expect(batches ? batch.merged > 0 : batch.merged == 0, (batches ? "nothing was batched" : "batched " + batch.merged));
++    }
++
++    private static void refused(final Board board, final boolean ineligible, final boolean watched) {
++        same(board, false);
++        final Game game = aiGame();
++        board.build(game, game.getPlayers().get(0), game.getPlayers().get(1));
++        final SpellAbility top = game.getStack().peekAbility();
++        boolean anyIneligible = false;
++        for (final SpellAbilityStackInstance si : game.getStack()) {
++            if (si.getSpellAbility().getHostCard().getName().equals(top.getHostCard().getName()) && !StackMerge.eligible(si.getSpellAbility())) {
++                anyIneligible = true;
++            }
++        }
++        expect(anyIneligible == ineligible, ineligible ? "every item of the run is eligible" : "an item of the run is not eligible");
++        if (watched) {
++            expect(StackMerge.watched(game, top.getApi()), "the watcher check does not see it");
++        }
++    }
++
++    private static String firstDifference(final String a, final String b) {
++        final String[] x = a.split("\n");
++        final String[] y = b.split("\n");
++        for (int i = 0; i < Math.max(x.length, y.length); i++) {
++            final String l = i < x.length ? x[i] : "<none>";
++            final String r = i < y.length ? y[i] : "<none>";
++            if (!l.equals(r)) {
++                return "line " + i + "\n  one by one: " + l + "\n  batched:    " + r;
++            }
++        }
++        return "(same)";
++    }
++
++    private static String digest(final Game game) {
++        final StringBuilder b = new StringBuilder();
++        for (final Player p : game.getRegisteredPlayers()) {
++            b.append(p.getName()).append(" life ").append(p.getLife()).append(" poison ").append(p.getPoisonCounters())
++                    .append(" gained ").append(p.getLifeGainedThisTurn()).append('/').append(p.getLifeGainedTimesThisTurn())
++                    .append(" counters ").append(p.getCounters()).append(" mana");
++            for (final byte colour : MagicColor.WUBRGC) {
++                b.append(' ').append(p.getManaPool().getAmountOfColor(colour));
++            }
++            b.append('\n');
++            for (final ZoneType zone : List.of(ZoneType.Battlefield, ZoneType.Graveyard, ZoneType.Exile, ZoneType.Hand)) {
++                final List<Card> cards = new ArrayList<>(p.getCardsIn(zone));
++                cards.sort(Comparator.comparingInt(Card::getId));
++                for (final Card c : cards) {
++                    final TreeSet<String> keywords = new TreeSet<>();
++                    for (final KeywordInterface k : c.getKeywords()) {
++                        keywords.add(k.getOriginal());
++                    }
++                    b.append(zone).append(' ').append(c.getId()).append(' ').append(c.getName()).append(' ')
++                            .append(c.getNetPower()).append('/').append(c.getNetToughness()).append(" counters ")
++                            .append(c.getCounters()).append(" token ").append(c.isToken()).append(" tapped ").append(c.isTapped())
++                            .append(" controller ").append(c.getController().getName()).append(" type ").append(c.getType())
++                            .append(" keywords ").append(keywords).append('\n');
++                }
++            }
++        }
++        b.append("stack ").append(game.getStack().size()).append(" over ").append(game.isGameOver())
++                .append(game.isGameOver() ? " draw " + game.getOutcome().isDraw() : "")
++                .append(" triggers ").append(intField(game, "triggersFiredThisTurn"))
++                .append(" cards ").append(intField(game, "cardsCreatedThisTurn")).append('\n');
++        for (final GameLogEntry e : game.getGameLog().getLogEntries(null)) {
++            if (!e.message().contains("resolved at once")) {
++                b.append("log ").append(e.type()).append(' ').append(e.message()).append('\n');
++            }
++        }
++        return b.toString();
++    }
++
++    private static int intField(final Game game, final String name) {
++        try {
++            final Field f = Game.class.getDeclaredField(name);
++            f.setAccessible(true);
++            return f.getInt(game);
++        } catch (final ReflectiveOperationException e) {
++            throw new IllegalStateException(e);
++        }
++    }
++
++    private static void prowess(final Game game, final Player blue, final Player yellow) {
++        tokens("w_1_1_monk_prowess", blue, 12);
++        cast(game, blue, "Sol Ring");
++    }
++
++    private static void prowessOneMonkGone(final Game game, final Player blue, final Player yellow) {
++        final List<Card> monks = tokens("w_1_1_monk_prowess", blue, 12);
++        cast(game, blue, "Sol Ring");
++        game.getAction().exile(monks.get(5), null, null);
++    }
++
++    private static void iconoclastsWithGoddric(final Game game, final Player blue, final Player yellow) {
++        add("Goddric, Cloaked Reveler", blue, ZoneType.Battlefield);
++        iconoclasts(game, blue, yellow);
++    }
++
++    private static void hydras(final Game game, final Player blue, final Player yellow) {
++        for (int i = 0; i < 12; i++) {
++            add("Managorger Hydra", blue, ZoneType.Battlefield);
++        }
++        cast(game, blue, "Sol Ring");
++    }
++
++    private static void hydrasWithAnInterveningIf(final Game game, final Player blue, final Player yellow) {
++        for (int i = 0; i < 12; i++) {
++            final Card hydra = add("Managorger Hydra", blue, ZoneType.Battlefield);
++            hydra.getTriggers().forEach(t -> t.putParam("IsPresent", "Card.Self"));
++        }
++        cast(game, blue, "Sol Ring");
++    }
++
++    private static void hydrasWithAnotherParameter(final Game game, final Player blue, final Player yellow) {
++        for (int i = 0; i < 12; i++) {
++            final Card hydra = add("Managorger Hydra", blue, ZoneType.Battlefield);
++            hydra.getTriggers().forEach(t -> t.ensureAbility().putParam("AITgts", "Creature"));
++        }
++        cast(game, blue, "Sol Ring");
++    }
++
++    private static void monksThatShrink(final Game game, final Player blue, final Player yellow) {
++        for (final Card monk : tokens("w_1_1_monk_prowess", blue, 12)) {
++            monk.getTriggers().forEach(t -> t.ensureAbility().putParam("NumAtt", "-1"));
++        }
++        cast(game, blue, "Sol Ring");
++    }
++
++    private static void tokensWithWatchersInTheLibrary(final Game game, final Player blue, final Player yellow) {
++        add("Goddric, Cloaked Reveler", blue, ZoneType.Library);
++        add("Doubling Season", blue, ZoneType.Library);
++        add("Anointed Procession", yellow, ZoneType.Library);
++        iconoclasts(game, blue, yellow);
++    }
++
++    private static void hydrasWithDoublingSeason(final Game game, final Player blue, final Player yellow) {
++        add("Doubling Season", blue, ZoneType.Battlefield);
++        hydras(game, blue, yellow);
++    }
++
++    private static void hydrasWithHardenedScales(final Game game, final Player blue, final Player yellow) {
++        add("Hardened Scales", blue, ZoneType.Battlefield);
++        hydras(game, blue, yellow);
++    }
++
++    private static void hydrasOneWithAMinusCounter(final Game game, final Player blue, final Player yellow) {
++        final List<Card> all = new ArrayList<>();
++        for (int i = 0; i < 12; i++) {
++            final Card hydra = add("Managorger Hydra", blue, ZoneType.Battlefield);
++            hydra.setBaseToughness(3);
++            all.add(hydra);
++        }
++        for (final Card hydra : all) {
++            hydra.setCounters(CounterEnumType.M1M1, 1);
++        }
++        cast(game, blue, "Sol Ring");
++    }
++
++    private static void iconoclasts(final Game game, final Player blue, final Player yellow) {
++        for (int i = 0; i < 12; i++) {
++            add("Third Path Iconoclast", blue, ZoneType.Battlefield);
++        }
++        cast(game, blue, "Sol Ring");
++    }
++
++    private static void mentors(final Game game, final Player blue, final Player yellow) {
++        for (int i = 0; i < 6; i++) {
++            add("Monastery Mentor", blue, ZoneType.Battlefield);
++        }
++        cast(game, blue, "Sol Ring");
++    }
++
++    private static void iconoclastsWithAWarden(final Game game, final Player blue, final Player yellow) {
++        add("Soul Warden", yellow, ZoneType.Battlefield);
++        iconoclasts(game, blue, yellow);
++    }
++
++    private static void iconoclastsWithProcession(final Game game, final Player blue, final Player yellow) {
++        add("Anointed Procession", blue, ZoneType.Battlefield);
++        iconoclasts(game, blue, yellow);
++    }
++
++    private static void priests(final Game game, final Player blue, final Player yellow) {
++        for (int i = 0; i < 12; i++) {
++            game.getAction().moveToPlay(add("Priest of Urabrask", blue, ZoneType.Hand), null, null);
++        }
++        game.getAction().checkStateEffects(true);
++        game.getStack().addAllTriggeredAbilitiesToStack();
++        expect(game.getStack().size() == 12, "12 Priest of Urabrask triggers expected, got " + game.getStack().size());
++    }
++
++    private static void wardens(final Game game, final Player blue, final Player yellow) {
++        for (int i = 0; i < 12; i++) {
++            add("Soul Warden", blue, ZoneType.Battlefield);
++        }
++        game.getAction().checkStateEffects(true);
++        game.getAction().moveToPlay(add("Grizzly Bears", blue, ZoneType.Hand), null, null);
++        game.getAction().checkStateEffects(true);
++        game.getStack().addAllTriggeredAbilitiesToStack();
++    }
++
++    private static void feathers(final Game game, final Player blue, final Player yellow) {
++        for (int i = 0; i < 8; i++) {
++            add("Angel's Feather", blue, ZoneType.Battlefield);
++        }
++        cast(game, blue, "Glorious Anthem");
++    }
++
++    private static void visitorsTargetGone(final Game game, final Player blue, final Player yellow) {
++        for (int i = 0; i < 8; i++) {
++            add("Generous Visitor", blue, ZoneType.Battlefield);
++        }
++        add("Grizzly Bears", blue, ZoneType.Battlefield);
++        cast(game, blue, "Glorious Anthem");
++        final SpellAbility top = game.getStack().peekAbility();
++        expect(top.usesTargeting() && top.getTargetCard() != null, "the top Visitor trigger has no target");
++        game.getAction().exile(top.getTargetCard(), null, null);
++    }
++
++    private static void guttersnipes(final Game game, final Player blue, final Player yellow) {
++        for (int i = 0; i < 8; i++) {
++            add("Guttersnipe", blue, ZoneType.Battlefield);
++        }
++        cast(game, blue, "Fog");
++    }
++
++    private static void witches(final Game game, final Player blue, final Player yellow) {
++        for (int i = 0; i < 8; i++) {
++            add("Sedgemoor Witch", blue, ZoneType.Battlefield);
++        }
++        cast(game, blue, "Fog");
++    }
++
++    private static void aWholeRunResolvesInOneStep() {
++        final Game game = aiGame();
++        final Player blue = game.getPlayers().get(0);
++        tokens("w_1_1_monk_prowess", blue, 300);
++        cast(game, blue, "Sol Ring");
++        expect(game.getStack().size() == 301, "300 prowess over Sol Ring expected, got " + game.getStack().size());
++        game.getStack().setMergeGate(g -> 100_000);
++        resolveOne(game);
++        expect(game.getStack().size() == 1 && game.getStack().getMergedResolutions() == 299,
++                "left " + game.getStack().size() + ", merged " + game.getStack().getMergedResolutions());
++        for (final Card c : blue.getCardsIn(ZoneType.Battlefield)) {
++            expect(!c.isToken() || c.getNetPower() == 2 && c.getNetToughness() == 2, c + " is " + c.getNetPower() + "/" + c.getNetToughness());
++        }
++    }
++
++    private static void theLogSaysHowManyResolvedAtOnce() {
++        final Game game = aiGame();
++        final Player blue = game.getPlayers().get(0);
++        tokens("w_1_1_monk_prowess", blue, 25);
++        cast(game, blue, "Sol Ring");
++        game.getStack().setMergeGate(g -> 100_000);
++        resolveOne(game);
++        int found = 0;
++        for (final GameLogEntry e : game.getGameLog().getLogEntries(null)) {
++            if (e.message().contains("resolved at once")) {
++                found++;
++                expect(e.type() == GameLogEntryType.STACK_RESOLVE && e.message().startsWith("25 × Monk Token resolved at once"),
++                        "log line: " + e.message());
++            }
++        }
++        expect(found == 1, found + " batch lines");
++    }
++
++    private static void theGateIsAskedAfterEveryItem() {
++        final Game game = aiGame();
++        final Player blue = game.getPlayers().get(0);
++        tokens("w_1_1_monk_prowess", blue, 20);
++        cast(game, blue, "Sol Ring");
++        final int[] calls = {0};
++        game.getStack().setMergeGate(g -> ++calls[0] <= 5 ? 100 : 0);
++        resolveOne(game);
++        expect(game.getStack().getMergedResolutions() == 5 && calls[0] == 6,
++                "merged " + game.getStack().getMergedResolutions() + " with " + calls[0] + " gate calls");
++    }
++
++    private static void anotherPlayersRunIsNotBatchedWithIt() {
++        final Game game = aiGame();
++        final Player blue = game.getPlayers().get(0);
++        final Player yellow = game.getPlayers().get(1);
++        for (int i = 0; i < 4; i++) {
++            add("Managorger Hydra", blue, ZoneType.Battlefield);
++            add("Managorger Hydra", yellow, ZoneType.Battlefield);
++        }
++        cast(game, blue, "Sol Ring");
++        expect(game.getStack().size() == 9, "8 Hydra triggers over Sol Ring expected, got " + game.getStack().size());
++        game.getStack().setMergeGate(g -> 100);
++        resolveOne(game);
++        expect(game.getStack().size() == 5 && counters(yellow) == 4 && counters(blue) == 0,
++                "only Yellow's run: left " + game.getStack().size() + ", Yellow " + counters(yellow) + ", Blue " + counters(blue));
++        resolveOne(game);
++        expect(game.getStack().size() == 1 && counters(blue) == 4, "then Blue's: left " + game.getStack().size());
++    }
++
++    private static void theSpellUnderTheRunIsNotBatched() {
++        final Game game = aiGame();
++        final Player blue = game.getPlayers().get(0);
++        tokens("w_1_1_monk_prowess", blue, 6);
++        cast(game, blue, "Sol Ring");
++        game.getStack().setMergeGate(g -> 100);
++        resolveOne(game);
++        expect(game.getStack().size() == 1 && game.getStack().peekAbility().isSpell(), "left " + game.getStack().size());
++    }
++
++    private static int counters(final Player p) {
++        int n = 0;
++        for (final Card c : p.getCardsIn(ZoneType.Battlefield)) {
++            n += c.getCounters(CounterEnumType.P1P1);
++        }
++        return n;
++    }
++
++    private static void aBatchStillCountsTowardTheCardCap() {
++        final Run one = resolve(TriggerBatchTest::iconoclastsCapped, false);
++        final Run batch = resolve(TriggerBatchTest::iconoclastsCapped, true);
++        expect(one.game.isGameOver() && one.game.getOutcome().isDraw(), "one by one did not reach the card cap");
++        expect(one.state.equals(batch.state), "batched differs at the cap:\n" + firstDifference(one.state, batch.state));
++        expect(batch.merged > 0, "nothing was batched before the cap");
++    }
++
++    private static void iconoclastsCapped(final Game game, final Player blue, final Player yellow) {
++        for (int i = 0; i < 15; i++) {
++            add("Third Path Iconoclast", blue, ZoneType.Battlefield);
++        }
++        cast(game, blue, "Sol Ring");
++        Game.setRunawayCardsPerTurnCap(intField(game, "cardsCreatedThisTurn") + 6);
++    }
++
++    private static void aBatchStillCountsTriggersThatFire() {
++        final Run one = resolve(TriggerBatchTest::mentors, false);
++        final Run batch = resolve(TriggerBatchTest::mentors, true);
++        final int fired = intField(batch.game, "triggersFiredThisTurn");
++        expect(fired == 12 && fired == intField(one.game, "triggersFiredThisTurn"),
++                "triggers counted: batched " + fired + ", one by one " + intField(one.game, "triggersFiredThisTurn"));
++    }
++
++    private static void twoPeopleHoldingBatchTwentyAtATime() throws Exception {
++        final Seated f = new Seated(true);
++        final Player blue = f.game.getPlayers().get(0);
++        tokens("w_1_1_monk_prowess", blue, 30);
++        cast(f.game, blue, "Sol Ring");
++        holdBoth(f, 0);
++        resolveOne(f.game);
++        expect(f.game.getStack().size() == 11 && f.game.getStack().getMergedResolutions() == 19,
++                "left " + f.game.getStack().size() + ", merged " + f.game.getStack().getMergedResolutions());
++    }
++
++    private static void aMinuteIntoAHeldRunTheRestResolvesAtOnce() throws Exception {
++        final Seated f = new Seated(true);
++        final Player blue = f.game.getPlayers().get(0);
++        tokens("w_1_1_monk_prowess", blue, 60);
++        cast(f.game, blue, "Sol Ring");
++        final long[] now = holdBoth(f, 0);
++        now[0] = 61 * SECOND;
++        resolveOne(f.game);
++        expect(f.game.getStack().size() == 1 && f.game.getStack().getMergedResolutions() == 59,
++                "left " + f.game.getStack().size() + ", merged " + f.game.getStack().getMergedResolutions());
++    }
++
++    private static void anAiSeatStopsBatching() throws Exception {
++        final Seated f = new Seated(false);
++        final Player blue = f.game.getPlayers().get(0);
++        tokens("w_1_1_monk_prowess", blue, 10);
++        cast(f.game, blue, "Sol Ring");
++        holdThrough((ManaBrewInteractiveController) blue.getController());
++        resolveOne(f.game);
++        expect(f.game.getStack().getMergedResolutions() == 0, "batched with an AI seat");
++    }
++
++    private static void aResponseTheManaPaysForEndsTheBatch() throws Exception {
++        final Seated f = new Seated(true);
++        final Player blue = f.game.getPlayers().get(0);
++        add("Beacon of Destruction", blue, ZoneType.Hand);
++        priests(f.game, blue, f.game.getPlayers().get(1));
++        holdBoth(f, 0);
++        final ManaBrewInteractiveController c = (ManaBrewInteractiveController) blue.getController();
++        expect(c.heldResolutionsLeft() > 0, "the hold ended before any mana");
++        resolveOne(f.game);
++        expect(blue.getManaPool().getAmountOfColor(MagicColor.RED) == 6 && f.game.getStack().size() == 10,
++                "the batch went on past Beacon of Destruction becoming castable: " + blue.getManaPool().getAmountOfColor(MagicColor.RED)
++                        + " mana, " + f.game.getStack().size() + " left");
++        expect(c.heldResolutionsLeft() == 0, "the hold did not end at the new response");
++    }
++
++    private static void batchingIsFaster() {
++        final Board board = (game, blue, yellow) -> {
++            tokens("w_1_1_monk_prowess", blue, 300);
++            cast(game, blue, "Sol Ring");
++        };
++        final Run one = resolve(board, false);
++        final Run batch = resolve(board, true);
++        System.out.println("TIME 300 prowess triggers: one by one " + one.nanos / 1_000_000 + " ms, batched " + batch.nanos / 1_000_000 + " ms");
++        expect(one.state.equals(batch.state), "batched differs:\n" + firstDifference(one.state, batch.state));
++        expect(batch.nanos * 3 < one.nanos, "batched is not 3x faster");
++    }
++
++    private static long[] holdBoth(final Seated f, final long start) throws Exception {
++        final long[] now = {start};
++        for (final Player p : f.game.getPlayers()) {
++            final ManaBrewInteractiveController c = (ManaBrewInteractiveController) p.getController();
++            c.heldClock = () -> now[0];
++            holdThrough(c);
++        }
++        return now;
++    }
++
++    private static void holdThrough(final ManaBrewInteractiveController c) throws Exception {
++        final java.lang.reflect.Constructor<ManaBrewInteractiveSession.PriorityChoice> pass =
++                ManaBrewInteractiveSession.PriorityChoice.class.getDeclaredConstructor(
++                        ManaBrewInteractiveSession.PriorityActionKind.class, SpellAbility.class, String.class,
++                        String.class, boolean.class, boolean.class, Card.class, String.class);
++        pass.setAccessible(true);
++        final java.lang.reflect.Method holdPass = ManaBrewInteractiveController.class.getDeclaredMethod(
++                "holdPass", ManaBrewInteractiveSession.PriorityChoice.class, List.class);
++        holdPass.setAccessible(true);
++        holdPass.invoke(c, pass.newInstance(
++                ManaBrewInteractiveSession.PriorityActionKind.PASS, null, null, null, false, true, null, null), new ArrayList<SpellAbility>());
++    }
++
++    private static void cast(final Game game, final Player p, final String name) {
++        final Card card = add(name, p, ZoneType.Hand);
++        game.getAction().checkStateEffects(true);
++        final SpellAbility sa = card.getFirstSpellAbility();
++        sa.setActivatingPlayer(p);
++        game.getStack().addAndUnfreeze(sa);
++        game.getAction().checkStateEffects(true);
++        game.getStack().addAllTriggeredAbilitiesToStack();
++    }
++
++    private static List<Card> tokens(final String script, final Player p, final int n) {
++        final PaperToken paper = StaticData.instance().getAllTokens().getToken(script);
++        final List<Card> made = new ArrayList<>();
++        for (int i = 0; i < n; i++) {
++            final Card t = CardFactory.getCard(paper, p, p.getGame());
++            t.setGameTimestamp(p.getGame().getNextTimestamp());
++            p.getZone(ZoneType.Battlefield).add(t);
++            made.add(t);
++        }
++        return made;
++    }
++
++    private static void resolveOne(final Game game) {
++        game.getStack().resolveStack();
++        game.getAction().checkStateEffects(true);
++        game.getStack().addAllTriggeredAbilitiesToStack();
++    }
++
++    private static final class Seated {
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("trigger-batch-test");
++        final Game game;
++
++        Seated(final boolean twoPeople) throws Exception {
++            final List<RegisteredPlayer> players = new ArrayList<>();
++            final Deck deck = new Deck();
++            players.add(new RegisteredPlayer(deck).setPlayer(new ManaBrewInteractiveLobbyPlayer("Blue", session)));
++            players.add(new RegisteredPlayer(deck).setPlayer(twoPeople
++                    ? new ManaBrewInteractiveLobbyPlayer("Yellow", session) : new LobbyPlayerAi("Yellow", null)));
++            game = start(players);
++            session.attach(game.getMatch(), game, Set.of(), false);
++            final Field lock = ManaBrewInteractiveSession.class.getDeclaredField("gameLock");
++            lock.setAccessible(true);
++            ((ReentrantLock) lock.get(session)).lock();
++            final Thread orderer = new Thread(this::answerTriggerOrders);
++            orderer.setDaemon(true);
++            orderer.start();
++        }
++
++        private void answerTriggerOrders() {
++            long answered = -1;
++            while (true) {
++                final String now = session.getLatestPromptJson();
++                if (now != null) {
++                    final JsonObject prompt = JsonParser.parseString(now).getAsJsonObject();
++                    final long id = prompt.get("promptId").getAsLong();
++                    final JsonObject input = prompt.getAsJsonObject("input");
++                    if (id != answered && input != null && "reorder".equals(input.get("type").getAsString())) {
++                        final JsonArray ids = new JsonArray();
++                        for (final JsonElement item : input.getAsJsonArray("items")) {
++                            ids.add(item.getAsJsonObject().get("id"));
++                        }
++                        final JsonObject output = new JsonObject();
++                        output.addProperty("type", "reorderDecision");
++                        output.add("orderedIds", ids);
++                        final JsonObject answer = new JsonObject();
++                        answer.addProperty("type", "reorder");
++                        answer.add("output", output);
++                        answered = id;
++                        session.submitAction(answer.toString());
++                    }
++                }
++                try {
++                    Thread.sleep(10);
++                } catch (final InterruptedException e) {
++                    return;
++                }
++            }
++        }
++    }
++
++    private static Game aiGame() {
++        final List<RegisteredPlayer> players = new ArrayList<>();
++        final Deck deck = new Deck();
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Blue", null)));
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Yellow", null)));
++        return start(players);
++    }
++
++    private static Game start(final List<RegisteredPlayer> players) {
++        final GameRules rules = new GameRules(GameType.Constructed);
++        final Game game = new Game(players, rules, new Match(rules, players, "TriggerBatchTest"));
++        game.setAge(GameStage.Play);
++        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++        game.getPhaseHandler().onStackResolved();
++        return game;
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
 +    }
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/TurnCounterRewindTest.java b/forge-harness/src/test/java/forge/harness/host/TurnCounterRewindTest.java

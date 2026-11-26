@@ -31,7 +31,7 @@ cd /build
   FirstPlayerTest CardStateRewindTest BigTurnsTest ThreeHeadedGiantTest ProtocolDefaultsTest AttackTaxLethalTest \
   SnapshotSpeedTest StressCapsTest ReplacementIndexTest TieOfferTest UnboundedTokensTest HeldPassResponseTest CostBadgeTest \
   BigBoardFixesTest TeamChoiceTest LongTailTest common.GiftTargetsTest AutoPayBudgetTest BigTurnTimingTest \
-  BlockBudgetTest DependencyScanTest ManaSourcesTest OpeningHandTest SnapshotViewersTest StaticPassTest TokenBatchTest \
+  BlockBudgetTest DependencyScanTest ManaSourcesTest OpeningHandTest SnapshotViewersTest StaticPassTest TokenBatchTest TriggerBatchTest \
   common.ActionSpaceTest common.HarnessPlayPlumbingTest \
   GoldenFileTest ProtocolGoldenTest SnapshotGoldenTest
 failed=""

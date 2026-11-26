@@ -6,9 +6,13 @@
 //   snap: one snapshot for Blue plus one for observers (the node builds both twice a question: at the new revision and
 //         with the question, java_backend.rs run_hosted_engine_game_inner),
 // and the game thread is sampled every 2 ms ("profile": idle / ai / harness:<method> / forge:*).
-//   node tools/kykar-loop-bench.js [--image mtg-harness-test:<tag>] [--tokens 150] [--passes 10] [--held]
+//   node tools/kykar-loop-bench.js [--image mtg-harness-test:<tag>] [--tokens 150] [--token <script>] [--passes 10] [--held]
+//     [--cards "Monastery Mentor,..."] [--opponent person]
 // --held: a priority with the stack's top items one run of the same trigger (or the whole stack a run of five or
-// more, as the stress driver did) is passed with exhaustStack, to time a held pass. Prints JSON at the end.
+// more, as the stress driver did) is passed with exhaustStack, to time a held pass. --cards: more cards on Blue's
+// battlefield. --opponent person: the second seat is a person (every one of its questions answered here like Blue's,
+// its passes held the same way) instead of a Forge AI, so the engine may batch a held run (StackMerge: only when
+// every player still in the game holds). Prints JSON at the end.
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -21,6 +25,8 @@ const TOKENS = Number(arg("tokens", 150));
 const PASSES = Number(arg("passes", 10));
 const HELD = process.argv.includes("--held");
 const TOKEN = arg("token", "c_1_1_a_soldier");
+const CARDS = String(arg("cards", "")).split(",").map((x) => x.trim()).filter(Boolean);
+const PERSON = arg("opponent", "ai") === "person";
 const ROOT = path.join(__dirname, "..");
 const now = () => Number(process.hrtime.bigint()) / 1e6;
 
@@ -68,7 +74,7 @@ async function main() {
   await s.ready;
   const SLOT = "player-0";
   const h = await s.ask(`start ${JSON.stringify({ gameId: "kykar-bench", variant: "Commander", startingLife: 40, seed: 7,
-    players: [{ name: "Blue", ...deckOf("kykar_winds_fury") }, { name: "AI", ...deckOf("ashling_limitless_commander"), ai: true, bot: true }] })}`);
+    players: [{ name: "Blue", ...deckOf("kykar_winds_fury") }, PERSON ? { name: "Yellow", ...deckOf("ashling_limitless_commander") } : { name: "AI", ...deckOf("ashling_limitless_commander"), ai: true, bot: true }] })}`);
   if (h.status !== "ok") throw new Error(`start: ${h.value}`);
   const view = async () => { const v = await s.ask(`snapshot 0`); return v.status === "ok" && v.value ? JSON.parse(v.value) : null; };
   let lastId = null, sentAt = 0;
@@ -88,14 +94,14 @@ async function main() {
     if (!p) throw new Error("the game ended before the setup");
     gv = await view();
     const type = p.input?.type;
-    if (type === "chooseAction" && gv.activePlayerId === SLOT && gv.step === "main1" && !(gv.stack || []).length) break;
+    if (type === "chooseAction" && p.decidingPlayerId === SLOT && gv.activePlayerId === SLOT && gv.step === "main1" && !(gv.stack || []).length) break;
     if (type === "chooseAction") { await submit(type, { type: "pass" }); continue; }
     if (BEFORE[type]) { await submit(type, BEFORE[type](p.input)); continue; }
     throw new Error(`before the setup: ${type}`);
   }
   const hand = (gv.zones || []).find((z) => z.zone === "hand" && z.ownerId === SLOT)?.cards || [];
   const ops = [
-    ...["Island", "Island", "Mountain", "Plains", "Kykar, Wind's Fury", "Hullbreaker Horror", "Sol Ring", "Third Path Iconoclast"].map((name) => ({ op: "createCard", name, zone: "battlefield", player: SLOT })),
+    ...["Island", "Island", "Mountain", "Plains", "Kykar, Wind's Fury", "Hullbreaker Horror", "Sol Ring", "Third Path Iconoclast", ...CARDS].map((name) => ({ op: "createCard", name, zone: "battlefield", player: SLOT })),
     ...["Sensei's Divining Top", "Crackle with Power"].map((name) => ({ op: "createCard", name, zone: "hand", player: SLOT })),
     ...hand.map((c) => ({ op: "move", card: c.id, zone: "library", position: "bottom" })),
     ...Array.from({ length: TOKENS }, () => ({ op: "createToken", script: TOKEN, player: SLOT })),
@@ -137,6 +143,7 @@ async function main() {
       await submit(type, run ? { type: "pass", exhaustStack: true } : { type: "pass" });
       continue;
     }
+    if (type === "chooseAction" && p.decidingPlayerId !== SLOT) { await submit(type, { type: "pass" }); continue; }
     if (type === "chooseAction" && gv.activePlayerId === SLOT && /main/.test(gv.step || "")) {
       const acts = input.actions || [];
       const sac = acts.find((x) => /Sacrifice a Spirit/i.test(x.description || x.label || ""));
@@ -178,7 +185,7 @@ async function main() {
   s.quit();
   const sum = (k, f = () => true) => rows.filter(f).reduce((a, r) => a + r[k], 0);
   const out = {
-    tokens: TOKENS, passes: passLog.length, held, prompts: rows.length,
+    tokens: TOKENS, token: TOKEN, cards: CARDS, opponent: PERSON ? "person" : "ai", passes: passLog.length, held, prompts: rows.length,
     promptsPerPass: rows.length / Math.max(1, passes),
     msPerPass: passLog.length ? passLog.slice(1).reduce((a, x) => a + x.ms, 0) / Math.max(1, passLog.length - 1) : null,
     gameMs: Math.round(sum("game")), snapMs: Math.round(sum("snap")),

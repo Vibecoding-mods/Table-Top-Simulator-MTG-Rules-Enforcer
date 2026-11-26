@@ -188,6 +188,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-25 (tree `tmp/eb-batch`, build id `eb-04829797aeeb`) | `engine1131-batch` (node `abc03f5d3012` / relay `eedcbb724704`; harness test `6b5580206108`) | On top of engine1130-ff. Trigger batching: while every player holds a run (the existing held-pass gate, asked again after every item), Forge `StackMerge` resolves a run of identical simple triggers in one engine step: fixed life gain for you, a self pump by +N/+N (prowess), +1/+1 counters on itself, plain tokens for you, fixed mana; each only when nothing active watches or replaces that event and no conditional static grant is in play. The log says "N × <card> resolved at once: <ability>". The merge is no longer capped at 20 by itself; the 20-cut, the minute rule and the response probe still end it. Section 4 entry. | no | outer worktree branch; both patches regenerated | not deployed; deploy `--image engine1131-batch` with `MTG_MANABREW=tmp/eb-batch` | engine1130-ff (`--image engine1130-ff`, `MTG_MANABREW=tmp/eb-1130-ff`) |
 | 2026-11-25 17:36 (tree `tmp/eb-1130-ff`, build id `eb-3a5bee0d4000`) | `engine1130-ff` (node `ed30edf4b227` / relay `eab59c676c92`; harness test `c87bd1cd4350`) | On top of engine1129. Long chains: (1) a heap read over 85% first frees unused memory (`System.gc()`, at most once in 5 s) and only a heap still over 85% ends the game; (2) the per-turn trigger limit counts triggers that really fire, not every waiting event (the Kykar loop was asked after about 65 spells); (3) a held exhaust pass covers the run on top of the stack (a spell under it no longer stops the bridge holding) and, once the same run has been held for 60 s, is no longer cut every 20: the rest resolves and the table sees the result. Bridge `heldPass` holds a run on top of a spell. Section 4 entry. | no | outer branch `worktree-agent-ab1b273006f20c952`; both patches regenerated | not deployed; deploy `--image engine1130-ff` with `MTG_MANABREW=tmp/eb-1130-ff` | engine1129 (`--image engine1129`, `MTG_MANABREW=tmp/eb-1129`) |
 | 2026-11-24 23:36 (built as `engine1129`, tree `tmp/eb-1129`, build id `eb-07211d1b4974`) | `engine1129-jr` (node `4d8a2b3da23a` / relay `6e05f8c02bcf`) | On top of engine1128. A review pass over `forge-harness/.../host` with golden-master photographs first. New tests `GoldenFileTest` (the recorder, 8 checks), `ProtocolGoldenTest` (353 rows: every protocol decode, agent prompts, game-start checks, checkpoint caps and thinning, runaway wording, held-pass phase rules, perks) and `SnapshotGoldenTest` (70 rows: 14 boards x 4 viewers + revisions); the recorded files are in `forge-harness/src/test/resources/golden`. Fixes: a colour answer `{"R":0,"G":1}` decoded as `R`, now the first colour with a count above 0 (`{"W":0}` still `W`); an `applyState` directive with no `ops` array refused at decode, and refused by the session with "the fix has no ops array" (before, a `ClassCastException`/NPE on the game thread); a spectator now reads a delayed trigger's text when its host is an LKI copy (Sneak Attack's end-step sacrifice), from `getLastKnownZone`. Tidy, no behaviour change: the controller's held pass is set and cleared through `holdPass`/`clearPassUntil`/`clearExhaust`; `AutoPay.payBudget` and `InteractiveSnapshotExtractor.shareCards` are `volatile`; the unused public 10-argument `snapshotJson` removed. Harness guide: five team rules listed, the game-level poison/commander limits read only with `sharedLife`/`sharedTurns`. `tools/mutate-engine-docker.js --set golden` 37 mutations, 36 caught by name, the one miss an equivalent program. Section 4 entry. | no | outer branch `worktree-agent-a3467a42910472022`; `engine/manabrew.patch` regenerated; `engine/forge.patch` unchanged | deployed 2026-11-24 23:36 (`--image engine1129`, `MTG_MANABREW=tmp/eb-1129`; the deploy's engine tests passed, 59 classes); table `46f58b44`, save `dc11c2c0` | engine1128 (`--image engine1128`, `MTG_MANABREW=tmp/eb-1128`) |
 | 2026-11-18 07:25 | `engine1128` (node `83edeb7f04e5` / relay `fe8ef72497aa`; harness test `171ba63f644b`) | engine1125 + engine1126 (team choices, chump-team) + engine1127-longtail + engine1128-gift, from main's patches (`cb1cbfc`), tree `tmp/eb-1128`, build id `eb-efe5e365beb2`. Harness 56 of 56 classes; live on test stack 3: phasing 29/29, events 51/51, new `tests/live_gift_check.js` 6/6 (fails on engine1125). Section 4 entry. | no | main `cb1cbfc` (patches from `43ebaad`) | not deployed; deploy `--image engine1128` with `MTG_MANABREW=tmp/eb-1128` | engine1125 (`tmp/eb-1125`) |
@@ -312,6 +313,62 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-25 engine1131-batch: a held run of identical simple triggers resolves in one step (not deployed)
+- **Why:** a held run of hundreds of identical triggers (Monastery Mentor's prowess on 150 or 900 Monk tokens) still
+  resolved one at a time in Forge, each with a priority round, a state-based-action check, a static pass and an LKI
+  copy. The user: "33 triggers take a min but there's 600 triggers left so on that 34th trigger skips to 600", with
+  the result identical to one by one.
+- **Forge `StackMerge.java` (the big-turns merge, rewritten):** the allowlist is now GainLife (a fixed number, you),
+  Pump (Defined Self, NumAtt/NumDef `+N`), PutCounter (Defined Self, P1P1, a fixed number, and the source has no -1/-1
+  counter), Token (a fixed number, you, a plain token: one script, not legendary/world/planeswalker, toughness 1 or
+  more, no triggers, statics or replacements, keywords only from `TOKEN_KEYWORDS`) and Mana (fixed colours, a fixed
+  amount). Every item must be a `WrappedAbility` with no decider, no sub-ability, no targets, not optional, no
+  intervening "if" or resolving check on its trigger (`IsPresent`, `CheckSVar`, `ResolvingCheck`, `OptionalDecider`
+  ...), no controller change, and only the listed parameters; `alike` also needs the same API, the same activating
+  player and equal parameters. `watched` turns it off when an active trigger answers the event (AbilityResolves and
+  Always for every API; LifeGained; counter added/removed; ChangesZone other than a card's own "this enters",
+  TokenCreated; ManaAdded), when an active replacement of the event exists (GainLife; AddCounter/RemoveCounter;
+  CreateToken/Moved; ProduceMana), or when an active continuous static grants abilities, keywords or triggers on a
+  condition or to cards picked by power, toughness, counters or life. "Active" is Forge's own `zonesCheck`: a card in
+  a library does not count.
+- **Forge `MagicStack.resolveAlike`:** the merge is no longer stopped at 19 by itself; the gate (`heldByEveryone`) is
+  asked again after every item (`left = min(left - 1, gate)`), so a batch ends exactly where the held pass would: at
+  the 20 before a run has been held a minute, at the end after it, and as soon as any player gains a new possible
+  response. It also ends on a waiting or simultaneous trigger (a new object for the stack), on an item not alike, on a
+  fizzle and at game over. One log line per batch: "N × <card> resolved at once: <ability>". Every item still calls
+  `AbilityUtils.resolve` with its own source, so every trigger is counted when it fires and every card when it is
+  made (the runaway caps see a batch as one by one).
+- **Forge `TriggerHandler.watches(Predicate<Trigger>)`:** whether an active or delayed trigger passes a test.
+- **Not proved, guarded:** static abilities are not re-applied between batched items. The guard is the static check
+  above (condition parameters and words in `Affected`); a static that reads a batched change some other way would see
+  the board only at the end. Targeted triggers are never batched. An AI or Manabot seat turns batching off.
+- **Tests:** new `TriggerBatchTest` (33 checks): one by one twice and batched on the same board give one digest (life,
+  poison, life gained, counters, mana pool, every card's zone, P/T, counters, keywords, tapped, controller, the
+  per-turn trigger and card counts, the log) for prowess, self counters, Soldier and Monk tokens, mana, life gain, a
+  source gone mid-run and watchers sitting in a library (those batched); and, not batched, with the guard that stops
+  it named: a "creature enters" watcher, Anointed Procession, Doubling Season, Hardened Scales, a -1/-1 counter on the
+  source, an optional trigger, a targeted trigger whose target left, a conditional static grant (Goddric), damage, a
+  token with a trigger, an intervening "if", an extra parameter, a shrinking pump; 300 triggers in one step; the log
+  line; the gate asked after every item; another player's run and the spell under the run not batched; the card and
+  trigger caps; two people holding batch 20 at a time; a run held a minute goes to the end; an AI seat stops it; a
+  response the mana pays for ends it; 300 prowess triggers 20.8 s one by one, 0.67 s batched. `BigTurnsTest` 48
+  (the 20-at-once check now expects the whole run). Full `harness-tests.sh` on the new image: 59 classes, 58 passed
+  first time; the 59th, `SnapshotViewersTest`, failed only its 3x timing check (2.8x, with a build and a bench
+  running) and passed alone.
+- **Break-its** (`tmp/make-mutants.js` style, copies of StackMerge/MagicStack compiled over the image, originals
+  checked by sha256 after): 18 mutations, 17 fail named checks: no gate after each item, one more than allowed, the
+  gate not counted down, across controllers, damage allowed, no trigger watchers, no replacement watchers, no -1/-1
+  check, choices and intervening "if" allowed, no static-grant guard, any token, the log count off by one, every
+  ChangesZone trigger ignored, other parameters allowed, a negative pump allowed, inactive replacements watching,
+  inactive statics watching. The one that survives, dropping `hasFizzled` per item, is equivalent: an eligible item
+  has no targets, and `hasFizzled` can only be true for a targeted one.
+- **Measured** (`tools/kykar-loop-bench.js --opponent person --held --token w_1_1_monk_prowess --cards "Monastery
+  Mentor"`, headless, harness-test images, a second job running in both): 150 Monks, 3 passes: engine1130-ff 29.5 s a
+  pass (104 s game, 16.8 s snapshots), engine1131-batch 26.1 s (72 s game, 23.7 s snapshots), 72 prompts a pass both
+  (one per 20-cut per person: the cut is kept). 900 Monks, 1 pass: engine1130-ff 894 s (863 s game, 30 s snapshots,
+  67 prompts), engine1131-batch 341 s (292 s game, 49 s snapshots, 117 prompts): 2.6x faster; more prompts because
+  each 20 now takes a fraction of the time, so the run reaches the one-minute rule later.
 
 ### 2026-11-25 engine1130-ff: heap check, trigger count, held runs go to the end after a minute (not deployed)
 - **Why:** the Kykar stress runs (Kykar + Hullbreaker Horror + Third Path Iconoclast + Sensei's Divining Top loop, and a
