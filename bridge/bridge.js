@@ -9956,10 +9956,12 @@ function resolvingStops(seat, gv) {
 // the engine), and asks again: the table catches up then, and "mtg stop" (seat.stopChain) is seen then. Once the same
 // run has been held for a minute (PriorityFastForward.LONG_RUN_SECONDS) the engine no longer stops every 20: the
 // rest of the run resolves and the table sees the result (the user 2026-11-25: "anything longer than 1 min gives the
-// output"). Each trigger still resolves on its own in Forge, every player still gets priority after each one, and
-// questions (a "may", a target) are still asked. The spell under a run of its own triggers (Monastery Mentor's prowess
-// tokens under the spell that triggered them, the Kykar stress run 2026-11-25) no longer stops it: until then a held
-// pass needed the WHOLE stack to be the run. Not for a player this seat controls (forP), and not for a run shorter
+// output"). A run the engine can resolve in one step (every player a person holding it and the effect on Forge's
+// StackMerge allowlist with nothing watching it, engine1134, the user's decision in docs/big-turns.md section 6) is not
+// stopped every 20 either: the whole run resolves at once. Otherwise each trigger still resolves on its own in Forge,
+// every player still gets priority after each one, and questions (a "may", a target) are still asked. The spell under
+// a run of its own triggers (Monastery Mentor's prowess tokens under the spell that triggered them, the Kykar stress
+// run 2026-11-25) no longer stops it: until then a held pass needed the WHOLE stack to be the run. Not for a player this seat controls (forP), and not for a run shorter
 // than HELD_MIN (a few prompts cost little, and every prompt shows the table the stack as it shrinks).
 const HELD_RESOLUTIONS = 20;
 const HELD_MIN = 5;
@@ -9988,7 +9990,7 @@ function heldPass(seat, gv, forP) {
   const said = `${gv.turn}\u0003${run.key}`;
   if (run.n > HELD_RESOLUTIONS && seat.heldRunSaid !== said) {
     seat.heldRunSaid = said;
-    chat(`[MTG] ${run.n} ${run.name} triggers resolve back to back; the table catches up every ${HELD_RESOLUTIONS}, and after a minute only once the rest are done. Type "mtg stop" to stop at the next catch-up.`, seat.color);
+    chat(`[MTG] ${run.n} ${run.name} triggers resolve back to back; the table catches up every ${HELD_RESOLUTIONS} (a run the engine can resolve at once goes straight to the end), and after a minute only once the rest are done. Type "mtg stop" to stop at the next catch-up.`, seat.color);
   }
   return { type: "pass", exhaustStack: true };
 }
@@ -13937,7 +13939,8 @@ function onTTS(m) {
     }
     case "stopchain": {
       // "mtg stop": the chain of passes ends at this seat's next priority with something on the stack (stopsChain); a
-      // held pass (heldPass) reaches it within HELD_RESOLUTIONS triggers. A "×N" yes/no run ends now.
+      // held pass (heldPass) reaches it within HELD_RESOLUTIONS triggers (a run the engine resolves at once: at its
+      // end). A "×N" yes/no run ends now.
       const seat = game?.seats.get(m.color);
       if (!seat) { chat("[MTG] Stop: no game running.", m.color); break; }
       // (a "Repeat ×N" under way ends now; the next priority with something on the stack is asked)
@@ -13950,7 +13953,7 @@ function onTTS(m) {
       seat.stopChain = true;
       seat.resolveStack = null;
       repeatEnd(seat, "mtg stop");
-      chat(`[MTG] Stop: your next priority with something on the stack is asked (within ${HELD_RESOLUTIONS} triggers).`, m.color);
+      chat(`[MTG] Stop: your next priority with something on the stack is asked (within ${HELD_RESOLUTIONS} triggers, or when a run resolved at once is done).`, m.color);
       break;
     }
     case "timer":

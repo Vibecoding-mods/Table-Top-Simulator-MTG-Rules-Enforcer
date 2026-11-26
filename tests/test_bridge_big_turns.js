@@ -144,7 +144,7 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     seat.endTurnAt = 7;
     h.B.onTTS({ t: "stopchain", json: JSON.stringify({ color: "Blue" }) });
     await h.flush();
-    ok("stop: said, with how soon", h.effects.some((e) => e.tts?.t === "chat" && /Stop: your next priority with something on the stack is asked \(within 20 triggers\)/.test(e.tts.text)));
+    ok("stop: said, with how soon", h.effects.some((e) => e.tts?.t === "chat" && /Stop: your next priority with something on the stack is asked \(within 20 triggers, or when a run resolved at once is done\)/.test(e.tts.text)));
     let r = await prio(h, seat, scutes(10));
     ok("stop: the next priority with a stack is asked, End turn on", r.asked === "Your priority" && !r.passed, JSON.stringify(r));
     ok("stop: and says so", r.said.some((x) => /Stopped \(mtg stop\)/.test(x)), JSON.stringify(r.said));

@@ -22,7 +22,7 @@ index b363b43..228c02a 100644
 +  }
  ]
 diff --git a/forge-harness/src/main/java/forge/harness/AGENTS.md b/forge-harness/src/main/java/forge/harness/AGENTS.md
-index 54173c6..166cc08 100644
+index 54173c6..592f345 100644
 --- a/forge-harness/src/main/java/forge/harness/AGENTS.md
 +++ b/forge-harness/src/main/java/forge/harness/AGENTS.md
 @@ -15,7 +15,7 @@ Dependency rule (do not violate): `parity → common`, `host → common`, `Main
@@ -30,7 +30,7 @@ index 54173c6..166cc08 100644
  - **common** — anything used by both engines: RNG (`CountingRandom`), logging (`DecisionLog`, `ParityLog`), snapshot base (`SnapshotExtractor`), GUI bootstrap (`HeadlessGuiBase`), deterministic ordering / id mapping / reset (`ParityOrder`, `ParityCardMap`, `ForgeEngineReset`), the shared decision/cost/play plumbing (`ActionSpace`, `ChoiceSpace`, `CombatChoiceSpace`, `AutoPay`, `HarnessCostPlumbing`, `HarnessPlayPlumbing`, `HarnessPlayHooks`), and the prompt acceptance-rule facade (`EngineHandler`). `EngineHandler` is the one entrypoint for Forge GUI/controller legality: per prompt it returns the legal choice set (so a caller only offers valid picks) and post-validates the submitted answer for whole-answer constraints a per-option set can't express (e.g. `CombatUtil.validateBlocks`). Heavy mechanics stay in `ActionSpace`/`ChoiceSpace`/`CombatChoiceSpace`; `EngineHandler` unifies them.
  - **parity** — `DeterministicController`, `DeterministicLobbyPlayer`, `PresetDecks`.
 -- **host** — `ManaBrewEngineAdapter` (the in-process facade Rust j4rs talks to), `ManaBrewInteractiveSession`, `ManaBrewInteractiveController`, `ManaBrewInteractiveLobbyPlayer`, `InteractiveSnapshotExtractor`, `PriorityFastForward` (`reachedTarget`/`canSkip`: skips priority windows with no roundtrip while the player has a standing **held** pass-until whose target is a `(player, phase)` slot — a bare phase can't tell "my end" from an opponent's. The controller holds the declaration across windows and clears it on reaching the target, on casting, when the target player has lost — their slot would never arrive — when the holder begins an extra turn while the target points at another player (the client computed the slot assuming normal turn order, so honoring it would silently fast-forward the holder's own extra turn), or when the phase sequence steps backward within a turn (`invalidatedByExtraPhase`: an inserted extra phase — Moraug, Aggravated Assault — breaks the linear phase model the client computed the target from; without the clear, the hold swallows the repeated combat, empty attacker declaration included); mirrors `manabrew-engine` `priority.rs` and the `AdvanceTurn` clear in `game_loop/phase_handler.rs` — the extra-phase clear is NOT yet mirrored in the Rust engine). `PriorityFastForward` also carries the exhaust-stack pass (`stackIds`/`exhaustEnded`, host-only — the Rust engine ignores the protocol's `exhaustStack` flag for now): the controller snapshots the stack-instance ids at declaration and silently passes priority until the stack empties, stopping early as soon as any new object — spell, activated ability, or trigger — enters the stack, so the holder can respond to it.
-+- **host** — `ManaBrewEngineAdapter` (the in-process facade Rust j4rs talks to), `ManaBrewInteractiveSession`, `ManaBrewInteractiveController`, `ManaBrewInteractiveLobbyPlayer`, `InteractiveSnapshotExtractor`, `PriorityFastForward` (`reachedTarget`/`canSkip`: skips priority windows with no roundtrip while the player has a standing **held** pass-until whose target is a `(player, phase)` slot — a bare phase can't tell "my end" from an opponent's. The controller holds the declaration across windows and clears it on reaching the target, on casting, when the target player has lost — their slot would never arrive — when the holder begins an extra turn while the target points at another player (the client computed the slot assuming normal turn order, so honoring it would silently fast-forward the holder's own extra turn), or when the phase sequence steps backward within a turn (`invalidatedByExtraPhase`: an inserted extra phase — Moraug, Aggravated Assault — breaks the linear phase model the client computed the target from; without the clear, the hold swallows the repeated combat, empty attacker declaration included); mirrors `manabrew-engine` `priority.rs` and the `AdvanceTurn` clear in `game_loop/phase_handler.rs` — the extra-phase clear is NOT yet mirrored in the Rust engine). `PriorityFastForward` also carries the exhaust-stack pass (`stackIds`/`exhaustEnded`, host-only — the Rust engine ignores the protocol's `exhaustStack` flag for now): the controller snapshots the ids of the run on top of the stack at declaration (`topRunIds`: the top item and the items under it with the same controller, source name and ability text; a spell is a run of one) and silently passes priority until that run is gone (the stack empties or the item under the run is on top), stopping early as soon as any new object — spell, activated ability, or trigger — enters the stack, so the holder can respond to it. It also ends once `EXHAUST_RESOLUTIONS` (20) of the declared items have left the stack, so a held pass over a huge run of triggers still asks the holder (and refreshes their board) every 20 resolutions, until the same run (`topRunKey`) has been held for `LONG_RUN_SECONDS` (60): from then on it is not cut at 20 and runs to the end of the run (`heldRunLong`, clock `heldClock`). A hold that follows a hold ended at the 20 keeps the run's start time; any other answer starts it over. While every player still in the game is a person holding such a pass, the session's merge gate (`heldByEveryone`, installed with `MagicStack.setMergeGate`) lets Forge's `StackMerge` resolve allowlisted alike items as one batch (life gain, prowess-style +N/+N on its own source, +1/+1 counters on its own source, plain tokens, fixed mana; each item still its own event, each checked as it comes), up to where the first of those passes ends; Forge asks the gate again after every item, so a new response (`heldActionsChanged`) ends the batch where it would have ended the hold; an AI or Manabot seat in the game turns batching off. The session is also Forge's `Game.RunawayChoice` (`keepGoingPastCap`): at the per-turn trigger, card or per-effect token limit it asks the active person, else the first person, "Keep going" or "End in a draw" (a pass or timeout is the draw), at most `Game.RUNAWAY_CONTINUES_PER_TURN` times a turn; with no person to ask the limit is a draw as before.
++- **host** — `ManaBrewEngineAdapter` (the in-process facade Rust j4rs talks to), `ManaBrewInteractiveSession`, `ManaBrewInteractiveController`, `ManaBrewInteractiveLobbyPlayer`, `InteractiveSnapshotExtractor`, `PriorityFastForward` (`reachedTarget`/`canSkip`: skips priority windows with no roundtrip while the player has a standing **held** pass-until whose target is a `(player, phase)` slot — a bare phase can't tell "my end" from an opponent's. The controller holds the declaration across windows and clears it on reaching the target, on casting, when the target player has lost — their slot would never arrive — when the holder begins an extra turn while the target points at another player (the client computed the slot assuming normal turn order, so honoring it would silently fast-forward the holder's own extra turn), or when the phase sequence steps backward within a turn (`invalidatedByExtraPhase`: an inserted extra phase — Moraug, Aggravated Assault — breaks the linear phase model the client computed the target from; without the clear, the hold swallows the repeated combat, empty attacker declaration included); mirrors `manabrew-engine` `priority.rs` and the `AdvanceTurn` clear in `game_loop/phase_handler.rs` — the extra-phase clear is NOT yet mirrored in the Rust engine). `PriorityFastForward` also carries the exhaust-stack pass (`stackIds`/`exhaustEnded`, host-only — the Rust engine ignores the protocol's `exhaustStack` flag for now): the controller snapshots the ids of the run on top of the stack at declaration (`topRunIds`: the top item and the items under it with the same controller, source name and ability text; a spell is a run of one) and silently passes priority until that run is gone (the stack empties or the item under the run is on top), stopping early as soon as any new object — spell, activated ability, or trigger — enters the stack, so the holder can respond to it. It also ends once `EXHAUST_RESOLUTIONS` (20) of the declared items have left the stack, so a held pass over a huge run of triggers still asks the holder (and refreshes their board) every 20 resolutions, until the same run (`topRunKey`) has been held for `LONG_RUN_SECONDS` (60): from then on it is not cut at 20 and runs to the end of the run (`heldRunLong`, clock `heldClock`). Nor is a run Forge would batch (`heldRunBatches`: every player still in the game a person whose hold covers the top item, that item on `StackMerge`'s allowlist and not watched); both together are `heldUnlimited`, which the gate and the controller's own end check read. A hold that follows a hold ended at the 20 keeps the run's start time; any other answer starts it over. While every player still in the game is a person holding such a pass, the session's merge gate (`heldByEveryone`, installed with `MagicStack.setMergeGate`) lets Forge's `StackMerge` resolve allowlisted alike items as one batch (life gain, prowess-style +N/+N on its own source, +1/+1 counters on its own source, plain tokens, fixed mana; each item still its own event, each checked as it comes), up to where the first of those passes ends; Forge asks the gate again after every item, so a new response (`heldActionsChanged`) ends the batch where it would have ended the hold; an AI or Manabot seat in the game turns batching off. The session is also Forge's `Game.RunawayChoice` (`keepGoingPastCap`): at the per-turn trigger, card or per-effect token limit it asks the active person, else the first person, "Keep going" or "End in a draw" (a pass or timeout is the draw), at most `Game.RUNAWAY_CONTINUES_PER_TURN` times a turn; with no person to ask the limit is a draw as before.
  
  ### Host payability probes must stay silent
  
@@ -3519,7 +3519,7 @@ index c69b549..a3b1bdd 100644
  
      public static final class CardIdentity {
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
-index fb82e6d..04c33b0 100644
+index fb82e6d..2358459 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveController.java
 @@ -11,6 +11,8 @@ import forge.harness.common.HarnessPlayPlumbing;
@@ -3578,15 +3578,27 @@ index fb82e6d..04c33b0 100644
              for (final Card card : selected) {
                  game.getAction().moveToLibrary(card, -1, null);
              }
-@@ -149,14 +162,28 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -149,14 +162,40 @@ public final class ManaBrewInteractiveController extends PlayerController implem
                  "confirm_action", me(), "Scry 1 after mulligan?", null, "confirm_mulligan_scry", null, null);
      }
  
 +    int heldResolutionsLeft() {
-+        if (exhaustStackIds == null || PriorityFastForward.exhaustEnded(game, exhaustStackIds, heldRunLong()) || heldActionsChanged()) {
++        if (exhaustStackIds == null) {
 +            return 0;
 +        }
-+        return PriorityFastForward.heldResolutionsLeft(game, exhaustStackIds, heldRunLong());
++        final boolean unlimited = heldUnlimited();
++        if (PriorityFastForward.exhaustEnded(game, exhaustStackIds, unlimited) || heldActionsChanged()) {
++            return 0;
++        }
++        return PriorityFastForward.heldResolutionsLeft(game, exhaustStackIds, unlimited);
++    }
++
++    boolean holdsTopRun() {
++        return exhaustStackIds != null && !PriorityFastForward.exhaustEnded(game, exhaustStackIds, true);
++    }
++
++    boolean heldUnlimited() {
++        return heldRunLong() || session.heldRunBatches(game);
 +    }
 +
 +    boolean heldRunLong() {
@@ -3601,7 +3613,7 @@ index fb82e6d..04c33b0 100644
          if (exhaustStackIds != null) {
 -            if (PriorityFastForward.exhaustEnded(game, exhaustStackIds)) {
 -                exhaustStackIds = null;
-+            final boolean ended = PriorityFastForward.exhaustEnded(game, exhaustStackIds, heldRunLong());
++            final boolean ended = PriorityFastForward.exhaustEnded(game, exhaustStackIds, heldUnlimited());
 +            if (ended || heldActionsChanged()) {
 +                final boolean atLimit = ended && !PriorityFastForward.exhaustEnded(game, exhaustStackIds, true);
 +                clearExhaust();
@@ -3609,7 +3621,7 @@ index fb82e6d..04c33b0 100644
              } else {
                  return null;
              }
-@@ -171,9 +198,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -171,9 +210,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
                      || PriorityFastForward.invalidatedByExtraTurn(
                              game, player, passUntilPlayer, passUntilDeclaredTurn)
                      || PriorityFastForward.invalidatedByExtraPhase(currentPhase, passUntilMaxPhase)) {
@@ -3620,7 +3632,7 @@ index fb82e6d..04c33b0 100644
              } else {
                  if (currentPhase != null
                          && (passUntilMaxPhase == null || passUntilMaxPhase.isBefore(currentPhase))) {
-@@ -200,19 +225,19 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -200,19 +237,19 @@ public final class ManaBrewInteractiveController extends PlayerController implem
                  undoManaSource(choice.untapCard());
                  continue;
              }
@@ -3647,7 +3659,7 @@ index fb82e6d..04c33b0 100644
              final SpellAbility selected = choice.action();
              if (selected != null && selected.isManaAbility() && selected.getManaPart() != null) {
                  if (choice.color() == null) {
-@@ -225,11 +250,74 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -225,11 +262,74 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          }
      }
  
@@ -3723,7 +3735,7 @@ index fb82e6d..04c33b0 100644
      }
  
      private List<Card> undoableManaSources() {
-@@ -248,9 +336,11 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -248,9 +348,11 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      private void undoManaSource(final Card source) {
          final MagicStack stack = game.getStack();
          if (source == null) {
@@ -3735,7 +3747,7 @@ index fb82e6d..04c33b0 100644
          for (final SpellAbility sa : Lists.newArrayList(stack.filterUndoStackByHost(source))) {
              if (sa.undo()) {
                  stack.clearUndoStack(sa);
-@@ -269,10 +359,44 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -269,10 +371,44 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          final Integer staleX = sa.getXManaCostPaid();
          sa.setXManaCostPaid(null);
          session.beginCast(sa);
@@ -3780,7 +3792,7 @@ index fb82e6d..04c33b0 100644
              }
              return played;
          } finally {
-@@ -290,6 +414,9 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -290,6 +426,9 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public List<SpellAbility> orderSimultaneousSa(final List<SpellAbility> activePlayerSAs) {
@@ -3790,7 +3802,7 @@ index fb82e6d..04c33b0 100644
          return playPlumbing.orderSimultaneousSa(activePlayerSAs);
      }
  
-@@ -382,6 +509,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -382,6 +521,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          combat.clearAttackers();
          if (passUntilPhase != null
                  && !PriorityFastForward.reachedTarget(game, passUntilPlayer, passUntilPhase)
@@ -3798,7 +3810,7 @@ index fb82e6d..04c33b0 100644
                  && CombatUtil.validateAttackers(combat)) {
              return;
          }
-@@ -403,9 +531,28 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -403,9 +543,28 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public void declareBlockers(final Player defender, final Combat combat) {
@@ -3828,7 +3840,7 @@ index fb82e6d..04c33b0 100644
                  attackers.add(attacker);
              }
          }
-@@ -415,10 +562,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -415,10 +574,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          final Map<Card, List<Card>> validByAttacker =
                  EngineHandler.validBlockersByAttacker(combat, attackers, blockers);
          final int defenderIndex = SnapshotExtractor.playerIndex(game, defender);
@@ -3842,7 +3854,7 @@ index fb82e6d..04c33b0 100644
              error = EngineHandler.applyBlockerAssignments(combat, defender, assignments);
              if (error == null || session.isClosed() || game.isGameOver()) {
                  return;
-@@ -426,6 +575,36 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -426,6 +587,36 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          }
      }
  
@@ -3879,7 +3891,7 @@ index fb82e6d..04c33b0 100644
      @Override
      public CardCollection orderBlockers(final Card attacker, final CardCollection blockers) {
          return session.awaitDamageAssignmentOrder(me(), attacker, blockers);
-@@ -730,7 +909,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -730,7 +921,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      public CardCollection chooseCardsToDiscardFrom(
              final Player playerDiscard, final SpellAbility sa, final CardCollection validCards, final int min, final int max,
              final CardCollectionView visibleToChooser) {
@@ -3891,7 +3903,7 @@ index fb82e6d..04c33b0 100644
      }
  
      @Override
-@@ -760,8 +942,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -760,8 +954,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      @Override
      public CardCollectionView chooseCardsForCost(final CardCollectionView optionList, final SpellAbility sa,
              final CostPartWithList cpl, final int amount, final boolean isOptional, final String prompt) {
@@ -3902,7 +3914,7 @@ index fb82e6d..04c33b0 100644
          if (isOptional && selected.size() != amount) {
              return null;
          }
-@@ -790,8 +972,16 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -790,8 +984,16 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          if (sourceList.isEmpty()) {
              return CardCollection.EMPTY;
          }
@@ -3921,7 +3933,7 @@ index fb82e6d..04c33b0 100644
      }
  
      @Override
-@@ -832,7 +1022,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -832,7 +1034,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          final CardCollection cards = cardOptions(optionList);
          if (cards == null) {
              return rememberSecretPlayerViewer(
@@ -3930,7 +3942,7 @@ index fb82e6d..04c33b0 100644
          }
          final CardCollection selected = session.awaitCardChoice(
                  "choose_cards_for_effect", me(), cards, 1, 1, sourceName(sa), sourceCardId(sa), title, isOptional);
-@@ -895,7 +1085,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -895,7 +1097,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
              CardLists.sortByCmcDesc(sorted);
              return new CardCollection(sorted.subList(0, Math.max(min, Math.min(cappedMax, 1))));
          }
@@ -3940,7 +3952,7 @@ index fb82e6d..04c33b0 100644
      }
  
      @Override
-@@ -1495,7 +1686,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -1495,7 +1698,7 @@ public final class ManaBrewInteractiveController extends PlayerController implem
                  && cost.getCostMana() != null
                  && cost.getCostMana().getAmountOfX() > 0;
          if (manaX) {
@@ -3949,7 +3961,7 @@ index fb82e6d..04c33b0 100644
          }
          final Integer chosen;
          if (bounds[0] >= bounds[1]) {
-@@ -1826,7 +2017,23 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -1826,7 +2029,23 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public boolean payCombatCost(final Card card, final Cost cost, final SpellAbility sa, final String prompt) {
@@ -3974,7 +3986,7 @@ index fb82e6d..04c33b0 100644
      }
  
      // ── Mana payment (interactive) ────────────────────────────────────
-@@ -2514,6 +2721,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2514,6 +2733,10 @@ public final class ManaBrewInteractiveController extends PlayerController implem
  
      @Override
      public void notifyOfValue(final SpellAbility saSource, final GameObject realtedTarget, final String value) {
@@ -3985,7 +3997,7 @@ index fb82e6d..04c33b0 100644
          final String message = MessageUtil.formatNotificationMessage(saSource, player, realtedTarget, value);
          if (saSource != null && saSource.isManaAbility()) {
              game.getGameLog().add(GameLogEntryType.LAND, message);
-@@ -2620,7 +2831,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2620,7 +2843,8 @@ public final class ManaBrewInteractiveController extends PlayerController implem
      }
  
      private <T extends GameEntity> T chooseSingleEntityGeneric(
@@ -3995,7 +4007,7 @@ index fb82e6d..04c33b0 100644
          final List<T> opts = new ArrayList<>();
          for (final T option : optionList) {
              opts.add(option);
-@@ -2632,7 +2844,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
+@@ -2632,7 +2856,12 @@ public final class ManaBrewInteractiveController extends PlayerController implem
          for (final T option : opts) {
              labels.add(option == null ? "?" : option.toString());
          }
@@ -4010,10 +4022,10 @@ index fb82e6d..04c33b0 100644
              return null;
          }
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..f997bcd 100644
+index 643e5de..c0da0e5 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-@@ -6,33 +6,50 @@ import forge.harness.common.ParityCardMap;
+@@ -6,33 +6,51 @@ import forge.harness.common.ParityCardMap;
  import forge.harness.common.ParityOrder;
  import forge.harness.common.SnapshotExtractor;
  
@@ -4055,6 +4067,7 @@ index 643e5de..f997bcd 100644
  import forge.game.staticability.StaticAbilityCantAttackBlock;
 +import forge.game.staticability.StaticAbilityMode;
  import forge.game.staticability.StaticAbilityMustAttack;
++import forge.game.zone.StackMerge;
 +import forge.game.zone.Zone;
  import forge.game.zone.ZoneType;
 +import forge.StaticData;
@@ -4064,7 +4077,7 @@ index 643e5de..f997bcd 100644
  import org.apache.commons.lang3.tuple.ImmutablePair;
  import org.apache.commons.lang3.tuple.Pair;
  
-@@ -45,6 +62,7 @@ import java.util.HashSet;
+@@ -45,6 +63,7 @@ import java.util.HashSet;
  import java.util.List;
  import java.util.LinkedHashMap;
  import java.util.Locale;
@@ -4072,7 +4085,7 @@ index 643e5de..f997bcd 100644
  import java.util.Map;
  import java.util.Objects;
  import java.util.Random;
-@@ -52,6 +70,7 @@ import java.util.Set;
+@@ -52,6 +71,7 @@ import java.util.Set;
  import java.util.TreeSet;
  import java.util.concurrent.BlockingQueue;
  import java.util.concurrent.LinkedBlockingQueue;
@@ -4080,7 +4093,7 @@ index 643e5de..f997bcd 100644
  
  public final class ManaBrewInteractiveSession {
  
-@@ -59,9 +78,12 @@ public final class ManaBrewInteractiveSession {
+@@ -59,9 +79,12 @@ public final class ManaBrewInteractiveSession {
      private Match match;
      private Game game;
      private final BlockingQueue<JsonObject> actions = new LinkedBlockingQueue<>();
@@ -4094,7 +4107,7 @@ index 643e5de..f997bcd 100644
      private volatile boolean closed;
      private volatile Thread gameThread;
      private static volatile InteractiveBridge bridge;
-@@ -70,45 +92,100 @@ public final class ManaBrewInteractiveSession {
+@@ -70,45 +93,100 @@ public final class ManaBrewInteractiveSession {
      private final InteractiveSnapshotExtractor.SecretChoiceVisibility secretChoiceVisibility =
              new InteractiveSnapshotExtractor.SecretChoiceVisibility();
      private static final int CHECKPOINT_TURNS = 3;
@@ -4201,7 +4214,7 @@ index 643e5de..f997bcd 100644
      private enum RestoreVoteStatus { PENDING, APPROVED, DECLINED, UNAVAILABLE }
  
      private static final class RestoreVote {
-@@ -136,6 +213,116 @@ public final class ManaBrewInteractiveSession {
+@@ -136,6 +214,135 @@ public final class ManaBrewInteractiveSession {
          this.game = Objects.requireNonNull(game, "game");
          this.botSeats = Set.copyOf(botSeats);
          this.snapshotRecording = snapshotRecording;
@@ -4224,6 +4237,25 @@ index 643e5de..f997bcd 100644
 +            allowed = Math.min(allowed, ((ManaBrewInteractiveController) p.getController()).heldResolutionsLeft());
 +        }
 +        return allowed == Integer.MAX_VALUE ? 0 : allowed;
++    }
++
++    boolean heldRunBatches(final Game g) {
++        if (g.getStack().isEmpty()) {
++            return false;
++        }
++        final SpellAbility top = g.getStack().peekAbility();
++        if (!StackMerge.eligible(top)) {
++            return false;
++        }
++        for (final Player p : g.getPlayers()) {
++            if (p.hasLost()) {
++                continue;
++            }
++            if (!asksHuman(p) || !((ManaBrewInteractiveController) p.getController()).holdsTopRun()) {
++                return false;
++            }
++        }
++        return !StackMerge.watched(g, top.getApi());
 +    }
 +
 +    private boolean keepGoingPastCap(final Game g, final String what, final int count, final int cap) {
@@ -4318,7 +4350,7 @@ index 643e5de..f997bcd 100644
      }
  
      public String getSessionId() {
-@@ -155,26 +342,30 @@ public final class ManaBrewInteractiveSession {
+@@ -155,26 +362,30 @@ public final class ManaBrewInteractiveSession {
          requireAttached();
          Objects.requireNonNull(rng, "rng");
          if (bridge != null) {
@@ -4363,7 +4395,7 @@ index 643e5de..f997bcd 100644
      public void close() {
          closed = true;
          JsonObject action = new JsonObject();
-@@ -216,9 +407,15 @@ public final class ManaBrewInteractiveSession {
+@@ -216,9 +427,15 @@ public final class ManaBrewInteractiveSession {
  
      public String getSnapshotJson(final int viewer) {
          requireAttached();
@@ -4382,7 +4414,7 @@ index 643e5de..f997bcd 100644
      }
  
      void rememberSecretNumberViewer(final String sourceCardId, final Player viewer) {
-@@ -259,6 +456,7 @@ public final class ManaBrewInteractiveSession {
+@@ -259,6 +476,7 @@ public final class ManaBrewInteractiveSession {
          }
          final JsonObject canonical = JsonParser.parseString(actionJson).getAsJsonObject();
          final JsonObject decoded = ManabrewProtocolAdapter.decodeAction(canonical);
@@ -4390,7 +4422,7 @@ index 643e5de..f997bcd 100644
          actions.offer(decoded);
          // No snapshot here — it would race the game thread this unblocks.
          return "";
-@@ -266,7 +464,7 @@ public final class ManaBrewInteractiveSession {
+@@ -266,7 +484,7 @@ public final class ManaBrewInteractiveSession {
  
      static final String TRIGGER_ORDER_TITLE = "Order triggered abilities";
  
@@ -4399,7 +4431,7 @@ index 643e5de..f997bcd 100644
  
      static final class PriorityChoice {
          private final PriorityActionKind kind;
-@@ -344,6 +542,10 @@ public final class ManaBrewInteractiveSession {
+@@ -344,6 +562,10 @@ public final class ManaBrewInteractiveSession {
              final List<Card> untappableCards
      ) {
          requireAttached();
@@ -4410,7 +4442,7 @@ index 643e5de..f997bcd 100644
          if (!botSeats.contains(playerId)) {
              recordCheckpoint();
          }
-@@ -362,6 +564,11 @@ public final class ManaBrewInteractiveSession {
+@@ -362,6 +584,11 @@ public final class ManaBrewInteractiveSession {
              if (isRestoreDirective(action)) {
                  return new PriorityChoice(PriorityActionKind.RESTORE, null, null, null);
              }
@@ -4422,7 +4454,7 @@ index 643e5de..f997bcd 100644
              try {
                  return interpretPriorityAction(action, actionsForPrompt, untappableCards);
              } catch (IllegalArgumentException | UnsupportedOperationException | NullPointerException invalid) {
-@@ -823,6 +1030,9 @@ public final class ManaBrewInteractiveSession {
+@@ -823,6 +1050,9 @@ public final class ManaBrewInteractiveSession {
                  }
                  return chosen;
              }
@@ -4432,7 +4464,7 @@ index 643e5de..f997bcd 100644
              throw new UnsupportedOperationException("unsupported action kind: " + actionKind);
          }
          return new ArrayList<>();
-@@ -833,7 +1043,13 @@ public final class ManaBrewInteractiveSession {
+@@ -833,7 +1063,13 @@ public final class ManaBrewInteractiveSession {
          final Random rng = forge.util.MyRandom.getRandom();
          final int sides = 20;
          final Map<Player, Integer> openingRolls = new LinkedHashMap<Player, Integer>();
@@ -4447,7 +4479,7 @@ index 643e5de..f997bcd 100644
          Player winner;
          boolean firstRound = true;
          while (true) {
-@@ -881,6 +1097,12 @@ public final class ManaBrewInteractiveSession {
+@@ -881,6 +1117,12 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4460,7 +4492,7 @@ index 643e5de..f997bcd 100644
      boolean awaitMulliganDecision(final int playerId, final int cardsToReturn) {
          requireAttached();
          final List<Card> cards = new ArrayList<Card>(
-@@ -896,6 +1118,7 @@ public final class ManaBrewInteractiveSession {
+@@ -896,6 +1138,7 @@ public final class ManaBrewInteractiveSession {
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
              if ("mulligan_decision".equals(actionKind)) {
@@ -4468,7 +4500,7 @@ index 643e5de..f997bcd 100644
                  return action.has("keep") && action.get("keep").getAsBoolean();
              }
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
-@@ -1004,15 +1227,40 @@ public final class ManaBrewInteractiveSession {
+@@ -1004,15 +1247,40 @@ public final class ManaBrewInteractiveSession {
          return new ArrayList<>();
      }
  
@@ -4510,7 +4542,7 @@ index 643e5de..f997bcd 100644
          while (!closed && !game.isGameOver()) {
              final JsonObject action = takeActionOrNull();
              if (action == null) {
-@@ -1104,14 +1352,31 @@ public final class ManaBrewInteractiveSession {
+@@ -1104,14 +1372,31 @@ public final class ManaBrewInteractiveSession {
              final String description,
              final boolean optionalDecline,
              final String error
@@ -4545,7 +4577,7 @@ index 643e5de..f997bcd 100644
      }
  
      void awaitRevealCards(
-@@ -1188,6 +1453,18 @@ public final class ManaBrewInteractiveSession {
+@@ -1188,6 +1473,18 @@ public final class ManaBrewInteractiveSession {
          return awaitModeChoice(playerId, unweightedOptions(options, allowRepeat), min, max, sourceName, null, null);
      }
  
@@ -4564,7 +4596,7 @@ index 643e5de..f997bcd 100644
      List<Integer> awaitModeChoice(
              final int playerId,
              final List<SelectionOption> options,
-@@ -1196,6 +1473,19 @@ public final class ManaBrewInteractiveSession {
+@@ -1196,6 +1493,19 @@ public final class ManaBrewInteractiveSession {
              final String sourceName,
              final String description,
              final String sourceCardId
@@ -4584,7 +4616,7 @@ index 643e5de..f997bcd 100644
      ) {
          requireAttached();
          if (options.isEmpty() && min > 0) {
-@@ -1207,7 +1497,7 @@ public final class ManaBrewInteractiveSession {
+@@ -1207,7 +1517,7 @@ public final class ManaBrewInteractiveSession {
          final int clampedMax = anyRepeatable ? max : Math.min(max, totalWeight);
          final String title = sourceName != null ? sourceName : "Choose";
          final PromptPresentation presentation =
@@ -4593,7 +4625,7 @@ index 643e5de..f997bcd 100644
          publishAgentPrompt("player-" + playerId, sourceCardId,
                  new ChooseFromSelectionInput(presentation, options, clampedMin, clampedMax));
          while (!closed && !game.isGameOver()) {
-@@ -1762,24 +2052,29 @@ public final class ManaBrewInteractiveSession {
+@@ -1762,24 +2072,29 @@ public final class ManaBrewInteractiveSession {
              final CardCollectionView valid,
              final int min,
              final int max,
@@ -4625,7 +4657,7 @@ index 643e5de..f997bcd 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (chosen.size() >= cappedMin) {
                      break;
-@@ -1821,7 +2116,8 @@ public final class ManaBrewInteractiveSession {
+@@ -1821,7 +2136,8 @@ public final class ManaBrewInteractiveSession {
              final List<Pair<GameEntity, forge.game.GameObject>> candidates,
              final int min,
              final int max,
@@ -4635,7 +4667,7 @@ index 643e5de..f997bcd 100644
      ) {
          final Card source = sa == null ? null : sa.getHostCard();
          final List<TargetRef> candidateRefs = new java.util.ArrayList<>();
-@@ -1834,7 +2130,11 @@ public final class ManaBrewInteractiveSession {
+@@ -1834,7 +2150,11 @@ public final class ManaBrewInteractiveSession {
                  new ChooseBoardTargetsInput(
                          presentation("Sacrifice", null),
                          candidateRefs, true, enumFromWire("sacrifice", TargetingIntent.class),
@@ -4648,7 +4680,7 @@ index 643e5de..f997bcd 100644
      }
  
      Map<GameEntity, Integer> awaitDividedAllocation(
-@@ -1882,6 +2182,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1882,6 +2202,16 @@ public final class ManaBrewInteractiveSession {
              final int min,
              final int max,
              final boolean allowEmpty
@@ -4665,7 +4697,7 @@ index 643e5de..f997bcd 100644
      ) {
          while (!closed && !game.isGameOver()) {
              final JsonObject action;
-@@ -1892,6 +2202,12 @@ public final class ManaBrewInteractiveSession {
+@@ -1892,6 +2222,12 @@ public final class ManaBrewInteractiveSession {
                  return new CardCollection();
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
@@ -4678,7 +4710,7 @@ index 643e5de..f997bcd 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (allowEmpty) {
                      return new CardCollection();
-@@ -1911,10 +2227,10 @@ public final class ManaBrewInteractiveSession {
+@@ -1911,10 +2247,10 @@ public final class ManaBrewInteractiveSession {
                      }
                  }
              }
@@ -4692,7 +4724,7 @@ index 643e5de..f997bcd 100644
                  throw new IllegalArgumentException("selected card count out of range: " + selected.size());
              }
              return selected;
-@@ -1940,17 +2256,33 @@ public final class ManaBrewInteractiveSession {
+@@ -1940,17 +2276,33 @@ public final class ManaBrewInteractiveSession {
  
      private JsonObject takeAction() throws InterruptedException {
          while (true) {
@@ -4727,7 +4759,7 @@ index 643e5de..f997bcd 100644
              if (isRestoreDirective(action)) {
                  if ("request_restore".equals(kind)) {
                      requestRestore(action.get("player").getAsInt(), action.get("checkpointId").getAsInt());
-@@ -1966,6 +2298,28 @@ public final class ManaBrewInteractiveSession {
+@@ -1966,6 +2318,28 @@ public final class ManaBrewInteractiveSession {
                  announceState();
                  continue;
              }
@@ -4756,7 +4788,7 @@ index 643e5de..f997bcd 100644
              if ("set_snapshot_recording".equals(kind)) {
                  if (action.get("player").getAsInt() == InteractiveBridge.HOST_SEAT) {
                      setSnapshotRecording(action.get("enabled").getAsBoolean());
-@@ -1987,6 +2341,25 @@ public final class ManaBrewInteractiveSession {
+@@ -1987,6 +2361,25 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4782,7 +4814,7 @@ index 643e5de..f997bcd 100644
      private static JsonObject syntheticPass() {
          final JsonObject pass = new JsonObject();
          pass.addProperty("kind", "pass");
-@@ -2010,6 +2383,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2010,6 +2403,8 @@ public final class ManaBrewInteractiveSession {
          if (!restoreApproved()) {
              return false;
          }
@@ -4791,7 +4823,7 @@ index 643e5de..f997bcd 100644
          final RestoreVote vote = restoreVote;
          if (!checkpoints.contains(vote.checkpoint)) {
              vote.status = RestoreVoteStatus.UNAVAILABLE;
-@@ -2037,6 +2412,12 @@ public final class ManaBrewInteractiveSession {
+@@ -2037,6 +2432,12 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4804,7 +4836,7 @@ index 643e5de..f997bcd 100644
      private static boolean isRestoreDirective(final JsonObject action) {
          final String kind = action.has("kind") ? action.get("kind").getAsString() : "";
          return "request_restore".equals(kind) || "restore_vote".equals(kind);
-@@ -2067,28 +2448,241 @@ public final class ManaBrewInteractiveSession {
+@@ -2067,22 +2468,16 @@ public final class ManaBrewInteractiveSession {
          if (handler.getTurn() == checkpointTurn && handler.getPhase() == checkpointPhase) {
              return;
          }
@@ -4816,21 +4848,33 @@ index 643e5de..f997bcd 100644
          checkpointTurn = handler.getTurn();
          checkpointPhase = handler.getPhase();
          final long started = checkpointMetricsEnabled ? System.nanoTime() : 0;
+-        final GameSnapshot snapshot = new GameSnapshot(game);
+-        snapshot.makeCopy();
 +        final SavedState state = saveState();
-+        final long copied = checkpointMetricsEnabled ? System.nanoTime() : 0;
+         final long copied = checkpointMetricsEnabled ? System.nanoTime() : 0;
+-        checkpoints.addLast(new Checkpoint(
+-                nextCheckpointId++, handler.getTurn(), handler.getPhase(), handler.getPlayerTurn(),
+-                handler.getPriorityPlayer(), snapshot));
+-        while (checkpoints.peekFirst().turn < handler.getTurn() - CHECKPOINT_TURNS) {
+-            checkpoints.removeFirst();
+-        }
+-        publishCheckpointViews();
 +        addCheckpoint(state, handler.getPriorityPlayer());
-+        if (checkpointMetricsEnabled) {
-+            final long finished = System.nanoTime();
-+            synchronized (checkpointTimings) {
-+                checkpointTimings.add(new long[] { copied - started, finished - copied });
-+            }
-+        }
-+    }
-+
+         if (checkpointMetricsEnabled) {
+             final long finished = System.nanoTime();
+             synchronized (checkpointTimings) {
+@@ -2091,77 +2486,299 @@ public final class ManaBrewInteractiveSession {
+         }
+     }
+ 
+-    private void publishCheckpointViews() {
+-        final List<Map<String, Object>> views = new ArrayList<>();
+-        for (final Checkpoint checkpoint : checkpoints) {
+-            views.add(InteractiveSnapshotExtractor.checkpointView(
+-                    game, checkpoint.id, checkpoint.turn, checkpoint.phase, checkpoint.activePlayer));
 +    private SavedState saveState() {
-         final GameSnapshot snapshot = new GameSnapshot(game);
-         snapshot.makeCopy();
--        final long copied = checkpointMetricsEnabled ? System.nanoTime() : 0;
++        final GameSnapshot snapshot = new GameSnapshot(game);
++        snapshot.makeCopy();
 +        return new SavedState(snapshot, zoneOrder(), phasedOut(), dungeonProgress(), new ExtraTurnState(game),
 +                playersInGame(), new CardPlaces(game));
 +    }
@@ -4841,10 +4885,15 @@ index 643e5de..f997bcd 100644
 +            if (!player.hasLost()) {
 +                ids.add(player.getId());
 +            }
-+        }
+         }
+-        checkpointViews = List.copyOf(views);
 +        return ids;
-+    }
-+
+     }
+ 
+-    private void requestRestore(final int requester, final int checkpointId) {
+-        final List<Player> players = game.getRegisteredPlayers();
+-        if ((restoreVote != null && restoreVote.status == RestoreVoteStatus.PENDING)
+-                || players.get(requester).hasLost()) {
 +    private void rejoinPlayers(final SavedState saved) {
 +        final PlayerCollection playing = game.getPlayers();
 +        final Set<Player> rejoined = new HashSet<>();
@@ -4862,8 +4911,17 @@ index 643e5de..f997bcd 100644
 +            }
 +        }
 +        if (rejoined.isEmpty()) {
-+            return;
-+        }
+             return;
+         }
+-        for (final Checkpoint checkpoint : checkpoints) {
+-            if (checkpoint.id == checkpointId) {
+-                final Set<Integer> voters = new TreeSet<>();
+-                for (final Player player : players) {
+-                    final int seat = SnapshotExtractor.playerIndex(game, player);
+-                    if (seat != requester && !player.hasLost() && !botSeats.contains(seat)
+-                            && player.getOriginalLobbyPlayer() instanceof ManaBrewInteractiveLobbyPlayer) {
+-                        voters.add(seat);
+-                    }
 +        playing.clear();
 +        playing.addAll(order);
 +        saved.places.putBack(game, rejoined);
@@ -4892,18 +4950,27 @@ index 643e5de..f997bcd 100644
 +                final List<Integer> ids = new ArrayList<>();
 +                for (final Card card : player.getCardsIn(type)) {
 +                    ids.add(card.getId());
-+                }
+                 }
+-                restoreVote = new RestoreVote(++restoreVoteCount, checkpoint, requester, voters);
+-                publishRestoreVote();
+-                return;
 +                zones.put(type, ids);
-+            }
+             }
 +            order.put(player.getId(), zones);
-+        }
+         }
 +        return order;
-+    }
-+
+     }
+ 
+-    private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
+-        if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
+-                || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
 +    private void restoreZoneOrder(final Map<Integer, Map<ZoneType, List<Integer>>> order) {
 +        if (order == null) {
-+            return;
-+        }
+             return;
+         }
+-        if (!accept) {
+-            restoreVote.status = RestoreVoteStatus.DECLINED;
+-            restoreVote.decliner = voter;
 +        for (final Player player : game.getPlayers()) {
 +            final Map<ZoneType, List<Integer>> zones = order.get(player.getId());
 +            if (zones == null) {
@@ -4925,9 +4992,15 @@ index 643e5de..f997bcd 100644
 +                ordered.addAll(byId.values());
 +                zone.setCards(ordered);
 +            }
-+        }
-+    }
-+
+         }
+-        publishRestoreVote();
+     }
+ 
+-    private void publishRestoreVote() {
+-        final Map<String, Object> status = new LinkedHashMap<>();
+-        status.put("type", restoreVote.status.name().toLowerCase(Locale.ROOT));
+-        if (restoreVote.status == RestoreVoteStatus.DECLINED) {
+-            status.put("playerId", "player-" + restoreVote.decliner);
 +    private Map<Integer, Player> phasedOut() {
 +        final Map<Integer, Player> phased = new LinkedHashMap<>();
 +        for (final Player player : game.getPlayers()) {
@@ -4936,7 +5009,10 @@ index 643e5de..f997bcd 100644
 +                    phased.put(card.getId(), card.getPhasedOut());
 +                }
 +            }
-+        }
+         }
+-        final List<String> awaiting = new ArrayList<>();
+-        for (final int seat : restoreVote.awaiting) {
+-            awaiting.add("player-" + seat);
 +        return phased;
 +    }
 +
@@ -4945,7 +5021,16 @@ index 643e5de..f997bcd 100644
 +            for (final Card card : player.getZone(ZoneType.Battlefield).getCards(false)) {
 +                card.setPhasedOut(phased.get(card.getId()));
 +            }
-+        }
+         }
+-        final Map<String, Object> view = new LinkedHashMap<>();
+-        view.put("voteId", restoreVote.id);
+-        final Checkpoint checkpoint = restoreVote.checkpoint;
+-        view.put("checkpoint", InteractiveSnapshotExtractor.checkpointView(
+-                game, checkpoint.id, checkpoint.turn, checkpoint.phase, checkpoint.activePlayer));
+-        view.put("requestedByPlayerId", "player-" + restoreVote.requester);
+-        view.put("awaitingPlayerIds", awaiting);
+-        view.put("status", status);
+-        restoreVoteView = view;
 +    }
 +
 +    private DungeonProgress dungeonProgress() {
@@ -4982,20 +5067,14 @@ index 643e5de..f997bcd 100644
 +
 +    private void addCheckpoint(final SavedState state, final Player priority) {
 +        final PhaseHandler handler = game.getPhaseHandler();
-         checkpoints.addLast(new Checkpoint(
--                nextCheckpointId++, handler.getTurn(), handler.getPhase(), handler.getPlayerTurn(),
--                handler.getPriorityPlayer(), snapshot));
++        checkpoints.addLast(new Checkpoint(
 +                nextCheckpointId++, handler.getTurn(), handler.getPhase(), handler.getPlayerTurn(), priority, state));
-         while (checkpoints.peekFirst().turn < handler.getTurn() - CHECKPOINT_TURNS) {
-             checkpoints.removeFirst();
-         }
++        while (checkpoints.peekFirst().turn < handler.getTurn() - CHECKPOINT_TURNS) {
++            checkpoints.removeFirst();
++        }
 +        thinCheckpoints(checkpoints, checkpointCap(cardsInZones(game)),
 +                restoreVote != null && restoreVote.status == RestoreVoteStatus.PENDING ? restoreVote.checkpoint : null);
-         publishCheckpointViews();
--        if (checkpointMetricsEnabled) {
--            final long finished = System.nanoTime();
--            synchronized (checkpointTimings) {
--                checkpointTimings.add(new long[] { copied - started, finished - copied });
++        publishCheckpointViews();
 +    }
 +
 +    static int checkpointCap(final int cards) {
@@ -5048,24 +5127,78 @@ index 643e5de..f997bcd 100644
 +                first = c;
 +            } else if (c != newest && c != keep) {
 +                return c;
-             }
-         }
++            }
++        }
 +        return first != null && first != newest && first != keep ? first : null;
-     }
- 
-     private void publishCheckpointViews() {
-@@ -2124,6 +2718,10 @@ public final class ManaBrewInteractiveSession {
-     }
- 
-     private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
++    }
++
++    private void publishCheckpointViews() {
++        final List<Map<String, Object>> views = new ArrayList<>();
++        for (final Checkpoint checkpoint : checkpoints) {
++            views.add(InteractiveSnapshotExtractor.checkpointView(
++                    game, checkpoint.id, checkpoint.turn, checkpoint.phase, checkpoint.activePlayer));
++        }
++        checkpointViews = List.copyOf(views);
++    }
++
++    private void requestRestore(final int requester, final int checkpointId) {
++        final List<Player> players = game.getRegisteredPlayers();
++        if ((restoreVote != null && restoreVote.status == RestoreVoteStatus.PENDING)
++                || players.get(requester).hasLost()) {
++            return;
++        }
++        for (final Checkpoint checkpoint : checkpoints) {
++            if (checkpoint.id == checkpointId) {
++                final Set<Integer> voters = new TreeSet<>();
++                for (final Player player : players) {
++                    final int seat = SnapshotExtractor.playerIndex(game, player);
++                    if (seat != requester && !player.hasLost() && !botSeats.contains(seat)
++                            && player.getOriginalLobbyPlayer() instanceof ManaBrewInteractiveLobbyPlayer) {
++                        voters.add(seat);
++                    }
++                }
++                restoreVote = new RestoreVote(++restoreVoteCount, checkpoint, requester, voters);
++                publishRestoreVote();
++                return;
++            }
++        }
++    }
++
++    private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
 +        if (accept && restoreApproved() && restoreVote.id == voteId) {
 +            restoreForced = true;
 +            return;
 +        }
-         if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
-                 || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
-             return;
-@@ -2157,11 +2755,10 @@ public final class ManaBrewInteractiveSession {
++        if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
++                || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
++            return;
++        }
++        if (!accept) {
++            restoreVote.status = RestoreVoteStatus.DECLINED;
++            restoreVote.decliner = voter;
++        }
++        publishRestoreVote();
++    }
++
++    private void publishRestoreVote() {
++        final Map<String, Object> status = new LinkedHashMap<>();
++        status.put("type", restoreVote.status.name().toLowerCase(Locale.ROOT));
++        if (restoreVote.status == RestoreVoteStatus.DECLINED) {
++            status.put("playerId", "player-" + restoreVote.decliner);
++        }
++        final List<String> awaiting = new ArrayList<>();
++        for (final int seat : restoreVote.awaiting) {
++            awaiting.add("player-" + seat);
++        }
++        final Map<String, Object> view = new LinkedHashMap<>();
++        view.put("voteId", restoreVote.id);
++        final Checkpoint checkpoint = restoreVote.checkpoint;
++        view.put("checkpoint", InteractiveSnapshotExtractor.checkpointView(
++                game, checkpoint.id, checkpoint.turn, checkpoint.phase, checkpoint.activePlayer));
++        view.put("requestedByPlayerId", "player-" + restoreVote.requester);
++        view.put("awaitingPlayerIds", awaiting);
++        view.put("status", status);
++        restoreVoteView = view;
      }
  
      private void restore(final Checkpoint target) {
@@ -5081,7 +5214,7 @@ index 643e5de..f997bcd 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2772,435 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2792,435 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -5517,7 +5650,7 @@ index 643e5de..f997bcd 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +3233,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +3253,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -5534,7 +5667,7 @@ index 643e5de..f997bcd 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +3277,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +3297,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -5543,7 +5676,7 @@ index 643e5de..f997bcd 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +3320,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +3340,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -5566,7 +5699,7 @@ index 643e5de..f997bcd 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +3364,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +3384,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -5597,7 +5730,7 @@ index 643e5de..f997bcd 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,24 +3628,176 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,24 +3648,176 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -5649,8 +5782,7 @@ index 643e5de..f997bcd 100644
 +            final int poison = atPlayer ? ComputerUtilCombat.poisonIfUnblocked(attacker, (Player) defender) : 0;
 +            final Integer commander = atPlayer && attacker.isCommander() && commanderDamageCounts() ? damage : null;
 +            out.add(new AttackDamageDto(defenderId(defender), damage, poison, commander));
-         }
--        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets));
++        }
 +        return out;
 +    }
 +
@@ -5701,7 +5833,8 @@ index 643e5de..f997bcd 100644
 +        final List<GameEntity> defenders = new java.util.ArrayList<>(combat.getDefenders());
 +        if (defenders.isEmpty()) {
 +            return out;
-+        }
+         }
+-        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets));
 +        for (final Card creature : combat.getDeclaringPlayers().get(0).getCreaturesInPlay()) {
 +            if (!availableAttackers.contains(creature)) {
 +                out.add(attackRefusal(creature, defenders.get(0), null));
@@ -5780,7 +5913,7 @@ index 643e5de..f997bcd 100644
      }
  
      private void publishBlockersPrompt(
-@@ -2604,7 +3805,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2604,7 +3825,8 @@ public final class ManaBrewInteractiveSession {
              final List<Card> attackers,
              final List<Card> availableBlockers,
              final Map<Card, List<Card>> validBlockersByAttacker,
@@ -5790,7 +5923,7 @@ index 643e5de..f997bcd 100644
      ) {
          final Player defendingPlayer = game.getRegisteredPlayers().get(playerId);
          final List<BlockableAttackerDto> attackerOptions = new java.util.ArrayList<>();
-@@ -2627,7 +3829,17 @@ public final class ManaBrewInteractiveSession {
+@@ -2627,7 +3849,17 @@ public final class ManaBrewInteractiveSession {
              availableBlockerIds.add(SnapshotExtractor.javaCardId(blocker));
          }
          publishAgentPrompt("player-" + playerId, null,
@@ -5809,7 +5942,7 @@ index 643e5de..f997bcd 100644
      }
  
      private void publishDamageAssignmentOrderPrompt(
-@@ -2918,7 +4130,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2918,7 +4150,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -5819,7 +5952,7 @@ index 643e5de..f997bcd 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +4141,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +4161,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -5845,7 +5978,7 @@ index 643e5de..f997bcd 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +4173,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +4193,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -5856,7 +5989,7 @@ index 643e5de..f997bcd 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +4201,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +4221,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -11243,7 +11376,7 @@ index 0000000..4e0fa6e
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java b/forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java
 new file mode 100644
-index 0000000..d5d964b
+index 0000000..5ba4d8c
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java
 @@ -0,0 +1,910 @@
@@ -12058,8 +12191,8 @@ index 0000000..d5d964b
 +        expect(f.game.getStack().getMergedResolutions() == 0, "merged with one person not holding");
 +        hold(f.game.getPlayers().get(1));
 +        resolveOne(f.game);
-+        expect(f.game.getStack().size() == 10 && f.game.getStack().getMergedResolutions() == 18,
-+                "both holding, merged up to where Blue's pass ends: left " + f.game.getStack().size() + ", merged " + f.game.getStack().getMergedResolutions());
++        expect(f.game.getStack().isEmpty() && f.game.getStack().getMergedResolutions() == 28,
++                "both holding a run the engine batches, it goes to the end: left " + f.game.getStack().size() + ", merged " + f.game.getStack().getMergedResolutions());
 +    }
 +
 +    private static void hold(final Player p) throws Exception {
@@ -16516,10 +16649,10 @@ index 0000000..4448196
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/HeapGuardTest.java b/forge-harness/src/test/java/forge/harness/host/HeapGuardTest.java
 new file mode 100644
-index 0000000..b656d57
+index 0000000..4a2442d
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/HeapGuardTest.java
-@@ -0,0 +1,473 @@
+@@ -0,0 +1,740 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -16533,6 +16666,8 @@ index 0000000..b656d57
 +import forge.game.ability.AbilityFactory;
 +import forge.game.ability.AbilityUtils;
 +import forge.game.card.Card;
++import forge.game.card.CardCollectionView;
++import forge.game.card.CardFactory;
 +import forge.game.phase.PhaseType;
 +import forge.game.player.Player;
 +import forge.game.player.RegisteredPlayer;
@@ -16580,6 +16715,17 @@ index 0000000..b656d57
 +        check("anEngineFaultStillEndsTheSessionWithAnError", HeapGuardTest::anEngineFaultStillEndsTheSessionWithAnError);
 +        check("aRunawayExceptionThatEndedNoGameIsAnError", HeapGuardTest::aRunawayExceptionThatEndedNoGameIsAnError);
 +        check("aGameAlreadyWonReadsNoHeap", HeapGuardTest::aGameAlreadyWonReadsNoHeap);
++        check("theSpellsCastThisTurnKeepNoBoard", HeapGuardTest::theSpellsCastThisTurnKeepNoBoard);
++        check("aLongTurnOfSpellsKeepsNoBoardPerSpell", HeapGuardTest::aLongTurnOfSpellsKeepsNoBoardPerSpell);
++        check("aSpellStillReadsTheBoardItWasCastWith", HeapGuardTest::aSpellStillReadsTheBoardItWasCastWith);
++        check("aPermanentStillReadsWhatYouControlledAsYouCastIt", HeapGuardTest::aPermanentStillReadsWhatYouControlledAsYouCastIt);
++        check("aKeywordThatReadsAsCastKeepsTheBoard", HeapGuardTest::aKeywordThatReadsAsCastKeepsTheBoard);
++        check("aPermanentCastWithAPresenceCardInTheGameKeepsTheBoard", HeapGuardTest::aPermanentCastWithAPresenceCardInTheGameKeepsTheBoard);
++        check("cardsWithoutRulesInTheGameDoNotMakeAPermanentKeepTheBoard", HeapGuardTest::cardsWithoutRulesInTheGameDoNotMakeAPermanentKeepTheBoard);
++        check("aPermanentCastWithACopyOfAPresenceCardInTheGameKeepsTheBoard", HeapGuardTest::aPermanentCastWithACopyOfAPresenceCardInTheGameKeepsTheBoard);
++        check("aSpellReadingItsCastAbilitysBoardStillReadsIt", HeapGuardTest::aSpellReadingItsCastAbilitysBoardStillReadsIt);
++        check("theSpellsCastThisTurnStillCount", HeapGuardTest::theSpellsCastThisTurnStillCount);
++        check("costCopiesNothingKeepsAreLetGo", HeapGuardTest::costCopiesNothingKeepsAreLetGo);
 +        System.out.println(failed == 0 ? "PASS HeapGuardTest" : "FAIL HeapGuardTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
 +    }
@@ -16835,6 +16981,260 @@ index 0000000..b656d57
 +        }
 +        expect(game.getLeftBattlefieldThisTurn().size() == 60 && kept.size() <= 60,
 +                "60 cards that left keep " + kept.size() + " card copies (" + game.getLeftBattlefieldThisTurn().size() + " entries)");
++    }
++
++    private static SpellAbility castFromHand(final Game game, final Player p, final String name) {
++        final Card card = add(name, p, ZoneType.Hand);
++        final SpellAbility sa = card.getFirstSpellAbility();
++        sa.setActivatingPlayer(p);
++        sa.setHostCard(game.getAction().moveToStack(card, sa));
++        game.getStack().addAndUnfreeze(sa);
++        return sa;
++    }
++
++    private static int boardCardsHeldByTheSpellsCast(final Game game) {
++        final Set<Card> held = Collections.newSetFromMap(new IdentityHashMap<>());
++        for (final SpellAbility cast : game.getStack().getSpellsCastThisTurn()) {
++            if (cast.getLastStateBattlefield() != null) {
++                held.addAll(cast.getLastStateBattlefield());
++            }
++            if (cast.getLastStateGraveyard() != null) {
++                held.addAll(cast.getLastStateGraveyard());
++            }
++        }
++        return held.size();
++    }
++
++    private static void theSpellsCastThisTurnKeepNoBoard() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        for (int i = 0; i < 10; i++) {
++            add("Grizzly Bears", p, ZoneType.Battlefield);
++        }
++        game.copyLastState();
++        castFromHand(game, p, "Divination");
++        expect(game.getStack().getSpellsCastThisTurn().size() == 1, "spells cast " + game.getStack().getSpellsCastThisTurn().size());
++        final int held = boardCardsHeldByTheSpellsCast(game);
++        expect(held == 0, "the spell cast keeps " + held + " board copies in the turn's list of spells");
++    }
++
++    private static void aLongTurnOfSpellsKeepsNoBoardPerSpell() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        for (int i = 0; i < 20; i++) {
++            add("Grizzly Bears", p, ZoneType.Battlefield);
++        }
++        for (int round = 0; round < 30; round++) {
++            add("Grizzly Bears", p, ZoneType.Battlefield);
++            game.copyLastState();
++            castFromHand(game, p, "Sol Ring");
++            game.getStack().resolveStack();
++            for (final Card ring : new ArrayList<>(p.getCardsIn(ZoneType.Battlefield))) {
++                if (ring.getName().equals("Sol Ring")) {
++                    game.getAction().moveToHand(ring, null);
++                }
++            }
++        }
++        final int held = boardCardsHeldByTheSpellsCast(game);
++        expect(game.getStack().getSpellsCastThisTurn().size() == 30 && held == 0,
++                game.getStack().getSpellsCastThisTurn().size() + " Sol Rings cast and bounced keep " + held + " board copies");
++    }
++
++    private static void aSpellStillReadsTheBoardItWasCastWith() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        final List<Card> mountains = new ArrayList<>();
++        for (int i = 0; i < 3; i++) {
++            mountains.add(add("Mountain", p, ZoneType.Battlefield));
++        }
++        add("Grizzly Bears", p, ZoneType.Graveyard);
++        game.copyLastState();
++        final SpellAbility jaws = castFromHand(game, p, "Jaws of Stone");
++        final SpellAbility upheaval = castFromHand(game, p, "Undercity Upheaval");
++        game.getAction().moveToGraveyard(mountains.get(0), null);
++        game.getAction().moveToGraveyard(mountains.get(1), null);
++        add("Grizzly Bears", p, ZoneType.Graveyard);
++        add("Grizzly Bears", p, ZoneType.Graveyard);
++        game.copyLastState();
++        final int asCast = AbilityUtils.calculateAmount(jaws.getHostCard(), "OrigMountains", jaws);
++        final int graveyardAsCast = AbilityUtils.calculateAmount(upheaval.getHostCard(), "X", upheaval);
++        expect(asCast == 3 && graveyardAsCast == 3, "as cast: " + asCast + " Mountains (3 expected), " + graveyardAsCast + " creature cards in the graveyard (Forge reads the graveyard now: 3)");
++    }
++
++    private static void aKeywordThatReadsAsCastKeepsTheBoard() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        for (int i = 0; i < 4; i++) {
++            add("Mountain", p, ZoneType.Battlefield);
++        }
++        game.copyLastState();
++        final SpellAbility sentinels = castFromHand(game, p, "Scaleguard Sentinels");
++        final SpellAbility cast = sentinels.getHostCard().getCastSA();
++        expect(cast.getLastStateBattlefield() != null && cast.getLastStateBattlefield().size() == 4,
++                "Scaleguard Sentinels, whose enters-with-a-counter keyword reads what you controlled as you cast it, kept " + cast.getLastStateBattlefield());
++    }
++
++    private static void aPermanentCastWithAPresenceCardInTheGameKeepsTheBoard() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        add("Orator of Ojutai", game.getPlayers().get(1), ZoneType.Library);
++        for (int i = 0; i < 4; i++) {
++            add("Mountain", p, ZoneType.Battlefield);
++        }
++        game.copyLastState();
++        final SpellAbility bears = castFromHand(game, p, "Grizzly Bears");
++        final SpellAbility cast = bears.getHostCard().getCastSA();
++        expect(cast.getLastStateBattlefield() != null && cast.getLastStateBattlefield().size() == 4,
++                "a permanent cast with a Presence card in the game kept " + cast.getLastStateBattlefield());
++        final SpellAbility divination = castFromHand(game, p, "Divination");
++        final SpellAbility spell = divination.getHostCard().getCastSA();
++        expect(spell.getLastStateBattlefield() == null || spell.getLastStateBattlefield().isEmpty(),
++                "a spell that reads nothing as cast kept " + spell.getLastStateBattlefield());
++    }
++
++    private static void cardsWithoutRulesInTheGameDoNotMakeAPermanentKeepTheBoard() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        for (int i = 0; i < 4; i++) {
++            add("Mountain", p, ZoneType.Battlefield);
++        }
++        castFromHand(game, p, "Raise the Alarm");
++        game.getStack().resolveStack();
++        final long tokens = p.getCardsIn(ZoneType.Battlefield).stream().filter(Card::isToken).count();
++        expect(tokens == 2, "Raise the Alarm made " + tokens + " tokens");
++        castFromHand(game, p, "Fog");
++        game.getStack().resolveStack();
++        final long effects = game.getCardsInGame().stream().filter(c -> c.getRules() == null).count();
++        expect(effects >= 1, "Fog left no card without rules in the game");
++        game.copyLastState();
++        final SpellAbility bears = castFromHand(game, p, "Grizzly Bears");
++        final SpellAbility cast = bears.getHostCard().getCastSA();
++        expect(cast.getLastStateBattlefield() == null || cast.getLastStateBattlefield().isEmpty(),
++                "a permanent cast with tokens and an effect in the game kept " + cast.getLastStateBattlefield());
++    }
++
++    private static void aPermanentCastWithACopyOfAPresenceCardInTheGameKeepsTheBoard() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        final Player q = game.getPlayers().get(1);
++        for (int i = 0; i < 4; i++) {
++            add("Mountain", p, ZoneType.Battlefield);
++        }
++        final Card orator = add("Orator of Ojutai", q, ZoneType.Library);
++        q.getZone(ZoneType.Library).remove(orator);
++        final Card clone = add("Clone", q, ZoneType.Battlefield);
++        clone.addCloneState(CardFactory.getCloneStates(orator, clone, clone.getFirstSpellAbility()), game.getNextTimestamp());
++        expect(!game.getCardsInGame().contains(orator), "Orator of Ojutai is still in the game");
++        expect(clone.getName().equals("Orator of Ojutai") && clone.getRules().getName().equals("Clone"),
++                "the Clone reads as " + clone.getName() + " with the rules of " + clone.getRules().getName());
++        game.copyLastState();
++        final SpellAbility bears = castFromHand(game, p, "Grizzly Bears");
++        final SpellAbility cast = bears.getHostCard().getCastSA();
++        expect(cast.getLastStateBattlefield() != null && cast.getLastStateBattlefield().size() == 5,
++                "a permanent cast with only a Clone copying Orator of Ojutai in the game kept " + cast.getLastStateBattlefield());
++    }
++
++    private static void aSpellReadingItsCastAbilitysBoardStillReadsIt() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        final List<Card> mountains = new ArrayList<>();
++        for (int i = 0; i < 4; i++) {
++            mountains.add(add("Mountain", p, ZoneType.Battlefield));
++        }
++        game.copyLastState();
++        final Card divination = add("Divination", p, ZoneType.Hand);
++        final SpellAbility sa = divination.getFirstSpellAbility();
++        sa.setActivatingPlayer(p);
++        sa.setHostCard(game.getAction().moveToStack(divination, sa));
++        sa.getHostCard().setSVar("AsCast", "CastSA>Count$LastStateBattlefield Mountain.YouCtrl");
++        game.getStack().addAndUnfreeze(sa);
++        expect(sa.getHostCard().getCastSA() != null && sa.getHostCard().getCastSA().getLastStateBattlefield() != null,
++                "the cast ability of a spell whose script reads CastSA>Count$LastStateBattlefield kept no board");
++        game.getAction().moveToGraveyard(mountains.get(0), null);
++        game.getAction().moveToGraveyard(mountains.get(1), null);
++        game.copyLastState();
++        final int asCast = AbilityUtils.calculateAmount(sa.getHostCard(), "AsCast", sa);
++        expect(asCast == 4, "CastSA>Count$LastStateBattlefield read " + asCast + " Mountains as cast (4 expected)");
++    }
++
++    private static void aPermanentStillReadsWhatYouControlledAsYouCastIt() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        final Card dragon = add("Shivan Dragon", p, ZoneType.Battlefield);
++        game.copyLastState();
++        final SpellAbility orator = castFromHand(game, p, "Orator of Ojutai");
++        game.getAction().moveToGraveyard(dragon, null);
++        game.copyLastState();
++        game.getStack().resolveStack();
++        final Card onBattlefield = game.getCardState(orator.getHostCard());
++        expect(onBattlefield.isInZone(ZoneType.Battlefield), "Orator of Ojutai is not on the battlefield");
++        final int presence = AbilityUtils.calculateAmount(onBattlefield, "Count$Presence_Dragon.1.0", onBattlefield.getFirstSpellAbility());
++        expect(presence == 1, "a Dragon controlled as it was cast reads " + presence);
++        final Game other = aiGame();
++        final Player q = other.getPlayers().get(0);
++        other.copyLastState();
++        final SpellAbility without = castFromHand(other, q, "Orator of Ojutai");
++        other.getStack().resolveStack();
++        final Card alone = other.getCardState(without.getHostCard());
++        final int none = AbilityUtils.calculateAmount(alone, "Count$Presence_Dragon.1.0", alone.getFirstSpellAbility());
++        expect(none == 0, "no Dragon as it was cast reads " + none);
++    }
++
++    private static void theSpellsCastThisTurnStillCount() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        final Player q = game.getPlayers().get(1);
++        castFromHand(game, p, "Divination");
++        castFromHand(game, p, "Sol Ring");
++        castFromHand(game, q, "Divination");
++        final List<SpellAbility> cast = game.getStack().getSpellsCastThisTurn();
++        expect(cast.size() == 3 && p.getSpellsCastThisTurn() == 2 && q.getSpellsCastThisTurn() == 1,
++                "storm " + cast.size() + ", first player " + p.getSpellsCastThisTurn() + ", second " + q.getSpellsCastThisTurn());
++        final List<String> names = new ArrayList<>();
++        for (final Card c : game.getStack().getSpellCardsCastThisTurn()) {
++            names.add(c.getName());
++        }
++        expect(names.equals(List.of("Divination", "Sol Ring", "Divination")), "cast " + names);
++        for (final SpellAbility sa : cast) {
++            expect(sa.getActivatingPlayer() != null && sa.getHostCard() != null, "a cast spell lost its player or card");
++        }
++    }
++
++    private static int heldZoneCopies(final Game game) throws ReflectiveOperationException {
++        final java.lang.reflect.Field f = Game.class.getDeclaredField("lastStateZones");
++        f.setAccessible(true);
++        return ((List<?>) f.get(game)).size();
++    }
++
++    private static void costCopiesNothingKeepsAreLetGo() throws Exception {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        for (int i = 0; i < 5; i++) {
++            add("Grizzly Bears", p, ZoneType.Battlefield);
++        }
++        game.copyLastState();
++        for (int round = 0; round < 10; round++) {
++            for (int i = 0; i < 500; i++) {
++                game.copyLastState(ZoneType.Battlefield);
++            }
++            System.gc();
++            Thread.sleep(50);
++            System.gc();
++        }
++        game.copyLastState(ZoneType.Battlefield);
++        final int held = heldZoneCopies(game);
++        expect(held < 3000, "5,001 cost copies nothing keeps leave " + held + " references");
++        final CardCollectionView kept = game.copyLastState(ZoneType.Battlefield);
++        for (int i = 0; i < 300; i++) {
++            game.copyLastState(ZoneType.Battlefield);
++        }
++        System.gc();
++        for (int i = 0; i < 300; i++) {
++            game.copyLastState(ZoneType.Battlefield);
++        }
++        expect(kept.size() == 5 && kept.get(0).getZone().getCards().size() == 5, "a kept cost copy lost its board: " + kept.size());
++        game.copyLastState();
++        expect(kept.get(0).getZone().getCards().isEmpty(), "a kept cost copy was not released at the next last state");
 +    }
 +
 +    private static void aHeapDrawEndsTheSessionAsADraw() throws Exception {
@@ -29556,10 +29956,10 @@ index 0000000..0d3cd37
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/TriggerBatchTest.java b/forge-harness/src/test/java/forge/harness/host/TriggerBatchTest.java
 new file mode 100644
-index 0000000..41142d3
+index 0000000..b604b48
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/TriggerBatchTest.java
-@@ -0,0 +1,687 @@
+@@ -0,0 +1,818 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonArray;
@@ -29637,6 +30037,13 @@ index 0000000..41142d3
 +        check("anAbilityWithAnotherParameterIsNotBatched", () -> refused(TriggerBatchTest::hydrasWithAnotherParameter, true, false));
 +        check("aShrinkingPumpIsNotBatched", () -> refused(TriggerBatchTest::monksThatShrink, true, false));
 +        check("aTokenWithATriggerIsNotBatched", () -> refused(TriggerBatchTest::witches, true, false));
++        check("divineVisitationStopsTokenBatching", () -> refused(TriggerBatchTest::iconoclastsWithDivineVisitation, false, true));
++        check("mondrakGloryDominusStopsTokenBatching", () -> refused(TriggerBatchTest::iconoclastsWithMondrak, false, true));
++        check("parallelLivesStopsTokenBatching", () -> refused(TriggerBatchTest::iconoclastsWithParallelLives, false, true));
++        check("vorinclexStopsCounterBatching", () -> refused(TriggerBatchTest::hydrasWithVorinclex, false, true));
++        check("anEntersTappedForOthersStopsTokenBatching", () -> refused(TriggerBatchTest::iconoclastsWithBlindObedience, false, true));
++        check("restInPeaceDoesNotStopTokenBatching", () -> same(TriggerBatchTest::iconoclastsWithRestInPeace, true));
++        check("aLandsOwnEntersTappedDoesNotStopTokenBatching", () -> same(TriggerBatchTest::iconoclastsWithTaplands, true));
 +        check("aWholeRunResolvesInOneStep", TriggerBatchTest::aWholeRunResolvesInOneStep);
 +        check("theLogSaysHowManyResolvedAtOnce", TriggerBatchTest::theLogSaysHowManyResolvedAtOnce);
 +        check("theGateIsAskedAfterEveryItem", TriggerBatchTest::theGateIsAskedAfterEveryItem);
@@ -29644,7 +30051,13 @@ index 0000000..41142d3
 +        check("theSpellUnderTheRunIsNotBatched", TriggerBatchTest::theSpellUnderTheRunIsNotBatched);
 +        check("aBatchStillCountsTowardTheCardCap", TriggerBatchTest::aBatchStillCountsTowardTheCardCap);
 +        check("aBatchStillCountsTriggersThatFire", TriggerBatchTest::aBatchStillCountsTriggersThatFire);
-+        check("twoPeopleHoldingBatchTwentyAtATime", TriggerBatchTest::twoPeopleHoldingBatchTwentyAtATime);
++        check("twoPeopleHoldingABatchableRunResolveItInOneStep", TriggerBatchTest::twoPeopleHoldingABatchableRunResolveItInOneStep);
++        check("aWatchedRunKeepsTheTwentyCut", TriggerBatchTest::aWatchedRunKeepsTheTwentyCut);
++        check("aRunThatCannotBatchKeepsTheTwentyCut", TriggerBatchTest::aRunThatCannotBatchKeepsTheTwentyCut);
++        check("aWatchlessRunTheEngineWouldNotBatchKeepsTheTwentyCut", TriggerBatchTest::aWatchlessRunTheEngineWouldNotBatchKeepsTheTwentyCut);
++        check("aRunOnePersonHoldsKeepsTheTwentyCut", TriggerBatchTest::aRunOnePersonHoldsKeepsTheTwentyCut);
++        check("anAiSeatKeepsTheTwentyCut", TriggerBatchTest::anAiSeatKeepsTheTwentyCut);
++        check("aThrowInABatchLeavesNothingResolving", TriggerBatchTest::aThrowInABatchLeavesNothingResolving);
 +        check("aMinuteIntoAHeldRunTheRestResolvesAtOnce", TriggerBatchTest::aMinuteIntoAHeldRunTheRestResolvesAtOnce);
 +        check("anAiSeatStopsBatching", TriggerBatchTest::anAiSeatStopsBatching);
 +        check("aResponseTheManaPaysForEndsTheBatch", TriggerBatchTest::aResponseTheManaPaysForEndsTheBatch);
@@ -29883,6 +30296,43 @@ index 0000000..41142d3
 +        cast(game, blue, "Sol Ring");
 +    }
 +
++    private static void iconoclastsWithDivineVisitation(final Game game, final Player blue, final Player yellow) {
++        add("Divine Visitation", blue, ZoneType.Battlefield);
++        iconoclasts(game, blue, yellow);
++    }
++
++    private static void iconoclastsWithMondrak(final Game game, final Player blue, final Player yellow) {
++        add("Mondrak, Glory Dominus", blue, ZoneType.Battlefield);
++        iconoclasts(game, blue, yellow);
++    }
++
++    private static void iconoclastsWithParallelLives(final Game game, final Player blue, final Player yellow) {
++        add("Parallel Lives", blue, ZoneType.Battlefield);
++        iconoclasts(game, blue, yellow);
++    }
++
++    private static void hydrasWithVorinclex(final Game game, final Player blue, final Player yellow) {
++        add("Vorinclex, Monstrous Raider", blue, ZoneType.Battlefield);
++        hydras(game, blue, yellow);
++    }
++
++    private static void iconoclastsWithBlindObedience(final Game game, final Player blue, final Player yellow) {
++        add("Blind Obedience", yellow, ZoneType.Battlefield);
++        iconoclasts(game, blue, yellow);
++    }
++
++    private static void iconoclastsWithRestInPeace(final Game game, final Player blue, final Player yellow) {
++        add("Rest in Peace", blue, ZoneType.Battlefield);
++        iconoclasts(game, blue, yellow);
++    }
++
++    private static void iconoclastsWithTaplands(final Game game, final Player blue, final Player yellow) {
++        add("Abandoned Outpost", blue, ZoneType.Battlefield);
++        add("Abandoned Outpost", blue, ZoneType.Library);
++        add("Abandoned Outpost", yellow, ZoneType.Hand);
++        iconoclasts(game, blue, yellow);
++    }
++
 +    private static void iconoclastsWithAWarden(final Game game, final Player blue, final Player yellow) {
 +        add("Soul Warden", yellow, ZoneType.Battlefield);
 +        iconoclasts(game, blue, yellow);
@@ -30049,15 +30499,96 @@ index 0000000..41142d3
 +                "triggers counted: batched " + fired + ", one by one " + intField(one.game, "triggersFiredThisTurn"));
 +    }
 +
-+    private static void twoPeopleHoldingBatchTwentyAtATime() throws Exception {
++    private static void twoPeopleHoldingABatchableRunResolveItInOneStep() throws Exception {
 +        final Seated f = new Seated(true);
 +        final Player blue = f.game.getPlayers().get(0);
 +        tokens("w_1_1_monk_prowess", blue, 30);
 +        cast(f.game, blue, "Sol Ring");
 +        holdBoth(f, 0);
++        final ManaBrewInteractiveController c = (ManaBrewInteractiveController) blue.getController();
++        expect(c.heldResolutionsLeft() == 30, "the hold covers " + c.heldResolutionsLeft() + " of 30");
 +        resolveOne(f.game);
-+        expect(f.game.getStack().size() == 11 && f.game.getStack().getMergedResolutions() == 19,
++        expect(f.game.getStack().size() == 1 && f.game.getStack().getMergedResolutions() == 29,
 +                "left " + f.game.getStack().size() + ", merged " + f.game.getStack().getMergedResolutions());
++    }
++
++    private static void aWatchedRunKeepsTheTwentyCut() throws Exception {
++        final Seated f = new Seated(true);
++        final Player blue = f.game.getPlayers().get(0);
++        add("Anointed Procession", blue, ZoneType.Battlefield);
++        for (int i = 0; i < 30; i++) {
++            add("Third Path Iconoclast", blue, ZoneType.Battlefield);
++        }
++        cast(f.game, blue, "Sol Ring");
++        holdBoth(f, 0);
++        expectCut(f, blue);
++    }
++
++    private static void aRunThatCannotBatchKeepsTheTwentyCut() throws Exception {
++        final Seated f = new Seated(true);
++        final Player blue = f.game.getPlayers().get(0);
++        for (int i = 0; i < 30; i++) {
++            add("Guttersnipe", blue, ZoneType.Battlefield);
++        }
++        cast(f.game, blue, "Fog");
++        holdBoth(f, 0);
++        expectCut(f, blue);
++    }
++
++    private static void aWatchlessRunTheEngineWouldNotBatchKeepsTheTwentyCut() throws Exception {
++        final Seated f = new Seated(true);
++        final Player blue = f.game.getPlayers().get(0);
++        for (int i = 0; i < 30; i++) {
++            add("Sedgemoor Witch", blue, ZoneType.Battlefield);
++        }
++        cast(f.game, blue, "Fog");
++        final SpellAbility top = f.game.getStack().peekAbility();
++        expect(!StackMerge.eligible(top) && !StackMerge.watched(f.game, top.getApi()), "the Witch run is eligible or watched");
++        holdBoth(f, 0);
++        expectCut(f, blue);
++    }
++
++    private static void aRunOnePersonHoldsKeepsTheTwentyCut() throws Exception {
++        final Seated f = new Seated(true);
++        final Player blue = f.game.getPlayers().get(0);
++        tokens("w_1_1_monk_prowess", blue, 30);
++        cast(f.game, blue, "Sol Ring");
++        final ManaBrewInteractiveController c = (ManaBrewInteractiveController) blue.getController();
++        c.heldClock = () -> 0L;
++        holdThrough(c);
++        expect(c.heldResolutionsLeft() == 20, "one holder: " + c.heldResolutionsLeft() + " left");
++    }
++
++    private static void anAiSeatKeepsTheTwentyCut() throws Exception {
++        final Seated f = new Seated(false);
++        final Player blue = f.game.getPlayers().get(0);
++        tokens("w_1_1_monk_prowess", blue, 30);
++        cast(f.game, blue, "Sol Ring");
++        final ManaBrewInteractiveController c = (ManaBrewInteractiveController) blue.getController();
++        c.heldClock = () -> 0L;
++        holdThrough(c);
++        expect(c.heldResolutionsLeft() == 20, "with an AI seat: " + c.heldResolutionsLeft() + " left");
++    }
++
++    private static void expectCut(final Seated f, final Player blue) {
++        final ManaBrewInteractiveController c = (ManaBrewInteractiveController) blue.getController();
++        expect(f.game.getStack().size() == 31, "31 items expected, got " + f.game.getStack().size());
++        expect(c.heldResolutionsLeft() == 20, "held " + c.heldResolutionsLeft());
++    }
++
++    private static void aThrowInABatchLeavesNothingResolving() {
++        final Game game = aiGame();
++        iconoclastsCapped(game, game.getPlayers().get(0), game.getPlayers().get(1));
++        game.getStack().setMergeGate(g -> 100_000);
++        boolean threw = false;
++        try {
++            resolveOne(game);
++        } catch (final Game.RunawayGameException ended) {
++            threw = true;
++        }
++        expect(threw && game.isGameOver() && game.getStack().getMergedResolutions() > 0,
++                "threw " + threw + ", over " + game.isGameOver() + ", merged " + game.getStack().getMergedResolutions());
++        expect(!game.getStack().isResolving(), "the stack still says it is resolving after the batch threw");
 +    }
 +
 +    private static void aMinuteIntoAHeldRunTheRestResolvesAtOnce() throws Exception {
