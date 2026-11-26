@@ -6644,7 +6644,7 @@ index 8ab7dbe3..43ca371f 100644
  
      @Override
 diff --git a/forge-game/src/main/java/forge/game/zone/MagicStack.java b/forge-game/src/main/java/forge/game/zone/MagicStack.java
-index 35ea040c..5c97de2a 100644
+index 35ea040c..c390bbe5 100644
 --- a/forge-game/src/main/java/forge/game/zone/MagicStack.java
 +++ b/forge-game/src/main/java/forge/game/zone/MagicStack.java
 @@ -20,6 +20,9 @@ package forge.game.zone;
@@ -6690,7 +6690,7 @@ index 35ea040c..5c97de2a 100644
  
                  source.setCastSA(cause);
              }
-@@ -152,6 +161,80 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -152,6 +161,78 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          } // else is for mana abilities
      }
  
@@ -6701,17 +6701,14 @@ index 35ea040c..5c97de2a 100644
 +        if (!source.isPermanent()) {
 +            return false;
 +        }
-+        for (final Card c : game.getCardsInGame()) {
-+            if (readsAsCast(c)) {
-+                return true;
-+            }
-+        }
-+        return false;
++        final boolean[] found = {false};
++        game.forEachCardInGame(c -> !(found[0] = readsAsCast(c)));
++        return found[0];
 +    }
 +
 +    private static boolean readsAsCast(final Card card) {
-+        if (card.getRules() != null) {
-+            return readsStateAsCast(card.getRules());
++        if (card.getRules() != null && readsStateAsCast(card.getRules())) {
++            return true;
 +        }
 +        for (final CardStateName name : card.getStates()) {
 +            final CardState state = card.getState(name);
@@ -6765,13 +6762,14 @@ index 35ea040c..5c97de2a 100644
 +    }
 +
 +    private static boolean readsStateAsCast(final String text) {
-+        return text != null && (text.contains("WithFallback") || text.contains("Presence_"));
++        return text != null && (text.contains("WithFallback") || text.contains("Presence_")
++                || (text.contains("CastSA>") && text.contains("LastState")));
 +    }
 +
      public final void unfreezeStack() {
          frozen = false;
          primaryAbility = null;
-@@ -259,13 +342,8 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -259,13 +340,8 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          Player activator = sp.getActivatingPlayer();
  
          // Stop infinite loop. E.g. Scalelord Reckoner mirrormatch with only triggering targets is a draw.
@@ -6787,7 +6785,7 @@ index 35ea040c..5c97de2a 100644
  
          recordUndoableActions(sp, activator);
  
-@@ -565,6 +643,7 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -565,6 +641,7 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
      }
  
      public final void resolveStack() {
@@ -6795,7 +6793,7 @@ index 35ea040c..5c97de2a 100644
          // freeze the stack while we're in the middle of resolving
          freezeStack(null);
          setResolving(true);
-@@ -637,6 +716,10 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -637,6 +714,10 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
  
          finishResolving(sa, thisHasFizzled);
  
@@ -6806,7 +6804,7 @@ index 35ea040c..5c97de2a 100644
          game.copyLastState();
          if (isEmpty() && !hasSimultaneousStackEntries()) {
              // assuming that if the stack is empty, no reason to hold on to old LKI data (everything is a new object)
-@@ -644,6 +727,56 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -644,6 +725,56 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          }
      }
  
@@ -6863,7 +6861,7 @@ index 35ea040c..5c97de2a 100644
      private void finishResolving(final SpellAbility sa, final boolean fizzle) {
          // SpellAbility is removed from the stack here
          // temporarily removed removing SA after resolution
-@@ -838,6 +971,16 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -838,6 +969,16 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          List<Player> players = game.getPlayersInTurnOrder(playerTurn);
  
          boolean result = false;
@@ -6880,7 +6878,7 @@ index 35ea040c..5c97de2a 100644
          // CR 603.3b
          for (Player p : players) {
              result |= chooseOrderOfSimultaneousStackEntry(p, false);
-@@ -849,6 +992,63 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -849,6 +990,63 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          return result;
      }
  
@@ -6944,7 +6942,7 @@ index 35ea040c..5c97de2a 100644
      private boolean chooseOrderOfSimultaneousStackEntry(final Player activePlayer, boolean isAbilityTriggered) {
          if (!activePlayer.isInGame()) {
              return false;
-@@ -931,6 +1131,12 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -931,6 +1129,12 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
      public final List<Card> getSpellsCastLastTurn() {
          return lastTurnCast;
      }
@@ -6957,7 +6955,7 @@ index 35ea040c..5c97de2a 100644
  
      public final void onNextTurn() {
          final Player active = game.getPhaseHandler().getPlayerTurn();
-@@ -959,6 +1165,22 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -959,6 +1163,22 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          return thisTurnActivated;
      }
  

@@ -188,6 +188,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-26 (tree `tmp/eb-1134b`, build id `eb-b0494608ff19`) | `engine1134b` (node `b28a69581f33` / relay `9eb23cee5e46`; harness test `bea0066eb45d`) | engine1134 after its jr-programmer-suite review: the cast-board reader gate also reads every card's current states (a copy of a reader whose original left the game) and the `CastSA>` route to the board; the game scan visits cards instead of listing them; `heldRunBatches` reuses `asksHuman`. Section 4 entry. | no | outer branch `engine1134`; both patches regenerated | not deployed; deploy `--image engine1134b` with `MTG_MANABREW=tmp/eb-1134b` | engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`) |
 | 2026-11-26 (tree `tmp/eb-1134`, build id `eb-9da4ad19cd07`) | `engine1134` (node `cb20db51db12` / relay `b666051b13d6`; harness test `09578c9d5af8`) | On top of engine1133-heapdraw. A cast spell keeps the board as cast only when a script in the game can read it (the castSA board growth of the Kykar loop); a held run Forge can batch has no 20-cut and resolves in one step when every player is a person holding it; review nits (the resolving flag on a throw, Moved replacements that cannot touch a token entering no longer stop token batching, cleared cost-copy references pruned). Section 4 entry. | no | outer branch `engine1134`; both patches regenerated | not deployed; deploy `--image engine1134` with `MTG_MANABREW=tmp/eb-1134` | engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`) |
 | 2026-11-26 (tree `tmp/eb-heapdraw`, build id `eb-91ece5ec6e5e`) | `engine1133-heapdraw` (node `3efcf079a507` / relay `59e0bd228a4e`; harness test `6a2243c0852e`) | On top of engine1132-heap. A runaway draw thrown from inside the game loop (the heap guard at a resolution or a trigger, and any limit drawn there) now ends the session as a normal game over, a draw with its `drawReason`, instead of an engine error the node reported as `fatal`. `checkHeap` also skips a game already over, and the heap share it draws on is the one it read. Section 4 entry. | no | outer branch `engine1132-heap`; both patches regenerated | deployed 2026-11-26 (table `d1d68fff`, save `75d78b1b`; live Kykar stress ended as a clean game over); deploy `--image engine1133-heapdraw` with `MTG_MANABREW=tmp/eb-heapdraw` | engine1132-heap (`--image engine1132-heap`, `MTG_MANABREW=tmp/eb-heap`) |
 | 2026-11-26 (tree `tmp/eb-heap`, build id `eb-e4bd2113f096`) | `engine1132-heap` (node `1c1e208bf129` / relay `7f852af6e36a`; harness test `5b5821c4d701`) | On top of engine1131-batch. (1) The heap guard reads the heap between the limits too: at every trigger fired, ability resolved and replacement run, at most once every 50 ms (`HEAP_READ_MILLIS`), so a long turn is drawn (`drawReason` "heap") before an OutOfMemoryError; before, the heap was read only when a limit asked, and a Kykar + Mentor stress turn died of OOM 40 minutes after its one question. (2) A card that left the battlefield or graveyard no longer keeps a whole board of last-state copies alive for the rest of the turn (`Game.copyLastState` releases the zone copies it replaces). Section 4 entry. | no | outer branch `engine1132-heap`; both patches regenerated | deployed 2026-11-26 (table `d1d68fff`, save `75d78b1b`); deploy `--image engine1132-heap` with `MTG_MANABREW=tmp/eb-heap` | engine1131-batch (`--image engine1131-batch`, `MTG_MANABREW=tmp/eb-batch`) |
@@ -317,17 +318,46 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
 
-### 2026-11-26 engine1134: cast spells keep no board, batchable held runs go to the end (not deployed)
+### 2026-11-26 engine1134 / engine1134b: cast spells keep no board, batchable held runs go to the end (not deployed)
+- **engine1134b (jr-programmer-suite review of engine1134, same day):** the reader gate missed two cases and is fixed
+  (Cast board below): a card that has rules was not read from its states (a copy of a reader whose original had left
+  the game), and the `CastSA>` route to a cast ability's board was not a reader. The game scan now visits the cards
+  (`Game.forEachCardInGame`, stopping at the first reader) instead of building `getCardsInGame()` per permanent cast.
+  `heldRunBatches` uses the session's own `asksHuman` instead of a second copy of it. StackMerge's Moved-replacement
+  exemption was checked against every script: no static grants a `Card.Self` Moved replacement to other cards entering
+  (the only granted ones are a commander's own and Pulmonic Sliver's graveyard one), and every Moved `Destination` /
+  `ExcludeDestination` value is a zone name, so nothing that can touch a token entering is let through.
+  Two new `HeapGuardTest` checks (29 in all), both failing by name on engine1134:
+  `aPermanentCastWithACopyOfAPresenceCardInTheGameKeepsTheBoard` (a Clone copying Orator of Ojutai, the Orator out of
+  the game: engine1134 kept `null`) and `aSpellReadingItsCastAbilitysBoardStillReadsIt` (a `CastSA>Count$LastStateBattlefield`
+  SVar reads the 4 Mountains as cast after two left). Break-its on `mtg-harness-test:engine1134` with the Forge
+  overlay, originals checked by sha256 after, an unchanged control passes 29/29: 6 mutations, 6 fail named checks
+  (engine1134's gate; no `CastSA>` clause; rules-only when a card has rules; the scan stopping at the first non-reader;
+  `heldRunBatches` without `asksHuman` fails `anAiSeatKeepsTheTwentyCut`; without `holdsTopRun` fails
+  `aRunOnePersonHoldsKeepsTheTwentyCut`).
+  **Build:** patches regenerated (`ENGINE_WORK_DIR=tmp/eb-1134-work ENGINE_BUILD_DIR=tmp/eb-1134b-clean bash
+  engine/make-patches.sh`, a clean worktree of `tmp/eb-1134`, forge.patch 492 files), then `ENGINE_BUILD_DIR=tmp/eb-1134b
+  bash engine/build-images.sh engine1134b` (log `tmp/build-1134b.log`, build id `eb-b0494608ff19`): node
+  `b28a69581f33`, relay `9eb23cee5e46`, harness test `bea0066eb45d`. **Proof:** full `harness-tests.sh` in
+  `mtg-harness-test:engine1134b` on `tmp/eb-1134b/forge-harness`: all 60 classes passed, 1,318 `ok` lines
+  (`tmp/harness-1134b.log`); `tools/live-check.sh engine1134b tests/live_phasing_check.js` 29 of 29. The bridge is
+  unchanged from engine1134. Deploy `--image engine1134b` with `MTG_MANABREW=tmp/eb-1134b`; rollback as below.
 - **Why:** engine1133's Kykar stress still grew per cast spell: every spell's cast ability (`MagicStack.addAndUnfreeze`,
   `cause`) kept the whole battlefield and graveyard as cast, and the stale card objects of the turn (through
   `thisTurnActivated` and token `triggeringObjects`) kept those boards alive, so a long turn on a big board grew about
   quadratically. The owner also approved dropping the 20-cut for held runs the engine can batch.
-- **Cast board (Forge `MagicStack`):** grep shows three readers of a cast ability's board, all in `AbilityUtils`:
+- **Cast board (Forge `MagicStack`):** four readers of a cast ability's board, all in `AbilityUtils`:
   `Count$LastStateBattlefieldWithFallback`, `Count$LastStateGraveyardWithFallback` (through the stack ability this one
-  always falls back to the current graveyard, a Forge quirk kept as is) and `Count$Presence_`. 17 cards use them. The
+  always falls back to the current graveyard, a Forge quirk kept as is), `Count$Presence_`, and the `CastSA>` prefix in
+  front of `Count$LastStateBattlefield` / `Count$LastStateGraveyard` (`adjustTriggerContext`; no card uses it today,
+  found in the engine1134b review). 17 cards use the first three. The
   cast ability now keeps the board only when the card's own script contains one of them, or, for a permanent spell,
-  when any card in the game does (a clone entering as Orator of Ojutai). A card with no rules (a token, an effect)
-  is read from its states (SVars, keywords, ability parameters). What the readers return is unchanged. A first try
+  when any card in the game does (a clone entering as Orator of Ojutai). Every card is read from its rules (all faces)
+  and from its current states (SVars, keywords, ability parameters), so a token, an effect, a copy and a mutated
+  permanent count by what they are now (engine1134b: engine1134 read only the rules of a card that has rules, so a
+  Clone copying an Orator of Ojutai that had left the game did not count). Not covered: a reader that enters the game
+  after the spell is cast from outside it (a wish, a conjured card) and is then copied by that spell as it resolves.
+  What the readers return is unchanged. A first try
   that only stored board-free copies in `thisTurnCast` changed nothing (the stale cards held the cast abilities) and
   was dropped.
 - **Batchable held runs (harness `ManaBrewInteractiveSession.heldRunBatches`, `ManaBrewInteractiveController.heldUnlimited`):**

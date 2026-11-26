@@ -269,9 +269,10 @@ A 40-minute Kykar + Mentor turn on engine1131-batch died of an OutOfMemoryError 
   AI seat). The bridge keeps `HELD_RESOLUTIONS = 20` and only words its chat lines for it.
 - **A cast spell keeps the board only when something can read it** (Forge `MagicStack.addAndUnfreeze`): the cast
   ability keeps the battlefield and graveyard as cast only when the card's script reads them
-  (`Count$LastStateBattlefieldWithFallback`, `Count$LastStateGraveyardWithFallback`, `Count$Presence_`, the only
-  readers of a cast ability's board), or, for a permanent spell, when any card in the game has such a script (a clone
-  entering as a copy of Orator of Ojutai). The Kykar loop's Sol Ring and every other spell keep no board.
+  (`Count$LastStateBattlefieldWithFallback`, `Count$LastStateGraveyardWithFallback`, `Count$Presence_`, or a
+  `CastSA>` prefix on `Count$LastState...`, the only readers of a cast ability's board), or, for a permanent spell, when
+  any card in the game has such a script or is now a copy of one (a clone entering as a copy of Orator of Ojutai;
+  engine1134b also counts a copy whose original left the game). The Kykar loop's Sol Ring and every other spell keep no board.
 - **Review nits:** a batch clears the resolving flag even when an item throws (a draw mid-batch); token batching is no
   longer stopped by a Moved replacement that cannot apply to a token entering (a land's own "enters tapped", Rest in
   Peace's graveyard replacement); cleared weak references to old cost copies are pruned.
