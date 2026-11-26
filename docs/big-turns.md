@@ -240,6 +240,21 @@ The prompts stay: each person is still asked at every 20 before the minute. At 9
 each 20 now resolves quickly, so the run reaches the one-minute rule later; the owner can drop the 20-cut for
 batchable runs (section 6, item 3).
 
+### 4.7 The heap in a long turn (engine, engine1132-heap, 2026-11-26, not deployed)
+
+A 40-minute Kykar + Mentor turn on engine1131-batch died of an OutOfMemoryError instead of a draw.
+
+- **The heap is read between the limits:** at every trigger fired, ability resolved and replacement run, at most once
+  every 50 ms (`HEAP_READ_MILLIS`). Over 85% after freeing (4.5) the game is a draw with `drawReason` "heap" and nobody
+  is asked. Before, the heap was read only when a limit asked, and that turn reached one question in 40 minutes.
+- **A card that left no longer keeps the board:** Forge's last-state copies all pointed at a zone copy listing the
+  whole board, and a card that left the battlefield or graveyard keeps its copy for the turn, so each departure kept a
+  whole board of copies. Old zone copies are now emptied when the next last state is made. Headless, the same loop
+  grew 63 MB in 20 passes instead of 146 MB.
+- **Still growing:** each spell cast keeps the battlefield as it was cast (Forge reads it for "as you cast" checks), so
+  a very long turn of spells on a big board still fills the heap, more slowly; the heap draw is what ends it.
+
+
 ## 5. Tests
 
 - **Engine** (`forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java`, 21 checks): the held pass ends after

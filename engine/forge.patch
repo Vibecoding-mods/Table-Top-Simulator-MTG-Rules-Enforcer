@@ -1265,7 +1265,7 @@ index 32394268..e7c90cb7 100644
          }
          print("---- choose ability  (phase = " + phaseStr + ")");
 diff --git a/forge-game/src/main/java/forge/game/Game.java b/forge-game/src/main/java/forge/game/Game.java
-index 8d204538..1f8c12f4 100644
+index 8d204538..fc3cbad9 100644
 --- a/forge-game/src/main/java/forge/game/Game.java
 +++ b/forge-game/src/main/java/forge/game/Game.java
 @@ -101,6 +101,10 @@ public class Game {
@@ -1279,7 +1279,52 @@ index 8d204538..1f8c12f4 100644
  
      public boolean EXPERIMENTAL_RESTORE_SNAPSHOT = false;
      // While this is false here, its really set by the Match/Preferences
-@@ -1016,7 +1020,7 @@ public class Game {
+@@ -219,13 +223,31 @@ public class Game {
+         return true;
+     }
+ 
++    // Big turns (docs/big-turns.md 4.6 in the TTS project): every copy of this list points at the zone copy it was made
++    // in, and that zone lists the whole board, so one copy kept for the turn (getLeftBattlefieldThisTurn, a zone's
++    // cards added this turn) kept a whole board of copies alive: in one long turn the heap grew with departures times
++    // board size. Every zone copy made since the last call (these and copyLastState(ZoneType)'s, the ones a cost
++    // payment keeps) is released here (Zone.releaseLastStateCards). Weakly held: a copy nothing else keeps is not kept.
++    private final List<java.lang.ref.WeakReference<Zone>> lastStateZones = Lists.newArrayList();
++
+     public void copyLastState() {
++        for (final java.lang.ref.WeakReference<Zone> held : lastStateZones) {
++            final Zone zone = held.get();
++            if (zone != null) {
++                zone.releaseLastStateCards();
++            }
++        }
++        lastStateZones.clear();
+         lastStateBattlefield.clear();
+         lastStateGraveyard.clear();
+         Map<Integer, Card> cachedMap = Maps.newHashMap();
+         for (final Player p : getPlayers()) {
+-            lastStateBattlefield.addAll(p.getZone(ZoneType.Battlefield).getLKICopy(cachedMap));
+-            lastStateGraveyard.addAll(p.getZone(ZoneType.Graveyard).getLKICopy(cachedMap));
++            final Zone battlefield = p.getZone(ZoneType.Battlefield).getLKICopy(cachedMap);
++            final Zone graveyard = p.getZone(ZoneType.Graveyard).getLKICopy(cachedMap);
++            lastStateZones.add(new java.lang.ref.WeakReference<>(battlefield));
++            lastStateZones.add(new java.lang.ref.WeakReference<>(graveyard));
++            lastStateBattlefield.addAll(battlefield);
++            lastStateGraveyard.addAll(graveyard);
+         }
+     }
+ 
+@@ -233,7 +255,9 @@ public class Game {
+         CardCollection result = new CardCollection();
+         Map<Integer, Card> cachedMap = Maps.newHashMap();
+         for (final Player p : getPlayers()) {
+-            result.addAll(p.getZone(type).getLKICopy(cachedMap));
++            final Zone copy = p.getZone(type).getLKICopy(cachedMap);
++            lastStateZones.add(new java.lang.ref.WeakReference<>(copy));
++            result.addAll(copy);
+         }
+         return result;
+     }
+@@ -1016,7 +1040,7 @@ public class Game {
                  planarController = getNextPlayerAfter(p);
              }
              CardCollection planesLeavingGame =  new CardCollection();
@@ -1288,7 +1333,7 @@ index 8d204538..1f8c12f4 100644
                  if (c.getOwner().equals(p)) {
                      planesLeavingGame.add(c);
                      planarController.removeCurrentPlane(c);
-@@ -1115,7 +1119,7 @@ public class Game {
+@@ -1115,7 +1139,7 @@ public class Game {
      // on its next allocation and re-throws: strong termination pressure.
      //
      // Calibration (false-positive draw on a legitimate big turn is the key
@@ -1297,7 +1342,7 @@ index 8d204538..1f8c12f4 100644
      // turn is low THOUSANDS of objects/trigger-fires, so the cap sits an
      // order of magnitude above any legitimate game, yet 25k Cards is far
      // below 3g-heap exhaustion. Tunable at boot without a rebuild
-@@ -1134,33 +1138,180 @@ public class Game {
+@@ -1134,33 +1158,203 @@ public class Game {
          }
      }
  
@@ -1316,16 +1361,7 @@ index 8d204538..1f8c12f4 100644
 +    public static final int UNBOUNDED_TOKENS = 500;
 +
 +    private final Set<String> unboundedTokenKeys = new HashSet<>();
- 
--    // The per-turn caps bound memory, not time. Every token that enters
--    // rescans the statics of a board that just grew by one, so a doubling
--    // loop (Exalted Sunborn copied by Ghired) makes the turn quadratic:
--    // 767 tokens in twenty minutes, the 25k cap never reached, the game
--    // never back at priority. Clamping the count does not help either: a
--    // board of a hundred doublers makes every later decision take minutes.
--    // So one effect asking for more copies of a token than this trips the
--    // same Draw. No printed effect asks for a hundred copies of one token.
--    public static final int DEFAULT_RUNAWAY_TOKENS_PER_EFFECT = 100;
++
 +    public void markUnboundedTokens(final String pileKey) {
 +        unboundedTokenKeys.add(pileKey);
 +    }
@@ -1336,7 +1372,15 @@ index 8d204538..1f8c12f4 100644
 +        return unboundedTokenKeys.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(new HashSet<>(unboundedTokenKeys));
 +    }
  
--    private static volatile int runawayTokensPerEffectCap = DEFAULT_RUNAWAY_TOKENS_PER_EFFECT;
+-    // The per-turn caps bound memory, not time. Every token that enters
+-    // rescans the statics of a board that just grew by one, so a doubling
+-    // loop (Exalted Sunborn copied by Ghired) makes the turn quadratic:
+-    // 767 tokens in twenty minutes, the 25k cap never reached, the game
+-    // never back at priority. Clamping the count does not help either: a
+-    // board of a hundred doublers makes every later decision take minutes.
+-    // So one effect asking for more copies of a token than this trips the
+-    // same Draw. No printed effect asks for a hundred copies of one token.
+-    public static final int DEFAULT_RUNAWAY_TOKENS_PER_EFFECT = 100;
 +    public void pruneUnboundedTokenKeys() {
 +        if (unboundedTokenKeys.isEmpty()) {
 +            return;
@@ -1350,19 +1394,20 @@ index 8d204538..1f8c12f4 100644
 +        unboundedTokenKeys.retainAll(present);
 +    }
  
--    public static void setRunawayTokensPerEffectCap(final int cap) {
--        runawayTokensPerEffectCap = cap > 0 ? cap : Integer.MAX_VALUE;
+-    private static volatile int runawayTokensPerEffectCap = DEFAULT_RUNAWAY_TOKENS_PER_EFFECT;
 +    /** A token in an unbounded pile (exact for the battlefield: a pile with no token left has no card to match). */
 +    public boolean isUnboundedToken(final Card c) {
 +        return !unboundedTokenKeys.isEmpty() && c.isToken() && unboundedTokenKeys.contains(TokenPile.key(c));
-     }
++    }
  
--    public void recordTokenRequest(final int count) {
+-    public static void setRunawayTokensPerEffectCap(final int cap) {
+-        runawayTokensPerEffectCap = cap > 0 ? cap : Integer.MAX_VALUE;
 +    void copyUnboundedTokenKeysTo(final Game to) {
 +        to.unboundedTokenKeys.clear();
 +        to.unboundedTokenKeys.addAll(unboundedTokenKeys);
-+    }
-+
+     }
+ 
+-    public void recordTokenRequest(final int count) {
 +    /** A token effect is about to make its tokens: a card cap passed since the last ask is asked now. */
 +    public void recordTokenEffect() {
          resetRunawayWindowOnTurnChange();
@@ -1421,10 +1466,8 @@ index 8d204538..1f8c12f4 100644
 +
 +    public void setRunawayChoice(final RunawayChoice choice) {
 +        runawayChoice = choice;
-     }
- 
--    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
--    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
++    }
++
 +    /** Why the engine ended this game as a draw (a runaway limit, the heap, a stuck loop, a tie), or null. */
 +    public String getDrawReason() {
 +        return drawReason;
@@ -1450,6 +1493,29 @@ index 8d204538..1f8c12f4 100644
 +                heapFreedAt = now == 0 ? 1 : now;
 +            }
 +            return heapAfterFree > RUNAWAY_HEAP_LIMIT;
++        }
++    }
++
++    // The heap is also read between the limits: at every trigger fired, ability resolved and replacement run
++    // (recordTriggerFired, checkLoopWatchdog; not nextCardId, which a game copy calls too), at most once every
++    // HEAP_READ_MILLIS of the loop clock,
++    // so a turn that fills the heap without reaching a limit is drawn before the runtime runs out of memory (a Kykar +
++    // Monastery Mentor turn ended in an OutOfMemoryError after one question in 40 minutes, 2026-11-26).
++    public static final long HEAP_READ_MILLIS = 50;
++    private long heapReadAt = Long.MIN_VALUE;
++
++    private void checkHeap() {
++        if (runawayFinalizing || runawayAsking || runawayTripped) {
++            return;
++        }
++        final long now = loopClock.getAsLong();
++        if (heapReadAt != Long.MIN_VALUE && now - heapReadAt < HEAP_READ_MILLIS * 1_000_000L) {
++            return;
++        }
++        heapReadAt = now;
++        if (heapNearlyFull()) {
++            drawReason = "heap";
++            endRunawayGame((int) Math.round(heapAfterFree * 100), (int) Math.round(RUNAWAY_HEAP_LIMIT * 100), "% of the heap in use");
 +        }
 +    }
 +
@@ -1489,15 +1555,17 @@ index 8d204538..1f8c12f4 100644
 +        cardsCapPending = false;
 +        askOrDraw(cardsCreatedThisTurn, addCap(runawayCardsPerTurnCap, cardsAllowedThisTurn), "cards created");
 +        cardsAllowedThisTurn = addCap(cardsAllowedThisTurn, runawayCardsPerTurnCap);
-+    }
-+
+     }
+ 
+-    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
+-    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_CAP_PER_TURN;
 +    private static volatile int runawayCardsPerTurnCap = DEFAULT_RUNAWAY_CARDS_PER_TURN;
 +    private static volatile int runawayTriggersPerTurnCap = DEFAULT_RUNAWAY_TRIGGERS_PER_TURN;
 +    private static volatile int runawayStackItemsCap = RUNAWAY_STACK_ITEMS;
  
      public static void setRunawayCardsPerTurnCap(final int cap) {
          runawayCardsPerTurnCap = cap > 0 ? cap : Integer.MAX_VALUE;
-@@ -1168,6 +1319,9 @@ public class Game {
+@@ -1168,6 +1362,9 @@ public class Game {
      public static void setRunawayTriggersPerTurnCap(final int cap) {
          runawayTriggersPerTurnCap = cap > 0 ? cap : Integer.MAX_VALUE;
      }
@@ -1507,7 +1575,7 @@ index 8d204538..1f8c12f4 100644
  
      private int runawayTurnStamp = -1;
      private int cardsCreatedThisTurn = 0;
-@@ -1186,17 +1340,21 @@ public class Game {
+@@ -1186,17 +1383,21 @@ public class Game {
              runawayTurnStamp = turnNow;
              cardsCreatedThisTurn = 0;
              triggersFiredThisTurn = 0;
@@ -1533,12 +1601,13 @@ index 8d204538..1f8c12f4 100644
              runawayFinalizing = true;
              try {
                  // Mirror the engine's OWN draw path, GameDrawEffect.resolve():
-@@ -1220,16 +1378,75 @@ public class Game {
+@@ -1220,16 +1421,77 @@ public class Game {
       *  TriggerHandler.runWaitingTriggers(). */
      public void recordTriggerFired() {
          resetRunawayWindowOnTurnChange();
 +        noteLoopProgress();
 +        askPendingRunaway();
++        checkHeap();
          triggersFiredThisTurn++;
 -        checkRunawayCap(triggersFiredThisTurn, runawayTriggersPerTurnCap, "triggers fired");
 +        final int limit = addCap(runawayTriggersPerTurnCap, triggersAllowedThisTurn);
@@ -1580,6 +1649,7 @@ index 8d204538..1f8c12f4 100644
 +        if (runawayFinalizing || runawayAsking || runawayTripped) {
 +            return;
 +        }
++        checkHeap();
 +        final long stuck = loopClock.getAsLong() - loopProgressAt;
 +        if (stuck < LOOP_WATCHDOG_SECONDS * 1_000_000_000L) {
 +            return;
@@ -1611,7 +1681,7 @@ index 8d204538..1f8c12f4 100644
          return ++cardIdCounter;
      }
      public int nextHiddenCardId() {
-@@ -1410,7 +1627,8 @@ public class Game {
+@@ -1410,7 +1672,8 @@ public class Game {
              player.onCleanupPhase();
          }
          for (final Card c : getCardsIncludePhasingIn(ZoneType.Battlefield)) {
@@ -1621,7 +1691,7 @@ index 8d204538..1f8c12f4 100644
          }
          for (final Card card : getCardsInGame()) {
              card.resetActivationsPerTurn();
-@@ -1479,6 +1697,23 @@ public class Game {
+@@ -1479,6 +1742,23 @@ public class Game {
          countersRemovedThisTurn.clear();
      }
  
@@ -1645,7 +1715,7 @@ index 8d204538..1f8c12f4 100644
      public void addCounterRemovedThisTurn(CounterType cType, Card card, Integer value) {
          countersRemovedThisTurn.put(cType, Pair.of(CardCopyService.getLKICopy(card), value));
      }
-@@ -1590,6 +1825,9 @@ public class Game {
+@@ -1590,6 +1870,9 @@ public class Game {
      public Boolean getDayTime() {
          return this.daytime;
      }
@@ -1655,7 +1725,7 @@ index 8d204538..1f8c12f4 100644
      public void setDayTime(Boolean value) {
          if (StaticAbilityCantChangeDayTime.cantChangeDay(this, value)) {
              return;
-@@ -1613,6 +1851,9 @@ public class Game {
+@@ -1613,6 +1896,9 @@ public class Game {
      public int getAITimeout() {
          return AI_TIMEOUT;
      }
@@ -7038,7 +7108,7 @@ index 00000000..4be1817d
 +    }
 +}
 diff --git a/forge-game/src/main/java/forge/game/zone/Zone.java b/forge-game/src/main/java/forge/game/zone/Zone.java
-index 8050c40f..b69b2fb2 100644
+index 8050c40f..7f9a471d 100644
 --- a/forge-game/src/main/java/forge/game/zone/Zone.java
 +++ b/forge-game/src/main/java/forge/game/zone/Zone.java
 @@ -262,6 +262,15 @@ public class Zone implements java.io.Serializable, Iterable<Card> {
@@ -7057,10 +7127,17 @@ index 8050c40f..b69b2fb2 100644
      @Override
      public Iterator<Card> iterator() {
          return cardList.iterator();
-@@ -286,6 +295,24 @@ public class Zone implements java.io.Serializable, Iterable<Card> {
+@@ -286,6 +295,31 @@ public class Zone implements java.io.Serializable, Iterable<Card> {
          return result;
      }
  
++    // A last-state copy made by getLKICopy, once a newer one replaces it (Game.copyLastState): its copies stay readable
++    // through the lists that hold them, but a copy kept for the turn (left the battlefield, entered a zone) no longer
++    // holds the whole board through its zone. Only the zone's own list is dropped, with no event.
++    public void releaseLastStateCards() {
++        cardList.clear();
++    }
++
 +    // A card's entry here taken again, as it is now (TokenEffectBase: a token that entered with the static checks held,
 +    // once the pass after them has run). The enters triggers read this copy (TriggerChangesZone, CR 603.6b), so it
 +    // must show the card with the layers applied, as an entry taken without the hold does.

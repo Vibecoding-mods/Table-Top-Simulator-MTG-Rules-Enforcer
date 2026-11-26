@@ -3026,7 +3026,7 @@ index 713e1ef..43dd19e 100644
          if (source == null) {
              return 0;
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
-index c69b549..cb5c59a 100644
+index c69b549..a3b1bdd 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewEngineAdapter.java
 @@ -47,6 +47,13 @@ import java.util.concurrent.ConcurrentHashMap;
@@ -3079,7 +3079,17 @@ index c69b549..cb5c59a 100644
  
          // Resetting global counters under a live session would collide its ids;
          // multiplexed processes only reset between idle periods.
-@@ -112,10 +122,15 @@ public final class ManaBrewEngineAdapter {
+@@ -105,6 +115,9 @@ public final class ManaBrewEngineAdapter {
+         }
+         final ManaBrewInteractiveSession session =
+                 new ManaBrewInteractiveSession(request.getGameId());
++        final Runtime runtime = Runtime.getRuntime();
++        System.err.println("[mana-brew] heap at game start: max " + runtime.maxMemory() / 1048576 + " MB, in use "
++                + (runtime.totalMemory() - runtime.freeMemory()) / 1048576 + " MB, committed " + runtime.totalMemory() / 1048576 + " MB");
+         final List<RegisteredPlayer> registeredPlayers = new ArrayList<>();
+         final Set<Integer> botSeats = new HashSet<>();
+         for (PlayerConfig playerConfig : request.getPlayers()) {
+@@ -112,10 +125,15 @@ public final class ManaBrewEngineAdapter {
                  botSeats.add(registeredPlayers.size());
              }
              Deck deck = buildDeck(playerConfig);
@@ -3098,7 +3108,7 @@ index c69b549..cb5c59a 100644
              } else {
                  registeredPlayer.setPlayer(new ManaBrewInteractiveLobbyPlayer(
                          playerConfig.getName(), session));
-@@ -125,6 +140,7 @@ public final class ManaBrewEngineAdapter {
+@@ -125,6 +143,7 @@ public final class ManaBrewEngineAdapter {
  
          final Match match = new Match(rules, registeredPlayers, "ManaBrew");
          final Game game = match.createGame();
@@ -3106,7 +3116,7 @@ index c69b549..cb5c59a 100644
          session.attach(match, game, botSeats, request.isSnapshotRecording());
          if (request.checkpointMetrics) {
              session.enableCheckpointMetrics();
-@@ -357,6 +373,157 @@ public final class ManaBrewEngineAdapter {
+@@ -357,6 +376,157 @@ public final class ManaBrewEngineAdapter {
          }
      }
  
@@ -3264,7 +3274,7 @@ index c69b549..cb5c59a 100644
      private static GameType resolveGameType(final StartGameRequest request) {
          final String variant = request.getVariant();
          if (variant != null && !variant.isBlank()) {
-@@ -380,7 +547,7 @@ public final class ManaBrewEngineAdapter {
+@@ -380,7 +550,7 @@ public final class ManaBrewEngineAdapter {
          return commanderGame ? GameType.Commander : GameType.Constructed;
      }
  
@@ -3273,7 +3283,7 @@ index c69b549..cb5c59a 100644
          JsonObject root = JsonParser.parseString(requestJson).getAsJsonObject();
          String gameId = requiredString(root, "gameId");
          String variant = optionalString(root, "variant");
-@@ -426,11 +593,35 @@ public final class ManaBrewEngineAdapter {
+@@ -426,11 +596,35 @@ public final class ManaBrewEngineAdapter {
              boolean bot = playerObject.has("bot")
                      && !playerObject.get("bot").isJsonNull()
                      && playerObject.get("bot").getAsBoolean();
@@ -3310,7 +3320,7 @@ index c69b549..cb5c59a 100644
          return request;
      }
  
-@@ -455,6 +646,25 @@ public final class ManaBrewEngineAdapter {
+@@ -455,6 +649,25 @@ public final class ManaBrewEngineAdapter {
          return value;
      }
  
@@ -3336,7 +3346,7 @@ index c69b549..cb5c59a 100644
      private static String optionalString(final JsonObject object, final String key) {
          if (!object.has(key) || object.get(key).isJsonNull()) {
              return null;
-@@ -470,6 +680,11 @@ public final class ManaBrewEngineAdapter {
+@@ -470,6 +683,11 @@ public final class ManaBrewEngineAdapter {
          private final boolean snapshotRecording;
          private boolean checkpointMetrics;
          private final List<PlayerConfig> players;
@@ -3348,7 +3358,7 @@ index c69b549..cb5c59a 100644
  
          public StartGameRequest(
                  final String gameId,
-@@ -516,6 +731,47 @@ public final class ManaBrewEngineAdapter {
+@@ -516,6 +734,47 @@ public final class ManaBrewEngineAdapter {
          public List<PlayerConfig> getPlayers() {
              return players;
          }
@@ -3396,7 +3406,7 @@ index c69b549..cb5c59a 100644
      }
  
      public static final class PlayerConfig {
-@@ -526,6 +782,15 @@ public final class ManaBrewEngineAdapter {
+@@ -526,6 +785,15 @@ public final class ManaBrewEngineAdapter {
          private final List<String> commanderNames;
          private final boolean ai;
          private final boolean bot;
@@ -3412,7 +3422,7 @@ index c69b549..cb5c59a 100644
  
          public PlayerConfig(
                  final String name,
-@@ -535,6 +800,19 @@ public final class ManaBrewEngineAdapter {
+@@ -535,6 +803,19 @@ public final class ManaBrewEngineAdapter {
                  final List<String> commanderNames,
                  final boolean ai,
                  final boolean bot
@@ -3432,7 +3442,7 @@ index c69b549..cb5c59a 100644
          ) {
              if (name == null || name.isBlank()) {
                  throw new IllegalArgumentException("player name is required");
-@@ -549,6 +827,20 @@ public final class ManaBrewEngineAdapter {
+@@ -549,6 +830,20 @@ public final class ManaBrewEngineAdapter {
              this.commanderNames = commanderNames == null ? List.of() : List.copyOf(commanderNames);
              this.ai = ai;
              this.bot = bot;
@@ -3453,7 +3463,7 @@ index c69b549..cb5c59a 100644
          }
  
          public String getName() {
-@@ -578,6 +870,54 @@ public final class ManaBrewEngineAdapter {
+@@ -578,6 +873,54 @@ public final class ManaBrewEngineAdapter {
          public boolean isBot() {
              return bot;
          }
@@ -16500,6 +16510,379 @@ index 0000000..4448196
 +            }
 +        }
 +        return out.toString();
++    }
++}
+diff --git a/forge-harness/src/test/java/forge/harness/host/HeapGuardTest.java b/forge-harness/src/test/java/forge/harness/host/HeapGuardTest.java
+new file mode 100644
+index 0000000..4b2d3bd
+--- /dev/null
++++ b/forge-harness/src/test/java/forge/harness/host/HeapGuardTest.java
+@@ -0,0 +1,367 @@
++package forge.harness.host;
++
++import forge.StaticData;
++import forge.ai.LobbyPlayerAi;
++import forge.deck.Deck;
++import forge.game.Game;
++import forge.game.GameRules;
++import forge.game.GameStage;
++import forge.game.GameType;
++import forge.game.Match;
++import forge.game.ability.AbilityFactory;
++import forge.game.ability.AbilityUtils;
++import forge.game.card.Card;
++import forge.game.phase.PhaseType;
++import forge.game.player.Player;
++import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.SpellAbility;
++import forge.game.zone.ZoneType;
++import forge.gui.GuiBase;
++import forge.harness.common.HeadlessGuiBase;
++import forge.item.IPaperCard;
++import forge.localinstance.properties.ForgePreferences.FPref;
++import forge.model.FModel;
++
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.IdentityHashMap;
++import java.util.List;
++import java.util.Set;
++
++public final class HeapGuardTest {
++    private HeapGuardTest() {}
++
++    private static final long MILLI = 1_000_000L;
++
++    public static void main(final String[] args) throws Exception {
++        GuiBase.setInterface(new HeadlessGuiBase("forge/forge-gui/"));
++        FModel.initialize(null, prefs -> {
++            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true);
++            prefs.setPref(FPref.UI_LANGUAGE, "en-US");
++            return null;
++        });
++        check("aFullHeapDrawsWhenATriggerFiresBetweenLimits", HeapGuardTest::aFullHeapDrawsWhenATriggerFiresBetweenLimits);
++        check("aCardMadeDoesNotReadTheHeap", HeapGuardTest::aCardMadeDoesNotReadTheHeap);
++        check("aFullHeapDrawsWhenAnAbilityResolves", HeapGuardTest::aFullHeapDrawsWhenAnAbilityResolves);
++        check("aFullHeapDrawsWhenAReplacementRuns", HeapGuardTest::aFullHeapDrawsWhenAReplacementRuns);
++        check("aHeapUnderTheLimitDoesNotDraw", HeapGuardTest::aHeapUnderTheLimitDoesNotDraw);
++        check("aHeapTheCollectorFreesDoesNotDrawBetweenLimits", HeapGuardTest::aHeapTheCollectorFreesDoesNotDrawBetweenLimits);
++        check("theHeapIsReadAtMostOnceAnInterval", HeapGuardTest::theHeapIsReadAtMostOnceAnInterval);
++        check("anEndedGameReadsNoHeap", HeapGuardTest::anEndedGameReadsNoHeap);
++        check("aCardThatLeftTheBattlefieldDoesNotKeepTheBoard", HeapGuardTest::aCardThatLeftTheBattlefieldDoesNotKeepTheBoard);
++        check("aCardMovedWithACostsCopyDoesNotKeepTheBoard", HeapGuardTest::aCardMovedWithACostsCopyDoesNotKeepTheBoard);
++        check("aCardThatLeftTheGraveyardDoesNotKeepTheGraveyard", HeapGuardTest::aCardThatLeftTheGraveyardDoesNotKeepTheGraveyard);
++        check("theLatestLastStateKeepsItsBoard", HeapGuardTest::theLatestLastStateKeepsItsBoard);
++        check("whatLeftTheBattlefieldStillCounts", HeapGuardTest::whatLeftTheBattlefieldStillCounts);
++        check("aLongTurnOfDeparturesKeepsOneCopyEach", HeapGuardTest::aLongTurnOfDeparturesKeepsOneCopyEach);
++        System.out.println(failed == 0 ? "PASS HeapGuardTest" : "FAIL HeapGuardTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        } finally {
++            Game.setHeapReader(() -> 0.1);
++            Game.setHeapFreer(null);
++        }
++    }
++
++    private static void aFullHeapDrawsWhenATriggerFiresBetweenLimits() {
++        final Game game = aiGame();
++        final List<String> asked = new ArrayList<>();
++        game.setRunawayChoice((g, what, count, cap) -> asked.add(what));
++        fullHeap();
++        expectDraw(game, game::recordTriggerFired, "one trigger with the heap full");
++        expect("heap".equals(game.getDrawReason()) && asked.isEmpty(), "reason " + game.getDrawReason() + ", asked " + asked);
++    }
++
++    private static void aCardMadeDoesNotReadTheHeap() {
++        final Game game = aiGame();
++        final int[] reads = {0};
++        Game.setHeapReader(() -> {
++            reads[0]++;
++            return 0.9;
++        });
++        Game.setHeapFreer(() -> { });
++        for (int i = 0; i < 10; i++) {
++            game.nextCardId();
++        }
++        expect(!game.isGameOver() && reads[0] == 0, "10 cards made read the heap " + reads[0] + " times, over " + game.isGameOver());
++    }
++
++    private static void aFullHeapDrawsWhenAnAbilityResolves() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        final Card bear = add("Grizzly Bears", p, ZoneType.Battlefield);
++        final SpellAbility pump = AbilityFactory.getAbility("DB$ Pump | Defined$ Self | NumAtt$ +1", bear);
++        pump.setActivatingPlayer(p);
++        fullHeap();
++        expectDraw(game, () -> AbilityUtils.resolve(pump), "an ability resolving with the heap full");
++        expect("heap".equals(game.getDrawReason()) && bear.getNetPower() == 2, "reason " + game.getDrawReason() + ", power " + bear.getNetPower());
++    }
++
++    private static void aFullHeapDrawsWhenAReplacementRuns() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        fullHeap();
++        expectDraw(game, () -> p.gainLife(1, null, null), "a replacement run with the heap full");
++        expect("heap".equals(game.getDrawReason()), "reason " + game.getDrawReason());
++    }
++
++    private static void aHeapUnderTheLimitDoesNotDraw() {
++        final Game game = aiGame();
++        final long[] now = {0};
++        game.setLoopClock(() -> now[0]);
++        final int[] reads = {0};
++        Game.setHeapReader(() -> {
++            reads[0]++;
++            return 0.84;
++        });
++        final int[] frees = {0};
++        Game.setHeapFreer(() -> frees[0]++);
++        for (int i = 0; i < 50; i++) {
++            now[0] += 100 * MILLI;
++            game.recordTriggerFired();
++        }
++        expect(!game.isGameOver() && reads[0] >= 50 && frees[0] == 0,
++                "the heap at 84%: over " + game.isGameOver() + ", reads " + reads[0] + ", frees " + frees[0]);
++    }
++
++    private static void aHeapTheCollectorFreesDoesNotDrawBetweenLimits() {
++        final Game game = aiGame();
++        final long[] now = {0};
++        game.setLoopClock(() -> now[0]);
++        final boolean[] freed = {false};
++        final int[] frees = {0};
++        Game.setHeapReader(() -> freed[0] ? 0.4 : 0.9);
++        Game.setHeapFreer(() -> {
++            freed[0] = true;
++            frees[0]++;
++        });
++        for (int i = 0; i < 50; i++) {
++            now[0] += 100 * MILLI;
++            game.recordTriggerFired();
++        }
++        expect(!game.isGameOver() && frees[0] == 1, "a heap of garbage at 90%: over " + game.isGameOver() + ", frees " + frees[0]);
++    }
++
++    private static void theHeapIsReadAtMostOnceAnInterval() {
++        final long interval = Long.parseLong(limit("HEAP_READ_MILLIS"));
++        expect(interval > 0 && interval <= 1000, "HEAP_READ_MILLIS " + interval);
++        final Game game = aiGame();
++        final long[] now = {0};
++        game.setLoopClock(() -> now[0]);
++        final int[] reads = {0};
++        Game.setHeapReader(() -> {
++            reads[0]++;
++            return 0.1;
++        });
++        for (int i = 0; i < 1000; i++) {
++            game.recordTriggerFired();
++        }
++        expect(reads[0] == 1, "1,000 triggers in one instant read the heap " + reads[0] + " times");
++        now[0] += interval * MILLI - 1;
++        game.recordTriggerFired();
++        expect(reads[0] == 1, "a trigger just inside the interval read it again: " + reads[0]);
++        now[0] += 1;
++        game.recordTriggerFired();
++        expect(reads[0] == 2, "a trigger after the interval did not read it: " + reads[0]);
++    }
++
++    private static void anEndedGameReadsNoHeap() {
++        final Game game = aiGame();
++        final long[] now = {0};
++        game.setLoopClock(() -> now[0]);
++        fullHeap();
++        expectDraw(game, game::recordTriggerFired, "the first trigger");
++        final int[] reads = {0};
++        Game.setHeapReader(() -> {
++            reads[0]++;
++            return 0.9;
++        });
++        now[0] += 10_000 * MILLI;
++        try {
++            game.recordTriggerFired();
++        } catch (final Game.RunawayGameException ignored) {
++        }
++        expect(reads[0] == 0, "a game already drawn read the heap " + reads[0] + " times");
++    }
++
++    private static void aCardThatLeftTheBattlefieldDoesNotKeepTheBoard() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        final List<Card> bears = new ArrayList<>();
++        for (int i = 0; i < 30; i++) {
++            bears.add(add("Grizzly Bears", p, ZoneType.Battlefield));
++        }
++        game.copyLastState();
++        game.getAction().moveToGraveyard(bears.get(0), null);
++        final Card left = game.getLeftBattlefieldThisTurn().get(0);
++        expect(left.isLKI() && left.getZone() != null && left.getZone().is(ZoneType.Battlefield),
++                "the card that left: LKI " + left.isLKI() + ", zone " + left.getZone());
++        game.copyLastState();
++        final int kept = left.getZone().getCards().size();
++        expect(kept <= 1, "the card that left still keeps " + kept + " copies of the board");
++        expect(left.getZone().is(ZoneType.Battlefield) && left.isInZone(ZoneType.Battlefield) && "Grizzly Bears".equals(left.getName())
++                && left.getController() == p && left.getNetPower() == 2, "the card that left changed: " + left.getName() + " " + left.getZone());
++    }
++
++    private static void aCardMovedWithACostsCopyDoesNotKeepTheBoard() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        final List<Card> bears = new ArrayList<>();
++        for (int i = 0; i < 30; i++) {
++            bears.add(add("Grizzly Bears", p, ZoneType.Battlefield));
++        }
++        game.copyLastState();
++        final java.util.Map<forge.game.ability.AbilityKey, Object> params = forge.game.ability.AbilityKey.newMap();
++        final forge.game.card.CardCollectionView costCopy = game.copyLastStateBattlefield();
++        params.put(forge.game.ability.AbilityKey.LastStateBattlefield, costCopy);
++        game.getAction().moveToGraveyard(bears.get(0), null, params);
++        final Card left = game.getLeftBattlefieldThisTurn().get(0);
++        final boolean fromCopy = costCopy.contains(left) && left.getZone().getCards().size() == 30;
++        game.copyLastState();
++        final int kept = left.getZone().getCards().size();
++        expect(fromCopy && kept <= 1 && costCopy.size() == 30 && left.getZone().is(ZoneType.Battlefield),
++                "a card sacrificed with a copy of the board taken for its cost (" + fromCopy + ") keeps " + kept + " copies, the copy " + costCopy.size());
++    }
++
++    private static void aCardThatLeftTheGraveyardDoesNotKeepTheGraveyard() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        final List<Card> dead = new ArrayList<>();
++        for (int i = 0; i < 30; i++) {
++            dead.add(add("Grizzly Bears", p, ZoneType.Graveyard));
++        }
++        game.copyLastState();
++        game.getAction().exile(dead.get(0), null, null);
++        final Card left = game.getLeftGraveyardThisTurn().get(0);
++        game.copyLastState();
++        final int kept = left.getZone().getCards().size();
++        expect(kept <= 1 && left.getZone().is(ZoneType.Graveyard), "the card that left the graveyard keeps " + kept + " copies, zone " + left.getZone());
++    }
++
++    private static void theLatestLastStateKeepsItsBoard() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        for (int i = 0; i < 30; i++) {
++            add("Grizzly Bears", p, ZoneType.Battlefield);
++        }
++        game.copyLastState();
++        game.copyLastState();
++        final Card lki = game.getLastStateBattlefield().get(0);
++        expect(game.getLastStateBattlefield().size() == 30 && lki.getZone().getCards().size() == 30,
++                "the latest last state: " + game.getLastStateBattlefield().size() + " cards, its zone " + lki.getZone().getCards().size());
++    }
++
++    private static void whatLeftTheBattlefieldStillCounts() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        final Player o = game.getPlayers().get(1);
++        final Card host = add("Grizzly Bears", p, ZoneType.Battlefield);
++        final List<Card> mine = new ArrayList<>();
++        for (int i = 0; i < 4; i++) {
++            mine.add(add("Grizzly Bears", p, ZoneType.Battlefield));
++        }
++        final Card theirs = add("Llanowar Elves", o, ZoneType.Battlefield);
++        for (int round = 0; round < 3; round++) {
++            game.copyLastState();
++            game.getAction().moveToGraveyard(mine.get(round), null);
++            game.copyLastState();
++        }
++        game.getAction().moveToGraveyard(theirs, null);
++        game.copyLastState();
++        final int elves = AbilityUtils.calculateAmount(host, "Count$LeftBattlefieldThisTurn Creature.namedLlanowar Elves", null);
++        final int bears = AbilityUtils.calculateAmount(host, "Count$LeftBattlefieldThisTurn Card.namedGrizzly Bears", null);
++        final int all = AbilityUtils.calculateAmount(host, "Count$LeftBattlefieldThisTurn Creature", null);
++        expect(elves == 1 && bears == 3 && all == 4 && p.hasRevolt() && o.hasRevolt(),
++                "left the battlefield: elves " + elves + ", bears " + bears + ", all " + all + ", revolt " + p.hasRevolt() + "/" + o.hasRevolt());
++    }
++
++    private static void aLongTurnOfDeparturesKeepsOneCopyEach() {
++        final Game game = aiGame();
++        final Player p = game.getPlayers().get(0);
++        final List<Card> board = new ArrayList<>();
++        for (int i = 0; i < 40; i++) {
++            board.add(add("Grizzly Bears", p, ZoneType.Battlefield));
++        }
++        for (int round = 0; round < 60; round++) {
++            game.copyLastState();
++            game.getAction().moveToGraveyard(board.remove(0), null);
++            board.add(add("Grizzly Bears", p, ZoneType.Battlefield));
++            game.copyLastState();
++        }
++        final Set<Card> kept = Collections.newSetFromMap(new IdentityHashMap<>());
++        for (final Card left : game.getLeftBattlefieldThisTurn()) {
++            kept.add(left);
++            kept.addAll(left.getZone().getCards());
++        }
++        expect(game.getLeftBattlefieldThisTurn().size() == 60 && kept.size() <= 60,
++                "60 cards that left keep " + kept.size() + " card copies (" + game.getLeftBattlefieldThisTurn().size() + " entries)");
++    }
++
++    private static void fullHeap() {
++        Game.setHeapReader(() -> 0.9);
++        Game.setHeapFreer(() -> { });
++    }
++
++    private static String limit(final String name) {
++        try {
++            return String.valueOf(Game.class.getField(name).get(null));
++        } catch (final ReflectiveOperationException e) {
++            throw new AssertionError("no limit " + name);
++        }
++    }
++
++    private static void expectDraw(final Game game, final Runnable step, final String why) {
++        try {
++            step.run();
++        } catch (final Game.RunawayGameException expected) {
++            expect(game.isGameOver() && game.getOutcome() != null && game.getOutcome().isDraw(), why + ": the game is not a draw");
++            return;
++        }
++        throw new AssertionError(why + " did not end the game");
++    }
++
++    private static Game aiGame() {
++        final List<RegisteredPlayer> players = new ArrayList<>();
++        final Deck deck = new Deck();
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Blue", null)));
++        players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi("Yellow", null)));
++        final GameRules rules = new GameRules(GameType.Constructed);
++        final Game game = new Game(players, rules, new Match(rules, players, "HeapGuardTest"));
++        game.setAge(GameStage.Play);
++        game.getPhaseHandler().devModeSet(PhaseType.MAIN1, game.getPlayers().get(0));
++        game.getPhaseHandler().onStackResolved();
++        return game;
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
++    }
++
++    private static Card add(final String name, final Player p, final ZoneType zone) {
++        IPaperCard paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        if (paper == null) {
++            StaticData.instance().attemptToLoadCard(name);
++            paper = FModel.getMagicDb().getCommonCards().getCard(name);
++        }
++        final Card card = Card.fromPaperCard(paper, p);
++        card.setGameTimestamp(p.getGame().getNextTimestamp());
++        p.getZone(zone).add(card);
++        return card;
 +    }
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/HeldPassBench.java b/forge-harness/src/test/java/forge/harness/host/HeldPassBench.java
