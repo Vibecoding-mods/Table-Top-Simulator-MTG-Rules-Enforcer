@@ -6395,7 +6395,7 @@ index dde410ae..46b5b7ae 100644
  
          CardCollection attackers = (CardCollection) runParams.get(AbilityKey.Attackers);
 diff --git a/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java b/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
-index 627c7d49..2bdf6f74 100644
+index 627c7d49..e4cbcc7b 100644
 --- a/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
 +++ b/forge-game/src/main/java/forge/game/trigger/TriggerHandler.java
 @@ -91,6 +91,15 @@ public class TriggerHandler {
@@ -6469,15 +6469,15 @@ index 627c7d49..2bdf6f74 100644
          } 
      }
  
-+    // Big turns (StackMerge): whether a trigger of one of these modes is active or delayed now
-+    public final boolean watches(final Set<TriggerType> modes) {
++    // Big turns (StackMerge): whether a trigger the test accepts is active or delayed now
++    public final boolean watches(final java.util.function.Predicate<Trigger> watcher) {
 +        for (final Trigger t : activeTriggers) {
-+            if (modes.contains(t.getMode())) {
++            if (watcher.test(t)) {
 +                return true;
 +            }
 +        }
 +        for (final Trigger t : Iterables.concat(delayedTriggers, playerDefinedDelayedTriggers.values())) {
-+            if (modes.contains(t.getMode())) {
++            if (watcher.test(t)) {
 +                return true;
 +            }
 +        }
@@ -6557,7 +6557,7 @@ index 8ab7dbe3..43ca371f 100644
  
      @Override
 diff --git a/forge-game/src/main/java/forge/game/zone/MagicStack.java b/forge-game/src/main/java/forge/game/zone/MagicStack.java
-index 35ea040c..2f002742 100644
+index 35ea040c..e8444fe3 100644
 --- a/forge-game/src/main/java/forge/game/zone/MagicStack.java
 +++ b/forge-game/src/main/java/forge/game/zone/MagicStack.java
 @@ -76,6 +76,8 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
@@ -6604,7 +6604,7 @@ index 35ea040c..2f002742 100644
          game.copyLastState();
          if (isEmpty() && !hasSimultaneousStackEntries()) {
              // assuming that if the stack is empty, no reason to hold on to old LKI data (everything is a new object)
-@@ -644,6 +646,44 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -644,6 +646,52 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          }
      }
  
@@ -6622,16 +6622,18 @@ index 35ea040c..2f002742 100644
 +        if (mergeGate == null || !StackMerge.eligible(first)) {
 +            return;
 +        }
-+        int left = Math.min(StackMerge.MAX_FOLLOWING, mergeGate.allowed(game));
-+        if (left <= 0 || StackMerge.watched(game)) {
++        int left = mergeGate.allowed(game);
++        if (left <= 0 || StackMerge.watched(game, first.getApi())) {
 +            return;
 +        }
-+        while (left-- > 0 && !isEmpty() && !game.isGameOver() && !hasSimultaneousStackEntries()
++        int merged = 0;
++        while (left > 0 && !isEmpty() && !game.isGameOver() && !hasSimultaneousStackEntries()
 +                && !game.getTriggerHandler().hasWaitingTriggers()) {
 +            final SpellAbility next = peekAbility();
 +            if (!StackMerge.alike(first, next) || hasFizzled(next, null)) {
-+                return;
++                break;
 +            }
++            game.noteLoopProgress();
 +            freezeStack(null);
 +            setResolving(true);
 +            curResolvingCard = next.getHostCard();
@@ -6643,13 +6645,19 @@ index 35ea040c..2f002742 100644
 +            game.fireEvent(new GameEventSpellResolved(next, false));
 +            finishResolving(next, false);
 +            mergedResolutions++;
++            merged++;
++            left = Math.min(left - 1, mergeGate.allowed(game));
++        }
++        if (merged > 0) {
++            game.fireEvent(new GameEventAddLog(GameLogEntryType.STACK_RESOLVE, (merged + 1) + " \u00d7 "
++                    + first.getHostCard().getName() + " resolved at once: " + first.getStackDescription()));
 +        }
 +    }
 +
      private void finishResolving(final SpellAbility sa, final boolean fizzle) {
          // SpellAbility is removed from the stack here
          // temporarily removed removing SA after resolution
-@@ -838,6 +878,16 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -838,6 +886,16 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          List<Player> players = game.getPlayersInTurnOrder(playerTurn);
  
          boolean result = false;
@@ -6666,7 +6674,7 @@ index 35ea040c..2f002742 100644
          // CR 603.3b
          for (Player p : players) {
              result |= chooseOrderOfSimultaneousStackEntry(p, false);
-@@ -849,6 +899,63 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -849,6 +907,63 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          return result;
      }
  
@@ -6730,7 +6738,7 @@ index 35ea040c..2f002742 100644
      private boolean chooseOrderOfSimultaneousStackEntry(final Player activePlayer, boolean isAbilityTriggered) {
          if (!activePlayer.isInGame()) {
              return false;
-@@ -931,6 +1038,12 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -931,6 +1046,12 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
      public final List<Card> getSpellsCastLastTurn() {
          return lastTurnCast;
      }
@@ -6743,7 +6751,7 @@ index 35ea040c..2f002742 100644
  
      public final void onNextTurn() {
          final Player active = game.getPhaseHandler().getPlayerTurn();
-@@ -959,6 +1072,22 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
+@@ -959,6 +1080,22 @@ public class MagicStack /* extends MyObservable */ implements Iterable<SpellAbil
          return thisTurnActivated;
      }
  
@@ -6768,61 +6776,80 @@ index 35ea040c..2f002742 100644
              return false;
 diff --git a/forge-game/src/main/java/forge/game/zone/StackMerge.java b/forge-game/src/main/java/forge/game/zone/StackMerge.java
 new file mode 100644
-index 00000000..19e20b28
+index 00000000..4be1817d
 --- /dev/null
 +++ b/forge-game/src/main/java/forge/game/zone/StackMerge.java
-@@ -0,0 +1,120 @@
+@@ -0,0 +1,257 @@
 +package forge.game.zone;
 +
 +import java.util.EnumSet;
 +import java.util.Map;
 +import java.util.Set;
++import java.util.regex.Pattern;
 +
 +import org.apache.commons.lang3.StringUtils;
 +
++import forge.StaticData;
++import forge.card.CardRules;
++import forge.card.CardType;
++import forge.card.ICardFace;
 +import forge.game.Game;
 +import forge.game.ability.ApiType;
 +import forge.game.card.Card;
++import forge.game.card.CounterEnumType;
 +import forge.game.replacement.ReplacementEffect;
 +import forge.game.replacement.ReplacementType;
 +import forge.game.spellability.SpellAbility;
++import forge.game.staticability.StaticAbility;
++import forge.game.staticability.StaticAbilityMode;
 +import forge.game.trigger.Trigger;
 +import forge.game.trigger.TriggerType;
 +import forge.game.trigger.WrappedAbility;
++import forge.item.PaperToken;
 +
 +/**
-+ * Big turns (mtg-tts docs/big-turns.md): a run of identical stack items resolved back to back. After the top item
-+ * resolves, up to {@link #MAX_FOLLOWING} items below it that are alike ({@link #alike}) resolve at once, each through
-+ * the usual AbilityUtils.resolve with its own source, with no priority round, no state-based-action check and no
-+ * static-ability pass between them; those run once after the last, as after any resolution.
++ * Big turns (mtg-tts docs/big-turns.md): a run of identical stack items resolved as one batch. After the top item
++ * resolves, the items below it that are alike ({@link #alike}) resolve at once, each through the usual
++ * AbilityUtils.resolve with its own source and its own events, with no priority round, no state-based-action check and
++ * no static-ability pass between them; those run once after the last, as after any resolution.
 + *
-+ * <p>Two things must hold, and both are checked here, not assumed:
++ * <p>Two things must hold, and both are checked here and in MagicStack.resolveAlike, not assumed:
 + * <ul>
 + * <li>No player loses a decision. The gate ({@link Gate}, set by the host) says how many more items may resolve
-+ * before some player must be asked again: the mtg-tts harness allows a merge only when every player still in the
-+ * game is a person holding a pass for the whole stack (an "exhaust" pass) and only up to where that pass ends. With
-+ * no gate nothing is merged.</li>
++ * before some player must be asked again: the mtg-tts harness allows a batch only when every player still in the
++ * game is a person holding a pass for the run on top of the stack and only up to where the first of those passes
++ * ends. The gate is asked again after every item (a new response, such as an instant the new mana pays for, ends a
++ * hold). With no gate nothing is batched.</li>
 + * <li>Nothing can see the difference. The allowlist below holds only effects whose result is the same whether or not
-+ * the game stops between them: nothing triggers on them, nothing replaces them, they ask nobody anything, and they
-+ * cannot cause a state-based action.</li>
++ * the game stops between them: nothing watches them (trigger or replacement), they ask nobody anything, they read
++ * nothing the skipped passes change, and they cannot cause a state-based action. A trigger or a new object made by
++ * an item ends the batch at once (MagicStack checks the simultaneous stack entries and the waiting triggers before
++ * each item).</li>
 + * </ul>
 + *
-+ * <p>The allowlist (v1), each entry with why it is safe:
++ * <p>The allowlist, every entry untargeted, mandatory, with fixed numbers, no sub-ability, condition, unless cost,
++ * remembering or controller change, and no intervening "if" or resolving check on its trigger:
 + * <ul>
-+ * <li><b>GainLife, untargeted, "you", a fixed number</b> (Soul Warden, Soul's Attendant, Essence Warden's own player,
-+ * Bloodfell Caves): gaining life never causes a state-based action (704.5a is life 0 or less), the amount is a number
-+ * and does not read the board, and each item still calls Player.gainLife with its own source, so life gained this
-+ * turn and the times gained count each one. Not merged when anything could watch: a LifeGained or AbilityResolves
-+ * trigger that is active or delayed (Ajani's Pridemate, a "whenever you gain life" emblem: in the usual order each
-+ * one's trigger goes on the stack above the rest of the run), a GainLife replacement anywhere (Boon Reflection, Rhox
-+ * Faithmender: a replacement may ask which applies first), an optional trigger (it asks), a trigger with an
-+ * intervening "if" or a resolving check (it reads the board between items), conditions, unless costs, remembering,
-+ * a sub-ability or a controller change.</li>
++ * <li><b>GainLife</b> "you", a number (Soul Warden): gaining life causes no state-based action (704.5a is life 0 or
++ * less). Not when a LifeGained trigger or a GainLife replacement exists.</li>
++ * <li><b>Pump</b> its own source, +N/+N (N 0 or more), until end of turn, no keywords (prowess): a bigger power or
++ * toughness causes no state-based action, and the boost lands with its own timestamp as before.</li>
++ * <li><b>PutCounter</b> +1/+1 counters on its own source, a number: no state-based action, as long as the source has
++ * no -1/-1 counter (704.5q would remove pairs between items). Not when a counter-added or counter-removed trigger or
++ * an AddCounter replacement exists (Hardened Scales, Doubling Season).</li>
++ * <li><b>Token</b> one script, a number, owned by its controller, a token that is not legendary, has toughness 1 or
++ * more, and has no triggers, statics or replacements and only {@link #TOKEN_KEYWORDS} (Monk with prowess, Spirit with
++ * flying, Soldier artifact): each token is its own event as before. Not when anything could see a token arrive: a
++ * ChangesZone trigger that is not only its own card's, a ChangesZoneAll or TokenCreated trigger, or a CreateToken or
++ * Moved replacement (Anointed Procession, Doubling Season, enters-with-counters effects).</li>
++ * <li><b>Mana</b> fixed colours, a number: no state-based action. Not when a ManaAdded trigger or a ProduceMana
++ * replacement exists. The new mana can make a response affordable; the gate, asked after each item, ends the batch
++ * then, as it ended the hold.</li>
 + * </ul>
-+ * Left out on purpose: token creation (a batch of tokens is one "one or more" event, and copies of a token differ by
-+ * source, so merging changes what triggers), life loss (players can leave the game between items), damage (each has
-+ * its own source and lifelink/infect watchers), counters (Hardened Scales-style replacements per event), drawing
-+ * (Alms Collector-style "two or more" replacements, and an empty library is a state-based action).
++ * Never batched, for any entry: an AbilityResolves or state ("Always") trigger exists, or a static ability that grants
++ * abilities, keywords or triggers depends on a condition or on power, toughness, counters or life (the skipped static
++ * pass would change what a player can do between items). Left out on purpose: damage, life loss, drawing, other
++ * counters, targeted effects (a static the skipped pass would apply can make a target illegal), anything else.
 + */
 +public final class StackMerge {
 +    private StackMerge() {}
@@ -6832,17 +6859,44 @@ index 00000000..19e20b28
 +        int allowed(Game game);
 +    }
 +
-+    /** With the top item, 20 per merge: the same size as the harness's held pass. */
-+    public static final int MAX_FOLLOWING = 19;
-+
-+    private static final Set<TriggerType> WATCHERS = EnumSet.of(TriggerType.LifeGained, TriggerType.AbilityResolves);
++    private static final Set<TriggerType> ALWAYS_WATCHERS = EnumSet.of(TriggerType.AbilityResolves, TriggerType.Always);
++    private static final Map<ApiType, Set<TriggerType>> WATCHERS = Map.of(
++            ApiType.GainLife, EnumSet.of(TriggerType.LifeGained),
++            ApiType.Pump, EnumSet.noneOf(TriggerType.class),
++            ApiType.PutCounter, EnumSet.of(TriggerType.CounterAdded, TriggerType.CounterAddedOnce,
++                    TriggerType.CounterAddedAll, TriggerType.CounterTypeAddedAll, TriggerType.CounterPlayerAddedAll,
++                    TriggerType.CounterRemoved, TriggerType.CounterRemovedOnce),
++            ApiType.Token, EnumSet.of(TriggerType.ChangesZone, TriggerType.ChangesZoneAll, TriggerType.TokenCreated,
++                    TriggerType.TokenCreatedOnce),
++            ApiType.Mana, EnumSet.of(TriggerType.ManaAdded));
++    private static final Map<ApiType, Set<ReplacementType>> REPLACED_BY = Map.of(
++            ApiType.GainLife, EnumSet.of(ReplacementType.GainLife),
++            ApiType.Pump, EnumSet.noneOf(ReplacementType.class),
++            ApiType.PutCounter, EnumSet.of(ReplacementType.AddCounter, ReplacementType.RemoveCounter),
++            ApiType.Token, EnumSet.of(ReplacementType.CreateToken, ReplacementType.Moved),
++            ApiType.Mana, EnumSet.of(ReplacementType.ProduceMana));
++    private static final Map<ApiType, Set<String>> PARAMS = Map.of(
++            ApiType.GainLife, Set.of("LifeAmount", "Defined"),
++            ApiType.Pump, Set.of("Defined", "NumAtt", "NumDef"),
++            ApiType.PutCounter, Set.of("Defined", "CounterType", "CounterNum"),
++            ApiType.Token, Set.of("TokenScript", "TokenAmount", "TokenOwner"),
++            ApiType.Mana, Set.of("Produced", "Amount"));
++    private static final Set<String> ANY_PARAMS = Set.of("DB", "SpellDescription", "StackDescription", "AILogic");
 +    private static final Set<String> TRIGGER_CHECKS = Set.of("IsPresent", "IsPresent2", "CheckSVar", "CheckSecondSVar",
 +            "ResolvingCheck", "OptionalDecider");
-+    private static final String[] PARAM_PREFIXES = {"Condition", "Unless", "Remember", "Imprint", "Optional"};
++    /** Keywords that add nothing a token's arrival or a later item could act on. */
++    public static final Set<String> TOKEN_KEYWORDS = Set.of("Flying", "Prowess", "Haste", "Vigilance", "Trample",
++            "Lifelink", "Deathtouch", "First Strike", "Double Strike", "Reach", "Menace", "Defender");
++    private static final Pattern PLUS_NUMBER = Pattern.compile("\\+?\\d+");
++    private static final Pattern COLOURS = Pattern.compile("[WUBRGC]( [WUBRGC])*");
++    private static final String[] GRANTS = {"AddAbility", "AddKeyword", "AddTrigger", "AddStaticAbility",
++            "AddReplacementEffect", "AddHiddenKeyword", "GainTextOf"};
++    private static final String[] READS_CHANGES = {"power", "toughness", "counters", "Counter", "life", "GE", "LE",
++            "GT", "LT", "EQ"};
 +
-+    /** Whether this stack item is on the allowlist. */
++    /** Whether this stack item is on the allowlist, read on the item as it is now. */
 +    public static boolean eligible(final SpellAbility sa) {
-+        if (!(sa instanceof WrappedAbility wrapped) || wrapped.getDecider() != null || sa.getApi() != ApiType.GainLife) {
++        if (!(sa instanceof WrappedAbility wrapped) || wrapped.getDecider() != null || !PARAMS.containsKey(sa.getApi())) {
 +            return false;
 +        }
 +        if (sa.getSubAbility() != null || sa.usesTargeting() || sa.isOptionalTrigger() || sa.getControlledByPlayer() != null) {
@@ -6858,35 +6912,126 @@ index 00000000..19e20b28
 +            }
 +        }
 +        final Map<String, String> params = wrapped.getWrappedAbility().getMapParams();
++        final Set<String> allowed = PARAMS.get(sa.getApi());
 +        for (final String key : params.keySet()) {
-+            for (final String prefix : PARAM_PREFIXES) {
-+                if (key.startsWith(prefix)) {
-+                    return false;
-+                }
++            if (!allowed.contains(key) && !ANY_PARAMS.contains(key)) {
++                return false;
 +            }
 +        }
-+        final String defined = params.get("Defined");
-+        return StringUtils.isNumeric(params.get("LifeAmount")) && (defined == null || "You".equals(defined));
++        switch (sa.getApi()) {
++            case GainLife:
++                return StringUtils.isNumeric(params.get("LifeAmount")) && isYou(params.get("Defined"));
++            case Pump:
++                return "Self".equals(params.get("Defined")) && (params.containsKey("NumAtt") || params.containsKey("NumDef"))
++                        && isPlusNumber(params.getOrDefault("NumAtt", "0")) && isPlusNumber(params.getOrDefault("NumDef", "0"));
++            case PutCounter:
++                return "Self".equals(params.get("Defined")) && "P1P1".equals(params.get("CounterType"))
++                        && StringUtils.isNumeric(params.getOrDefault("CounterNum", "1"))
++                        && sa.getHostCard().getCounters(CounterEnumType.M1M1) == 0;
++            case Token:
++                return StringUtils.isNumeric(params.getOrDefault("TokenAmount", "1")) && isYou(params.get("TokenOwner"))
++                        && plainToken(params.get("TokenScript"));
++            case Mana:
++                return params.get("Produced") != null && COLOURS.matcher(params.get("Produced")).matches()
++                        && StringUtils.isNumeric(params.getOrDefault("Amount", "1"));
++            default:
++                return false;
++        }
 +    }
 +
-+    /** Whether next is the same effect as first: both on the allowlist, the same player, the same amount. */
++    private static boolean isYou(final String defined) {
++        return defined == null || "You".equals(defined);
++    }
++
++    private static boolean isPlusNumber(final String n) {
++        return PLUS_NUMBER.matcher(n).matches();
++    }
++
++    private static boolean plainToken(final String script) {
++        if (script == null || script.contains(",")) {
++            return false;
++        }
++        final PaperToken token = StaticData.instance().getAllTokens().getToken(script);
++        if (token == null) {
++            return false;
++        }
++        final CardRules rules = token.getRules();
++        final CardType type = rules.getType();
++        if (rules.getOtherPart() != null || type.isLegendary() || type.isPlaneswalker()
++                || type.hasSupertype(CardType.Supertype.World)) {
++            return false;
++        }
++        final ICardFace face = rules.getMainPart();
++        if (type.isCreature() && face.getIntToughness() < 1) {
++            return false;
++        }
++        if (face.getTriggers().iterator().hasNext() || face.getStaticAbilities().iterator().hasNext()
++                || face.getReplacements().iterator().hasNext()) {
++            return false;
++        }
++        for (final String keyword : face.getKeywords()) {
++            if (!TOKEN_KEYWORDS.contains(keyword)) {
++                return false;
++            }
++        }
++        return true;
++    }
++
++    /** Whether next is the same effect as first: both on the allowlist, the same player, the same parameters. */
 +    public static boolean alike(final SpellAbility first, final SpellAbility next) {
 +        return eligible(next) && next.getApi() == first.getApi()
 +                && next.getActivatingPlayer() == first.getActivatingPlayer()
-+                && StringUtils.equals(next.getParam("LifeAmount"), first.getParam("LifeAmount"))
-+                && StringUtils.equals(next.getParam("Defined"), first.getParam("Defined"));
++                && ((WrappedAbility) next).getWrappedAbility().getMapParams()
++                        .equals(((WrappedAbility) first).getWrappedAbility().getMapParams());
 +    }
 +
-+    /** Whether anything in the game could see life being gained one item at a time. */
-+    public static boolean watched(final Game game) {
-+        if (game.getTriggerHandler().watches(WATCHERS)) {
++    /** Whether anything in the game could see this effect happen one item at a time. */
++    public static boolean watched(final Game game, final ApiType api) {
++        final Set<TriggerType> watchers = WATCHERS.get(api);
++        if (watchers == null || game.getTriggerHandler().watches(t -> ALWAYS_WATCHERS.contains(t.getMode())
++                || (watchers.contains(t.getMode()) && !(t.getMode() == TriggerType.ChangesZone && onlyItsOwnCard(t))))) {
 +            return true;
 +        }
++        final Set<ReplacementType> replaced = REPLACED_BY.get(api);
 +        for (final Card c : game.getCardsInGame()) {
 +            for (final ReplacementEffect re : c.getReplacementEffects()) {
-+                if (re.getMode() == ReplacementType.GainLife) {
++                if (replaced.contains(re.getMode()) && re.zonesCheck(game.getZoneOf(c))) {
 +                    return true;
 +                }
++            }
++            for (final StaticAbility st : c.getStaticAbilities()) {
++                if (st.zonesCheck() && grantsOnAChange(st)) {
++                    return true;
++                }
++            }
++        }
++        return false;
++    }
++
++    private static boolean onlyItsOwnCard(final Trigger t) {
++        return "Card.Self".equals(t.getParam("ValidCard"));
++    }
++
++    private static boolean grantsOnAChange(final StaticAbility st) {
++        if (!st.checkMode(StaticAbilityMode.Continuous)) {
++            return false;
++        }
++        boolean grants = false;
++        for (final String key : GRANTS) {
++            grants |= st.hasParam(key);
++        }
++        if (!grants) {
++            return false;
++        }
++        for (final String key : st.getMapParams().keySet()) {
++            if (key.startsWith("IsPresent") || key.startsWith("CheckSVar") || key.startsWith("Condition")) {
++                return true;
++            }
++        }
++        final String affected = st.getParamOrDefault("Affected", "");
++        for (final String word : READS_CHANGES) {
++            if (affected.contains(word)) {
++                return true;
 +            }
 +        }
 +        return false;
