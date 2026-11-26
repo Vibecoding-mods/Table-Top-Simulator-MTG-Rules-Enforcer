@@ -188,6 +188,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-26 (tree `tmp/eb-heapdraw`, build id `eb-91ece5ec6e5e`) | `engine1133-heapdraw` (node `3efcf079a507` / relay `59e0bd228a4e`; harness test `6a2243c0852e`) | On top of engine1132-heap. A runaway draw thrown from inside the game loop (the heap guard at a resolution or a trigger, and any limit drawn there) now ends the session as a normal game over, a draw with its `drawReason`, instead of an engine error the node reported as `fatal`. `checkHeap` also skips a game already over, and the heap share it draws on is the one it read. Section 4 entry. | no | outer branch `engine1132-heap`; both patches regenerated | not deployed; deploy `--image engine1133-heapdraw` with `MTG_MANABREW=tmp/eb-heapdraw` | engine1132-heap (`--image engine1132-heap`, `MTG_MANABREW=tmp/eb-heap`) |
 | 2026-11-26 (tree `tmp/eb-heap`, build id `eb-e4bd2113f096`) | `engine1132-heap` (node `1c1e208bf129` / relay `7f852af6e36a`; harness test `5b5821c4d701`) | On top of engine1131-batch. (1) The heap guard reads the heap between the limits too: at every trigger fired, ability resolved and replacement run, at most once every 50 ms (`HEAP_READ_MILLIS`), so a long turn is drawn (`drawReason` "heap") before an OutOfMemoryError; before, the heap was read only when a limit asked, and a Kykar + Mentor stress turn died of OOM 40 minutes after its one question. (2) A card that left the battlefield or graveyard no longer keeps a whole board of last-state copies alive for the rest of the turn (`Game.copyLastState` releases the zone copies it replaces). Section 4 entry. | no | outer branch `engine1132-heap`; both patches regenerated | deployed 2026-11-26 (table `d1d68fff`, save `75d78b1b`); deploy `--image engine1132-heap` with `MTG_MANABREW=tmp/eb-heap` | engine1131-batch (`--image engine1131-batch`, `MTG_MANABREW=tmp/eb-batch`) |
 | 2026-11-25 (tree `tmp/eb-batch`, build id `eb-04829797aeeb`) | `engine1131-batch` (node `abc03f5d3012` / relay `eedcbb724704`; harness test `6b5580206108`) | On top of engine1130-ff. Trigger batching: while every player holds a run (the existing held-pass gate, asked again after every item), Forge `StackMerge` resolves a run of identical simple triggers in one engine step: fixed life gain for you, a self pump by +N/+N (prowess), +1/+1 counters on itself, plain tokens for you, fixed mana; each only when nothing active watches or replaces that event and no conditional static grant is in play. The log says "N × <card> resolved at once: <ability>". The merge is no longer capped at 20 by itself; the 20-cut, the minute rule and the response probe still end it. Section 4 entry. | no | outer worktree branch; both patches regenerated | deployed 2026-11-26 (main `47642f7`, table `d1d68fff`, save `75d78b1b`); deploy `--image engine1131-batch` with `MTG_MANABREW=tmp/eb-batch` | engine1130-ff (`--image engine1130-ff`, `MTG_MANABREW=tmp/eb-1130-ff`) |
 | 2026-11-25 17:36 (tree `tmp/eb-1130-ff`, build id `eb-3a5bee0d4000`) | `engine1130-ff` (node `ed30edf4b227` / relay `eab59c676c92`; harness test `c87bd1cd4350`) | On top of engine1129. Long chains: (1) a heap read over 85% first frees unused memory (`System.gc()`, at most once in 5 s) and only a heap still over 85% ends the game; (2) the per-turn trigger limit counts triggers that really fire, not every waiting event (the Kykar loop was asked after about 65 spells); (3) a held exhaust pass covers the run on top of the stack (a spell under it no longer stops the bridge holding) and, once the same run has been held for 60 s, is no longer cut every 20: the rest resolves and the table sees the result. Bridge `heldPass` holds a run on top of a spell. Section 4 entry. | no | outer branch `worktree-agent-ab1b273006f20c952`; both patches regenerated | deployed 2026-11-25 19:40 (main `6845532`); deploy `--image engine1130-ff` with `MTG_MANABREW=tmp/eb-1130-ff` | engine1129 (`--image engine1129`, `MTG_MANABREW=tmp/eb-1129`) |
@@ -314,6 +315,35 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-26 engine1133-heapdraw: a heap draw ends the game as a draw, not an engine error (not deployed)
+- **Why:** on engine1132-heap the live stress rerun (`tmp/stress/run-1132.log`, `tmp/stress/run-1795679898100/`) went
+  89 passes, about 350 tokens and 3 runaway questions in 24 minutes, and the new heap guard fired at 85% of 1,100 MB. The
+  game was drawn in Forge, but the node logged `[mana-brew] interactive game error: Runaway game: 85 % of the heap in use
+  ...` and `hosted engine exited with a fatal error`, and the client got kind `fatal`, not a game over.
+- **Cause:** `endRunawayGame` ends the game (`setGameOver(Draw)`) and then throws `RunawayGameException` to unwind the
+  game thread. Thrown from `checkHeap` inside `MagicStack.resolveStack` in `PhaseHandler.mainLoopStep`, nothing in
+  Forge catches it, so it reached `ManaBrewInteractiveSession.runMatch`, which records every exception as the engine
+  error, and the node's game-over poll (`getGameOver`) throws on an engine error. The older limit draws reached from
+  the game loop took the same path (the 2026-11-25 stress runs' `30001 triggers` and `10001 triggers` draws were also
+  `fatal` at the client); only draws tested by calling `Game` directly looked clean.
+- **Fix (harness `ManaBrewInteractiveSession.runMatch`):** a `RunawayGameException` with the game over is the end of
+  the game, not an error: no engine error is recorded, so the session reads game over, the outcome is a draw and the
+  snapshot's `drawReason` says why. One that ended no game is still an engine error.
+- **Review nits (Forge `Game.java`):** `checkHeap` returns at once for a game already over (it read the heap of a won
+  game and turned it into a draw). The heap share now comes back from `heapShareAfterFree()` instead of being read
+  from the static `heapAfterFree` after the lock, which another game's thread could overwrite. The free state stays
+  static on purpose: the heap and the collector belong to the JVM, so one `System.gc()` every 5 s serves every game.
+- **Tests:** `HeapGuardTest` gains 4 checks (18 in all). Two play a whole AI game in a real session
+  (`ManaBrewInteractiveSession.start`, 20 Forest + 20 Llanowar Elves each, the heap reader full once an Elves is out).
+  `aHeapDrawEndsTheSessionAsADraw`: no engine error, game over, outcome a draw, snapshot `drawReason` "heap".
+  `aGameAlreadyWonReadsNoHeap`: a won game reads no heap. Both failed by name on engine1132-heap. Guards that pass on
+  both: `anEngineFaultStillEndsTheSessionWithAnError` (a reader that throws) and
+  `aRunawayExceptionThatEndedNoGameIsAnError`. Full `harness-tests.sh`: all 60 classes passed on `mtg-harness-test:engine1133-heapdraw` (6a2243c0852e); `tools/live-check.sh engine1133-heapdraw tests/live_phasing_check.js` 29 of 29.
+- **Break-its** (`engine/checks/mutate-in-image.sh`, originals checked by sha256 after, an unchanged control passes):
+  6 mutations, 6 fail named checks: the session reports a heap draw as an error, swallows every engine error, swallows
+  every runaway exception, `checkHeap` reads a game already over, skips the free, returns the share before the free.
+- **Rollback:** engine1132-heap (`--image engine1132-heap`, `MTG_MANABREW=tmp/eb-heap`).
 
 ### 2026-11-26 engine1132-heap: the heap guard between limits, a departed card keeps no board (not deployed)
 - **Why:** on engine1131-batch the live stress run `node tmp/stress/kykar-loop.js --goal 500 --minutes 45` (Kykar +

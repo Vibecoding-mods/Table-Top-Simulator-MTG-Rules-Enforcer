@@ -255,6 +255,10 @@ A 40-minute Kykar + Mentor turn on engine1131-batch died of an OutOfMemoryError 
   a very long turn of spells on a big board still fills the heap, more slowly; the heap draw is what ends it.
 
 
+- **The draw reaches the table (engine1133-heapdraw, not deployed):** on engine1132-heap a heap draw made inside the
+  game loop was reported to the node as an engine error (`fatal`), not as game over. Now it ends as a draw with
+  `drawReason` "heap", like a draw at a question. The limit draws made inside the loop were fixed by the same change.
+
 ## 5. Tests
 
 - **Engine** (`forge-harness/src/test/java/forge/harness/host/BigTurnsTest.java`, 21 checks): the held pass ends after

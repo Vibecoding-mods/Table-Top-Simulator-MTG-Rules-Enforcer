@@ -4010,7 +4010,7 @@ index fb82e6d..04c33b0 100644
              return null;
          }
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..fde1533 100644
+index 643e5de..f997bcd 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,33 +6,50 @@ import forge.harness.common.ParityCardMap;
@@ -4318,7 +4318,7 @@ index 643e5de..fde1533 100644
      }
  
      public String getSessionId() {
-@@ -155,26 +342,26 @@ public final class ManaBrewInteractiveSession {
+@@ -155,26 +342,30 @@ public final class ManaBrewInteractiveSession {
          requireAttached();
          Objects.requireNonNull(rng, "rng");
          if (bridge != null) {
@@ -4349,6 +4349,10 @@ index 643e5de..fde1533 100644
 +        gameLock.lock();
 +        try {
 +            match.startGame(game);
++        } catch (forge.game.Game.RunawayGameException ended) {
++            if (!game.isGameOver()) {
++                recordEngineError(ended);
++            }
 +        } catch (RuntimeException | Error error) {
 +            recordEngineError(error);
 +        } finally {
@@ -4359,7 +4363,7 @@ index 643e5de..fde1533 100644
      public void close() {
          closed = true;
          JsonObject action = new JsonObject();
-@@ -216,9 +403,15 @@ public final class ManaBrewInteractiveSession {
+@@ -216,9 +407,15 @@ public final class ManaBrewInteractiveSession {
  
      public String getSnapshotJson(final int viewer) {
          requireAttached();
@@ -4378,7 +4382,7 @@ index 643e5de..fde1533 100644
      }
  
      void rememberSecretNumberViewer(final String sourceCardId, final Player viewer) {
-@@ -259,6 +452,7 @@ public final class ManaBrewInteractiveSession {
+@@ -259,6 +456,7 @@ public final class ManaBrewInteractiveSession {
          }
          final JsonObject canonical = JsonParser.parseString(actionJson).getAsJsonObject();
          final JsonObject decoded = ManabrewProtocolAdapter.decodeAction(canonical);
@@ -4386,7 +4390,7 @@ index 643e5de..fde1533 100644
          actions.offer(decoded);
          // No snapshot here — it would race the game thread this unblocks.
          return "";
-@@ -266,7 +460,7 @@ public final class ManaBrewInteractiveSession {
+@@ -266,7 +464,7 @@ public final class ManaBrewInteractiveSession {
  
      static final String TRIGGER_ORDER_TITLE = "Order triggered abilities";
  
@@ -4395,7 +4399,7 @@ index 643e5de..fde1533 100644
  
      static final class PriorityChoice {
          private final PriorityActionKind kind;
-@@ -344,6 +538,10 @@ public final class ManaBrewInteractiveSession {
+@@ -344,6 +542,10 @@ public final class ManaBrewInteractiveSession {
              final List<Card> untappableCards
      ) {
          requireAttached();
@@ -4406,7 +4410,7 @@ index 643e5de..fde1533 100644
          if (!botSeats.contains(playerId)) {
              recordCheckpoint();
          }
-@@ -362,6 +560,11 @@ public final class ManaBrewInteractiveSession {
+@@ -362,6 +564,11 @@ public final class ManaBrewInteractiveSession {
              if (isRestoreDirective(action)) {
                  return new PriorityChoice(PriorityActionKind.RESTORE, null, null, null);
              }
@@ -4418,7 +4422,7 @@ index 643e5de..fde1533 100644
              try {
                  return interpretPriorityAction(action, actionsForPrompt, untappableCards);
              } catch (IllegalArgumentException | UnsupportedOperationException | NullPointerException invalid) {
-@@ -823,6 +1026,9 @@ public final class ManaBrewInteractiveSession {
+@@ -823,6 +1030,9 @@ public final class ManaBrewInteractiveSession {
                  }
                  return chosen;
              }
@@ -4428,7 +4432,7 @@ index 643e5de..fde1533 100644
              throw new UnsupportedOperationException("unsupported action kind: " + actionKind);
          }
          return new ArrayList<>();
-@@ -833,7 +1039,13 @@ public final class ManaBrewInteractiveSession {
+@@ -833,7 +1043,13 @@ public final class ManaBrewInteractiveSession {
          final Random rng = forge.util.MyRandom.getRandom();
          final int sides = 20;
          final Map<Player, Integer> openingRolls = new LinkedHashMap<Player, Integer>();
@@ -4443,7 +4447,7 @@ index 643e5de..fde1533 100644
          Player winner;
          boolean firstRound = true;
          while (true) {
-@@ -881,6 +1093,12 @@ public final class ManaBrewInteractiveSession {
+@@ -881,6 +1097,12 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4456,7 +4460,7 @@ index 643e5de..fde1533 100644
      boolean awaitMulliganDecision(final int playerId, final int cardsToReturn) {
          requireAttached();
          final List<Card> cards = new ArrayList<Card>(
-@@ -896,6 +1114,7 @@ public final class ManaBrewInteractiveSession {
+@@ -896,6 +1118,7 @@ public final class ManaBrewInteractiveSession {
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
              if ("mulligan_decision".equals(actionKind)) {
@@ -4464,7 +4468,7 @@ index 643e5de..fde1533 100644
                  return action.has("keep") && action.get("keep").getAsBoolean();
              }
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
-@@ -1004,15 +1223,40 @@ public final class ManaBrewInteractiveSession {
+@@ -1004,15 +1227,40 @@ public final class ManaBrewInteractiveSession {
          return new ArrayList<>();
      }
  
@@ -4506,7 +4510,7 @@ index 643e5de..fde1533 100644
          while (!closed && !game.isGameOver()) {
              final JsonObject action = takeActionOrNull();
              if (action == null) {
-@@ -1104,14 +1348,31 @@ public final class ManaBrewInteractiveSession {
+@@ -1104,14 +1352,31 @@ public final class ManaBrewInteractiveSession {
              final String description,
              final boolean optionalDecline,
              final String error
@@ -4541,7 +4545,7 @@ index 643e5de..fde1533 100644
      }
  
      void awaitRevealCards(
-@@ -1188,6 +1449,18 @@ public final class ManaBrewInteractiveSession {
+@@ -1188,6 +1453,18 @@ public final class ManaBrewInteractiveSession {
          return awaitModeChoice(playerId, unweightedOptions(options, allowRepeat), min, max, sourceName, null, null);
      }
  
@@ -4560,7 +4564,7 @@ index 643e5de..fde1533 100644
      List<Integer> awaitModeChoice(
              final int playerId,
              final List<SelectionOption> options,
-@@ -1196,6 +1469,19 @@ public final class ManaBrewInteractiveSession {
+@@ -1196,6 +1473,19 @@ public final class ManaBrewInteractiveSession {
              final String sourceName,
              final String description,
              final String sourceCardId
@@ -4580,7 +4584,7 @@ index 643e5de..fde1533 100644
      ) {
          requireAttached();
          if (options.isEmpty() && min > 0) {
-@@ -1207,7 +1493,7 @@ public final class ManaBrewInteractiveSession {
+@@ -1207,7 +1497,7 @@ public final class ManaBrewInteractiveSession {
          final int clampedMax = anyRepeatable ? max : Math.min(max, totalWeight);
          final String title = sourceName != null ? sourceName : "Choose";
          final PromptPresentation presentation =
@@ -4589,7 +4593,7 @@ index 643e5de..fde1533 100644
          publishAgentPrompt("player-" + playerId, sourceCardId,
                  new ChooseFromSelectionInput(presentation, options, clampedMin, clampedMax));
          while (!closed && !game.isGameOver()) {
-@@ -1762,24 +2048,29 @@ public final class ManaBrewInteractiveSession {
+@@ -1762,24 +2052,29 @@ public final class ManaBrewInteractiveSession {
              final CardCollectionView valid,
              final int min,
              final int max,
@@ -4621,7 +4625,7 @@ index 643e5de..fde1533 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (chosen.size() >= cappedMin) {
                      break;
-@@ -1821,7 +2112,8 @@ public final class ManaBrewInteractiveSession {
+@@ -1821,7 +2116,8 @@ public final class ManaBrewInteractiveSession {
              final List<Pair<GameEntity, forge.game.GameObject>> candidates,
              final int min,
              final int max,
@@ -4631,7 +4635,7 @@ index 643e5de..fde1533 100644
      ) {
          final Card source = sa == null ? null : sa.getHostCard();
          final List<TargetRef> candidateRefs = new java.util.ArrayList<>();
-@@ -1834,7 +2126,11 @@ public final class ManaBrewInteractiveSession {
+@@ -1834,7 +2130,11 @@ public final class ManaBrewInteractiveSession {
                  new ChooseBoardTargetsInput(
                          presentation("Sacrifice", null),
                          candidateRefs, true, enumFromWire("sacrifice", TargetingIntent.class),
@@ -4644,7 +4648,7 @@ index 643e5de..fde1533 100644
      }
  
      Map<GameEntity, Integer> awaitDividedAllocation(
-@@ -1882,6 +2178,16 @@ public final class ManaBrewInteractiveSession {
+@@ -1882,6 +2182,16 @@ public final class ManaBrewInteractiveSession {
              final int min,
              final int max,
              final boolean allowEmpty
@@ -4661,7 +4665,7 @@ index 643e5de..fde1533 100644
      ) {
          while (!closed && !game.isGameOver()) {
              final JsonObject action;
-@@ -1892,6 +2198,12 @@ public final class ManaBrewInteractiveSession {
+@@ -1892,6 +2202,12 @@ public final class ManaBrewInteractiveSession {
                  return new CardCollection();
              }
              final String actionKind = action.has("kind") ? action.get("kind").getAsString() : "";
@@ -4674,7 +4678,7 @@ index 643e5de..fde1533 100644
              if ("pass".equals(actionKind) || "pass_priority".equals(actionKind)) {
                  if (allowEmpty) {
                      return new CardCollection();
-@@ -1911,10 +2223,10 @@ public final class ManaBrewInteractiveSession {
+@@ -1911,10 +2227,10 @@ public final class ManaBrewInteractiveSession {
                      }
                  }
              }
@@ -4688,7 +4692,7 @@ index 643e5de..fde1533 100644
                  throw new IllegalArgumentException("selected card count out of range: " + selected.size());
              }
              return selected;
-@@ -1940,17 +2252,33 @@ public final class ManaBrewInteractiveSession {
+@@ -1940,17 +2256,33 @@ public final class ManaBrewInteractiveSession {
  
      private JsonObject takeAction() throws InterruptedException {
          while (true) {
@@ -4723,7 +4727,7 @@ index 643e5de..fde1533 100644
              if (isRestoreDirective(action)) {
                  if ("request_restore".equals(kind)) {
                      requestRestore(action.get("player").getAsInt(), action.get("checkpointId").getAsInt());
-@@ -1966,6 +2294,28 @@ public final class ManaBrewInteractiveSession {
+@@ -1966,6 +2298,28 @@ public final class ManaBrewInteractiveSession {
                  announceState();
                  continue;
              }
@@ -4752,7 +4756,7 @@ index 643e5de..fde1533 100644
              if ("set_snapshot_recording".equals(kind)) {
                  if (action.get("player").getAsInt() == InteractiveBridge.HOST_SEAT) {
                      setSnapshotRecording(action.get("enabled").getAsBoolean());
-@@ -1987,6 +2337,25 @@ public final class ManaBrewInteractiveSession {
+@@ -1987,6 +2341,25 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4778,7 +4782,7 @@ index 643e5de..fde1533 100644
      private static JsonObject syntheticPass() {
          final JsonObject pass = new JsonObject();
          pass.addProperty("kind", "pass");
-@@ -2010,6 +2379,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2010,6 +2383,8 @@ public final class ManaBrewInteractiveSession {
          if (!restoreApproved()) {
              return false;
          }
@@ -4787,7 +4791,7 @@ index 643e5de..fde1533 100644
          final RestoreVote vote = restoreVote;
          if (!checkpoints.contains(vote.checkpoint)) {
              vote.status = RestoreVoteStatus.UNAVAILABLE;
-@@ -2037,6 +2408,12 @@ public final class ManaBrewInteractiveSession {
+@@ -2037,6 +2412,12 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -4800,7 +4804,7 @@ index 643e5de..fde1533 100644
      private static boolean isRestoreDirective(final JsonObject action) {
          final String kind = action.has("kind") ? action.get("kind").getAsString() : "";
          return "request_restore".equals(kind) || "restore_vote".equals(kind);
-@@ -2067,30 +2444,243 @@ public final class ManaBrewInteractiveSession {
+@@ -2067,28 +2448,241 @@ public final class ManaBrewInteractiveSession {
          if (handler.getTurn() == checkpointTurn && handler.getPhase() == checkpointPhase) {
              return;
          }
@@ -5012,11 +5016,11 @@ index 643e5de..fde1533 100644
 +            final Checkpoint victim = thinVictim(checkpoints, keep);
 +            if (victim == null) {
 +                return;
-             }
++            }
 +            checkpoints.remove(victim);
-         }
-     }
- 
++        }
++    }
++
 +    static Checkpoint thinVictim(final Deque<Checkpoint> checkpoints, final Checkpoint keep) {
 +        final Checkpoint newest = checkpoints.peekLast();
 +        if (newest == null) {
@@ -5044,15 +5048,13 @@ index 643e5de..fde1533 100644
 +                first = c;
 +            } else if (c != newest && c != keep) {
 +                return c;
-+            }
-+        }
+             }
+         }
 +        return first != null && first != newest && first != keep ? first : null;
-+    }
-+
+     }
+ 
      private void publishCheckpointViews() {
-         final List<Map<String, Object>> views = new ArrayList<>();
-         for (final Checkpoint checkpoint : checkpoints) {
-@@ -2124,6 +2714,10 @@ public final class ManaBrewInteractiveSession {
+@@ -2124,6 +2718,10 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void castRestoreVote(final int voter, final int voteId, final boolean accept) {
@@ -5063,7 +5065,7 @@ index 643e5de..fde1533 100644
          if (restoreVote == null || restoreVote.status != RestoreVoteStatus.PENDING
                  || restoreVote.id != voteId || !restoreVote.awaiting.remove(voter)) {
              return;
-@@ -2157,11 +2751,10 @@ public final class ManaBrewInteractiveSession {
+@@ -2157,11 +2755,10 @@ public final class ManaBrewInteractiveSession {
      }
  
      private void restore(final Checkpoint target) {
@@ -5079,7 +5081,7 @@ index 643e5de..fde1533 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2768,435 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2772,435 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -5515,7 +5517,7 @@ index 643e5de..fde1533 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +3229,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +3233,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -5532,7 +5534,7 @@ index 643e5de..fde1533 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +3273,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +3277,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -5541,7 +5543,7 @@ index 643e5de..fde1533 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +3316,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +3320,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -5564,7 +5566,7 @@ index 643e5de..fde1533 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +3360,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +3364,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -5595,7 +5597,7 @@ index 643e5de..fde1533 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,24 +3624,176 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,24 +3628,176 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -5630,8 +5632,7 @@ index 643e5de..fde1533 100644
 -                    defenderId(defender), defender.getName(),
 -                    enumFromWire(defenderKind(defender), AttackTargetKind.class)));
 +            attackTargets.add(attackTarget(defender, commanders));
-         }
--        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets));
++        }
 +        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets,
 +                attackRefusals(combat, availableAttackers), attackLimits(combat)));
 +    }
@@ -5648,7 +5649,8 @@ index 643e5de..fde1533 100644
 +            final int poison = atPlayer ? ComputerUtilCombat.poisonIfUnblocked(attacker, (Player) defender) : 0;
 +            final Integer commander = atPlayer && attacker.isCommander() && commanderDamageCounts() ? damage : null;
 +            out.add(new AttackDamageDto(defenderId(defender), damage, poison, commander));
-+        }
+         }
+-        publishAgentPrompt("player-" + playerId, null, new ChooseAttackersInput(attackers, attackTargets));
 +        return out;
 +    }
 +
@@ -5778,7 +5780,7 @@ index 643e5de..fde1533 100644
      }
  
      private void publishBlockersPrompt(
-@@ -2604,7 +3801,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2604,7 +3805,8 @@ public final class ManaBrewInteractiveSession {
              final List<Card> attackers,
              final List<Card> availableBlockers,
              final Map<Card, List<Card>> validBlockersByAttacker,
@@ -5788,7 +5790,7 @@ index 643e5de..fde1533 100644
      ) {
          final Player defendingPlayer = game.getRegisteredPlayers().get(playerId);
          final List<BlockableAttackerDto> attackerOptions = new java.util.ArrayList<>();
-@@ -2627,7 +3825,17 @@ public final class ManaBrewInteractiveSession {
+@@ -2627,7 +3829,17 @@ public final class ManaBrewInteractiveSession {
              availableBlockerIds.add(SnapshotExtractor.javaCardId(blocker));
          }
          publishAgentPrompt("player-" + playerId, null,
@@ -5807,7 +5809,7 @@ index 643e5de..fde1533 100644
      }
  
      private void publishDamageAssignmentOrderPrompt(
-@@ -2918,7 +4126,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2918,7 +4130,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -5817,7 +5819,7 @@ index 643e5de..fde1533 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +4137,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +4141,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -5843,7 +5845,7 @@ index 643e5de..fde1533 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +4169,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +4173,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -5854,7 +5856,7 @@ index 643e5de..fde1533 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +4197,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +4201,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -16514,10 +16516,10 @@ index 0000000..4448196
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/HeapGuardTest.java b/forge-harness/src/test/java/forge/harness/host/HeapGuardTest.java
 new file mode 100644
-index 0000000..4b2d3bd
+index 0000000..b656d57
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/HeapGuardTest.java
-@@ -0,0 +1,367 @@
+@@ -0,0 +1,473 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -16574,6 +16576,10 @@ index 0000000..4b2d3bd
 +        check("theLatestLastStateKeepsItsBoard", HeapGuardTest::theLatestLastStateKeepsItsBoard);
 +        check("whatLeftTheBattlefieldStillCounts", HeapGuardTest::whatLeftTheBattlefieldStillCounts);
 +        check("aLongTurnOfDeparturesKeepsOneCopyEach", HeapGuardTest::aLongTurnOfDeparturesKeepsOneCopyEach);
++        check("aHeapDrawEndsTheSessionAsADraw", HeapGuardTest::aHeapDrawEndsTheSessionAsADraw);
++        check("anEngineFaultStillEndsTheSessionWithAnError", HeapGuardTest::anEngineFaultStillEndsTheSessionWithAnError);
++        check("aRunawayExceptionThatEndedNoGameIsAnError", HeapGuardTest::aRunawayExceptionThatEndedNoGameIsAnError);
++        check("aGameAlreadyWonReadsNoHeap", HeapGuardTest::aGameAlreadyWonReadsNoHeap);
 +        System.out.println(failed == 0 ? "PASS HeapGuardTest" : "FAIL HeapGuardTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
 +    }
@@ -16829,6 +16835,108 @@ index 0000000..4b2d3bd
 +        }
 +        expect(game.getLeftBattlefieldThisTurn().size() == 60 && kept.size() <= 60,
 +                "60 cards that left keep " + kept.size() + " card copies (" + game.getLeftBattlefieldThisTurn().size() + " entries)");
++    }
++
++    private static void aHeapDrawEndsTheSessionAsADraw() throws Exception {
++        final ManaBrewInteractiveSession session = playedSession(game -> elvesOut(game) ? 0.9 : 0.1);
++        expect(session.getEngineError() == null, "the heap draw was an engine error: " + firstLine(session.getEngineError()));
++        expect(session.isGameOver(), "the session is not over");
++        final Game game = sessionGame(session);
++        expect(game.getOutcome() != null && game.getOutcome().isDraw(), "the outcome is not a draw: " + game.getOutcome());
++        final com.google.gson.JsonObject view = com.google.gson.JsonParser.parseString(session.getSnapshotJson(0)).getAsJsonObject();
++        expect(view.has("drawReason") && "heap".equals(view.get("drawReason").getAsString()), "the snapshot drawReason: " + view.get("drawReason"));
++    }
++
++    private static void anEngineFaultStillEndsTheSessionWithAnError() throws Exception {
++        final ManaBrewInteractiveSession session = playedSession(game -> {
++            if (elvesOut(game)) {
++                throw new IllegalStateException("heap reader broke");
++            }
++            return 0.1;
++        });
++        expect(session.getEngineError() != null && session.getEngineError().contains("heap reader broke"),
++                "an engine fault was not reported: " + firstLine(session.getEngineError()));
++    }
++
++    private static void aRunawayExceptionThatEndedNoGameIsAnError() throws Exception {
++        final ManaBrewInteractiveSession session = playedSession(game -> {
++            if (elvesOut(game)) {
++                throw new Game.RunawayGameException("thrown with the game still on");
++            }
++            return 0.1;
++        });
++        expect(session.getEngineError() != null && session.getEngineError().contains("thrown with the game still on"),
++                "a runaway exception that ended no game was not reported: " + firstLine(session.getEngineError()));
++    }
++
++    private static void aGameAlreadyWonReadsNoHeap() {
++        final Game game = aiGame();
++        final long[] now = {0};
++        game.setLoopClock(() -> now[0]);
++        game.getPlayers().get(1).loseConditionMet(forge.game.player.GameLossReason.LifeReachedZero, null);
++        game.getAction().checkGameOverCondition();
++        expect(game.isGameOver(), "the game did not end");
++        final int[] reads = {0};
++        Game.setHeapReader(() -> {
++            reads[0]++;
++            return 0.9;
++        });
++        Game.setHeapFreer(() -> { });
++        now[0] += 10_000 * MILLI;
++        try {
++            game.recordTriggerFired();
++        } catch (final Game.RunawayGameException drawn) {
++            throw new AssertionError("a won game was drawn by the heap: " + drawn.getMessage());
++        }
++        expect(reads[0] == 0 && game.getDrawReason() == null, "a won game read the heap " + reads[0] + " times, reason " + game.getDrawReason());
++    }
++
++    private static boolean elvesOut(final Game game) {
++        for (final Player p : game.getPlayers()) {
++            for (final Card c : p.getCardsIn(ZoneType.Battlefield)) {
++                if ("Llanowar Elves".equals(c.getName())) {
++                    return true;
++                }
++            }
++        }
++        return false;
++    }
++
++    private static ManaBrewInteractiveSession playedSession(final java.util.function.Function<Game, Double> heap) throws Exception {
++        for (final String name : new String[] {"Forest", "Llanowar Elves"}) {
++            StaticData.instance().attemptToLoadCard(name);
++        }
++        final List<RegisteredPlayer> players = new ArrayList<>();
++        for (final String name : new String[] {"Blue", "Yellow"}) {
++            final Deck deck = new Deck(name);
++            deck.getMain().add("Forest", 20);
++            deck.getMain().add("Llanowar Elves", 20);
++            players.add(new RegisteredPlayer(deck).setPlayer(new LobbyPlayerAi(name, null)));
++        }
++        final GameRules rules = new GameRules(GameType.Constructed);
++        final Match match = new Match(rules, players, "HeapGuardTest");
++        final Game game = match.createGame();
++        final ManaBrewInteractiveSession session = new ManaBrewInteractiveSession("heap-guard-test");
++        session.attach(match, game, Set.of(), false);
++        Game.setHeapReader(() -> heap.apply(game));
++        Game.setHeapFreer(() -> { });
++        session.start(new java.util.Random(7));
++        final java.lang.reflect.Field field = ManaBrewInteractiveSession.class.getDeclaredField("gameThread");
++        field.setAccessible(true);
++        final Thread thread = (Thread) field.get(session);
++        thread.join(120_000);
++        expect(!thread.isAlive(), "the game was still running after 120 s");
++        return session;
++    }
++
++    private static Game sessionGame(final ManaBrewInteractiveSession session) throws Exception {
++        final java.lang.reflect.Field field = ManaBrewInteractiveSession.class.getDeclaredField("game");
++        field.setAccessible(true);
++        return (Game) field.get(session);
++    }
++
++    private static String firstLine(final String text) {
++        return text == null ? "null" : text.split("\n", 2)[0];
 +    }
 +
 +    private static void fullHeap() {
