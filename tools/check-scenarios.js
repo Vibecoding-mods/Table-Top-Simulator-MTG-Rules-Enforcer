@@ -74,8 +74,12 @@ function server() {
   const p = spawn("java", ["-Xmx4g", "-cp", [tmp, JAR].join(path.delimiter), "forge.harness.host.HeadlessGameServer", "forge/forge-gui/"], { cwd: TREE, stdio: ["pipe", "pipe", "pipe"] });
   const lines = readline.createInterface({ input: p.stdout });
   const waiting = [];
-  lines.on("line", (l) => { const w = waiting.shift(); if (w) w(JSON.parse(l)); });
-  p.stderr.on("data", () => {});
+  lines.on("line", (l) => { let o; try { o = JSON.parse(l); } catch { return; } const w = waiting.shift(); if (w) w(o); }); // (a non-JSON line is the JVM's noise)
+  let err = "";
+  p.stderr.on("data", (d) => { err = (err + d).slice(-4000); });
+  // (the JVM dying mid-scenario: an ask() would wait forever)
+  p.on("exit", (c) => { if (waiting.length) { console.error(`the engine server exited ${c} mid-scenario:\n${err}`); process.exit(1); } });
+  p.on("error", (e) => { console.error(`the engine server didn't start: ${e.message}`); process.exit(1); });
   const ask = (line) => new Promise((resolve) => { waiting.push(resolve); p.stdin.write(`${line}\n`); });
   const ready = new Promise((resolve) => waiting.push(resolve));
   return { ask, ready, quit: () => { try { p.stdin.write("quit\n"); } catch {} REAL.setTimeout(() => p.kill(), 2000); } };

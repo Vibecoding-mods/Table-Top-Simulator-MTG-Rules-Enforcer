@@ -8,6 +8,7 @@
 // nothing there; with other choices, the shortcut's layer.equals would throw on a scan with no layer. No card in the
 // pool gives one entering card two replacements in one layer that move it: docs/handoff/static-pass-report.md.)
 //   node tools/mutate-static-pass.js <engine tree> [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const os = require("os");
 const path = require("path");

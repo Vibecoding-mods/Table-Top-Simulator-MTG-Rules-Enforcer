@@ -18,19 +18,23 @@ const BASICS = ["Plains", "Island", "Swamp", "Mountain", "Forest"];
   for (const r of rows) {
     if (out[r.kw] !== undefined) continue;
     const q = (r.kind === "Ability word" ? `o:"${r.kw.toLowerCase()} —"` : `keyword:"${r.kw}"`) + " legal:commander -t:basic";
-    let pick = null;
+    let pick = null, failed = false; // (failed: the last try got an error, not an answer)
     for (let tries = 0; tries < 4 && !pick; tries++) {
       await sleep(700 + tries * 3000);
+      failed = false;
       try {
         const res = await get(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=edhrec`);
-        if (res.object === "error") break;
+        // (a 404 is Scryfall's "no card matches": a real null. A 429 or 5xx is not an answer; it was cached as "no card"
+        // for good and the keyword vanished from every deck, 2026-11-27)
+        if (res.object === "error") { if (res.status === 404) break; failed = true; continue; }
         for (const c of res.data || []) {
           const name = c.name.split(" // ")[0];
           if (known.has(name) && !used.has(name) && name !== COMMANDER) { pick = { card: name, kind: r.kind, type: c.type_line }; break; }
         }
         if (!pick) break;
-      } catch {}
+      } catch { failed = true; }
     }
+    if (!pick && failed) { process.stdout.write("?"); continue; } // (not cached: the next run asks again)
     out[r.kw] = pick;
     if (pick) used.add(pick.card);
     fs.mkdirSync(path.join(ROOT, "tmp", "kwdecks"), { recursive: true });

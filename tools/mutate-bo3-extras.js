@@ -4,6 +4,7 @@
 // it names among the ones that fail. The real files are never written: their sha256 is checked before and after each
 // run, and the copies are removed.
 //   node tools/mutate-bo3-extras.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

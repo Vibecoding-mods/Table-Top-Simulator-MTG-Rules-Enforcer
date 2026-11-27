@@ -4,6 +4,7 @@
 // checks that failed by name. The real files are never written: their sha256 is checked before and after each run, and
 // the copies are removed. A mutation no check catches is printed as SURVIVED.
 //   node tools/mutate-stress-caps.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -22,13 +23,13 @@ const MUTATIONS = [
   ["number: the picker back at 20", B, "const NUMBER_PICK_MAX = 999;", "const NUMBER_PICK_MAX = 20;"],
   ["number: a clipped max not said", B, "        if (ui.mode === \"number\" && ui.max < input.max) {", "        if (false) {"],
   ["fewNames: never cut", B, "const fewNames = (list, n = FEW_NAMES) => (list.length > n ?", "const fewNames = (list, n = FEW_NAMES) => (false ?"],
-  ["byCount: the mill's list uncut", B, "const byCount = (names) => fewNames([...names.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)));",
-    "const byCount = (names) => [...names.reduce((m, n) => m.set(n, (m.get(n) || 0) + 1), new Map())].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(\", \");"],
+  ["byCount: the mill's list uncut", B, "const byCount = (names) => fewNames(countedNames(names));",
+    "const byCount = (names) => joinNames(countedNames(names));"],
   ["discard: the list uncut", B, "  discard: (w, names) => `${w} discards ${fewNames(names)}`,", "  discard: (w, names) => `${w} discards ${names.join(\", \")}`,"],
   ["exile from a graveyard: the list uncut", B, "  graveyard: (w, names, k) => `${fewNames(names)} ${names.length === 1", "  graveyard: (w, names, k) => `${names.join(\", \")} ${names.length === 1"],
   ["effects hover: every text listed", B, "${tips.slice(0, EFFECT_HOVER).join(\"\\n\")}", "${tips.join(\"\\n\")}"],
   ["compact: never compact", R, "  if a < 10000 then return tostring(v) end", "  if true then return tostring(v) end"],
-  ["compact: no ∞ at the cap", R, "  if n >= ENGINE_HUGE then return \"∞\" elseif", "  if false then return \"∞\" elseif"],
+  ["compact: no ∞ at the cap", R, "  if n >= ENGINE_HUGE then return engineInfText() elseif", "  if false then return engineInfText() elseif"],
   ["life: the font never smaller", R, "or math.floor(ENGINE_LIFE_FONT.font * ENGINE_LIFE_FONT.letters / letters)", "or ENGINE_LIFE_FONT.font"],
   ["life: the compact label not written", R, "    if tostring(main.label) ~= look.label then edit.label = look.label end", ""],
   ["life: the exact life not in the hover", R, "    want = \"Life: \" .. (math.abs(n) < 1e15", "    want = \"\" .. (math.abs(n) < 1e15"],

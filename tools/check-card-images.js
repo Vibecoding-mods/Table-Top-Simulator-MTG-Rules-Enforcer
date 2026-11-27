@@ -17,11 +17,14 @@ const norm = (s) => String(s).toLowerCase().replace(/\s+/g, " ").trim();
 const img = (side, id) => `https://img.klrmngr.com/display/${side}/${id[0]}/${id[1]}/${id}.webp`;
 
 async function collection(batch) {
-  for (let wait = 1000; ; wait = Math.min(wait * 2, 60000)) {
+  // (only a rate limit, a server error or a dropped connection is waited out, and not for ever: a 400/404/422 answers the
+  // same to the same body, and retrying it looped for ever, 2026-11-27)
+  for (let wait = 1000, attempt = 1; ; wait = Math.min(wait * 2, 60000), attempt++) {
     const res = await fetch("https://api.scryfall.com/cards/collection", {
       method: "POST", headers: UA, body: JSON.stringify({ identifiers: batch.map((name) => ({ name })) }),
-    }).catch((e) => ({ ok: false, status: e.message }));
+    }).catch((e) => ({ ok: false, status: e.message, dropped: true }));
     if (res.ok) return res.json();
+    if (!(res.dropped || res.status === 429 || res.status >= 500) || attempt >= 10) throw new Error(`Scryfall answered ${res.status} to a batch of ${batch.length} names (attempt ${attempt}): ${batch.slice(0, 3).join(", ")} ...`);
     console.log(`  Scryfall ${res.status}; waiting ${wait / 1000} s`);
     await sleep(wait);
   }

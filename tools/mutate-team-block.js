@@ -3,6 +3,7 @@
 // tests, and must make the check it names fail by name; then the file is put back and checked by sha256. A mutation
 // whose named check still passes is printed as SURVIVED (docs/game-modes-spec.md §5.12).
 //   node tools/mutate-team-block.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -53,8 +54,8 @@ const MUTATIONS = [
     "panel: a joint block opens the panel"],
   ["no Waiting for the partner", "tools/engine-renderer.lua", "    if kind == \"block\" and q.joint ~= nil then return \"Waiting for \" .. engineNameOf(c) .. \"...\" end\n", "",
     "waiting: the partner's corner says Waiting for Yellow"],
-  ["Level 1 by default", "tools/engine-renderer.lua", "ENGINE_TEAM_TURNS = \"shared\"\n", "ENGINE_TEAM_TURNS = nil\n",
-    "default: Two-Headed Giant is one turn for each team"],
+  ["Level 2 by default", "tools/engine-renderer.lua", "\nENGINE_TEAM_TURNS = nil\n", "\nENGINE_TEAM_TURNS = \"shared\"\n",
+    "default: Two-Headed Giant is each player's own turn"],
   ["trigger order not the team leader's words", "bridge/teams.js", "(you are the team leader). The one", "(you are the team's first seat). The one",
     "triggers: the primary player is told she orders them as the team leader"],
 ];

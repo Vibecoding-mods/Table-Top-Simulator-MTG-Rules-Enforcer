@@ -2,6 +2,7 @@
 // table's 3HG code off (tools/engine-renderer.lua), runs the test, lists the checks that failed by name, then puts the
 // file back and checks it by sha256. A mutation no check catches is printed as SURVIVED.
 //   node tools/mutate-3hg-table.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -23,13 +24,13 @@ const MUTATIONS = [
   ["the mode not kept", R, "    ENGINE_TEAM_MODE = \"3hg\"\n", ""],
   ["the help text dropped", R, "engineTeamsText() .. ENGINE_TEAM_HELP[\"3hg\"]", "engineTeamsText() .. \"\""],
   ["the teams text four seats", R, "ENGINE_TEAM_MODE == \"3hg\" and {", "false and {"],
-  ["the label", R, "or m == \"3hg\" and \"3HG\"", "or m == \"3hg\" and \"None\""],
+  ["the label", R, "m == \"3hg\" and (ENGINE_TEAM_TURNS == \"shared\" and \"3HG team turns\" or \"3HG\") or \"None\"", "m == \"3hg\" and \"None\" or \"None\""],
   ["mtg team in 3hg allowed", R, "  if ENGINE_TEAM_MODE == \"3hg\" then pl.broadcast(\"[MTG] In Three-Headed Giant", "  if false then pl.broadcast(\"[MTG] In Three-Headed Giant"],
   ["the button never offers 3hg", R, "  if engineSixSeats() then\n    nextOf[", "  if false then\n    nextOf["],
   ["the button: 3hg loops", R, "    nextOf[\"3hg\"] = \"ffa\"\n", "    nextOf[\"3hg\"] = \"3hg\"\n"],
   ["the game-mode switch drops 3hg", R, "ENGINE_TEAM_GAME_MODE[\"3hg\"] = ENGINE_TEAM_MODE == \"3hg\" and mode or nil", "ENGINE_TEAM_GAME_MODE[\"3hg\"] = nil"],
   ["the switch's 3hg entry left behind", R, "  ENGINE_TEAM_GAME_MODE[\"3hg\"] = nil\n", ""],
-  ["2v2 after 3hg keeps the sides", R, "or ENGINE_TEAM_MODE == \"3hg\"", "or false"],
+  ["2v2 after 3hg keeps the sides", R, "ENGINE_TEAM_MODE == \"juggernaut\" or ENGINE_TEAM_MODE == \"3hg\" then ENGINE_TEAMS =", "ENGINE_TEAM_MODE == \"juggernaut\" or false then ENGINE_TEAMS ="],
 ];
 
 function runTests() {

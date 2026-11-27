@@ -14,6 +14,10 @@ const USER = process.argv[2] || path.join(SAVES, "TS_Save_1.json");
 const ENGINE = process.argv[3] || path.join(SAVES, "MTG 4 player table - ENGINE MODE.json");
 const BACKUP_DIR = path.join(__dirname, "..", "tmp", "backup");
 
+// (the default ENGINE MODE save was deleted from the Saves folder, 2026-11-27: name the engine save as the second argument)
+for (const [what, f] of [["your save", USER], ["the engine save", ENGINE]]) {
+  if (!fs.existsSync(f)) { console.error(`${what} '${f}' doesn't exist: node tools/make-user-save.js [user.json] [engine.json]`); process.exit(1); }
+}
 const user = JSON.parse(fs.readFileSync(USER, "utf8"));
 const engine = JSON.parse(fs.readFileSync(ENGINE, "utf8"));
 const engineGuids = new Set(engine.ObjectStates.map((o) => o.GUID));
@@ -21,9 +25,12 @@ const isSetupTile = (o) => o.Name === "BlockSquare" && o.Nickname === "MTG game 
 const own = user.ObjectStates.filter((o) => !engineGuids.has(o.GUID) && !isSetupTile(o));
 
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
-const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
-const backup = path.join(BACKUP_DIR, `${path.basename(USER, ".json")}-${stamp}.json`);
-fs.copyFileSync(USER, backup);
+// (to the second, and never over an earlier backup: a rerun within the minute copied the already merged save over the
+// original, which was then gone)
+const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+let backup = path.join(BACKUP_DIR, `${path.basename(USER, ".json")}-${stamp}.json`);
+for (let n = 2; fs.existsSync(backup); n++) backup = path.join(BACKUP_DIR, `${path.basename(USER, ".json")}-${stamp}-${n}.json`);
+fs.copyFileSync(USER, backup, fs.constants.COPYFILE_EXCL);
 
 const out = { ...user };
 for (const k of ["LuaScript", "LuaScriptState", "XmlUI", "CustomUIAssets"]) if (k in engine) out[k] = engine[k];

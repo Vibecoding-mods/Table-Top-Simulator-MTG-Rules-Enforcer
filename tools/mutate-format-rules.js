@@ -5,6 +5,7 @@
 // with a bridge copy that requires it. The real files are never written: their sha256 is checked before and after each
 // run, and the copies are removed.
 //   node tools/mutate-format-rules.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -53,7 +54,7 @@ const MUTATIONS = [
   ["check: the closing line left out", B, "${footer ? `\\n${footer}` : \"\"}", "", "alert: Modern's lines, §5.2's order"],
   ["check: the banned cards let through not said", B, "const allowed = fc.allowedBanned.length ?", "const allowed = false ?", "ready: banned off names the banned card it let through"],
   ["check: 'legal' said with no data", B, "const legal = F.list && !fc.warnings.length ?", "const legal = F.list ?", "ready: no data for the format is said, and not 'legal'"],
-  ["data: has() ignored", B, "(typeof l.has !== \"function\" || l.has(f.key))", "true", "ready: no data for the format is said, and not 'legal'"],
+  ["data: has() ignored", B, "if (l && l.has(f.key)) {", "if (l) {", "ready: no data for the format is said, and not 'legal'"],
   ["data: no Forge fallback for Standard", B, "  if (f.key === \"standard\") {\n    const s = forgeFormat(\"Standard\");", "  if (false) {\n    const s = forgeFormat(\"Standard\");", "ready: Standard with no ban list data falls back to Forge's list"],
   ["start: the switches not compared", B, "(readyDecks[c].rules || readyDecks[c].mode || \"commander\") === rules;", "(readyDecks[c].rules || readyDecks[c].mode || \"commander\").split(\"|\")[0] === String(rules).split(\"|\")[0];", "start: the same format with a switch changed"],
   ["start: the mode's rules, not the format's", B, "const deckRules = mode === gameMode.mode ? rulesKey() : mode;", "const deckRules = mode;", "start: a deck checked for Commander, the format now Modern"],

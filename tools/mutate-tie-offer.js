@@ -3,6 +3,7 @@
 // tools/make-engine-copy.js), runs both tests, lists the checks that failed by name, then puts the file back and checks
 // it by sha256. A mutation no check catches is printed as SURVIVED. The engine's pieces: tools/mutate-tie-offer-engine.js.
 //   node tools/mutate-tie-offer.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -45,7 +46,7 @@ const MUTATIONS = [
   ["accomplishments: a colour is a key", A, "  return /^\\d{5,20}$/.test(s) ? s : null;", "  return s || null;"],
   ["accomplishments: unknown ones kept", A, "if (ACCOMPLISHMENTS[id] && okEntry(e)) kept[id]", "if (okEntry(e)) kept[id]"],
   ["accomplishments: never saved", A, "      save();\n      return { id, ...e };", "      return { id, ...e };"],
-  ["table: buttons for everyone", R, "  local ask = open and t.status == \"pending\" and engineTieWaits(t, c)", "  local ask = open and t.status == \"pending\""],
+  ["table: buttons for everyone", R, "t.status == \"pending\" and Player[c] ~= nil and Player[c].seated and engineTieWaits(t, c) then", "t.status == \"pending\" and Player[c] ~= nil and Player[c].seated then"],
   ["table: the pop-up shuts after a no", R, "(t.status == \"pending\" or t.status == \"declined\")", "(t.status == \"pending\")"],
   ["table: the pop-up stays at game over", R, "  local open = t ~= nil and not gameOver and", "  local open = t ~= nil and"],
   ["table: the count not shown", R, "Rounds without progress: \" .. tostring(t.rounds or 0)", "Rounds without progress: \" .. \"?\""],
@@ -67,7 +68,7 @@ function runTests() {
       const m = line.match(/^\s*FAIL[: ]\s*(.+)$/);
       if (m && !/^test_/.test(m[1])) failed.push(m[1].slice(0, 90));
     }
-    if (r.status !== 0 && !failed.length) failed.push(`${t} exit ${r.status}: ${out.split("\n").slice(-3).join(" ").slice(0, 160)}`);
+    if (r.status !== 0 && !/^\s*FAIL/m.test(out)) failed.push(`CRASH: ${t} exit ${r.status}: ${out.split("\n").slice(-3).join(" ").slice(0, 160)}`);
   }
   return failed;
 }
@@ -87,8 +88,9 @@ for (const [label, rel, from, to] of list) {
   let failed;
   try { failed = runTests(); } finally { fs.writeFileSync(file, text); }
   const ok = sha(file) === before;
-  if (!failed.length) survived++;
-  console.log(`${failed.length ? "caught" : "SURVIVED"}: ${label}${failed.length ? ` -> ${failed.slice(0, 3).join(" | ")}` : ""}${ok ? "" : "  RESTORE MISMATCH"}`);
+  const caught = failed.some((f) => !f.startsWith("CRASH: ")); // (a test that crashed or timed out is no check catching it)
+  if (!caught) survived++;
+  console.log(`${caught ? "caught" : "SURVIVED"}: ${label}${failed.length ? ` -> ${failed.slice(0, 3).join(" | ")}` : ""}${ok ? "" : "  RESTORE MISMATCH"}`);
 }
 console.log(survived ? `${survived} of ${list.length} survived` : `all ${list.length} caught, every file restored`);
 process.exit(survived ? 1 : 0);

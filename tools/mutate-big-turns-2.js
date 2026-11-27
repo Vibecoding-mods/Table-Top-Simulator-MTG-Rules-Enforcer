@@ -4,6 +4,7 @@
 // back and checks it by sha256. A mutation no check catches is printed as SURVIVED. The engine's pieces:
 // tools/mutate-engine-docker.js.
 //   node tools/mutate-big-turns-2.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -36,10 +37,10 @@ const MUTATIONS = [
   ["bridge: the closed question unsaid", B, "  closePrompt(seat);\n  chat(`[MTG] The engine's ${RUNAWAY_ANSWER_SECONDS} seconds", "  closePrompt(seat);\n  if (0) chat(`[MTG] The engine's ${RUNAWAY_ANSWER_SECONDS} seconds"],
   ["bridge: a newer question closed by an old clock", B, "function runawayExpired(seat, promptId) {\n  if (seat.prompt?.promptId !== promptId) return;", "function runawayExpired(seat, promptId) {\n  if (!seat.prompt) return;"],
   ["table: inf never shown", R, "    if c.groupInf then parts[#parts + 1]", "    if false then parts[#parts + 1]"],
-  ["table: no tooltip for inf", R, "ENGINE_INF_BADGE, BADGE.black, \"Infinitely many (the engine keeps \" .. ENGINE_TOKEN_CAP .. \" real tokens)\" }", "ENGINE_INF_BADGE, BADGE.black }"],
+  ["table: no tooltip for inf", R, "\"x\" .. engineInfText(), BADGE.black, \"Infinitely many (the engine keeps \" .. ENGINE_TOKEN_CAP .. \" real tokens)\" }", "\"x\" .. engineInfText(), BADGE.black }"],
   ["table: the stack's own inf forgotten", R, "        c.groupInf = c.inf == true\n", "        c.groupInf = false\n"],
   ["table: a member's inf ignored", R, "        if c.inf then rep.groupInf = true end\n", ""],
-  ["table: the badge says INF", R, "ENGINE_INF_BADGE = \"x∞\"", "ENGINE_INF_BADGE = \"xINF\""],
+  ["table: the badge says INF", R, "ENGINE_INF = { glyph = \"∞\", fallback = \"INF\", ascii = false }", "ENGINE_INF = { glyph = \"∞\", fallback = \"INF\", ascii = true }"],
   ["table: inf splits the stack", R, "tostring(c.fd), tostring(c.po), table.concat(c.kw or {}, \",\") }, \"|\")", "tostring(c.fd), tostring(c.po), tostring(c.inf), table.concat(c.kw or {}, \",\") }, \"|\")"],
 ];
 
@@ -52,7 +53,7 @@ function runTests() {
       const m = line.match(/^\s*FAIL[: ]\s*(.+)$/);
       if (m && !/^test_/.test(m[1])) failed.push(m[1].slice(0, 90));
     }
-    if (r.status !== 0 && !failed.length) failed.push(`${t} exit ${r.status}: ${out.split("\n").slice(-3).join(" ").slice(0, 160)}`);
+    if (r.status !== 0 && !/^\s*FAIL/m.test(out)) failed.push(`CRASH: ${t} exit ${r.status}: ${out.split("\n").slice(-3).join(" ").slice(0, 160)}`);
   }
   return failed;
 }
@@ -72,8 +73,9 @@ for (const [label, rel, from, to] of list) {
   let failed;
   try { failed = runTests(); } finally { fs.writeFileSync(file, text); }
   const ok = sha(file) === before;
-  if (!failed.length) survived++;
-  console.log(`${failed.length ? "caught" : "SURVIVED"}: ${label}${failed.length ? ` -> ${failed.slice(0, 3).join(" | ")}` : ""}${ok ? "" : "  RESTORE MISMATCH"}`);
+  const caught = failed.some((f) => !f.startsWith("CRASH: ")); // (a test that crashed or timed out is no check catching it)
+  if (!caught) survived++;
+  console.log(`${caught ? "caught" : "SURVIVED"}: ${label}${failed.length ? ` -> ${failed.slice(0, 3).join(" | ")}` : ""}${ok ? "" : "  RESTORE MISMATCH"}`);
 }
 console.log(survived ? `${survived} of ${list.length} survived` : `all ${list.length} caught, every file restored`);
 process.exit(survived ? 1 : 0);

@@ -364,7 +364,8 @@ const M = [
   ["tx the pending payment kept past the next question", "  const taxPay = seat.taxPay;\n  seat.taxPay = null;\n", "  const taxPay = seat.taxPay;\n"],
   ["tx button: no 'ask' default in the words", "const mode = taxAuto[m.color] || \"ask\";", "const mode = taxAuto[m.color];"],
   ["tx button: the open question closed as not answered [equivalent: closePrompt's answered flag only gives back an askUnder card, and a tax question is never one]", "taxAnswer(seat, p.promptId, p.type, p.ui, p.toOutput, p.tax)) closePrompt(seat, true);", "taxAnswer(seat, p.promptId, p.type, p.ui, p.toOutput, p.tax)) closePrompt(seat);"],
-  ["tx own card's tax answered too", "taxCtl != null && taxCtl !== seat.slot) tax =", "taxCtl != null) tax ="],
+  ["tx own card's tax answered too", "taxCtl != null && taxCtl !== seat.slot && !teammateOf(gv, taxCtl, seat.slot)) tax =", "taxCtl != null && !teammateOf(gv, taxCtl, seat.slot)) tax ="],
+  ["tx a teammate's card's tax answered too", "taxCtl != null && taxCtl !== seat.slot && !teammateOf(gv, taxCtl, seat.slot)) tax =", "taxCtl != null && taxCtl !== seat.slot) tax ="],
   ["tx a pay-for ('If you do') counted as a tax", "if (!u && !paysFor && prompt.sourceCard?.id && taxCtl != null", "if (!u && prompt.sourceCard?.id && taxCtl != null"],
   ["tx != null → truthiness on the controller [equivalent: controller ids are always 'player-N' strings, never '' or 0]", "prompt.sourceCard?.id && taxCtl != null && taxCtl !== seat.slot", "prompt.sourceCard?.id && taxCtl && taxCtl !== seat.slot"],
   ["tx controller from the prompt first (?? args swapped)", "const taxCtl = byId[prompt.sourceCard?.id]?.controllerId ?? prompt.sourceCard?.controllerId;", "const taxCtl = prompt.sourceCard?.controllerId ?? byId[prompt.sourceCard?.id]?.controllerId;"],
@@ -455,6 +456,17 @@ function gate(args, label) {
 const checkLive = () => { if (sha(fs.readFileSync(SRC, "utf8")) !== PRISTINE_SHA) throw new Error("the live bridge.js changed during the run: stop and look"); };
 const cleanup = () => { try { fs.unlinkSync(MUTANT); } catch { /* gone already */ } };
 process.on("SIGINT", () => { cleanup(); process.exit(130); });
+
+// The control run: a gate that is already red on the unmutated bridge (a port clash, the environment) would be
+// credited with every mutant that passes the golden before it, and the grade would read SOUND while real escapes hide
+// (2026-11-27 review). So every gate that will run goes once over the pristine copy first; any red one stops the tool.
+const pendingRun = list.filter(([name, from, to]) => process.env.MUT_RERUN || !(saved[name]?.key === keyOf(from, to) && saved[name].bridge === PRISTINE_SHA.slice(0, 16) && !saved[name].goldenOnly === !process.env.MUT_GOLDEN_ONLY));
+if (pendingRun.length) {
+  fs.writeFileSync(MUTANT, pristine);
+  const control = [gate([__filename, "--golden-child"], "golden"), ...(process.env.MUT_GOLDEN_ONLY ? [] : GATES.map((g) => gate([path.join(ROOT, "tests", `${g}.js`)], g)))].filter(Boolean);
+  cleanup();
+  if (control.length) { console.error(`the gates are red on the UNMUTATED bridge, so no mutant could be graded:\n  ${control.join("\n  ")}`); process.exit(2); }
+}
 
 for (const [name, from, to] of list) {
   checkLive();

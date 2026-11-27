@@ -261,6 +261,7 @@ const hostCommon = (engine) => `- At least 4 CPU cores and 16 GB of RAM recommen
   rules-engine table from your own copy):
     4 players: https://steamcommunity.com/sharedfiles/filedetails/?id=2296042369
     6 players: https://steamcommunity.com/sharedfiles/filedetails/?id=2293586471
+       (the companion can't make a rules-engine version of this one yet)
   After subscribing, start TTS once so Steam downloads them.`;
 
 const readmeLinux = (v) => `MTG Table (rules engine) for Linux and the Steam Deck - host it on your own computer
@@ -601,7 +602,8 @@ async function main() {
     "source/build-images.sh": path.join(repo, "engine", "build-images.sh"),
   };
   for (const [to, from] of Object.entries(licences)) if (!fs.existsSync(from)) stop(`LICENSES/${to} would come from ${from}, which is missing`);
-  for (const f of pack.BRIDGE_SHIPPED.slice(0, 3)) if (!fs.existsSync(path.join(repo, "bridge", f))) stop(`bridge/${f} is missing`);
+  // (all six data files, as the Windows builder: a missing forge-formats/legality/schemes.json was shipped without a word)
+  for (const f of pack.BRIDGE_DATA) if (!fs.existsSync(path.join(repo, "bridge", f))) stop(`bridge/${f} is missing`);
   const pinned = (name) => (fs.readFileSync(licences["source/build-images.sh"], "utf8").match(new RegExp(`^${name}=(\\w+)`, "m")) || [])[1] || "?";
 
   // the companion: every file of companion-node, and the two it reads beside itself
@@ -698,6 +700,9 @@ ${pack.composeYaml()}`) });
       ].map((e) => ({ ...e, name: `${name}/${e.name}` }));
       const dup = entries.map((e) => e.name).find((n, i, all) => all.indexOf(n) !== i);
       if (dup) stop(`${dup} twice in the package`);
+      // (the Windows package's key-file guard too: a stray server.json or .pem in companion-node/ is copied byte for byte)
+      const secrets = pack.secretFiles(tableCheckEntries(entries, name));
+      if (secrets.length) stop(`the package would hand out a file that holds a key: ${secrets.join(", ")}`);
       const copies = pack.tableCopies(tableCheckEntries(entries, name));
       if (copies.length) stop(`the package would hand out a copy of a Workshop table (Steam lets subscribers use it, not distribute it): ${copies.join(", ")}`);
       const target = path.join(out, `${name}.tar.gz`);

@@ -35,9 +35,11 @@ const extra = path.join(tmp, "MTG-Table-linux.tar.gz");
 fs.writeFileSync(extra, "tar bytes");
 
 // A fake GitHub: releases by tag, assets by name; fail: names whose upload answers 500 once
-function fakeGitHub({ exists = false, uploadUrl = "https://uploads.github.com/repos/x/y/releases/7/assets{?name,label}", fail = [] } = {}) {
+// (stubs: names of half-uploaded assets already on the release, state "starter": a second upload of the same name is
+// answered 422 already_exists until the stub is deleted, as GitHub does)
+function fakeGitHub({ exists = false, uploadUrl = "https://uploads.github.com/repos/x/y/releases/7/assets{?name,label}", fail = [], stubs = [] } = {}) {
   const calls = [];
-  let release = exists ? { id: 7, upload_url: uploadUrl, html_url: "https://github.com/x/y/releases/7", assets: [] } : null;
+  let release = exists ? { id: 7, upload_url: uploadUrl, html_url: "https://github.com/x/y/releases/7", assets: stubs.map((name, i) => ({ id: 900 + i, name, state: "starter" })) } : null;
   const failing = new Set(fail);
   const reply = (status, body) => ({ status, text: async () => (body === undefined ? "" : JSON.stringify(body)) });
   const fetch = async (url, opts = {}) => {
@@ -51,9 +53,12 @@ function fakeGitHub({ exists = false, uploadUrl = "https://uploads.github.com/re
     if (url.startsWith(uploadUrl.replace(/\{.*$/, "")) && opts.method === "POST") {
       const name = u.searchParams.get("name");
       if (failing.has(name)) { failing.delete(name); return reply(500, { message: "boom" }); }
+      if (release.assets.some((x) => x.name === name)) return reply(422, { message: "already_exists" });
       release.assets.push({ name, state: "uploaded" });
       return reply(201, { name });
     }
+    const del = url.startsWith(`${API}/releases/assets/`) && opts.method === "DELETE" ? Number(url.split("/").pop()) : null;
+    if (del != null) { release.assets = release.assets.filter((x) => x.id !== del); return reply(204); }
     return reply(418, { message: `unexpected ${url}` });
   };
   return { fetch, calls, get release() { return release; } };
@@ -109,6 +114,14 @@ const run = async (gh, argv, extraOpts = {}) => {
     const r2 = await run(g2, ["--dir", dir]);
     const ups = g2.calls.slice(before).filter((c) => c.method === "POST").map((c) => new URL(c.url).searchParams.get("name"));
     ok("a failed upload: the next run uploads it alone", r2.failedCount === 0 && JSON.stringify(ups) === JSON.stringify(["update.json"]), ups);
+  }
+
+  // ── an upload that died part way: its stub is deleted and the file goes up (the rerun a half upload needs)
+  {
+    const gs = fakeGitHub({ exists: true, stubs: ["update.json"] });
+    const r = await run(gs, ["--dir", dir]);
+    ok("a half-uploaded file: the rerun succeeds, no 422 for ever", r.failedCount === 0 && !r.error, r);
+    ok("a half-uploaded file: the stub was deleted, the file uploaded", gs.calls.some((c) => c.method === "DELETE") && gs.release.assets.filter((x) => x.name === "update.json" && x.state === "uploaded").length === 1, gs.release.assets);
   }
 
   // ── an upload address on another host: refused before the token is sent there

@@ -6,6 +6,7 @@
 // first partner only. In every case here one partner's parts are all the parts, and the partner with commander damage is
 // listed first, so neither change could be seen.)
 //   node tools/mutate-team-life-log.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

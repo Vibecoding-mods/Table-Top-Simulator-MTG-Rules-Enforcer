@@ -8,6 +8,7 @@
 //   same spots, which the golden catches but long rows (step 1). The five real escapes (fix pile drop x2, autoresolve
 //   toggle, the not-chosen hint on a hand card, a concession's banner) and the new long-rows edit are closed by
 //   tests/test_table_golden_gaps.js: golden + gaps 0 of 162 escape (0% by construction, not by a blind tool).
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

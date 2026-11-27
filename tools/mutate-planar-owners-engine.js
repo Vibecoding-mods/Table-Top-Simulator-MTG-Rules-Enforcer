@@ -3,6 +3,7 @@
 // jar, runs the test class and requires the named check to fail; the file is put back and checked by sha256.
 // Needs a patched engine tree with its jar (engine/test-harness-local.sh builds both).
 //   node tools/mutate-planar-owners-engine.js <engine tree> [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const os = require("os");
 const path = require("path");

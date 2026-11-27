@@ -4,6 +4,7 @@
 // the check it names fail by name; then the file is put back and checked by sha256. A mutation whose named check still
 // passes is printed as SURVIVED.
 //   node tools/mutate-archenemy-team-turns-bridge.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -17,17 +18,17 @@ const TESTS = ["tests/test_bridge_archenemy_team_turns.js", "tests/test_bridge_a
 const MUTATIONS = [
   ["Archenemy asks for each player's own turns", "bridge/teams.js", "  archenemy: { rule: \"teamTurns\", name: \"Archenemy\", gameMode: null },", "  archenemy: { rule: \"teams\", name: \"Archenemy\", gameMode: null },",
     "start: the engine is asked for teamTurns in an Archenemy game"],
-  ["teamTurns not a shared-turn board", "bridge/teams.js", "const sharesTurns = (pub) => pub?.teamRules?.rule === \"sharedTurns\" || pub?.teamRules?.rule === \"teamTurns\";", "const sharesTurns = (pub) => pub?.teamRules?.rule === \"sharedTurns\";",
+  ["teamTurns not a shared-turn board", "bridge/teams.js", "  teamTurns: { turns: true, own: true },", "  teamTurns: { own: true },",
     "turns: on the three's turns every board has all three"],
   ["the archenemy's turn a team of one", "bridge/bridge.js", "teams2hg.sharesTurns(pub) && teams2hg.turnPlayerIds(pub).length > 1 ?", "teams2hg.sharesTurns(pub) ?",
     "turns: on Blue's turns no activeTeam on any board (the table says BLUE'S TURN)"],
-  ["teamTurns boards without teams", "bridge/teams.js", "const ownLifeTeams = (rule) => rule === \"teams\" || rule === \"teamTurns\";", "const ownLifeTeams = (rule) => rule === \"teams\";",
+  ["teamTurns boards without teams", "bridge/teams.js", "  teamTurns: { turns: true, own: true },", "  teamTurns: { turns: true },",
     "board: the teams, the three against Blue, their turns shared"],
   ["the teams not said shared turns", "bridge/teams.js", " ...(t.rule === \"teamTurns\" ? { turns: \"shared\" } : {}),", "",
     "board: the teams, the three against Blue, their turns shared"],
   ["the setup words say own turns", "bridge/teams.js", "(${std ? 20 : 40} life each, one turn together).", "(${std ? 20 : 40} life each, their own turns).",
     "setup: Blue at double life against the three, who take one turn together"],
-  ["teamTurns read as shared life", "bridge/teams.js", "const sharesLife = (pub) => pub?.teamRules?.rule === \"sharedLife\" || pub?.teamRules?.rule === \"sharedTurns\";", "const sharesLife = (pub) => [\"sharedLife\", \"sharedTurns\", \"teamTurns\"].includes(pub?.teamRules?.rule);",
+  ["teamTurns read as shared life", "bridge/teams.js", "  teamTurns: { turns: true, own: true },", "  teamTurns: { life: true, turns: true, own: true },",
     "teamTurns: each player's own life (no shared life, no team poison)"],
 ];
 function runTests() {

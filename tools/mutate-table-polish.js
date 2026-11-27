@@ -4,6 +4,7 @@
 // tests/test_table_inf_glyph.js). Each mutation changes the renderer, runs both tests and requires the named check to
 // fail; the file is put back and checked by sha256.
 //   node tools/mutate-table-polish.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

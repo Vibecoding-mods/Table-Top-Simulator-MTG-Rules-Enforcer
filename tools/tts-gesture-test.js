@@ -22,6 +22,8 @@ const results = { attackClick: [], attackTarget: [], targetClick: [], playerTarg
       return JSON.encode({ title = tostring(p.title), mode = p.mode, ids = ids, min = p.min, max = p.max })`) || "{}");
     if (info.over) { console.log("game over"); break; }
     if (info.none) { await sleep(700); continue; }
+    // (an /exec that timed out or answered nothing: {} has no ids, and info.ids.find threw away every result so far)
+    if (!Array.isArray(info.ids)) { results.errors.push("an exec timed out or said nothing"); await sleep(700); continue; }
     const title = info.title || "";
     if (/^Declare attackers/.test(title)) {
       const att = (info.ids.find((x) => x.includes("|")) || "").split("|")[0];

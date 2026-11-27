@@ -3,6 +3,7 @@
 // must make the check it names fail by name; then the file is put back and checked by sha256. A mutation whose named
 // check still passes is printed as SURVIVED.
 //   node tools/mutate-team-block-2.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

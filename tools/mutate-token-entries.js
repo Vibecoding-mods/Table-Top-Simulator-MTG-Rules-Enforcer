@@ -3,6 +3,7 @@
 // that failed by name, then puts the file back and checks it by sha256. A mutation no check catches is printed as
 // SURVIVED.
 //   node tools/mutate-token-entries.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -43,7 +44,7 @@ function runTests() {
       const m = line.match(/^\s*FAIL[: ]\s*(.+)$/);
       if (m && !/^test_/.test(m[1])) failed.push(m[1].split(": ").slice(0, 2).join(": ").slice(0, 110));
     }
-    if (r.status !== 0 && !failed.length) failed.push(`${t} exit ${r.status}: ${out.split("\n").slice(-3).join(" ").slice(0, 160)}`);
+    if (r.status !== 0 && !/^\s*FAIL/m.test(out)) failed.push(`CRASH: ${t} exit ${r.status}: ${out.split("\n").slice(-3).join(" ").slice(0, 160)}`);
   }
   return failed;
 }
@@ -63,8 +64,9 @@ for (const [label, rel, from, to] of list) {
   let failed;
   try { failed = runTests(); } finally { fs.writeFileSync(file, text); }
   const ok = sha(file) === before;
-  if (!failed.length) survived++;
-  console.log(`${failed.length ? "caught" : "SURVIVED"}: ${label}${failed.length ? ` -> ${[...new Set(failed)].slice(0, 3).join(" | ")}` : ""}${ok ? "" : "  RESTORE MISMATCH"}`);
+  const caught = failed.some((f) => !f.startsWith("CRASH: ")); // (a test that crashed or timed out is no check catching it)
+  if (!caught) survived++;
+  console.log(`${caught ? "caught" : "SURVIVED"}: ${label}${failed.length ? ` -> ${[...new Set(failed)].slice(0, 3).join(" | ")}` : ""}${ok ? "" : "  RESTORE MISMATCH"}`);
 }
 console.log(survived ? `${survived} of ${list.length} survived` : `all ${list.length} caught, every file restored`);
 process.exit(survived ? 1 : 0);

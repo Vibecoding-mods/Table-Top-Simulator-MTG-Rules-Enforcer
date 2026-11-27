@@ -3,6 +3,7 @@
 // every check named for it in tests/test_table_formats.js must fail BY NAME. The sources are never edited: each mutant
 // is written fresh from the pristine built text, and the sources are checked by sha256 after the run.
 //   node tools/mutate-formats-table.js            (MUT_ONLY=<regex>: only the mutations whose name matches)
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

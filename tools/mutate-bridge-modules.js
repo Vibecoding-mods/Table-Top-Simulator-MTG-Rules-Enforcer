@@ -7,6 +7,7 @@
 // restored by overwriting it from that copy, and its sha256 is checked after every restore and before every mutant.
 // A mutation whose text is not found exactly once is a failure of this tool (exit 2, nothing run).
 //   node tools/mutate-bridge-modules.js [module pattern] [label pattern]     --check: only check they apply
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

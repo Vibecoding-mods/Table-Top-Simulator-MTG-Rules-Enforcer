@@ -376,6 +376,7 @@ const hostRequirements = () => `HOST REQUIREMENTS (the PC that runs the engine; 
   rules-engine table from your own copy):
     4 players: ${tables.TABLES["4p"].url}
     6 players: ${tables.TABLES["6p"].url}
+       (the companion can't make a rules-engine version of this one yet)
   After subscribing, start TTS once so Steam downloads them.
 `;
 
@@ -855,4 +856,4 @@ function releaseFinish({ tag, dir, partVersions, previous, plan }, pkg, zip, inf
 }
 
 if (require.main === module) main().catch((e) => stop(e.stack || e.message));
-module.exports = { companionSource, stampOf, renameSave, tableCopies, secretFiles, isTtsSave, jsonText, packageEntries, tableReadme, hostRequirements, readTable, WORKSHOP, refusals, composeYaml, tarRead, tarImages, tarMismatch, deployedRecord, readmeText, treeHash, imagesVersion, planRelease, releaseManifest, releaseRefusals, pointedAt, appVersion, validTag, signManifest, publicKeyText, releaseKey, RELEASE_PARTS, UPDATE_FORMAT, APP_UNVERSIONED, APP_EXCLUDED, IMAGES, DATA_DIRS, PROJECT, SAVE_NAME, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };
+module.exports = { companionSource, stampOf, renameSave, tableCopies, secretFiles, isTtsSave, jsonText, packageEntries, tableReadme, hostRequirements, readTable, WORKSHOP, refusals, composeYaml, tarRead, tarImages, tarMismatch, deployedRecord, readmeText, treeHash, imagesVersion, planRelease, releaseManifest, releaseRefusals, pointedAt, appVersion, validTag, signManifest, publicKeyText, releaseKey, RELEASE_PARTS, UPDATE_FORMAT, APP_UNVERSIONED, APP_EXCLUDED, IMAGES, DATA_DIRS, PROJECT, SAVE_NAME, BRIDGE_DATA, BRIDGE_SHIPPED: [...BRIDGE_DATA, ...BRIDGE_CACHE] };

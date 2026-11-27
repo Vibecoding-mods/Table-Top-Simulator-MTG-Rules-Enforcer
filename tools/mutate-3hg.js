@@ -2,6 +2,7 @@
 // scenarios): each mutation switches one piece of the 3HG code off, runs the tests, lists the checks that failed by
 // name, then puts the file back and checks it by sha256. A mutation no check catches is printed as SURVIVED.
 //   node tools/mutate-3hg.js [--golden] [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -18,7 +19,7 @@ const MUTATIONS = [
   ["TEAM_MODES: 3HG in Commander only", "bridge/teams.js", "\"3hg\": { rule: \"sharedLife\", name: \"Three-Headed Giant\", gameMode: null,", "\"3hg\": { rule: \"sharedLife\", name: \"Three-Headed Giant\", gameMode: \"commander\","],
   ["teamModeProblem: a mode for either game mode refused", "bridge/teams.js", "  if (t.gameMode == null) return null;\n", ""],
   ["setupOf: 3HG's teams as sent", "bridge/teams.js", "return { teams: { ...THREE_TEAMS }, mode: \"3hg\"", "return { teams: teamsOf(m.teams) || {}, mode: \"3hg\""],
-  ["setupOf: 3HG with shared turns", "bridge/teams.js", "mode: \"3hg\", jugg: null, turns: null };", "mode: \"3hg\", jugg: null, turns: m?.teamTurns === \"shared\" ? \"shared\" : null };"],
+  ["setupOf: 3HG with shared turns", "bridge/teams.js", "mode: \"3hg\", jugg: null, turns: m?.teamTurns === \"shared\" ? \"shared\" : null };", "mode: \"3hg\", jugg: null, turns: null };"],
   ["THREE_TEAMS: alternating seats", "bridge/teams.js", "{ White: 1, Red: 1, Yellow: 1, Green: 2, Blue: 2, Purple: 2 }", "{ White: 1, Red: 2, Yellow: 1, Green: 2, Blue: 1, Purple: 2 }"],
   ["teamsProblem: 3HG with any count", "bridge/teams.js", "if (mode === \"3hg\") return total === SIX_COLORS.length ? null :", "if (mode === \"3hg\") return true ? null :"],
   ["setupWords: 2HG's life said", "bridge/teams.js", "(shared life: ${std ? 45 : 120} a team, poison 20;", "(shared life: ${std ? 30 : 80} a team, poison 20;"],

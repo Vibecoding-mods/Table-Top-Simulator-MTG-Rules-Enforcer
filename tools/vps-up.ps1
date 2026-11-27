@@ -13,10 +13,14 @@ $ErrorActionPreference = "Stop"
 $existing = doctl compute droplet list --format Name --no-header | Where-Object { $_.Trim() -eq $Name }
 if ($existing) { throw "$Name already exists. Check it, or delete it with vps-down.ps1." }
 
-$snap = doctl compute snapshot list --resource droplet --format ID,Name --no-header |
-    Select-String "manabrew-golden" | Select-Object -Last 1
+# (the newest by its creation time, not the last line of a list whose order doctl doesn't promise: an old golden
+# snapshot has old images and would be booted and billed for the night. The CreatedAt column is ISO, so it sorts as text.)
+$snap = doctl compute snapshot list --resource droplet --format ID,Name,CreatedAt --no-header |
+    Where-Object { $_ -match "manabrew-golden" } |
+    Sort-Object { ($_.Trim() -split '\s+')[-1] } | Select-Object -Last 1
 if (-not $snap) { throw "No manabrew-golden snapshot: finish step H of the server spec first." }
-$id = ($snap.Line.Trim() -split '\s+')[0]
+$id = ($snap.Trim() -split '\s+')[0]
+Write-Host "Booting snapshot $($snap.Trim())"
 
 doctl compute droplet create $Name --image $id --size $Size --region $Region --tag-names manabrew --ssh-keys $SshKey --wait
 

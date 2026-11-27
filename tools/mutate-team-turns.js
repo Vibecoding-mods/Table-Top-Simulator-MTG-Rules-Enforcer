@@ -3,6 +3,7 @@
 // each mutation breaks one piece, runs its test and must make the named check fail; the file is then written back from
 // the bytes read before and checked by sha256.
 //   node tools/mutate-team-turns.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -55,12 +56,12 @@ const MUTATIONS = [
 
 const only = process.argv[2] ? new RegExp(process.argv[2], "i") : null;
 const list = MUTATIONS.filter(([label]) => !only || only.test(label));
-const run = (t) => { const r = spawnSync(process.execPath, [t], { cwd: ROOT, encoding: "utf8", timeout: 900000, maxBuffer: 1 << 28 }); return (r.stdout || "") + (r.stderr || ""); };
+const run = (t) => { const r = spawnSync(process.execPath, [t], { cwd: ROOT, encoding: "utf8", timeout: 900000, maxBuffer: 1 << 28 }); return (r.stdout || "") + (r.stderr || "") + (r.status !== 0 ? `\nCRASH exit ${r.status}${r.error ? ` (${r.error.code})` : ""}` : ""); }; // (CRASH: a test that cannot start prints no FAIL line)
 const failsBy = (out, name) => out.split("\n").some((l) => l.startsWith(`FAIL ${name}`));
 let bad = 0;
 for (const t of [...new Set(list.map((m) => m[4]))]) {
   const out = run(t);
-  if (/^FAIL /m.test(out)) { console.log(`BASELINE FAILS: ${t}: ${out.split("\n").filter((l) => /^FAIL/.test(l)).slice(0, 3).join(" | ")}`); process.exit(1); }
+  if (/^(FAIL|CRASH) /m.test(out)) { console.log(`BASELINE FAILS: ${t}: ${out.split("\n").filter((l) => /^(FAIL|CRASH)/.test(l)).slice(0, 3).join(" | ")}`); process.exit(1); }
 }
 console.log("baseline: green");
 for (const [label, rel, from, to, test, check] of list) {

@@ -3,6 +3,7 @@
 // tools/make-engine-copy.js's chat), runs the test, lists the checks that failed by name, then puts the file back and
 // checks it by sha256. A mutation no check catches is printed as SURVIVED.
 //   node tools/mutate-archenemy-view.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -20,7 +21,7 @@ const MUTATIONS = [
   ["bridge: the archenemy's row unmarked", B, "      ...(p.isArchenemy ? { arch: true } : {}),\n", ""],
   ["bridge: everyone's scheme deck", B, "      ...(p.isArchenemy && Number.isInteger(p.schemeDeckCount) ? { schemeDeck: p.schemeDeckCount } : {}),", "      ...(Number.isInteger(p.schemeDeckCount) ? { schemeDeck: p.schemeDeckCount } : {}),"],
   ["bridge: no new seq", B, "game.schemeNow = { seq: (game.schemeNow?.seq || 0) + 1, card: entry(c) };", "game.schemeNow = { seq: 1, card: entry(c) };"],
-  ["bridge: a scheme back from the deck is not new", B, "  for (const id of [...game.schemesSeen]) if (!here.has(id)) game.schemesSeen.delete(id);\n", ""],
+  ["bridge: a scheme back from the deck is not new", B, "  for (const id of [...game.schemesSeen]) if (!here.has(id)) { game.schemesSeen.delete(id); fresh = true; }\n", ""],
   ["bridge: the scheme set in motion forgotten once it leaves", B, "slim(here.has(game.schemeNow.card.id) ? entry(schemeCards.find((c) => c.id === game.schemeNow.card.id)) : game.schemeNow.card) } : null;", "slim(entry(schemeCards.find((c) => c.id === game.schemeNow.card.id) || {})) } : null;"],
   ["bridge: schemes sent in any game", B, "    ...(schemes.length ? { schemes } : {}), ...(schemeNow ? { schemeNow } : {}),", "    schemes, ...(schemeNow ? { schemeNow } : {}),"],
   ["table: the scheme set in motion not drawn", R, "  if nowCard ~= nil then place(nowCard, engineSchemeSpot(g, 0), rot, seen, nil, { zone = \"schemenow\", color = color }) end\n", ""],
@@ -35,16 +36,16 @@ const MUTATIONS = [
   ["table: the banner on a jump board", R, "  engineSchemeSeen = now.seq\n  if m.jump then return end\n", "  engineSchemeSeen = now.seq\n"],
   ["table: the banner never put away", R, "      Wait.time(function() if engineSchemeSeen == now.seq then setAttr(\"eng_banner_\" .. c, \"active\", \"false\") end end, 4)\n", ""],
   ["table: the banner not gold", R, "      setAttr(\"eng_banner_\" .. c, \"color\", \"#FFD27A\")\n      setAttr(\"eng_banner_\" .. c, \"outline\", \"#101010E0\")\n      setAttr(\"eng_banner_\" .. c, \"active\", \"true\")\n      Wait.time(function() if engineSchemeSeen", "      setAttr(\"eng_banner_\" .. c, \"color\", \"#FFFFFF\")\n      setAttr(\"eng_banner_\" .. c, \"outline\", \"#101010E0\")\n      setAttr(\"eng_banner_\" .. c, \"active\", \"true\")\n      Wait.time(function() if engineSchemeSeen"],
-  ["table: the button skips a seat", R, "  for i, c in ipairs(ENGINE_ARCH_SEATS) do if c == cur then return ENGINE_ARCH_SEATS[i + 1] end end", "  for i, c in ipairs(ENGINE_ARCH_SEATS) do if c == cur then return ENGINE_ARCH_SEATS[i + 2] end end"],
-  ["table: the button not told of mtg archenemy", R, "  for _, c in ipairs(ENGINE_ARCH_SEATS) do if string.lower(c) == t then ENGINE_ARCH_SETUP = c end end", "  for _, c in ipairs(ENGINE_ARCH_SEATS) do if false then ENGINE_ARCH_SETUP = c end end"],
+  ["table: the button skips a seat", R, "  for i, c in ipairs(seats) do if c == cur then return seats[i + 1] end end", "  for i, c in ipairs(seats) do if c == cur then return seats[i + 2] end end"],
+  ["table: the button not told of mtg archenemy", R, "  for _, c in ipairs(engineArchSeats()) do if string.lower(c) == t then ENGINE_ARCH_SETUP = c end end", "  for _, c in ipairs(engineArchSeats()) do if false then ENGINE_ARCH_SETUP = c end end"],
   ["table: the button not drawn", R, "        setupButton(tile, \"onMtgSetupArch\", engineArchLabel(), SETUP.color.idle, ENGINE_ARCH_SPOT, nil, 1700, 620, 90)\n", ""],
-  ["table: the button's change doesn't redraw", R, "engineArchLabel ~= nil and engineArchLabel() or \"\", dcKey", "dcKey"],
-  ["table: the button not counted", R, " + (SETUP.drawn.arch and 1 or 0) then return false end", " then return false end"],
+  ["table: the button's change doesn't redraw", R, "engineArchLabel ~= nil and engineArchLabel() or \"\", engineTeamTurnsLabel ~= nil", "engineTeamTurnsLabel ~= nil"],
+  ["table: the button not counted", R, " + (SETUP.drawn.arch and 1 or 0) + (SETUP.drawn.turns", " + (SETUP.drawn.turns"],
   ["chat: mtg archenemy doesn't set the button", C, "      if engineArchNoted ~= nil then engineArchNoted(rest) engineSetupButtons() end\n", ""],
   ["table: the schemes' details not filled in", R, "  for _, c in ipairs(m.schemes or {}) do engineFillStatic(c) end\n", ""],
   ["table: a slim entry not filled", R, "  for k, v in pairs(engineStatic[c.id] or {}) do if c[k] == nil then c[k] = v end end\n  c.s = nil\nend", "  c.s = nil\nend"],
   ["table: rules texts never reach a scheme", R, "  if c == nil or t[c.id] == nil or c.n == nil or c.fd then return end\n  c.tx = t[c.id]", "  if true then return end\n  c.tx = t[c.id]"],
-  ["table: the scheme set in motion drawn small", R, "(meta.zone == \"plane\" or meta.zone == \"schemenow\")", "(meta.zone == \"plane\")"],
+  ["table: the scheme set in motion drawn small", R, "zone == \"schemenow\" or zone == \"scheme\" or zone == \"schemedeck\"", "zone == \"scheme\" or zone == \"schemedeck\""],
   ["table: a new game's schemes keep counting", R, "  engineSchemeSeen = nil -- (and its schemes set in motion)\n", ""],
   ["table: no scheme drawn at all", R, "  local okSch, errSch = pcall(engineSchemes, m, seen)", "  local okSch, errSch = true, nil"],
 ];
@@ -58,7 +59,7 @@ function runTests() {
       const m = line.match(/^\s*FAIL[: ]\s*(.+)$/);
       if (m && !/^test_/.test(m[1])) failed.push(m[1].split(": ").slice(0, 2).join(": ").slice(0, 100));
     }
-    if (r.status !== 0 && !failed.length) failed.push(`${t} exit ${r.status}: ${out.split("\n").slice(-3).join(" ").slice(0, 160)}`);
+    if (r.status !== 0 && !/^\s*FAIL/m.test(out)) failed.push(`CRASH: ${t} exit ${r.status}: ${out.split("\n").slice(-3).join(" ").slice(0, 160)}`);
   }
   return failed;
 }
@@ -78,8 +79,9 @@ for (const [label, rel, from, to] of list) {
   let failed;
   try { failed = runTests(); } finally { fs.writeFileSync(file, text); }
   const ok = sha(file) === before;
-  if (!failed.length) survived++;
-  console.log(`${failed.length ? "caught" : "SURVIVED"}: ${label}${failed.length ? ` -> ${[...new Set(failed)].slice(0, 2).join(" | ")}` : ""}${ok ? "" : "  RESTORE MISMATCH"}`);
+  const caught = failed.some((f) => !f.startsWith("CRASH: ")); // (a test that crashed or timed out is no check catching it)
+  if (!caught) survived++;
+  console.log(`${caught ? "caught" : "SURVIVED"}: ${label}${failed.length ? ` -> ${[...new Set(failed)].slice(0, 2).join(" | ")}` : ""}${ok ? "" : "  RESTORE MISMATCH"}`);
 }
 console.log(survived ? `${survived} of ${list.length} survived` : `all ${list.length} caught, every file restored`);
 process.exit(survived ? 1 : 0);

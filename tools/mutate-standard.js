@@ -4,6 +4,7 @@
 // for the table. The sources are never edited; each mutant is written fresh from the pristine text, and both are
 // checked by sha256 after the run.
 //   node tools/mutate-standard.js            (MUT_ONLY=<regex>: only the mutations whose name matches)
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -35,14 +36,14 @@ const BRIDGE = [
   ["a commander allowed", "if (commanders.length) problems.push(`Standard has no commander", "if (false) problems.push(`Standard has no commander", "check: a card on the command zone (a commander line) is refused in Standard"],
   ["format data missing passes", "if (!f) return [\"the bridge has no Standard card list", "if (!f) return []; if (false) return [\"the bridge has no Standard card list", "check: without forge-formats.json nothing is ready for Standard"],
   ["names not the engine's", "cards = cards.map(canon), commanders = commanders.map(canon), sideboard = sideboard.map(canon);", "", "mode: mtg aideck lists the legal Standard decks in Standard, and only those"],
-  ["rotated Standard presets offered", "  if (mode !== \"standard\") return ids;\n  const names", "  return ids;\n  const names", "ai seat: an old Standard preset that has rotated out is refused"],
+  ["rotated Standard presets offered", "  if (mode !== \"standard\") return ids;\n  return ids.filter", "  return ids;\n  return ids.filter", "ai seat: an old Standard preset that has rotated out is refused"],
   ["StartGame always Commander", "format: MODES[game.mode || \"commander\"].format", "format: \"Commander\"", "start 1v1: StartGame asks for Standard (the relay's 20 life; Forge's Constructed)"],
-  ["no mode means the last mode", "const k = modeOf(m?.mode) || \"commander\";", "const k = modeOf(m?.mode) || gameMode.mode;", "mode: hello without a mode is Commander (a reloaded table)"],
+  ["no mode means the last mode", ": modeOf(m?.mode) || \"commander\";", ": modeOf(m?.mode) || gameMode.mode;", "mode: hello without a mode is Commander (a reloaded table)"],
   ["the table not told the mode", "const modeField = () => (game?.mode === \"standard\" ? { mode: \"standard\" } : {});", "const modeField = () => ({});", "start 1v1: the table is told it is a Standard game"],
   ["Standard deck sent without its sideboard","sideboard: (r.sideboard || []).map(card), format: \"standard\"","sideboard: [], format: \"standard\"","ai seat: a legal Standard list is taken with its sideboard and no commander"],
   ["Standard deck sent as Commander","sideboard: (r.sideboard || []).map(card), format: \"standard\", commanders: [] }","sideboard: (r.sideboard || []).map(card), format: \"commander\", commanders: [] }","start 1v1: Blue's deck goes as a Standard deck, no commander"],
   ["Commander decks for the AI in Standard", "const defaultDecksOf = (mode) => (mode === \"standard\" ? STANDARD_DECKS : DEFAULT_DECKS);", "const defaultDecksOf = (mode) => DEFAULT_DECKS;", "start 1v1: the Forge AI plays the next built-in Standard deck, with its sideboard"],
-  ["a Commander-checked deck ready for Standard", "const readyFor = (c, mode = \"commander\") => !!readyDecks[c] && (readyDecks[c].mode || \"commander\") === mode;", "const readyFor = (c, mode = \"commander\") => !!readyDecks[c];", "start: a deck checked for Commander must be readied again for Standard"],
+  ["a Commander-checked deck ready for Standard", "const readyFor = (c, rules = \"commander\") => !!readyDecks[c] && (readyDecks[c].rules || readyDecks[c].mode || \"commander\") === rules;", "const readyFor = (c, rules = \"commander\") => !!readyDecks[c];", "start: a deck checked for Commander must be readied again for Standard"],
   ["free-for-all said as 1v1", "players > 2 ? `Standard, free-for-all (${players})`", "players > 2 ? \"Standard, 1v1\"", "start 4 players: said as Standard, free-for-all (4)"],
   ["mtg aideck's Commander decks kept in Standard", ".filter((d) => (d.deck.format || \"commander\") === MODES[mode].deck);", ";", "start with Commander AI choices in Standard: built-in Standard decks instead"],
   ["mtg deck's Standard choice kept in Commander", "presetsFor(mode).includes(deckChoice[c])", "(!std || presetsFor(\"standard\").includes(deckChoice[c]))", "start in Commander: a Standard deck chosen with mtg deck gives way to a Commander one"],
@@ -51,7 +52,7 @@ const BRIDGE = [
 const TABLE = [
   ["anyone sets the mode", "elseif not isHost then pl.broadcast(\"[MTG] Only the host can change the game mode", "elseif false then pl.broadcast(\"[MTG] Only the host can change the game mode", "mtg mode: only the host changes it"],
   ["Standard never sent with decks", "local msg = { seats = seats, request = mine, mode = engineModeSent() }", "local msg = { seats = seats, request = mine }", "Standard: the deck check says Standard"],
-  ["Standard never sent with a start", "friendly = engineFriendly, mode = engineModeSent() })", "friendly = engineFriendly })", "Standard: the start says Standard"],
+  ["Standard never sent with a start", "friendly = engineFriendly, mode = engineModeSent(), teams = ", "friendly = engineFriendly, teams = ", "Standard: the start says Standard"],
   ["a mode change mid-game drops the game's READYs", "if not running then for k in pairs(engineReadyState) do engineReadyState[k] = nil end end", "for k in pairs(engineReadyState) do engineReadyState[k] = nil end", "mode changed in a game: for the next one, the game's READYs kept"],
   ["the format message not sent", "engineSend(\"format\", { color = pl and pl.color or nil, format = f.key, mode = f.mode, banned = r.banned, restricted = r.restricted })", "", "mtg mode standard: sent to the bridge"],
   ["trackers left on the table","o.setPosition(p + Vector(0, -15, 0))\n          o.setInvisibleTo(engineEveryone())","o.setInvisibleTo(engineEveryone())","Standard: every commander damage tracker under the table, hidden, locked, its spot on it"],

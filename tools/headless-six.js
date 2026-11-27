@@ -68,9 +68,13 @@ function server() {
   const p = spawn("java", ["-Xmx6g", "-cp", [tmp, JAR].join(path.delimiter), "forge.harness.host.HeadlessGameServer", "forge/forge-gui/"], { cwd: TREE, stdio: ["pipe", "pipe", "pipe"] });
   const lines = readline.createInterface({ input: p.stdout });
   const waiting = [];
-  lines.on("line", (l) => { const w = waiting.shift(); if (w) w(JSON.parse(l)); });
+  // (a line that isn't JSON is the JVM's own noise: skipped, not thrown inside the handler)
+  lines.on("line", (l) => { let o; try { o = JSON.parse(l); } catch { return; } const w = waiting.shift(); if (w) w(o); });
   const stderr = [];
   p.stderr.on("data", (d) => { stderr.push(String(d)); if (stderr.length > 400) stderr.splice(0, 200); });
+  // (the JVM dying mid-game, an OutOfMemoryError at -Xmx6g: an ask() would wait forever and --stall never run)
+  p.on("exit", (c) => { if (waiting.length) { console.error(`the engine server exited ${c} mid-game:\n${stderr.slice(-20).join("")}`); process.exit(1); } });
+  p.on("error", (e) => { console.error(`the engine server didn't start: ${e.message}`); process.exit(1); });
   const ask = (line) => new Promise((resolve) => { waiting.push(resolve); p.stdin.write(`${line}\n`); });
   const ready = new Promise((resolve) => waiting.push(resolve));
   return { ask, ready, stderr, quit: () => { try { p.stdin.write("quit\n"); } catch {} setTimeout(() => p.kill(), 2000); } };

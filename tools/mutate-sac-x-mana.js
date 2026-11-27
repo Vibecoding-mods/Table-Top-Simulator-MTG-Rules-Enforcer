@@ -3,6 +3,7 @@
 // A mutation whose named check still passes is printed as SURVIVED, and a check of the test that no mutation names is
 // printed as UNCOVERED.
 //   node tools/mutate-sac-x-mana.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

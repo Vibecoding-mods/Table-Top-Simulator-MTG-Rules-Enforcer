@@ -3,6 +3,7 @@
 // seatColorsFor, bridge/engine-test.js), runs the test and requires the named check to fail (a name ending in ":" is
 // a prefix: the golden's "message N (type)"), then puts the file back and checks it by sha256.
 //   node tools/mutate-six-golden.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

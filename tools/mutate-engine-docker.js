@@ -4,6 +4,7 @@
 //   node tools/mutate-engine-docker.js --harness <manabrew tree> --forge <forge tree> [--proto <generated protocol dir>]
 //        [--image mtg-harness-test:l2-ai] [--set tie|tokens|runaway|held|watchdog|golden|all] [--only <label regex>]
 // Heavy: run it through tmp/slot.js's queue (it does so itself when MTG_SLOT is set to slot.js's path).
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const os = require("os");
 const path = require("path");

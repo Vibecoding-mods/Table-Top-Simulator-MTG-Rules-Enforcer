@@ -79,6 +79,17 @@ async function main(opts = {}) {
     throw new Error("reading the release failed: HTTP " + rel.status);
   }
   const have = new Set((rel.body.assets || []).filter((x) => x.state === "uploaded").map((x) => x.name));
+  // (an upload that died part way leaves a stub asset that isn't "uploaded": GitHub answers a second upload of the same
+  // name 422 already_exists until the stub is gone, so every rerun failed alike. Such a stub of a file about to go up is
+  // deleted first.)
+  const stubs = (rel.body.assets || []).filter((x) => x.state !== "uploaded" && Number.isInteger(x.id));
+  for (const f of files) {
+    const stub = stubs.find((x) => x.name === path.basename(f).replace(/ /g, "."));
+    if (!stub) continue;
+    const d = await gh(fetch, token, API + "/releases/assets/" + stub.id, { method: "DELETE" });
+    if (d.status !== 204) throw new Error("the half-uploaded " + stub.name + " is still on the release and couldn't be deleted: HTTP " + d.status);
+    log("  removed the unfinished upload of " + stub.name);
+  }
   const uploadBase = String(rel.body.upload_url || "").replace(/\{.*$/, "");
   // (the token goes with each upload: only to GitHub's own upload host, whatever the answer says)
   if (!uploadBase.startsWith("https://uploads.github.com/")) throw new Error("the release's upload address isn't on uploads.github.com: nothing uploaded");
