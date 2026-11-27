@@ -402,6 +402,20 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     ok("rewind panel: White's panel cleared", panels(h, "White", mark).pop()?.promptId === null, JSON.stringify(panels(h, "White", mark).slice(-1)));
   });
 
+  // 10c. a rewind while Blue's own repeat (seat.loop, not a run) is up forgets it and takes Blue's panel off (2026-11-27: the
+  // rewind's copy of loopEnd's tail; the panel stayed until Blue's next prompt)
+  await run(async (h) => {
+    const { seat } = setup(h);
+    seat.loop = { steps: [], i: 1, done: 2, total: 10, sig: "x", name: "Test loop", stackAt: new Set(), turn: 5, step: "main1", shownAt: null };
+    const mark = h.effects.length;
+    seat.lastTurn = 6;
+    seat.board.state.gameView = board();
+    h.B._checkRestored(seat);
+    await h.flush();
+    ok("rewind loop: the repeat forgotten", seat.loop === null, JSON.stringify(seat.loop));
+    ok("rewind loop: Blue's panel cleared", panels(h, "Blue", mark).pop()?.promptId === null, JSON.stringify(panels(h, "Blue", mark).slice(-1)));
+  });
+
   // 11. the edges the 2026-11-24 mutation pass found unchecked (tools/mutate-bridge.js "tl ..."), each failing by name
   // (another player's own trigger, twice this step, is not part of Blue's loop: not named, not counted)
   await run(async (h) => {

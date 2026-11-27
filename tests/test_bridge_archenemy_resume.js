@@ -54,7 +54,7 @@ const now = (m) => (m?.schemeNow ? [m.schemeNow.seq, m.schemeNow.card?.id] : nul
     const files = capture();
     const seat = new h.B.Seat("Blue", "neheb_minotaur_commander", SEAT);
     seat.respond = () => {};
-    h.B._setGame({ seats: new Map([["Blue", seat]]), bots: 3, total: 4, playerOrder: ["tts-Blue-ab12"], slotNames: { ...SLOTS }, slotColor: { ...SLOTS },
+    h.B._setGame({ seats: new Map([["Blue", seat]]), bots: 3, total: 4, playerOrder: ["tts-Blue-ab12"], slotNames: { ...SLOTS }, slotColor: { ...SLOTS }, seatColors: ["White", "Blue"],
       started: true, closing: false, fromTable: true, sentStatic: {}, sentZones: {}, eventSeq: 10, roomId: "room-1", deckNames: new Set() });
     await send(h, seat, board([plot]));
     await send(h, seat, board([plot, ongoing]));
@@ -64,6 +64,7 @@ const now = (m) => (m?.schemeNow ? [m.schemeNow.seq, m.schemeNow.card?.id] : nul
     ok("save: a new scheme writes the resume file", files.length > before, `${files.length} files, ${before} before`);
     saved = files.length ? JSON.parse(files.at(-1)) : null;
     same("save: the schemes seen in the command zone", saved?.game?.schemesSeen, [ongoing.id, later.id]);
+    same("save: the seat colours in seat order", saved?.game?.seatColors, ["White", "Blue"]);
     same("save: the scheme set in motion last", saved?.game?.schemeNow ? [saved.game.schemeNow.seq, saved.game.schemeNow.card?.id] : null, [3, later.id]);
     // (a scheme only leaving: saved too, or one back from the deck after a restart would not be new)
     await send(h, seat, board([later], 15));
@@ -77,6 +78,7 @@ const now = (m) => (m?.schemeNow ? [m.schemeNow.seq, m.schemeNow.card?.id] : nul
     await fs.promises.writeFile(process.env.MTG_RESUME_FILE, JSON.stringify({ ...saved, savedAt: Date.now() - 2000 }));
     ok("resume: (resumed)", h.B.resumeGame() === true);
     const g = h.B._getGame();
+    same("resume: the saved seat colours come back (not re-derived from who sits where)", g?.seatColors, ["White", "Blue"]);
     ok("resume: the schemes seen come back as a set", g?.schemesSeen instanceof Set && [...g.schemesSeen].join() === [ongoing.id, later.id].join(), JSON.stringify(g && [...(g.schemesSeen || [])]));
     const seat = g.seats.get("Blue");
     seat.respond = () => {};
@@ -94,8 +96,11 @@ const now = (m) => (m?.schemeNow ? [m.schemeNow.seq, m.schemeNow.card?.id] : nul
     const old = { ...saved, savedAt: Date.now() - 2000, game: { ...saved.game } };
     delete old.game.schemesSeen; delete old.game.schemeNow;
     await fs.promises.writeFile(process.env.MTG_RESUME_FILE, JSON.stringify(old));
+    delete old.game.seatColors;
+    await fs.promises.writeFile(process.env.MTG_RESUME_FILE, JSON.stringify(old));
     ok("old save: resumes", h.B.resumeGame() === true);
     const g = h.B._getGame();
+    same("old save: the seat colours from who sits where, as before", g?.seatColors, ["White", "Red", "Yellow", "Blue"]);
     const seat = g.seats.get("Blue");
     seat.respond = () => {};
     const m = await send(h, seat, board([ongoing], 15));

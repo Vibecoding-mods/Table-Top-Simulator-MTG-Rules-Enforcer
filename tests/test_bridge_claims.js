@@ -3802,15 +3802,15 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("live files guard: any other file is written as normal", otherKept);
     {
       // the resume file's real path: a .tmp written, renamed over the file, and the file unlinked (2026-11-27; the guard
-      // used to see only the exact name written). Only the .tmp, which does not exist, so a broken guard harms nothing.
+      // used to see only the exact name written). Only the .tmp and a .tmp.moved beside it, so a broken guard harms nothing.
       const resume = path.join(__dirname, "..", "tmp", "bridge-game.json"), w1 = guard.fileAttempts().length;
       fs.writeFileSync(`${resume}.tmp`, "guard self-check");
-      let renameErr = null; try { fs.renameSync(`${resume}.tmp`, resume); } catch (e) { renameErr = e; }
+      let renameErr = null; try { fs.renameSync(`${resume}.tmp`, `${resume}.tmp.moved`); } catch (e) { renameErr = e; } // (a harmless target: a broken guard moves the .tmp aside, never onto the live file, 2026-11-27)
       fs.unlinkSync(`${resume}.tmp`);
       await fs.promises.writeFile(`${resume}.tmp`, "guard self-check");
       const wrote2 = guard.fileAttempts().slice(w1);
       guard.forgetFiles(w1);
-      ok("live files guard: the resume file's .tmp write, rename over it, unlink and promise write are dropped and recorded", renameErr === null && wrote2.length === 4 && !fs.existsSync(`${resume}.tmp`), JSON.stringify([renameErr && renameErr.code, wrote2.map((w) => w.file)]));
+      ok("live files guard: the resume file's .tmp write, rename, unlink and promise write are dropped and recorded", renameErr === null && wrote2.length === 4 && !fs.existsSync(`${resume}.tmp`) && !fs.existsSync(`${resume}.tmp.moved`), JSON.stringify([renameErr && renameErr.code, wrote2.map((w) => w.file)]));
     }
   }
   // the attack question's reminders (attackReminder, docs/attack-reminder-spec.md part 2; the user 2026-11-10: "if there's

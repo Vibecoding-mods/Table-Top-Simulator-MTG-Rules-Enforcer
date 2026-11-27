@@ -2368,6 +2368,8 @@ function saveResume() {
       // counted seq from 1 again, and the table showed an old scheme's banner again and skipped the next one's)
       ...(game.schemesSeen?.size ? { schemesSeen: [...game.schemesSeen] } : {}),
       ...(game.schemeNow ? { schemeNow: game.schemeNow } : {}),
+      // (the seats' colours in seat order: best of three, the roll and 2HG read them; a resume used to re-derive them, 2026-11-27)
+      ...(game.seatColors?.length ? { seatColors: game.seatColors } : {}),
       // (a table of other seats than the 4-player one: its colours, which a restarted bridge has not heard yet)
       ...(TABLE_COLORS !== DEFAULT_TABLE_COLORS ? { tableSeats: [...TABLE_COLORS] } : {}) },
     seats: [...game.seats.values()].map((st) => ({ color: st.color, deckId: st.deckId, username: st.username, slot: st.slot, roomId: st.roomId, mullsTaken: st.mullsTaken })),
@@ -2395,7 +2397,9 @@ function resumeGame(now = Date.now()) {
   TABLE_COLORS = Object.freeze(tableSeatsOf(snap.game.tableSeats) || DEFAULT_TABLE_COLORS);
   for (const st of snap.seats) game.seats.set(st.color, new Seat(st.color, st.deckId, st));
   if (snap.harmless?.length) game.harmless = snap.harmless.map((h) => new HarmlessSeat(h.color, null, h));
-  game.seatColors = TABLE_COLORS.filter((c) => Object.values(game.slotColor || {}).includes(c) || game.seats.has(c)); // (not saved: from who sits where, as clockwiseOrder had it)
+  // (the saved seat colours; a snapshot from before they were saved: from who sits where, as clockwiseOrder had it. 2026-11-27)
+  const savedColors = Array.isArray(snap.game.seatColors) && snap.game.seatColors.every((c) => TABLE_COLORS.includes(c)) ? snap.game.seatColors : null;
+  game.seatColors = savedColors || TABLE_COLORS.filter((c) => Object.values(game.slotColor || {}).includes(c) || game.seats.has(c));
   log(`resuming the game saved ${Math.round(age / 1000)} s ago: ${snap.seats.map((st) => `${st.color} as ${st.username}`).join(", ")}`);
   chat("[MTG] The bridge restarted: rejoining the game...");
   // (once the seats are back and the board has come in: at once when every seat's board is in, Seat.backIn; else 3 s on)
@@ -2660,14 +2664,19 @@ function sendStart() {
   controllerOf(room, seats).send({ type: "StartGame", format: MODES[game.mode || "commander"].format, seat_order: order });
 }
 
+// The colours still free for the other AI players, in the order they are given: a Forge AI seat's colour last (it is kept
+// for its own bot). The one rule guessSeatColors and clockwiseOrder share, so they cannot drift apart (2026-11-27).
+function freeSeatColors(taken, forgeSeats) {
+  const isForge = (c) => forgeSeats.some((f) => f.color === c);
+  return [...TABLE_COLORS.filter((c) => !taken(c) && !isForge(c)), ...TABLE_COLORS.filter((c) => !taken(c) && isForge(c))];
+}
 // The colours the seats will have, as clockwiseOrder will give them, before anyone is in the room: the people's, the set AI
 // seats' (a harmless bot's, a Forge AI's), then the colours left (a Forge AI seat's last) for the other AI players, until
 // the table's total. (2026-11-27: matchGame needed seatColors, which was set only at the start, so best of three's sideboard
 // decks and game 1's roll never ran)
 function guessSeatColors() {
   const have = new Set([...allSeats().map((st) => st.color), ...(game.harmlessWanted || []).map((h) => h.color), ...(game.forgeSeats || []).map((f) => f.color)]);
-  const isForge = (c) => (game.forgeSeats || []).some((f) => f.color === c);
-  const free = [...TABLE_COLORS.filter((c) => !have.has(c) && !isForge(c)), ...TABLE_COLORS.filter((c) => !have.has(c) && isForge(c))];
+  const free = freeSeatColors((c) => have.has(c), game.forgeSeats || []);
   while (have.size < game.total && free.length) have.add(free.shift());
   return TABLE_COLORS.filter((c) => have.has(c));
 }
@@ -2692,8 +2701,7 @@ function clockwiseOrder(room) {
   const placed = new Set(Object.values(byColor));
   // (the colours left, a Forge AI seat's last: kept for its own bot, but one whose name says no index still gets a
   // colour, rather than be left out of the seat order)
-  const isForge = (c) => forge.some((f) => f.color === c);
-  const free = [...TABLE_COLORS.filter((c) => !byColor[c] && !isForge(c)), ...TABLE_COLORS.filter((c) => !byColor[c] && isForge(c))];
+  const free = freeSeatColors((c) => byColor[c], forge);
   for (const p of others) if (!placed.has(p.username) && free.length) byColor[free.shift()] = p.username;
   game.seatColors = TABLE_COLORS.filter((c) => byColor[c]); // (each seat's colour, in the seat order returned: Two-Headed Giant's gameConfig)
   if ((game.harmless || []).length || forge.length) game.colorOfUser = Object.fromEntries(Object.entries(byColor).map(([c, u]) => [u, c]));
@@ -3886,7 +3894,7 @@ function choiceWords(c, views) {
 // ("Chapter:3:DBSacrifice,..." read "Chapter from DBSacrifice,..." on a Saga, Ur-Dragon game 2026-11-01; a dungeon's
 // "Dungeon:DBEntrance,..." boxed its room list, live check batch 2 2026-11-12).
 // Its own keywords are returned too, those that are always on: Equip or Cycling on a permanent is no status.
-const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRe = teams2hg.escapeRe; // (one copy, teams.js jointBlockLines escapes names too, 2026-11-27)
 // The ids of one kind in a player's target picks ("card|engine-card-5", "player|player-1": the boardTargets answer's)
 const pickedIds = (ids, kind) => (ids || []).filter((t) => t.startsWith(`${kind}|`)).map((t) => t.slice(kind.length + 1));
 // A chooseCards question that asks for a source (Reflect Damage's, a Circle's, Deflecting Palm's: Forge's "Choose a
@@ -6848,13 +6856,13 @@ function flushTexts() {
 // A card's fixed details (name, pictures, type line) go out once per game in `cards`; lists then carry only what
 // changes plus s:1 meaning "details as sent before" (TTS decodes JSON at ~15 ms per KB). Rules texts trickle separately.
 // Picture links are most of a card's details: the usual klrmngr link travels as "k" + side + uuid, and the default
-// card back as "" (the table rebuilds both; engine-renderer.lua expandUrl).
+// card back as "" (the table rebuilds both; engine-renderer.lua engineExpandUrl).
 const KLR = /^https:\/\/img\.klrmngr\.com\/display\/(front|back)\/([0-9a-f])\/([0-9a-f])\/([0-9a-f-]{36})\.webp$/;
 function shortUrl(u) {
   if (u == null) return u;
   if (u === DEFAULT_BACK) return "";
   const m = KLR.exec(u);
-  // (the table rebuilds the two directories from the uuid's first two characters, expandUrl: a link whose directories say otherwise goes whole, 2026-11-27)
+  // (the table rebuilds the two directories from the uuid's first two characters, engineExpandUrl: a link whose directories say otherwise goes whole, 2026-11-27)
   return m && m[4][0] === m[2] && m[4][1] === m[3] ? (m[1] === "front" ? "kf" : "kb") + m[4] : u;
 }
 function slimmer(game) {
@@ -6897,7 +6905,7 @@ function slimmer(game) {
 // caller sends the list whole, so the table lays it out again. A table that doesn't say it reads runs (hello
 // tokenRuns) gets every token as before.
 const RUN_ID = /^engine-card-(\d+)$/;
-function tokenRuns(list, statics) {
+function tokenRuns(list, statics, seen) {
   const out = [];
   let run = null, fresh = false;
   const close = () => { if (run && run.ids.length) run.first.gi = packRunIds(run.ids); run = null; };
@@ -6906,6 +6914,7 @@ function tokenRuns(list, statics) {
     const key = st && st.includes('"tok":true') ? `${JSON.stringify({ ...c, id: null })}|${st}` : null;
     if (key && run && run.key === key) {
       run.ids.push(c.id);
+      seen?.add(c.id);
       // (fresh only when its details differ from the ones the run last counted as sent: slim adds them again every board, as they are
       // deleted below, so every board with a run was fresh and sent its battlefield whole, 2026-11-27)
       const now = game.sentStatic[c.id];
@@ -6920,6 +6929,11 @@ function tokenRuns(list, statics) {
   }
   close();
   return { list: out, fresh };
+}
+// runSent only for the tokens in a run on this board, across every seat (inRuns, tokenRuns's `seen`): a token that left the
+// table kept its string for the whole game (2026-11-27)
+function forgetRunSent(inRuns) {
+  if (game.runSent) for (const id of Object.keys(game.runSent)) if (!inRuns.has(id)) delete game.runSent[id];
 }
 // the ids of a run's other tokens: [N, k] for "engine-card-N" ... "engine-card-(N+k-1)", any other id as itself
 function packRunIds(ids) {
@@ -7158,12 +7172,14 @@ function sendTable() {
   // (a run whose other tokens' details changed goes out whole, never as kept: the table points their details at the
   // first one's as it lays the run out)
   if (tableTokenRuns) {
+    const inRuns = new Set();
     for (const pl of players) {
       if (!pl.battlefield) continue;
-      const r = tokenRuns(pl.battlefield, statics);
+      const r = tokenRuns(pl.battlefield, statics, inRuns);
       pl.battlefield = r.list;
       if (r.fresh) delete game.sentZones?.[pl.color + "|battlefield"];
     }
+    forgetRunSent(inRuns);
   }
   const planar = planarRow(pub);
   const planes = planeCards.map((c) => slim({ ...toCard(c), ctl: planar?.controller || game.slotColor[c.controllerId] || null }));
@@ -10360,8 +10376,20 @@ function loopEnd(seat, why = "") {
   seat.loop = null;
   chat(lp.done >= lp.total ? `[MTG] ${nameOf(seat.slot)} repeated the loop ${lp.total}× (${lp.name}).`
     : `[MTG] ${nameOf(seat.slot)}'s loop stopped after ${lp.done} of ${lp.total} (${lp.name}): ${why}.`);
-  if (!seat.prompt) toTTS({ t: "prompt", color: seat.color, promptId: null });
-  if (game) for (const s of game.seats.values()) if (s !== seat) loopQuietShow(s); // (loopQuietLive drops its "No responses" for this loop, here or at its next priority)
+  loopPanelsOff(seat, true, false); // (loopQuietLive drops its "No responses" for this loop, here or at its next priority)
+}
+// The loop panels come off the screens when a repeat or a run ends, by loopEnd, tloopEnd and the rewind (checkRestored): one
+// place, so the next path that forgets a loop (a concession, a game's end) cannot leave the panels up as the rewind's first
+// copy did (they stayed until the seat's next prompt, and Stop did nothing, 2026-11-27). hadLoop: seat's own repeat ended
+// (its panel off; the other seats' "No responses" with it); hadTloop: the run ended (every seat's accept panel off);
+// rewound: every seat's quiet panel is refreshed whether or not a repeat ended, as the rewind always did.
+function loopPanelsOff(seat, hadLoop, hadTloop, rewound = false) {
+  if (hadLoop && !seat.prompt) toTTS({ t: "prompt", color: seat.color, promptId: null });
+  if (!game) return;
+  for (const s of game.seats.values()) {
+    if (rewound || (hadLoop && s !== seat)) loopQuietShow(s);
+    if (hadTloop) tloopPanel(s);
+  }
 }
 // ── "No responses for this loop" (the user 2026-11-17): while a seat repeats ×N, every other human seat (an AI seat is
 // asked as before) is offered a button that answers its priority passes for the rest of that loop: on its panel while
@@ -10562,7 +10590,7 @@ function tloopEnd(why = "") {
   const done = Math.min(tl.done, tloopLimit(tl));
   const n = done === 1 ? "once" : `${done} times`;
   chat(why ? `[MTG] The loop stopped after ${n} (${tl.name}): ${why}.` : `[MTG] The loop ran ${n} (${tl.name}).`);
-  for (const s of game.seats.values()) tloopPanel(s);
+  loopPanelsOff(null, false, true);
 }
 // A run starts (by the controller's count, or a seat's "Pass for this loop" on another's): said to everyone
 function tloopBegin(found, gv, total, proposed, by) {
@@ -13412,6 +13440,9 @@ function startTrips(color) {
   if (seat) { seat.trips = 0; seat.tripsOpen = true; }
 }
 
+// The prompt types a card dragged to discard / the bottom / a choice answers (onIntent); null prototype, so a kind the table
+// sends that isn't one of these (`__proto__`, "toString") finds nothing
+const DRAG_WANTS = Object.assign(Object.create(null), { discard: ["chooseCards"], bottom: ["mulliganPutBack", "chooseCards"], choose: ["chooseCards"] });
 function onIntent(m) {
   if (process.env.MTG_TRACE) log(`intent ${m.color}: ${m.kind} ${m.id} (${cardNameIn(game?.seats.get(m.color) || {}, m.id)})`); // eslint-disable-line no-param-reassign
   const seat = game?.seats.get(m.color);
@@ -13619,8 +13650,7 @@ function onIntent(m) {
   }
 
   // Dragging cards to answer "discard N" / "put N on the bottom": collect them until the count is reached.
-  const WANTS = { discard: ["chooseCards"], bottom: ["mulliganPutBack", "chooseCards"], choose: ["chooseCards"] };
-  const wants = Object.hasOwn(WANTS, m.kind) ? WANTS[m.kind] : null; // (own keys only: a kind of "constructor" was a function, 2026-11-27)
+  const wants = DRAG_WANTS[m.kind] || null; // (a null-prototype table: a kind of "constructor" was a function, 2026-11-27)
   if (!wants || !p || !wants.includes(p.type)) return refuse(seat, m.id, `${name} stays where it was: nothing asks you to do that right now.`);
   const allowed = p.type === "mulliganPutBack" ? input.handCardIds || [] : (input.cards || []).map((c) => c.id);
   const need = p.type === "mulliganPutBack" ? input.count : Math.max(1, input.min || 0);
@@ -15298,8 +15328,7 @@ function checkRestored(seat) {
   game.tloopNo = null;
   // (and the loop panels come off every seat's screen, as loopEnd / tloopEnd do: they stayed until the seat's next prompt, and
   // Stop did nothing, 2026-11-27)
-  if (hadLoop && !seat.prompt) toTTS({ t: "prompt", color: seat.color, promptId: null });
-  for (const s of game.seats.values()) { loopQuietShow(s); if (hadTloop) tloopPanel(s); }
+  loopPanelsOff(seat, hadLoop, hadTloop, true);
   game.pendingPlays = (game.pendingPlays || []).filter((e) => e.ctl !== seat.slot);
   if (seat === leadSeat()) {
     chat(`[MTG] Rewound to turn ${gv.turn} (${rewindStep(gv.step)}).`);
@@ -15556,7 +15585,7 @@ if (require.main === module) {
     alignment, tableCard, costNow, versionsNow, warnOutOfStep, Seat, onTTS, onTTSDebug, onPrompt, onRoomUpdate, onGameStarted, toTTS, fixWatchdog, debugServer, answerProblem, onIntent, onAnswer, whyNot, refuse, cardLabel, imgOf, displayText, shortUrl, ttsImage, payManaText, manaRank, otherwiseText, distinctLabels, saveResume, resumeGame,
     summarizeLands, swapWords, tokensCounted, orderSteps, costLeft, countWords, targetTitle, yesNoWords, arenaWords, scryPlaceSteps, damageSteps, prepareUi, sendTable, logSnapshot, logEvents, engineFacts, updateLog, gameLogLine, cardIndex, nameOf, notePlay, hasKeyword, playWindow,
     _setGame: (g) => { game = g; }, _getGame: () => game, _checkRestored: checkRestored, _exileLinkMatters: exileLinkMatters, _outbox: outbox, _readyDecks: readyDecks, _timerExpired: timerExpired, _timeoutChoice: timeoutChoice, _stopTimer: stopTimer, _friendlyCount: friendlyCount,
-    _spellsMark: spellsMark, _actingFor: actingFor, _tokenRuns: (on) => { tableTokenRuns = !!on; }, _slimmer: slimmer, _tokenRunsOf: tokenRuns, _packRunIds: packRunIds, _tieState: tieState, _stalemateEarners: stalemateEarners, _forcedTieEarned: forcedTieEarned, STALEMATE_EARNED_BY, _steamIds: steamIds, _harmlessVotes: harmlessVotes, _accomplishments: accomplishments, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice, deckListArt, _startConfig: () => startConfig(), _match: match, _matchWaiting: () => matchWaiting(),
+    _spellsMark: spellsMark, _actingFor: actingFor, _tokenRuns: (on) => { tableTokenRuns = !!on; }, _slimmer: slimmer, _tokenRunsOf: tokenRuns, _forgetRunSent: forgetRunSent, _packRunIds: packRunIds, _tieState: tieState, _stalemateEarners: stalemateEarners, _forcedTieEarned: forcedTieEarned, STALEMATE_EARNED_BY, _steamIds: steamIds, _harmlessVotes: harmlessVotes, _accomplishments: accomplishments, _checkpointLabel: checkpointLabel, _rewindState: rewindState, _debugPrompt: debugPrompt, _debugChoice: debugChoice, deckListArt, _startConfig: () => startConfig(), _match: match, _matchWaiting: () => matchWaiting(),
     _archenemy: archenemy, _onArchenemy: onArchenemy, _onSchemes: onSchemes, _withArchenemy: withArchenemy, _forgeSchemes: forgeSchemes, ARCH_NO_UNDO, ARCH_SWITCH_OFF,
     _engineSetting: () => ({ RELAY, KEY, REMOTE_ENGINE }), _readBody: readBody, _execInTTS: execInTTS, _editorForward: editorForward, _ttsServer: server,
     parseDeckList, aiSeatDeck, setAiSeat, setPickedHand, splitHandText, handOps, onAiSeatChat, harmlessAnswer, HarmlessSeat, clockwiseOrder, gamePictures, startGame, runDebugTool, setDebugTools, toolsState, onToolsPost,
