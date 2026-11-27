@@ -23,7 +23,7 @@ const NODE_CONTAINER = `${PROJECT}-forge-room-1`, RELAY_CONTAINER = `${PROJECT}-
 const sha8 = (data) => crypto.createHash("sha256").update(data).digest("hex").slice(0, 8);
 // (a list of files: one hash over all of them, in order)
 const fileHash = (file) => { try { return Array.isArray(file) ? sha8(file.map((x) => fs.readFileSync(x, "utf8")).join("\0")) : sha8(fs.readFileSync(file)); } catch { return null; } };
-// The bridge's code: every file of ours it loads
+// The bridge's code: the .js files of ours it loads (its data files, bridge/*.json, are not hashed: a rebuilt one needs a bridge restart nobody is told about; hashing them means shipping them in the friend package's check too)
 const bridgeHash = () => { try { return sha8(BRIDGE_FILES.map((f) => fs.readFileSync(f, "utf8")).join("\0")); } catch { return null; } };
 const readManifest = () => { try { return JSON.parse(fs.readFileSync(MANIFEST, "utf8")); } catch { return null; } };
 

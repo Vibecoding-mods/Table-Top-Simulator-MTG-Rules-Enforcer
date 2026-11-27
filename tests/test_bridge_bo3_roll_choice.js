@@ -22,7 +22,10 @@ const DECK = () => ({ deckName: "Dimir test", commanderName: null,
   deck: { name: "Dimir test", format: "standard", commanders: [], cards: Array.from({ length: 60 }, (_, i) => card(i % 2 ? "Island" : "Swamp")), sideboard: [] } });
 // a Standard 1v1 being set up: Blue seated, White a Forge AI (named by its colour until the game starts); the room not started yet
 function newGame(h, { tableFirst = null } = {}) {
-  const seat = new h.B.Seat("Blue", "neheb_minotaur_commander");
+  // (set up through startGame, as the table does: the game then has no seatColors of its own making, 2026-11-27)
+  h.B.startGame(["Blue"], 1);
+  const g = h.B._getGame();
+  const seat = g.seats.get("Blue");
   seat.slot = "player-1";
   seat.heartbeat = () => {};
   seat.respond = () => {};
@@ -30,9 +33,7 @@ function newGame(h, { tableFirst = null } = {}) {
   seat.send = (m) => seat.sent.push(m);
   seat.deck = DECK();
   seat.joined = true;
-  h.B._setGame({ seats: new Map([["Blue", seat]]), bots: 1, total: 2, playerOrder: [], slotNames: {}, slotColor: {}, seatColors: ["White", "Blue"],
-    started: false, closing: false, fromTable: true, mode: "standard", sentStatic: {}, sentZones: {}, aiTableDecks: [], aiTableColors: [], forgeSeats: [],
-    botsRequested: true, maxSet: true, ...(tableFirst ? { tableFirst } : {}) });
+  if (tableFirst) g.tableFirst = tableFirst;
   return seat;
 }
 // the room ready to start: Blue and the Forge AI both in and ready
@@ -79,8 +80,10 @@ const BLUE = 1, WHITE = 0;
     ok("draw: the question is closed", prompts(h, "Blue", m).some((p) => p.promptId == null), JSON.stringify(prompts(h, "Blue", m)));
     // a second answer, and the clock running out after it, start nothing more
     await choose(h, "__play");
-    for (let k = 0; k < 40; k++) await h.settle();
+    const before = h.effects.length;
+    await h.flush(); // (the clock: the 30 s timer's guard, roll.first, is what keeps it from a second question)
     same("draw: a second answer or the clock later starts nothing more", [starts(seat).length, config(seat)?.firstPlayer], [1, WHITE]);
+    ok("draw: the clock says nothing after the answer", !chats(h, before).some((c) => /didn't choose within/.test(c)), chats(h, before).join(" | "));
   });
   await run(async (h) => {
     await on(h);
@@ -193,6 +196,17 @@ const BLUE = 1, WHITE = 0;
     ready(h, seat);
     await h.settle();
     same("not ready: a later update starts nothing more", starts(seat).length, 1);
+  });
+
+  // ── the match's deck is registered when the seat first joins, before any start (matchGame needs the seat colours then)
+  await run(async (h) => {
+    await on(h);
+    const seat = newGame(h);
+    seat.joined = false;
+    ready(h, seat);
+    await h.settle();
+    same("deck: the two seat colours are known before the start", h.B._getGame().seatColors, ["White", "Blue"]);
+    same("deck: Blue's deck is registered for the match", [h.B._match.decks?.pair, Object.keys(h.B._match.decks?.by || {})], ["Blue+White", ["Blue"]]);
   });
 
   process.stdout.write(failed ? `${failed} failed (${passed} passed)\n` : `all ${passed} roll choice checks pass\n`);
