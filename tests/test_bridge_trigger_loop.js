@@ -287,7 +287,7 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     const ids = optIds(white);
     ok("priority: Accept the loop… after End turn", ids.indexOf("__tlaccept") === ids.indexOf("__endturn") + 1 && white.prompt.ui.options.find((o) => o.id === "__tlaccept").label === "Accept Blue's loop ×10…", ids.join(","));
     await answer(h, w, "__tlaccept", "White");
-    ok("priority: the accept question under it", optIds(white).join(",") === "__tl:all,__tl:some,__tl:no,__back" || optIds(white).includes("__tl:all"), optIds(white).join(","));
+    ok("priority: the accept question under it", optIds(white).join(",") === "__tl:all,__tl:some,__tl:no,__back", optIds(white).join(","));
     await answer(h, white.prompt.promptId, "__tl:all", "White");
     ok("priority: accepted, passed", white.prompt === null && answered(calls, w)?.out?.type === "pass", JSON.stringify(answered(calls, w)));
     const w2 = await prio(h, white, board({ stack: [blood(3)] }));

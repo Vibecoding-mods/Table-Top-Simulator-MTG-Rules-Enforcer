@@ -153,7 +153,19 @@ const save = '{\r\n  "SaveName": "Mock MTGA 4 player",\r\n  "GameMode": "MTG",\r
       ok("Workshop copy: byte for byte the save today's build ships for this input (make-engine-copy, patch-save, rename)", bytes.equals(today), `${sha8(bytes)} vs ${sha8(today)}`);
       same("Workshop copy: the stamp is the one a deploy gives this script", run.stamp, p.stamp);
       same("Workshop copy: named for TTS's list", JSON.parse(bytes.toString("utf8")).SaveName, "MTG Table (rules engine)");
-      ok("Workshop copy: its picture beside the table", fs.existsSync(ws.replace(/\.json$/i, ".png")) === fs.existsSync(out.replace(/\.json$/i, ".png")));
+      const wsPng = ws.replace(/\.json$/i, ".png"), outPng = out.replace(/\.json$/i, ".png");
+      ok("Workshop copy: its picture beside the table", fs.existsSync(wsPng) ? fs.existsSync(outPng) && fs.readFileSync(outPng).equals(fs.readFileSync(wsPng)) : !fs.existsSync(outPng));
+      // (equal existence passes when neither exists, so a build that never copies the picture also passed whenever the Workshop copy had none: a copy of it with a picture of ours beside it; 2026-11-27)
+      {
+        const pic = path.join(tmp, "ws-pic"), picOut = path.join(tmp, "pic-out", "MTG Table.json");
+        fs.mkdirSync(pic, { recursive: true }); fs.mkdirSync(path.dirname(picOut), { recursive: true });
+        fs.copyFileSync(ws, path.join(pic, "2296042369.json")); fs.writeFileSync(path.join(pic, "2296042369.png"), "not really a picture");
+        const rp = cli(path.join(pic, "2296042369.json"), picOut);
+        ok("Workshop copy: a picture beside the Workshop file is copied beside the table", rp.status === 0 && fs.existsSync(picOut.replace(/\.json$/i, ".png")) && fs.readFileSync(picOut.replace(/\.json$/i, ".png"), "utf8") === "not really a picture", rp.stdout + rp.stderr);
+        fs.rmSync(path.join(pic, "2296042369.png"));
+        const rq = cli(path.join(pic, "2296042369.json"), picOut);
+        ok("Workshop copy: no picture beside it, none beside the table (a stale one is removed)", rq.status === 0 && !fs.existsSync(picOut.replace(/\.json$/i, ".png")), rq.stdout + rq.stderr);
+      }
       same("Workshop copy: only read, never written", sha8(fs.readFileSync(ws)), before);
       // the deployed table: when the table's source is the deployed one, the table made here is the deployed table
       const versions = require("../bridge/versions");

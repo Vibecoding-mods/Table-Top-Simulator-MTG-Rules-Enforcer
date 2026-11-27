@@ -138,7 +138,14 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
   }
   ok("table: the start message carries it", /start\.treachery = engineTreacheryLeader\(\)/.test(COPY), "make-engine-copy.js engineStartGame");
   ok("table: mtg treachery reaches the bridge", /elseif cmd == "treachery" then[\s\S]{0,300}engineSend\("treachery", \{ color = pl\.color, text = rest \}\)/.test(COPY), "make-engine-copy.js engineChat");
-  ok("table: plain finds only", !/engineTreacheryLeader[\s\S]{0,1500}?:find\("[^"]*[%.\[\]^$*+?-][^"]*"\)/.test(SRC.slice(SRC.indexOf("\nfunction engineTreacheryLeader("), SRC.indexOf("\nfunction engineTreacheryLeader(") + 1500)), "a pattern find");
+  {
+    // (every find in the leader reader, engineTreacheryLeader through engineIdentitySeat, is a plain one: ", 1, true". The old
+    // pattern looked only at one-argument finds, so a pattern find with arguments, or a missing function, passed; 2026-11-27)
+    const a = SRC.indexOf("\nfunction engineTreacheryLeader("), b = SRC.indexOf("\nfunction engineHoldsCard(");
+    const body = a >= 0 && b > a ? SRC.slice(a, b) : "";
+    const finds = [...body.matchAll(/:find\(([^)]*)\)/g)].map((m) => m[1]);
+    ok("table: plain finds only", finds.length >= 2 && finds.every((x) => /,\s*1\s*,\s*true\s*$/.test(x)), JSON.stringify(finds));
+  }
 
   console.log(`${failed ? "FAIL" : "PASS"} test_bridge_treachery_first: ${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);

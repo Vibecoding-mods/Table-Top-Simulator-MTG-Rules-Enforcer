@@ -37,6 +37,7 @@ function build() {
   if (WIN) {
     // (into a temp folder: the real bin's exe may be running, and then it can't be overwritten)
     const out = fs.mkdtempSync(path.join(os.tmpdir(), "mtg-companion-test-"));
+    process.on("exit", () => { try { fs.rmSync(out, { recursive: true, force: true }); } catch {} }); // (a whole build per gate run otherwise stays in %TEMP%; 2026-11-27)
     execFileSync("cmd", ["/c", path.join(ROOT, "companion", "build.cmd")], { stdio: "ignore", timeout: 300000, env: { ...process.env, COMPANION_OUT: out } });
     return path.join(out, "MTG Companion.exe");
   }
@@ -180,8 +181,9 @@ function pageChecks() {
     ok("nothing on the port: red, nothing listens", o.rows[3]?.light === "RED" && new RegExp(`nothing listens on port ${nothing} there`).test(o.rows[3]?.text), o.rows[3]?.text || o.out);
     o = await observe(exe, { ...s, host: "no-such-host.invalid" });
     ok("a name that doesn't resolve: red, isn't known", o.rows[3]?.light === "RED" && /"no-such-host\.invalid" isn't known/.test(o.rows[3]?.text), o.rows[3]?.text || o.out);
+    const seenNoKey = relay.seen.length;
     o = await observe(exe, { host: "127.0.0.1", port: relay.port });
-    ok("no key: red, says where the key goes, nothing sent", o.rows[3]?.light === "RED" && /no key for your server/.test(o.rows[3]?.text), o.rows[3]?.text || o.out);
+    ok("no key: red, says where the key goes, nothing sent", o.rows[3]?.light === "RED" && /no key for your server/.test(o.rows[3]?.text) && !relay.seen.slice(seenNoKey).some((m) => m.type === "Authenticate"), o.rows[3]?.text || o.out);
     o = await observe(exe, { host: "127.0.0.1", port: relay.port }, [], { MTG_SERVER_KEY: KEY });
     ok("MTG_SERVER_KEY gives the key: green", o.rows[3]?.light === "GREEN", o.rows[3]?.text || o.out);
     o = await observe(exe, "{ \"host\": ");

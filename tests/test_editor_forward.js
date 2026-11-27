@@ -84,7 +84,8 @@ async function main() {
     ok("loop guard: a command port on TTS's port is refused", h.enabled === true && h.commandPort === 0);
     ok("loop guard: command port equal to the forward port is refused", createEditorForwarder({ env: {}, forwardPort: 40111, commandPort: 40111, log }).commandPort === 0);
   }
-  ok("the table check is tts-push-global.js's", TABLE_CHECK_LUA.includes('gm:find("^engine:")') && TABLE_CHECK_LUA.includes('gsub("\\n.*", "")') && TABLE_CHECK_LUA.includes("libcard"));
+  // (the very text, not three pieces of it: the two copies drift, and Save & Play would wipe a table the push tool refuses; 2026-11-27)
+  ok("the table check is tts-push-global.js's", TABLE_CHECK_LUA === require("../tools/tts-push-global").CHECK);
 
   // ── routing per messageID, TTS -> plugin ──
   {

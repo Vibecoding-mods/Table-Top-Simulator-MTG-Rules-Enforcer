@@ -152,9 +152,12 @@ async function liveRun() {
     ok("health: heard just now", typeof h1.table.lastHeardMs === "number" && h1.table.lastHeardMs < 5000, JSON.stringify(h1.table));
     same("health: TTS spoke, so it is up", h1.ttsConnected, true);
   } finally {
-    const gone = new Promise((done) => child.on("exit", done));
-    child.kill();
-    await gone; // (Windows keeps the folder busy until the process is gone)
+    // (a bridge that died at start-up already fired its exit: a listener added now never hears it, so look first and cap the wait; 2026-11-27)
+    if (child.exitCode === null && child.signalCode === null) {
+      const gone = new Promise((done) => child.once("exit", done));
+      child.kill();
+      await Promise.race([gone, new Promise((done) => setTimeout(done, 5000))]); // (Windows keeps the folder busy until the process is gone)
+    }
   }
 }
 

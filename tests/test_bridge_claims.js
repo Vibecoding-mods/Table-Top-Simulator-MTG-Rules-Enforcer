@@ -380,11 +380,12 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     setup(h, F.board);
     const fs = require("fs");
     const stubWrite = fs.writeFile, times = [];
-    fs.writeFile = (p, ...rest) => { if (/image-cache/.test(String(p))) times.push(Date.now()); return stubWrite(p, ...rest); };
-    // five Scryfall rounds 300 ms apart (virtual time): each finished round used to write the 4 MB file at once
-    ["Forest", "Island", "Swamp", "Plains", "Mountain"].forEach((n, i) => setTimeout(() => h.B.imgOf({ identity: { name: n } }), 300 * i));
-    await h.flush();
-    fs.writeFile = stubWrite;
+    try {
+      fs.writeFile = (p, ...rest) => { if (/image-cache/.test(String(p))) times.push(Date.now()); return stubWrite(p, ...rest); };
+      // five Scryfall rounds 300 ms apart (virtual time): each finished round used to write the 4 MB file at once
+      ["Forest", "Island", "Swamp", "Plains", "Mountain"].forEach((n, i) => setTimeout(() => h.B.imgOf({ identity: { name: n } }), 300 * i));
+      await h.flush();
+    } finally { fs.writeFile = stubWrite; }
     const rounds = h.effects.filter((e) => e.fetch).length;
     const writes = h.effects.filter((e) => e.writeFile && /image-cache/.test(e.writeFile));
     ok("precondition: several Scryfall rounds ran", rounds >= 3, `${rounds} rounds`);
@@ -495,12 +496,12 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
   {
     const fs = require("fs");
     const P = require("../bridge/presets");
-    const id = "__claim_check_preset";
+    const id = `__claim_check_preset_${process.pid}`; // (per run: two gates in parallel share decks/, and a live bridge lists it; 2026-11-27)
     // the folders named here, not taken from presets.js (a check reading the module's own order can't see it swapped)
     const files = [path.join(__dirname, "..", "decks", `${id}.json`), path.join(__dirname, "..", "manabrew", "public", "preset_decks", `${id}.json`)];
     const label = () => { try { return P.readPreset(id).label; } catch (e) { return `threw ${e.code || e.message}`; } };
     try {
-      files.forEach((f, i) => fs.writeFileSync(f, JSON.stringify({ label: i === 0 ? "ours" : "manabrew's", format: "commander", cards: [] })));
+      files.forEach((f, i) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify({ label: i === 0 ? "ours" : "manabrew's", format: "commander", cards: [] })); });
       ok("presets: an id in both folders reads ours (decks/)", label() === "ours", `read ${label()}`);
       ok("presets: an id in both folders is listed once", P.presetIds().filter((x) => x === id).length === 1);
       fs.unlinkSync(files[0]);
@@ -2180,12 +2181,13 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const fsm = require("fs");
       const w0 = fsm.writeFile;
       let snapText = null;
-      fsm.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) snapText = String(d); return w0(p, d, ...rest); };
-      const g = h.B._getGame();
-      g.started = false;
-      const seat = g.seats.get("Blue");
-      h.B.onGameStarted({ player_order: [seat.username, "self-hosted-node-77-bot"], starting_life: 40, game_id: "g1" }); await h.flush();
-      fsm.writeFile = w0;
+      try {
+        fsm.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) snapText = String(d); return w0(p, d, ...rest); };
+        const g = h.B._getGame();
+        g.started = false;
+        const seat = g.seats.get("Blue");
+        h.B.onGameStarted({ player_order: [seat.username, "self-hosted-node-77-bot"], starting_life: 40, game_id: "g1" }); await h.flush();
+      } finally { fsm.writeFile = w0; }
       ok("live bug 2: the resume file holds the decks' pictures", !!snapText && JSON.parse(snapText).game.pictures?.Blue?.Plains?.length === 2, String(snapText).slice(0, 200));
       harness.restore();
       const h2 = harness.load();
@@ -2287,9 +2289,10 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const fsm = require("fs");
       const w0 = fsm.writeFile;
       let snapText = null;
-      fsm.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) snapText = String(d); return w0(p, d, ...rest); };
-      h.B.saveResume(); await h.flush();
-      fsm.writeFile = w0;
+      try {
+        fsm.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) snapText = String(d); return w0(p, d, ...rest); };
+        h.B.saveResume(); await h.flush();
+      } finally { fsm.writeFile = w0; }
       await fsm.promises.unlink(process.env.MTG_RESUME_FILE).catch(() => {});
       ok("verify #1: the resume file keeps the printed P/T seen", JSON.stringify(JSON.parse(snapText || "{}").game?.printedPT?.["Grizzly Bears"]) === "[2,2]", String(snapText).slice(0, 200));
       harness.restore();
@@ -2400,9 +2403,10 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
         const fsm = require("fs");
         const w0 = fsm.writeFile;
         let snapText = null;
-        fsm.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) snapText = String(d); return w0(p, d, ...rest); };
-        r.h.B.saveResume(); await r.h.flush();
-        fsm.writeFile = w0;
+        try {
+          fsm.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) snapText = String(d); return w0(p, d, ...rest); };
+          r.h.B.saveResume(); await r.h.flush();
+        } finally { fsm.writeFile = w0; }
         const last = r.last;
         harness.restore();
         const h2 = harness.load();
@@ -3204,7 +3208,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       // (Blue's own priority on AI 1's turn, the board's priority Blue's: Arena-style passing as before)
       const { h, seat } = fresh(slaved, { ...AI_MAIN, priorityPlayerId: "player-0" });
       await asked(h, seat, { type: "chooseAction", actions: [{ id: "pass", type: "pass", label: "Pass priority" }, { id: "cast:1700", type: "cast", cardId: "engine-card-1700", label: "Cast Opt" }] });
-      ok("re-test bug 1: Blue's own priority on AI 1's controlled turn still passes by itself", seat.prompt == null, JSON.stringify(seat.prompt?.ui?.title ?? null));
+      ok("re-test bug 1: Blue's own priority on AI 1's controlled turn still passes by itself", seat.prompt == null && h.effects.some((e) => e.relay && JSON.stringify(e.relay).includes("\"pass\"")), JSON.stringify(seat.prompt?.ui?.title ?? null)); // (the pass must be relayed too: an absent question alone is also a stalled game; 2026-11-27)
       harness.restore();
     }
     {
@@ -3219,7 +3223,7 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       // (and without control, AI 1's main is no stop of Blue's)
       const { h, seat } = fresh((gv) => { zone(gv, "hand", "player-1").cards = [FOREST]; }, AI_MAIN);
       await asked(h, seat, AI_ACTIONS);
-      ok("re-test bug 1: no control, no stop", seat.prompt == null, JSON.stringify(seat.prompt?.ui?.title ?? null));
+      ok("re-test bug 1: no control, no stop", seat.prompt == null && h.effects.some((e) => e.relay && JSON.stringify(e.relay).includes("\"pass\"")), JSON.stringify(seat.prompt?.ui?.title ?? null));
       harness.restore();
     }
     {
@@ -3796,6 +3800,18 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
     ok("live files guard: the appends are dropped, the callback gets no error", cbErr === null && size() === s0, `${s0} -> ${size()}, ${cbErr}`);
     ok("live files guard: each is recorded with its file", JSON.stringify(wrote.map((w) => w.file.replace(/\\/g, "/").toLowerCase())) === JSON.stringify(["tmp/table-log.log", "tmp/table-log.log", "bridge/game-log.txt"]), JSON.stringify(wrote));
     ok("live files guard: any other file is written as normal", otherKept);
+    {
+      // the resume file's real path: a .tmp written, renamed over the file, and the file unlinked (2026-11-27; the guard
+      // used to see only the exact name written). Only the .tmp, which does not exist, so a broken guard harms nothing.
+      const resume = path.join(__dirname, "..", "tmp", "bridge-game.json"), w1 = guard.fileAttempts().length;
+      fs.writeFileSync(`${resume}.tmp`, "guard self-check");
+      let renameErr = null; try { fs.renameSync(`${resume}.tmp`, resume); } catch (e) { renameErr = e; }
+      fs.unlinkSync(`${resume}.tmp`);
+      await fs.promises.writeFile(`${resume}.tmp`, "guard self-check");
+      const wrote2 = guard.fileAttempts().slice(w1);
+      guard.forgetFiles(w1);
+      ok("live files guard: the resume file's .tmp write, rename over it, unlink and promise write are dropped and recorded", renameErr === null && wrote2.length === 4 && !fs.existsSync(`${resume}.tmp`), JSON.stringify([renameErr && renameErr.code, wrote2.map((w) => w.file)]));
+    }
   }
   // the attack question's reminders (attackReminder, docs/attack-reminder-spec.md part 2; the user 2026-11-10: "if there's
   // a pay to attack or multiple creatures can't attack, a prompt should pop up to remind players") and whom each attacker
@@ -5822,9 +5838,10 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       const real = Date.now;
       const start = h.B._getGame().log.length;
       reveal(blue, 404); await h.flush();
-      Date.now = () => real() + 30000; // (Red's OK half a minute later)
-      reveal(red, 405); await h.flush();
-      Date.now = real;
+      try {
+        Date.now = () => real() + 30000; // (Red's OK half a minute later)
+        reveal(red, 405); await h.flush();
+      } finally { Date.now = real; }
       const reveals = h.B._getGame().log.slice(start).filter((l) => /Island/.test(l));
       ok("reveals: one line for two seats acknowledging it 30 s apart", reveals.length === 1, JSON.stringify(h.B._getGame().log.slice(start)));
       harness.restore();
@@ -5926,9 +5943,10 @@ const sent = (h, t) => h.effects.filter((e) => e.tts && e.tts.t === t).map((e) =
       Object.assign(g, { started: true, roomId: "room-1", playerOrder: ["a", "b"], slotNames: {}, slotColor: {} });
       let text = null;
       const w0 = fs.writeFile;
-      fs.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) text = String(d); return w0(p, d, ...rest); };
-      h.B.saveResume(); await h.flush();
-      fs.writeFile = w0;
+      try {
+        fs.writeFile = (p, d, ...rest) => { if (/mtg-bridge-game-test\.json\.tmp$/.test(String(p))) text = String(d); return w0(p, d, ...rest); };
+        h.B.saveResume(); await h.flush();
+      } finally { fs.writeFile = w0; }
       harness.restore();
       ok("M6 seats: a six-seat game's resume file keeps the six", JSON.stringify(JSON.parse(text || "{}").game?.tableSeats) === JSON.stringify(SIX), String(text).slice(0, 200));
     }

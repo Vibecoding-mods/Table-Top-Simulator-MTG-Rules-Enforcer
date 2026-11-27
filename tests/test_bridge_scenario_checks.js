@@ -130,6 +130,7 @@ const bfOf = (gv, slot = "player-0") => ((gv.zones || []).find((z) => z.zone ===
 // the recorded questions after the cast, replayed: the bridge must show and answer each as recorded
 async function replay(name, r, h, seat) {
   const out = [];
+  out.chatLines = []; // (what the bridge itself said to the table while replaying: the recorded chats are only what the engine game made it say then; 2026-11-27)
   for (const st of r.steps.filter((s) => s.kind === "bridge")) {
     if (!st.board) { out.push({ st, shown: st.shown, sent: st.sent, msg: null, chats: [] }); continue; } // (a key recording's step without its board: as recorded)
     const got = await ask(h, seat, st);
@@ -137,8 +138,10 @@ async function replay(name, r, h, seat) {
     if (st.click) {
       const n1 = h.effects.length;
       h.B.onTTS({ t: "answer", json: JSON.stringify({ color: HOST, promptId: st.prompt.promptId, choice: [st.click] }) }); await h.flush();
+      out.chatLines.push(...h.effects.slice(n1).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text));
       sent = h.effects.slice(n1).map((e) => e.relay?.state).filter((x) => x?.kind === "response" && x.promptId === st.prompt.promptId).map((x) => x.action).pop() || null;
     }
+    out.chatLines.push(...got.chats);
     out.push({ st, shown: got.shown, sent, msg: got.msg, chats: got.chats });
   }
   const differ = out.filter((x) => JSON.stringify(x.sent || null) !== JSON.stringify(x.st.sent || null) || JSON.stringify(x.shown) !== JSON.stringify(x.st.shown));
@@ -163,7 +166,9 @@ async function replay(name, r, h, seat) {
     same("repeat-yesno: the engine had three Soul's Attendant triggers on the stack at the first ask", stackAt.filter((s) => /Soul's Attendant/.test(s.identity?.name || s.name || "") || /Soul's Attendant/.test(s.text || "")).length, 3);
     same("repeat-yesno: the first ask offers Yes, No, No ×3, Yes ×3 and How many…", asks[0]?.shown?.options, ["Yes", "No", "No ×3", "Yes ×3", "How many…"]);
     same("repeat-yesno: Blue clicks No ×3 once; the other two asks are answered No by the bridge, unseen", asks.map((x) => [x.st.click || null, x.shown ? "shown" : "unseen", x.sent?.output?.value]), [["__repeat:no", "shown", false], [null, "unseen", false], [null, "unseen", false]]);
-    ok("repeat-yesno: one chat line says it", (r.chatsAfter || []).length === 1 && /You answered No to Soul's Attendant's .* 3 times\./.test(r.chatsAfter[0]), JSON.stringify(r.chatsAfter));
+    // (the bridge's own lines from this replay: r.chatsAfter is the recording's copy, which no change to the bridge can fail; 2026-11-27)
+    const said = out.chatLines.filter((c) => / answered /.test(c));
+    ok("repeat-yesno: one chat line says it", said.length === 1 && /You answered No to Soul's Attendant's .* 3 times\./.test(said[0]), JSON.stringify(said));
     const last = r.steps.filter((s) => s.board).at(-1).board.gameView;
     const life = (gv) => gv.players.find((p) => p.id === "player-0").life;
     same("repeat-yesno: on the engine's last board the stack is empty and Blue gained no life", [(last.stack || []).length, life(last)], [0, life(r.steps.find((s) => s.kind === "applied").board.gameView)]);
@@ -174,7 +179,8 @@ async function replay(name, r, h, seat) {
     same("repeat-yesno-pay: the engine had three Smothering Tithe triggers on the stack at the first ask", (asks[0]?.st.board.gameView.stack || []).filter((s) => /Smothering Tithe/.test(s.identity?.name || s.name || "")).length, 3);
     same("repeat-yesno-pay: the first ask offers Pay {2}, Don't pay, Don't pay ×3 and How many… (no Pay ×3: Yes asks the payment)", asks[0]?.shown?.options, ["Pay {2}", "Don't pay", "Don't pay ×3", "How many…"]);
     same("repeat-yesno-pay: the other two are answered No by the bridge, unseen", asks.map((x) => [x.shown ? "shown" : "unseen", x.sent?.output?.value]), [["shown", false], ["unseen", false], ["unseen", false]]);
-    ok("repeat-yesno-pay: one chat line says it", (r.chatsAfter || []).length === 1 && /You answered No to Smothering Tithe's "Pay \{2\}\?" 3 times\./.test(r.chatsAfter[0]), JSON.stringify(r.chatsAfter));
+    const said = out.chatLines.filter((c) => / answered /.test(c));
+    ok("repeat-yesno-pay: one chat line says it", said.length === 1 && /You answered No to Smothering Tithe's "Pay \{2\}\?" 3 times\./.test(said[0]), JSON.stringify(said));
   });
   // the 2HG team block panel on the first AI team turn (scenarios/team-block-live.json): Two-Headed Giant at level 2,
   // White (the host) and Red (AI) at 8 life with three Walls of Wood, Yellow and Blue (AI) with four Craw Wurms
@@ -242,7 +248,17 @@ async function replay(name, r, h, seat) {
   // (d) the runaway limit: Polyraptor and Marauding Raptor's loop
   await scenario("live-runaway", async (r, h, seat) => {
     same("live-runaway: the engine's limit asked three times, Keep going each time", (r.runaway || []).map((x) => [x.title, x.options, x.click]), Array(3).fill(["This turn passed the engine's limit", ["Keep going", "End in a draw"], "yes"]));
-    same("live-runaway: each said to everyone", (r.chatsAll || []).filter((c) => c === "[MTG] Blue kept the turn going past the engine's limit.").length, 3);
+    // (the three limit questions through the bridge, Keep going clicked on each as recorded: what it says is the bridge's, not the recording's)
+    const chats = [];
+    for (const st of r.steps.filter((s) => s.kind === "bridge" && s.board && s.prompt?.input?.type === "chooseBoolean")) {
+      // (answered at once: ask()'s flush runs the question's 90 s timer, which answers it itself with another line)
+      seat.board = { state: JSON.parse(JSON.stringify(st.board)), fingerprint: null };
+      const n1 = h.effects.length;
+      h.B.onPrompt(seat, JSON.parse(JSON.stringify(st.prompt))); await h.settle();
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: HOST, promptId: st.prompt.promptId, choice: ["yes"] }) }); await h.flush();
+      chats.push(...h.effects.slice(n1).filter((e) => e.tts?.t === "chat").map((e) => e.tts.text));
+    }
+    same("live-runaway: each said to everyone", chats.filter((c) => c === "[MTG] Blue kept the turn going past the engine's limit.").length, 3);
     const first = r.steps.find((x) => x.firstUnbounded)?.board.gameView;
     ok("live-runaway: the engine stopped counting the pile: unbounded Polyraptors on the battlefield", first && bfOf(first).filter((c) => c.unbounded && c.identity?.name === "Polyraptor").length >= 100, first && bfOf(first).filter((c) => c.unbounded).length);
     const { me } = await tableOf(h, seat, first);

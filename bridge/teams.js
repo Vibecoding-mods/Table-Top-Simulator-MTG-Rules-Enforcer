@@ -189,7 +189,7 @@ const archLife = (std) => (std ? 40 : 80);
 function schemeDeckProblem(names) {
   if (!Array.isArray(names)) return "no scheme deck";
   if (names.length < ARCH_SCHEMES) return `a scheme deck needs at least ${ARCH_SCHEMES} schemes; this one has ${names.length}`;
-  const count = {};
+  const count = Object.create(null); // (a plain {} counted "toString" and "__proto__" as functions: three of them passed; 2026-11-27)
   for (const n of names) count[n] = (count[n] || 0) + 1;
   const many = Object.entries(count).filter(([, k]) => k > ARCH_COPIES).map(([n, k]) => `${n} (${k})`);
   return many.length ? `a scheme deck holds at most ${ARCH_COPIES} of each scheme: ${many.join(", ")}` : null;

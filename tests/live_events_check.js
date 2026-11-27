@@ -70,7 +70,7 @@ const clients = [];
 
 class Client {
   constructor(i) {
-    this.i = i;
+    this.i = i; this.seen = 0; this.leaks = 0;
     this.name = `tts-events-${i}-${Math.random().toString(36).slice(2, 6)}`;
     this.ws = new WebSocket(RELAY);
     this.ws.addEventListener("open", () => this.send({ type: "Authenticate", username: this.name, password: KEY, service: false, client_platform: "unknown", engine_gate: "unknown", client_version: "3.56.0" }));
@@ -110,6 +110,8 @@ class Client {
         if (!this.board || this.board.fp !== env.base) return this.send({ type: "RequestResync" });
         this.board = { state: delta.apply(this.board.state, env.patch), fp: env.fingerprint };
       }
+      // (every board of every seat, not just the last: a library-to-hand entry naming its card on an earlier board is a leak too; 2026-11-27)
+      for (const e of this.g.events || []) { this.seen++; if (e.from === "Library" && e.to === "Hand" && e.cardId) this.leaks++; }
       if (this.slot === "player-0") {
         T.boards.push(JSON.parse(JSON.stringify(this.g)));
         T.sizes.push({ kind: env.kind, bytes: JSON.stringify(env.kind === "state" ? env.state : env.patch).length, events: JSON.stringify(this.g.events || []).length });
@@ -388,8 +390,8 @@ function judge() {
   check(on("delve", (e) => e.from === "Graveyard" && e.to === "Exile" && e.cause === "Cost:Delve" && e.causeName === "Treasure Cruise").length >= 1, "Treasure Cruise's delved cards have delve as the cause");
 
   // nobody is told what moved from a library to a hand, the player's own seat or anyone else's
-  for (const client of clients) check(!(client.g.events || []).some((e) => lib(e) && e.to === "Hand" && e.cardId), `${client.slot}: no library-to-hand entry names its card`);
-  const same = clients.every((c) => JSON.stringify(c.g.events?.slice(0, -2)) === JSON.stringify(clients[0].g.events?.slice(0, -2)));
+  for (const client of clients) check(client.seen > 0 && client.leaks === 0, `${client.slot}: no library-to-hand entry names its card on any board (${client.seen} entries seen)`);
+  const same = clients.every((c) => Array.isArray(c.g.events) && JSON.stringify(c.g.events?.slice(0, -2)) === JSON.stringify(clients[0].g.events?.slice(0, -2)));
   check(same, "every seat is told the same feed");
 
   const heavy = [...T.sizes].sort((a, b) => b.bytes - a.bytes)[0], deltas = T.sizes.filter((x) => x.kind === "stateDelta");

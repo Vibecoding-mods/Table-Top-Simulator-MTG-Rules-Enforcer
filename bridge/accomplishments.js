@@ -30,7 +30,7 @@ function createAccomplishments(opts = {}) {
     for (const [who, got] of Object.entries(players)) {
       if (!steamKey(who) || !got || typeof got !== "object") continue;
       const kept = {};
-      for (const [id, e] of Object.entries(got)) if (ACCOMPLISHMENTS[id] && okEntry(e)) kept[id] = { ...ACCOMPLISHMENTS[id], count: e.count, first: String(e.first || ""), last: String(e.last || "") };
+      for (const [id, e] of Object.entries(got)) if (Object.hasOwn(ACCOMPLISHMENTS, id) && okEntry(e)) kept[id] = { ...ACCOMPLISHMENTS[id], count: e.count, first: String(e.first || ""), last: String(e.last || "") };
       if (Object.keys(kept).length) all.set(who, kept);
     }
     return all;
@@ -43,7 +43,7 @@ function createAccomplishments(opts = {}) {
     // one more of accomplishment id for the player: the entry after it, or null (no Steam ID, an unknown id)
     earn(steam, id) {
       const who = steamKey(steam);
-      if (!who || !ACCOMPLISHMENTS[id]) return null;
+      if (!who || !Object.hasOwn(ACCOMPLISHMENTS, id)) return null;
       const m = load();
       const got = m.get(who) || {};
       const day = stamp(now);
