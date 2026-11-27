@@ -152,113 +152,23 @@
     "result": null
    },
    {
-    "read": 1
-   },
-   {
-    "write": {
-     "version": 1,
-     "players": {
-      "76561198000000001": {
-       "toString": {
-        "count": {
-         "$n": "NaN"
-        },
-        "last": "2026-11-24"
-       }
-      }
-     }
-    }
-   },
-   {
     "step": "toString",
-    "result": {
-     "id": "toString",
-     "count": {
-      "$n": "NaN"
-     },
-     "last": "2026-11-24"
-    }
-   },
-   {
-    "write": {
-     "version": 1,
-     "players": {
-      "76561198000000001": {
-       "toString": {
-        "count": {
-         "$n": "NaN"
-        },
-        "last": "2026-11-24"
-       },
-       "constructor": {
-        "count": {
-         "$n": "NaN"
-        },
-        "last": "2026-11-24"
-       }
-      }
-     }
-    }
+    "result": null
    },
    {
     "step": "constructor",
-    "result": {
-     "id": "constructor",
-     "count": {
-      "$n": "NaN"
-     },
-     "last": "2026-11-24"
-    }
-   },
-   {
-    "write": {
-     "version": 1,
-     "players": {
-      "76561198000000001": {
-       "toString": {
-        "count": {
-         "$n": "NaN"
-        },
-        "last": "2026-11-24"
-       },
-       "constructor": {
-        "count": {
-         "$n": "NaN"
-        },
-        "last": "2026-11-24"
-       }
-      }
-     }
-    }
+    "result": null
    },
    {
     "step": "__proto__",
-    "result": {
-     "id": "__proto__",
-     "count": {
-      "$n": "NaN"
-     },
-     "last": "2026-11-24"
-    }
+    "result": null
+   },
+   {
+    "read": 1
    },
    {
     "step": "list",
-    "result": [
-     {
-      "id": "toString",
-      "count": {
-       "$n": "NaN"
-      },
-      "last": "2026-11-24"
-     },
-     {
-      "id": "constructor",
-      "count": {
-       "$n": "NaN"
-      },
-      "last": "2026-11-24"
-     }
-    ]
+    "result": []
    },
    {
     "step": "list bad steam",
@@ -369,20 +279,7 @@
    },
    {
     "step": "5 (unknown / prototype ids)",
-    "result": [
-     {
-      "id": "toString",
-      "count": 1,
-      "first": "",
-      "last": ""
-     },
-     {
-      "id": "constructor",
-      "count": 2,
-      "first": "",
-      "last": ""
-     }
-    ]
+    "result": []
    },
    {
     "step": "7 (first/last not strings)",
@@ -414,18 +311,6 @@
     "write": {
      "version": 1,
      "players": {
-      "76561198000000005": {
-       "toString": {
-        "count": 1,
-        "first": "",
-        "last": ""
-       },
-       "constructor": {
-        "count": 2,
-        "first": "",
-        "last": ""
-       }
-      },
       "76561198000000007": {
        "forced-tie": {
         "name": "Stalemate",

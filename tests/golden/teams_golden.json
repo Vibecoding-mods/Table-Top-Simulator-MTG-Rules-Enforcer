@@ -2291,11 +2291,11 @@
  },
  {
   "name": "schemeDeckProblem proto",
-  "result": null
+  "result": "a scheme deck holds at most 2 of each scheme: __proto__ (3)"
  },
  {
   "name": "schemeDeckProblem toStr",
-  "result": null
+  "result": "a scheme deck holds at most 2 of each scheme: toString (3)"
  },
  {
   "name": "archWords random std=false",
@@ -34478,7 +34478,7 @@
  {
   "name": "jointBlockLines prefixName colored=true players=named",
   "result": [
-   "A → <color=#F570CE>Pink's</color> X + My<color=#F570CE>Pink's</color> Y"
+   "A → <color=#F570CE>Pink's</color> X + MyPink's Y"
   ]
  },
  {
@@ -34502,7 +34502,7 @@
  {
   "name": "jointBlockLines prefixName colored=undefined players=named",
   "result": [
-   "A → <color=#F570CE>Pink's</color> X + My<color=#F570CE>Pink's</color> Y"
+   "A → <color=#F570CE>Pink's</color> X + MyPink's Y"
   ]
  },
  {

@@ -75798,6 +75798,10 @@
      "kind": "number",
      "text": ""
     }
+   },
+   {
+    "appendFile": "table-log.log",
+    "text": "[time] Blue   answers #899 (the open question is #900) \"Choose a number\": 3\n"
    }
   ],
   "result": {
@@ -627075,9 +627079,6 @@
        "name": "Bloom Tender"
       },
       {
-       "name": "Steel Overseer"
-      },
-      {
        "name": "Fatal Blow"
       },
       {
@@ -627106,9 +627107,6 @@
       },
       {
        "name": "Savannah Lions"
-      },
-      {
-       "name": "Tapped Bear"
       },
       {
        "name": "Farseek"
@@ -627232,12 +627230,6 @@
         {
          "s": 1,
          "id": "engine-card-939",
-         "ctl": "Blue",
-         "atk": true
-        },
-        {
-         "s": 1,
-         "id": "engine-card-943",
          "ctl": "Blue"
         }
        ],
@@ -627327,12 +627319,6 @@
         {
          "s": 1,
          "id": "engine-card-940",
-         "ctl": "White"
-        },
-        {
-         "s": 1,
-         "id": "engine-card-950",
-         "tap": true,
          "ctl": "White"
         }
        ],
@@ -627496,16 +627482,6 @@
         "Creature"
        ]
       },
-      "engine-card-943": {
-       "n": "Steel Overseer",
-       "b": "",
-       "tl": "Artifact Creature",
-       "cmc": 0,
-       "ty": [
-        "Artifact",
-        "Creature"
-       ]
-      },
       "engine-card-70": {
        "n": "Fatal Blow",
        "b": "",
@@ -627608,15 +627584,6 @@
       },
       "engine-card-940": {
        "n": "Savannah Lions",
-       "b": "",
-       "tl": "Creature",
-       "cmc": 0,
-       "ty": [
-        "Creature"
-       ]
-      },
-      "engine-card-950": {
-       "n": "Tapped Bear",
        "b": "",
        "tl": "Creature",
        "cmc": 0,
@@ -627931,17 +627898,6 @@
         "Creature"
        ]
       },
-      "engine-card-943": {
-       "n": "Steel Overseer",
-       "f": "kfc4c856ec-d3e5-b996-aec5-b661e466c873",
-       "b": "",
-       "tl": "Artifact Creature",
-       "cmc": 0,
-       "ty": [
-        "Artifact",
-        "Creature"
-       ]
-      },
       "engine-card-70": {
        "n": "Fatal Blow",
        "f": "kf73a2a128-d463-3be4-100c-318bee2dc921",
@@ -628055,16 +628011,6 @@
       "engine-card-940": {
        "n": "Savannah Lions",
        "f": "kfe87b62f8-6cca-c103-6ab0-b18d7ce406b8",
-       "b": "",
-       "tl": "Creature",
-       "cmc": 0,
-       "ty": [
-        "Creature"
-       ]
-      },
-      "engine-card-950": {
-       "n": "Tapped Bear",
-       "f": "kf9b97454a-a3f6-3db4-772c-97e54da1a81d",
        "b": "",
        "tl": "Creature",
        "cmc": 0,
@@ -628202,7 +628148,7 @@
    },
    {
     "writeFile": "image-cache-klrmngr.json.tmp",
-    "bytes": 3360
+    "bytes": 3115
    },
    {
     "rename": [
@@ -956244,6 +956190,13 @@
     "tts": {
      "t": "prompt",
      "color": "Blue",
+     "promptId": null
+    }
+   },
+   {
+    "tts": {
+     "t": "prompt",
+     "color": "White",
      "promptId": null
     }
    },
