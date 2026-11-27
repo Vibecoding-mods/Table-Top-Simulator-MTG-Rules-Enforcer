@@ -578,6 +578,9 @@ namespace MtgCompanion
             Check("another bridge version: amber with a restart button", v.Light == Light.Amber && v.Fix == Fixes.BridgeRestart, v);
             v = Logic.DecideBridge(HttpResult.Of(HttpKind.Timeout), null, true, null, true);
             Check("slow is not down: a timeout is amber, never a start", v.Light == Light.Amber && v.Action == null, v);
+            v = Logic.DecideBridge(new HttpResult { Kind = HttpKind.Ok, Status = 500 }, null, true, null, true);
+            Check("an HTTP 500 answer is named as an error, not as a slow answer", v.Light == Light.Amber && v.Text.Contains("HTTP 500") && !v.Text.Contains("in time") && v.Fix == Fixes.BridgeRestart, v);
+            Check("J.Int clamps an overflowing number (tableHeardMs after 25 days) instead of reading 0", J.Int(J.Parse("{\"t\":3000000000}"), "t") == int.MaxValue && J.Int(J.Parse("{\"t\":42}"), "t") == 42, J.Int(J.Parse("{\"t\":3000000000}"), "t"));
             Check("exit lines counted", Logic.CountExits("x\n[bridge exited with code 1 at 1; restarting in 3 s]\n[bridge exited with code 1 at 2; restarting in 3 s]\n") == 2);
         }
 

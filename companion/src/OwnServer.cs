@@ -297,7 +297,7 @@ namespace MtgCompanion
                 return null;
             }
             var opened = new Dictionary<string, object>();
-            foreach (var kv in d) { if (kv.Key == KeyVault.Field) opened["key"] = key; else opened[kv.Key] = kv.Value; }
+            foreach (var kv in d) { if (kv.Key == KeyVault.Field) opened["key"] = key; else if (kv.Key != "key") opened[kv.Key] = kv.Value; } // 2026-11-27: a null or empty plain "key" listed after keyProtected no longer overwrites the opened one
             return J.Write(opened);
         }
 

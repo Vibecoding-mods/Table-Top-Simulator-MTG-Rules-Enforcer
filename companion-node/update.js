@@ -41,7 +41,8 @@ class Updater {
           if (res.statusCode >= 300 && res.statusCode < 400) {
             res.resume();
             if (!res.headers.location) { done({ error: "a redirect with no address" }); return; }
-            hop(new URL(res.headers.location, u).href, n + 1);
+            let next; try { next = new URL(res.headers.location, u).href; } catch { done({ error: "a redirect to a broken address" }); return; } // 2026-11-27: an uncaught throw here killed the companion
+            hop(next, n + 1);
             return;
           }
           const parts = [];
@@ -87,7 +88,8 @@ class Updater {
     this.c.fire();
     this.check().catch((e) => ({ failed: true, text: `Couldn't check for updates (${e.message}).` })).then((res) => {
       const now = new Date().toISOString();
-      this.remember("lastCheck", now); this.remember("lastResult", res.text);
+      if (!res.failed || res.quiet) this.remember("lastCheck", now); // 2026-11-27: a failed check (offline at start) is retried next launch
+      this.remember("lastResult", res.text);
       Log.write(`update check: ${res.text}`);
       this.c.update = L.updateChecked(this.c.update, res, false, now);
       this.c.updateBusy = false;

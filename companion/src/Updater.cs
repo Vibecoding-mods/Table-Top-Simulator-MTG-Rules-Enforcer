@@ -155,7 +155,8 @@ namespace MtgCompanion
         {
             if (manual) Remember("skipped", null);
             var res = Updates.SkipReverted(Run(), J.Str(State(), "skipped"), manual);
-            Remember("lastCheck", DateTime.UtcNow.ToString("o"));
+            // 2026-11-27: a failed check (offline at start) leaves lastCheck alone, so the next launch checks again; "not public" (Quiet) is stamped so a private repo is not asked every launch
+            if (!res.Failed || res.Quiet) Remember("lastCheck", DateTime.UtcNow.ToString("o"));
             Remember("lastResult", res.Text);
             Log.Write("update check: " + res.Text);
             return res;
