@@ -23,7 +23,11 @@ try {
   ok("a member's picture changed: fresh", d.fresh === true, JSON.stringify(d));
   const e = board("p2");
   ok("and not fresh again once counted", !e.fresh, JSON.stringify(e));
-  // shortUrl: the table rebuilds a klrmngr link's directories from the uuid's first two characters (expandUrl), so only such a link is shortened
+  // runSent keeps only the ids in a run on this board, across the seats (the caller's `seen`): a token that left stays no longer
+  ok("runSent: the run's other tokens are kept", ["engine-card-2", "engine-card-3"].every((id) => id in game.runSent), JSON.stringify(Object.keys(game.runSent || {})));
+  h.B._forgetRunSent(new Set(["engine-card-2"]));
+  ok("runSent: a token not in a run on this board is dropped", Object.keys(game.runSent).join() === "engine-card-2", JSON.stringify(Object.keys(game.runSent)));
+  // shortUrl: the table rebuilds a klrmngr link's directories from the uuid's first two characters (engineExpandUrl), so only such a link is shortened
   const U = "a1b2c3d4-0000-4000-8000-000000000000";
   ok("shortUrl: a link whose directories are the uuid's first two characters is shortened", h.B.shortUrl(`https://img.klrmngr.com/display/front/a/1/${U}.webp`) === `kf${U}`, h.B.shortUrl(`https://img.klrmngr.com/display/front/a/1/${U}.webp`));
   const odd = `https://img.klrmngr.com/display/back/0/0/${U}.webp`;

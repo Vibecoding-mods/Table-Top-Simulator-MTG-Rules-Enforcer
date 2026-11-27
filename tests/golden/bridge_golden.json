@@ -168777,7 +168777,7 @@
    },
    {
     "writeFile": "mtg-bridge-game-test.json.tmp",
-    "bytes": 623
+    "bytes": 668
    },
    {
     "rename": [
@@ -168872,7 +168872,7 @@
    },
    {
     "writeFile": "mtg-bridge-game-test.json.tmp",
-    "bytes": 815
+    "bytes": 860
    },
    {
     "rename": [
@@ -168953,7 +168953,7 @@
    },
    {
     "writeFile": "mtg-bridge-game-test.json.tmp",
-    "bytes": 390
+    "bytes": 420
    },
    {
     "rename": [
@@ -174975,7 +174975,7 @@
    },
    {
     "writeFile": "mtg-bridge-game-test.json.tmp",
-    "bytes": 515
+    "bytes": 545
    },
    {
     "rename": [
@@ -175073,7 +175073,7 @@
    },
    {
     "writeFile": "mtg-bridge-game-test.json.tmp",
-    "bytes": 515
+    "bytes": 545
    },
    {
     "rename": [
@@ -898207,7 +898207,7 @@
    },
    {
     "writeFile": "mtg-bridge-game-test.json.tmp",
-    "bytes": 6692
+    "bytes": 6754
    },
    {
     "rename": [

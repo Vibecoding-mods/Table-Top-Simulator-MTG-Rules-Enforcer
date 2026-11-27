@@ -522,6 +522,8 @@ function jointBlock(input) {
     lines: Array.isArray(input.teamBlockLines) ? input.teamBlockLines.map((l) => String(l)) : [],
   };
 }
+// A string as a literal inside a RegExp (bridge.js uses it too: one copy)
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // The table's seat colours (TTS's player colours) as text colours, for a player's name in the team's block
 const SEAT_HEX = { White: "#FFFFFF", Brown: "#C08050", Red: "#FF5A4F", Orange: "#F4641D", Yellow: "#E7E52C", Green: "#31B32B",
   Teal: "#21B19B", Blue: "#4DA3FF", Purple: "#B45CF0", Pink: "#F570CE" };
@@ -529,18 +531,15 @@ const SEAT_HEX = { White: "#FFFFFF", Brown: "#C08050", Red: "#FF5A4F", Orange: "
 // ("Yellow's Wall of Wood") in their seat colour (TTS rich text). players: [{ name, color }] as the lines name them
 // (the bridge's table names). colored false: the plain lines (the corner's note, which is cut to length).
 function jointBlockLines(lines, players, colored = true) {
+  // (one pass, the longest name first, and a name starts a word: "Joe" inside "Big Joe's Wall" took half of Big Joe's name in
+  // Joe's colour, 2026-11-27; the same for every line, so built once)
+  const named = colored ? (players || []).filter((p) => SEAT_HEX[p.color] && p.name) : [];
+  const hexOf = new Map();
+  for (const p of named) if (!hexOf.has(String(p.name))) hexOf.set(String(p.name), SEAT_HEX[p.color]);
+  const re = hexOf.size ? new RegExp(`(?<![\\p{L}\\p{N}_])(${[...hexOf.keys()].sort((a, b) => b.length - a.length).map(escapeRe).join("|")})'s `, "gu") : null;
   return (lines || []).map((line) => {
-    let out = String(line).split(" -> ").join(" → ");
-    if (!colored) return out;
-    // (one pass, the longest name first, and a name starts a word: "Joe" inside "Big Joe's Wall" took half of Big Joe's name in
-    // Joe's colour, 2026-11-27)
-    const named = (players || []).filter((p) => SEAT_HEX[p.color] && p.name);
-    if (named.length) {
-      const names = [...new Set(named.map((p) => String(p.name)))].sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-      const re = new RegExp(`(?<![\\p{L}\\p{N}_])(${names.join("|")})'s `, "gu");
-      out = out.replace(re, (m, n) => `<color=${SEAT_HEX[named.find((p) => String(p.name) === n).color]}>${n}'s</color> `);
-    }
-    return out;
+    const out = String(line).split(" -> ").join(" → ");
+    return re ? out.replace(re, (m, n) => `<color=${hexOf.get(n)}>${n}'s</color> `) : out;
   });
 }
 // A joint block's notice (a no-card revealCards to each defender): a change, "Yellow: Wall of Wood now blocks Hill
@@ -555,6 +554,6 @@ function teamBlockNotice(text) {
   if (/^[^:]+: .+ (?:now blocks .+|no longer blocks)\.$/.test(t)) return { kind: "change", line: t };
   return null;
 }
-module.exports = { seatColorsFor, jointBlock, jointBlockLines, teamBlockNotice, SEAT_HEX, teamTriggerWords, teamRefusalWords, sharesLife, sharesTurns, turnPlayerIds, isTurnOf, turnPartners, turnPartnerOf, turnPartnersOf, andWords, turnWhose, teamAttackLines, teamBlockLines, TEAM_COLORS, DEFAULT_TEAMS, TEAM_MODES, JUGG_DEFAULTS, setupOf, teamModeOf, teamModeProblem, juggOf, juggLife, juggTeams, juggPerks, juggWords,
+module.exports = { escapeRe, seatColorsFor, jointBlock, jointBlockLines, teamBlockNotice, SEAT_HEX, teamTriggerWords, teamRefusalWords, sharesLife, sharesTurns, turnPlayerIds, isTurnOf, turnPartners, turnPartnerOf, turnPartnersOf, andWords, turnWhose, teamAttackLines, teamBlockLines, TEAM_COLORS, DEFAULT_TEAMS, TEAM_MODES, JUGG_DEFAULTS, setupOf, teamModeOf, teamModeProblem, juggOf, juggLife, juggTeams, juggPerks, juggWords,
   setupWords, teamsOf, teamWords, sides, teamsProblem, gameConfig, boardTeams, teamOf, withTeamDamage, teamsField, teamLifeTip,
   poisonLabel, teamWinWords, ARCH_DEFAULTS, ARCH_SCHEMES, ARCH_COPIES, archOf, archTeams, archLife, schemeDeckProblem, archWords, SIX_COLORS, THREE_TEAMS };
