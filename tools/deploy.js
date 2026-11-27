@@ -3,6 +3,7 @@
 // game. Up to the engine swap nothing has moved. A failure after that leaves the record as it was, so /versions says
 // what is out of step; the save is written last, and a dry run of it comes first.
 //   node tools/deploy.js                 the bridge and the table, the engine as it is
+//   node tools/deploy.js --engine-tests  the same, with the engine's Java tests run too (always run with --image)
 //   node tools/deploy.js --image exile2  and the engine: live-tested, retagged, its containers recreated
 // MTG_MANABREW names the engine's source tree going out (tmp/eb-1128, relative to the repo): its harness's Java tests
 // run before anything moves (engine/checks/harness-tests.sh, every class), and a test class left out of that script's
@@ -222,7 +223,10 @@ async function main(d = realDeps()) {
   d.log("gate the patched script");
   d.run(process.execPath, ["tests/test_table_check.js"], { TABLE_SAVE: trialFile });
   d.removeFile(trialFile);
-  await engineTests(d, tree);
+  // the engine's own Java tests (~20 min) only when the engine changes (--image), or asked for (--engine-tests): a
+  // bridge and table deploy leaves the running engine as it is (the user 2026-11-27: "make it skip engine tests")
+  if (image || d.argv.includes("--engine-tests")) await engineTests(d, tree);
+  else d.log("engine tests: skipped, the engine isn't changing (no --image; --engine-tests runs them)");
   if (image) {
     // a protocol change comes with a relay built from the same source under the same tag: test and swap it too
     const relay = d.imageExists(`mtg-relay:${image}`);

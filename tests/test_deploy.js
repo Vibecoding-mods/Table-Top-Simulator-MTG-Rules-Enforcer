@@ -106,9 +106,9 @@ const idx = (steps, s) => steps.findIndex((x) => (s instanceof RegExp ? s.test(x
 const moved = (steps) => steps.filter((s) => /^docker (tag|compose)|start-bridge|^patchSave write|^write manifest|build-forge-card-index/.test(s));
 
 (async () => {
-  // ── a whole deploy, the engine as it is
+  // ── a whole deploy, the engine as it is, its tests asked for (--engine-tests)
   {
-    const { steps, error, d } = await go();
+    const { steps, error, d } = await go({ argv: ["--engine-tests"] });
     ok("order: no error on a clean run", error === null, error);
     const gates = steps.filter((s) => /^node tests\/test_\w+\.js$/.test(s));
     same("order: every gate, in GATES order", gates, deploy.GATES.map((g) => `node tests/${g}.js`));
@@ -125,6 +125,14 @@ const moved = (steps) => steps.filter((s) => /^docker (tag|compose)|start-bridge
     ok("engine tests: the image is the tree's java-builder stage, tagged with the build id", build.includes("--target") && build[build.indexOf("--target") + 1] === "java-builder" && build.includes("mtg-harness-test:eb-test") && build.at(-1) === tree.replace(/\\/g, "/") && build.some((a) => /self-hosted-node\/Dockerfile$/.test(a)), build);
     ok("engine tests: the tree's harness read-only and the repo's harness-tests.sh, every class (no class named)", runArgs.includes(`${tree.replace(/\\/g, "/")}/forge-harness:/src:ro`) && runArgs.includes(`${deploy.HARNESS_SCRIPT.replace(/\\/g, "/")}:/harness-tests.sh:ro`) && runArgs.at(-1) === "/harness-tests.sh" && runArgs.at(-2) === "mtg-harness-test:eb-test", runArgs);
     ok(`order: ${GATE_COUNT} gates ran`, gates.length === GATE_COUNT);
+  }
+
+  // ── a bridge and table deploy (no --image, no --engine-tests): the engine's tests are skipped, the rest as before
+  {
+    const { steps, error, d } = await go();
+    ok("skip: no error", error === null, error);
+    ok("skip: no engine test image built or run", !steps.includes("docker build") && !steps.includes("docker run") && (d.streamed || []).length === 0, steps.filter((x) => /docker/.test(x)));
+    ok("skip: every gate still ran, then the bridge and the save", steps.filter((x) => /^node tests\/test_\w+\.js$/.test(x)).length === GATE_COUNT && idx(steps, /start-bridge/) > 0 && idx(steps, "patchSave write") > idx(steps, /start-bridge/), steps.slice(-6));
   }
 
   // ── with --image: live checks after the engine tests, then the swap, before the bridge
@@ -190,15 +198,15 @@ const moved = (steps) => steps.filter((s) => /^docker (tag|compose)|start-bridge
     ok("engine tests failing: no live check, no swap, no bridge, no save, no record", !steps.some((s) => /^capture/.test(s)) && moved(steps).length === 0, moved(steps));
   }
   {
-    const { steps, error } = await go({ engine: { code: 0, out: "=== AlphaTest\nexit=0\n" } });
+    const { steps, error } = await go({ argv: ["--engine-tests"], engine: { code: 0, out: "=== AlphaTest\nexit=0\n" } });
     ok("engine tests: exit 0 without the PASSED line is no pass", /engine tests didn't pass \(exit 0, no PASSED line\)/.test(error || "") && moved(steps).length === 0, error);
   }
   {
-    const { steps, error } = await go({ engine: { code: -1, out: "spawn docker ENOENT\n" } });
+    const { steps, error } = await go({ argv: ["--engine-tests"], engine: { code: -1, out: "spawn docker ENOENT\n" } });
     ok("engine tests that can't run (no docker): stopped", /engine tests didn't pass \(exit -1/.test(error || "") && moved(steps).length === 0, error);
   }
   {
-    const { steps, error } = await go({ build: { code: 1, out: "ERROR: failed to solve\n" } });
+    const { steps, error } = await go({ argv: ["--engine-tests"], build: { code: 1, out: "ERROR: failed to solve\n" } });
     ok("the test image not building: stopped before the run, nothing moved", /didn't build/.test(error || "") && !steps.includes("docker run") && moved(steps).length === 0, error);
   }
   {
