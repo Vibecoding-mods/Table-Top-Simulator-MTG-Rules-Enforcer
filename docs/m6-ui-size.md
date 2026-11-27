@@ -230,7 +230,12 @@ Cheaper paths that don't leave enough room (re-run without the Graveyards / exil
 - The table gates: `test_table_golden`, `test_table_claims`, `test_table_check`, `test_table_board_diff`. The golden recordings will change wherever they hold ids.
 - The two-player probe (section 1), then one real game with a friend: answer, Undo list, Concede, vote.
 
-## 5. Not about the UI, but blocks a 5–6 seat game: the relay's 4-seat cap
+## 5. Not about the UI, but blocked a 5–6 seat game: the relay's 4-seat cap
+
+**Status 2026-11-27: the cap is lifted in our build.** `engine/manabrew.patch` clamps `SetMaxPlayers` to 8 (`lobby.rs`) and
+`stack/compose.yml` defaults `SEATS` to 6 (m6 step 7, `docs/m6-six-seat-spec.md`). What is left of this section: the room
+still drops back to 4 seats after each game (the bridge asks again), an old relay image still caps at 4, and the bridge's
+built-in `DEFAULT_DECKS` are four (it cycles them when more AI are needed). The text below is what was found on 2026-11-16.
 
 Checked in `manabrew/manabrew-rs/crates/manabrew-server/src` (branch tts-engine, last commit on lobby.rs b7a42c8):
 - **A new room can have up to 8 seats.** `room.rs:83` clamps to 2–8. That's why the 2026-10-20 test seated 6 (`SELF_HOSTED_NODE_MAX_PLAYERS=6`).

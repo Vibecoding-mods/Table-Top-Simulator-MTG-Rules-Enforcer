@@ -1,7 +1,7 @@
 # Our code: function reference
 
 Scope: the code this project wrote. Manabrew, Forge and the group's table scripts are only covered where our code hooks into them.
-Line numbers match the files as read on 2026-10-17 at about 21:35 (both files were being edited during the review; re-check line numbers after later edits): `bridge/bridge.js` (955 lines), `bridge/state-delta.js` (84), `tools/engine-renderer.lua` (1207, including the phase 2 section), `tools/make-engine-copy.js` (448).
+**The line numbers in sections 1-4 (`br:`, `er:`, `mec:`, and the tables' line columns) are from 2026-10-17 and are wrong now.** The files then were `bridge/bridge.js` (955 lines), `bridge/state-delta.js` (84), `tools/engine-renderer.lua` (1207, including the phase 2 section), `tools/make-engine-copy.js` (448). On 2026-11-27 they are 15541, 66, 13644 and 1279 lines. Find a function by name (grep `function name`), not by number. Sections that were brought up to date later (6 and 7, the tables at the end) carry no line numbers.
 Design context: [SPEC.md](../SPEC.md) §2–§6 and §10a. Status: [PLAN.md](../PLAN.md).
 
 Abbreviations: **br** = `bridge/bridge.js`, **sd** = `bridge/state-delta.js`, **er** = `tools/engine-renderer.lua`, **mec** = `tools/make-engine-copy.js`. "Bug?" marks something that looks wrong or fragile. It is an observation, not a confirmed defect.
@@ -165,8 +165,8 @@ Run: `node bridge/bridge.js [--relay URL] [--key K] [--room NAME] [--tts-in 3999
 | `deckChoice` | 73 | colour → preset id. Written by `onTTS` `deck` |
 | `forgeCards` | 96 | lazy Forge name index |
 | `BASICS` | 106 | basic land names |
-| `readyDecks` | 108 | colour → `{deckName, cards, commanders, images}`. Written by `checkDeck`. Never cleared by `resetGame` |
-| `TABLE_COLORS` | 327 | `White, Red, Yellow, Blue` |
+| `readyDecks` | 108 | colour → `{deckName, cards, commanders, images}`. Written by `checkDeck`. Not cleared by `resetGame`; the `reset` message (not `resetGame`) empties it and bumps `deckGen`, so decks are checked again after `mtg reset` |
+| `TABLE_COLORS` | 327 (now a `let`, about 2755) | the table's seat list, 2-6 colours in table order (`DEFAULT_TABLE_COLORS` `White, Red, Yellow, Blue` unless the table's hello sends `tableSeats`) |
 | `DEFAULT_BACK` | 328 | back image URL |
 | `IMAGE_CACHE_FILE`, `imageCache` | 331-333 | disk cache; loaded at startup, errors ignored |
 | `imageWanted`, `imageFetching` | 334-335 | lookup queue, loop flag |
@@ -340,7 +340,7 @@ Seat fields: `color, deckId, username, slot, board{state,fingerprint}, prompt{pr
 
 #### `resetGame(reason)` — br:469
 - If a game exists: `closing = true` and every seat `close()`s. Then `game = null`, sends `clear`, chats the reason.
-- Leaves `readyDecks`, `deckChoice` and the image cache untouched.
+- Leaves `readyDecks`, `deckChoice` and the image cache untouched (the `reset` message clears `readyDecks` and bumps `deckGen` before it calls this).
 
 #### `scheduleView(seat)` — br:478
 - Always `scheduleTable()`. Once per tick per seat: `setImmediate(sendView)`.
@@ -397,8 +397,7 @@ Seat fields: `color, deckId, username, slot, board{state,fingerprint}, prompt{pr
   - `gameOver`: chat, return. Default: log + chat "Unsupported prompt", return (the prompt stays unanswered).
 - After the switch (762-769): text and title go through `displayText`; option labels too (ids and `cardId` kept). `min`/`max` default to 1. Multi options are sorted A–Z by label unless the question sets `keepOrder`. Sets `seat.prompt` (with `picks: []`) and sends `prompt`.
 - Callers: `onEnvelope`, `onTTS` `hello` replay.
-- Bug?: `scry` with only one zone makes keep zone = move zone, so unselected cards are left out of the answer.
-- Bug?: `tappedFor` is not cleared by `__auto`, `__pool` or `__cancel`. After a cancel, a later payment for the same card that can be paid from the pool is confirmed without asking.
+- Fixed (section 7, items 4 and 5; the old Bug? notes were stale): a `scry` with one zone puts every card there; `tappedFor` is reset on every payment answer (`onPrompt`'s `toOutput` sets `seat.tappedFor` from the answer).
 - Bug?: `const autoFailed` (629) is declared directly in a `case` without braces. It works, but lint rules flag it.
 - Note: `prompt.kind === "priority"` answers with promptId 0, not the prompt's id.
 
@@ -428,7 +427,7 @@ Seat fields: `color, deckId, username, slot, board{state,fingerprint}, prompt{pr
 - Decodes `m.json` (logs and returns on bad JSON). Dispatch:
   - `hello`: log. For a started table game: resend `started`, `scheduleTable()`, and `onPrompt(seat, lastRawPrompt)` for every seat that has one. Chat "Bridge connected". `scheduleView` for every seat.
   - `start` → `startGame(asList(seats), Number(bots) || 0, !!requireReady)`.
-  - `reset` → `resetGame(...)`, then `docker compose -f COMPOSE restart forge-room`; chat the result.
+  - `reset` → empties `readyDecks` and bumps `deckGen`, then `resetGame(...)` and `restartRoom` (a `docker compose ... restart forge-room` unless the engine is remote); chat the result.
   - `deck`: a valid preset sets `deckChoice` (chat); otherwise lists the presets to that colour.
   - `decks` → `onDecks`. `intent` → `onIntent`. `answer` → `onAnswer`.
 - Bug?: the `hello` replay re-runs the last raw prompt even if it was already answered. Automatic types (priority, reorder, damage order) would then send a second response with an old promptId, and an answered prompt reappears in the panel.
@@ -447,7 +446,7 @@ Seat fields: `color, deckId, username, slot, board{state,fingerprint}, prompt{pr
 - Note: there is no authentication, so any local process can run Lua in the open game.
 
 #### Startup and SIGINT — br:954-955
-- Listens for TTS. The log line still says "Load tts/mtg-board.lua", which is out of date for the engine table.
+- Listens for TTS. The log line used to say "Load tts/mtg-board.lua" (the old text board, not the engine table); fixed 2026-11-27, and the unused `stripQuery` is gone.
 - SIGINT: marks the game closing, closes the seats, exits after 200 ms.
 
 ### Relay link recovery (added 2026-10-20)
@@ -646,7 +645,7 @@ Every handled line returns `false`, which hides it from chat. A non-`mtg` line r
 | `builtFor` | 362 | local | seated-colour key of the built panels |
 | `panelReady` | 363 | local | panels exist |
 | `uiCache` | 364 | local | id or `id|attr` → last value |
-| `POOL` | 365 | local | 60 slots |
+| `POOL` | 365 | local | 30 slots |
 | `enginePick` | 557 | global | = local `pick` (for phase 2 and tests) |
 | `engineConfirmIfComplete` | 560 | global fn | auto-confirm helper (see 4.5) |
 | `toldAt` | 624 | local | throttle for `tell` |
@@ -768,7 +767,7 @@ Object ids: card id; `stack:<id>`; `library:<Color>`, `graveyard:<Color>`, `exil
 
 #### `engineClear()` — er:330 (global)
 - Sweep; resets `engineObjs`, `engineSpawning`, `enginePlanned`, `engineColors`, `engineInHand`, `engineFace`, `engineMeta`, `engineManual`, `engineHeld`, `lastTurnSet`, `lastTable`, `enginePrompts`; `restoreStash`; `engineRenderPanels()`; turns engine mode off.
-- Bug?: it does not reset `engineSearch`, `engineSearchIds`, `engineChoosable`, `engineInPile`, `libraryState`, `pileState`, `engineSelected`, `engineFilter`, or the phase-2 `glowing`/`menued`/`pendingBlocker`. A search open at reset would make the next game's library a search deck until the next prompt.
+- Fixed since 2026-10-17: it resets `engineSearch`, `engineSearchIds`, `engineChoosable`, and calls `engineResetUi()` and `enginePileReset()` (piles, `engineInPile`, `pileState`, groups, glows). Not reset there: `libraryState` (colour -> quantity and key; rebuilt when the key differs).
 
 #### `engineStarted(m)` — er:341 (global)
 - `humans` = colours not in `m.ai`. If `lastTable` is nil (new game, or after a reload), sweeps engine cards. `stashImported(humans)`. Turns engine mode on if it is off.
@@ -793,7 +792,7 @@ Object ids: card id; `stack:<id>`; `library:<Color>`, `graveyard:<Color>`, `exil
 
 #### `updateOptions(color)` — er:446
 - No prompt: title "Game over" or "Waiting for other players..."; hides search, confirm, cancel and every slot. Return.
-- Else: title, text (" " when empty); search shown when there are more than 8 options. Applies the filter (plain substring, case-insensitive). Fills up to 60 slots: label prefixed `[x] `/`[  ] ` in multi mode; colour blue when picked, green for the first single option, else grey. Hides the remaining slots. Multi: Confirm text "Confirm (n selected, need m)", interactable only within min..max. Cancel shown when `p.cancel`.
+- Else: title, text (" " when empty); search shown when there are more than 8 options. Applies the filter (plain substring, case-insensitive). Fills up to 30 slots (`POOL`; a longer list pages, see "Second playtest batch" in section 7): label prefixed `[x] `/`[  ] ` in multi mode; colour blue when picked, green for the first single option, else grey. Hides the remaining slots. Multi: Confirm text "Confirm (n selected, need m)", interactable only within min..max. Cancel shown when `p.cancel`.
 
 #### `updatePanel(color)` — er:490
 - The tabs (`ENGINE_TABS`) shown while a game exists, the open one gold on `ENGINE_THEME.tabOn`; Undo's shown state is `engineRewindUpdate`'s. The window is active when a game exists and something opened it. The stops row hides under a side tab; an open Settings tab is listed again. Updates the status text.
@@ -1222,7 +1221,7 @@ Notes:
 4. Fixed: a `scry` with one zone puts every card there (answered by itself).
 5. Fixed: `tappedFor` is reset on every payment answer.
 6. Open: tax order comes from the object order of `commanderCasts`, not the order of the command-zone cards.
-7. Fixed by a limit: games are capped at the 4 table colours (`TABLE_COLORS`); 5-8 players is PLAN M6.
+7. Fixed by a limit, lifted for the 6-player table: games seat the colours of the table's `tableSeats` list (`TABLE_COLORS`, 2-6 seats; the default is the four White/Red/Yellow/Blue). 7-8 players are not supported.
 8. Open: a drag to the graveyard answers any `chooseCards` prompt that includes the card, not only discards. (A yes/no
    is now answered only when it asks to sacrifice that very card.)
 9. Fixed: env names use `_` (`MTG_TTS_IN`); the old hyphenated names still work.
@@ -1245,7 +1244,7 @@ via the trash deck; game state cleared at reset (`engineGen`, per-id tables, `en
 onExternalMessage; number questions searchable over their whole range; enchanted tokens not grouped; select+pickup
 counted once for every click kind; per-item auto-pace timers; labels never nil; panel picks redraw glows; whole-word
 "top/bottom"; a search's library invisible to other players; outbox watchdog; dead preload code removed.)
-15. er:330-339: `engineClear` leaves search/pile/library/phase-2 state behind (`engineSearch`, `engineSearchIds`, `engineChoosable`, `engineInPile`, `libraryState`, `pileState`, selection/filter, `glowing`, `menued`, `pendingBlocker`).
+15. Fixed (checked 2026-11-27): `engineClear` resets search and pile state (see section 4, `engineClear`); only `libraryState` is left to its key check.
 16. er:247-249: an aura on another player's permanent may be placed at the row start.
 17. er:234-235: players without geometry are not drawn at all.
 18. er:748-760: prompt kind comes from the title, so a card name starting "Pay " breaks targeting.

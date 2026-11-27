@@ -65,7 +65,7 @@ engine patches). No Docker image was built and nothing was checked live.
 - **`StressCapsTest` (new): 8 of 8.**
   - `manaXGoesPast99WithABinarySearch`: 300, 4 and 0 lands; the AI's search is still 99.
   - `theXPromptOffersEveryPayableX`: the real `chooseNumber` question offers up to 299 and the answer comes back.
-  - `restorePointsAreCappedAt40OldestFirst`: 60 points taken by the session's own `recordCheckpoint`; ids 21..60 kept.
+  - `restorePointsAreCappedAt40OldestFirst` (renamed `...KeepingTheTurnsFirst` on 2026-11-17: 60 points in one turn now keep 1 and 22..60): 60 points taken by the session's own `recordCheckpoint`; ids 21..60 kept.
   - `lifeStopsAtTheCapBothWays`.
   - `countersStopAtTheCapWithoutThrowing`, including the amount reported added.
   - `twiceAndThriceStopAtTheCap`.

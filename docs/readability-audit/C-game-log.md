@@ -1,5 +1,7 @@
 # Readability audit, part C: the game log text
 
+**Status 2026-11-27:** row 7 (the tempt line now names the Ring-bearer, "readability audit C7") and row 10 ("<card>'s ability is countered by <card>") are built in `bridge/bridge.js`; the other rows were not re-checked, and every line number in this file has moved since 2026-11.
+
 Scope: the game log lines the bridge writes (bridge/bridge.js: gameLogLine 240, logEvents 3001, updateLog 4135, engineFacts 2449, damageNews 2687, PLAYER_MARKS 4662). Prepared is excluded (another agent). Read-only audit; nothing was run.
 
 Evidence used: bridge/game-log.txt (real games, the newest format), tmp/kw-runs/kw-NN.txt game-log sections (2026-11-06, older: each line below was re-checked against the current code), tmp/live-checks/RESULTS-batch2.md, docs/HAND-TEST-*.md, docs/keyword-test-results.md. tmp/table-log.log holds only chat and prompts, no game log lines, so it gave no log evidence. The bridge-live.log is too large to mine.

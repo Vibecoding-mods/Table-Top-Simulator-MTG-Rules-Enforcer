@@ -43,7 +43,7 @@ Tested with a discard-and-return deck (`test_piles`: Faithless Looting, Tormenti
   1. In `addToPile`, re-check `deck` at put time. If it was replaced (`engineObjs[pileId] ~= deck`), drop the card's `engineInPile` mark and call `engineRebuildPile(pileId)`, so the pile is redrawn from the engine's list.
   2. Before disposing an old pile deck, compare its contents with the new list; take out any card the new deck won't contain.
   3. A safety net in `engineRender`: for every graveyard/exile card marked `engineInPile` that isn't in its pile deck and has no object, rebuild that pile once.
-- **Status:** fix written, not pushed yet (fixes 1 and 3 combined): every put into a pile is checked 6 frames later; if the card isn't in the pile deck (or the deck was replaced) and has no object of its own, the pile is rebuilt from the engine's list (op "pileRepair"). To verify: a discard-heavy repro after the rounds.
+- **Status:** fixed (see "Fix results" above; "not pushed yet" was the status on 2026-10-19). The fix, written as fixes 1 and 3 combined: every put into a pile is checked 6 frames later; if the card isn't in the pile deck (or the deck was replaced) and has no object of its own, the pile is rebuilt from the engine's list (op "pileRepair"). To verify: a discard-heavy repro after the rounds.
 
 ### P2. Card back in the hand from a pile never appears
 - **Seen:** a few checks in r1-12…20: Llanowar Reborn, Abzan Falconer, City of Brass, Battle Cry Goblin (White hand).
@@ -55,7 +55,7 @@ Tested with a discard-and-return deck (`test_piles`: Faithless Looting, Tormenti
   1. When a card's zone is hand/battlefield/command and it's still marked `engineInPile`, clear the mark and rebuild the pile it came from.
   2. Clear `engineInPile` (and `pileIds`/`pileState`) in `engineClear`/`engineStarted`.
 - **Update:** most of these were held draws waiting on the library (the checker now skips them); `inPile=true` was left over from an earlier game.
-- **Status:** fix 2 written, not pushed yet (`enginePileReset` clears pile, group and glow bookkeeping when a game is cleared). Watch round 2 with the new checker.
+- **Status:** fixed (see "Fix results" above; "not pushed yet" was the status on 2026-10-19): fix 2 (`enginePileReset` clears pile, group and glow bookkeeping when a game is cleared). Watch round 2 with the new checker.
 
 ### P3. TTS error "Value cannot be null. Parameter name: key"
 - **Seen:** once, during deck r1-15, at 19:14:18. Later decks' logs repeat the same line, because the console log builds up.
@@ -116,7 +116,7 @@ Tested with a discard-and-return deck (`test_piles`: Faithless Looting, Tormenti
   1. Sweep `libcard` objects at game end too.
   2. In `restoreStash`, after putting a deck back, take any `libcard` entries out of it.
   3. Give placeholders `engine:libcard` GMNotes, so every engine sweep catches them.
-- **Status:** open. The test cleanup now removes decks made only of test cards and placeholders.
+- **Status:** fixed (P8, "Fix results" above: the end-of-game sweep removes `libcard` placeholders; `engine-renderer.lua` disposes them). It was open on 2026-10-20. The test cleanup also removes decks made only of test cards and placeholders.
 
 ## Not bugs (checker fixed)
 - **Grouped tokens reported missing** (Mist-Syndicate Naga copies, 15 checks): identical tokens are drawn as one "xN" card on purpose. The checker now skips `engineGroupOf`.

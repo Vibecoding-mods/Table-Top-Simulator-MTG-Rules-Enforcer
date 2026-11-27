@@ -629,8 +629,8 @@ Built against `tests/golden/fixtures/2hg-level2-protocol.json` (branch `l2-tests
 recorded). Every piece is gated on the board's `teamRules.rule == "sharedTurns"` (bridge) or the board's `activeTeam`
 (table), so Level 1 and free-for-all boards are unchanged (`test_bridge_golden`, `test_table_golden` green).
 
-- **Level switch (host):** `mtg 2hg turns shared|own` (`ENGINE_TEAM_TURNS`, `"shared"` by default since §5.12: Two-Headed
-  Giant is Level 2 unless the host types `mtg 2hg turns own`); `mtg 2hg turns` says the setting. The Start
+- **Level switch (host):** `mtg 2hg turns shared|own` (`ENGINE_TEAM_TURNS`, unset by default, see the 2026-11-18 note in §5.12: Two-Headed
+  Giant has each player's own turn unless the host types `mtg 2hg turns shared`); `mtg 2hg turns` says the setting. The Start
   sends `teamTurns: "shared"` only with `teamMode` 2hg; the bridge's `setupOf` keeps it as `turns`, `gameConfig` sends
   `teamRules: "sharedTurns"` instead of `sharedLife`, and the setup line says "each team takes one turn together,
   attacks together and blocks together". The Teams button reads "2HG team turns".
@@ -820,9 +820,9 @@ What the two Workshop files hold (read 2026-11-13):
 | `tools/make-engine-copy.js` | 421 | `COMMAND_ZONES` |
 | `tools/make-engine-copy.js` | 733-734 | `CLUTTER_BOXES` "beside Yellow/Red", "beside White/Blue" |
 | `tools/make-engine-copy.js` | 744 | `STATUS_SEATS` |
-| relay | `manabrew-server/src/lobby.rs:640` | `SetMaxPlayers` clamped to 4 |
+| relay | `manabrew-server/src/lobby.rs:640` | `SetMaxPlayers` clamped to 4 (8 in our relay patch since 2026-11-16) |
 | relay | `manabrew-server/src/room.rs:158` | room reset to 4 seats after a game |
-| stack | `stack/compose.yml:42` | `SEATS` default 4 |
+| stack | `stack/compose.yml:42` | `SEATS` default 4 (6 since 2026-11-16) |
 | node | `self-hosted-node/src/host.rs:1023` | at most `max_players − 1` AI |
 
 Lines naming "Yellow" elsewhere in `bridge.js` (2772, 5345, 5554, 5596, 7740, 7944, 10291-10292) are comments only.
@@ -868,8 +868,8 @@ Tests are m6 spec §6 (the UI budget test, the two-player probe, headless twice 
 live, a game with a friend), plus the two new checks above. Break-it proof for the profile: a profile with one GUID
 swapped between two seats must fail the table check, and make-engine-copy must refuse a profile with a missing field.
 
-**M6 is parked** (the user, 2026-11-06: no work until the 4-player table is polished). This section is the plan for
-when it un-parks (question 4).
+**M6 was parked** (the user, 2026-11-06) and **un-parked 2026-11-15; the six-seat table is now top priority** (`docs/m6-six-seat-spec.md`
+has the steps built so far). This section is the original plan.
 
 ## 8. 3v3 Three-Headed Giant
 
@@ -994,7 +994,7 @@ Spec: [planechase-dungeon-engine-spec.md](planechase-dungeon-engine-spec.md).
    commander** (our house rule, not Wizards' 60/21). **3v3 is Commander.** Its life and commander damage were not given;
    scaled from the 2HG numbers by team size: **120 life and 63 commander damage** (the user confirmed, 2026-11-13).
 3. **Standard AI decks:** Claude picks four current Standard decks (from Forge's own Standard list, §3.3).
-4. **Six seats:** stays parked (the 2026-11-06 decision holds). 3v3 waits with it.
+4. **Six seats:** parked at the time (2026-11-06); un-parked 2026-11-15, now top priority. 3v3 (3HG) is built on it.
 5. **Partners' hands:** yes, partners see each other's hands in 2HG and 3HG.
 
 The questions as asked:

@@ -212,6 +212,6 @@ all.
 - the uploads (particle bundles, sound bundle), telling the table's author, and the sound licences.
 
 **Docs to correct once engine1124 is out:**
-- HOW-TO-PLAY's Windows "Own server" box. It describes main's companion; owner-decisions-1117 removed the box (a friend
-  writes `server.json`).
+- ~~HOW-TO-PLAY's Windows "Own server" box.~~ Done (checked 2026-11-27): HOW-TO-PLAY says there is no status-page box for it
+  (a friend writes `server.json`), as owner-decisions-1117 decided.
 - The rewind "Undo limits" line, once rewind-card-state ships.

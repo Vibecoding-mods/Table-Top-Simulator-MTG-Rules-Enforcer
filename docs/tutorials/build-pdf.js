@@ -29,6 +29,7 @@ for (const folder of folders) {
   const profile = path.join(require("os").tmpdir(), "mtg-tutorial-edge");
   const common = ["--headless=new", "--disable-gpu", "--no-first-run", `--user-data-dir=${profile}`, "--allow-file-access-from-files",
     "--virtual-time-budget=5000"];
+  fs.rmSync(out, { force: true }); // (so a failed run can't be read as success through an older PDF)
   try {
     execFileSync(EDGE, [...common, "--no-pdf-header-footer", `--print-to-pdf=${out}`, url], { stdio: "pipe", timeout: 120000 });
   } catch (e) {

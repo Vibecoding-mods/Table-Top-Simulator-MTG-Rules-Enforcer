@@ -28,12 +28,17 @@ fix 3), not the turn-order guess. Left: the real-table check under Tests.
 
 ## Where the number comes from
 
-Forge already keeps it: `Player.getExtraTurnCount()` (PlayerView `ExtraTurnCount`), set by
+**As built** (see the status above): the harness sends `ExtraTurnState.queuedFor(game, player)` in `extraTurnCount`, not Forge's
+`getExtraTurnCount`, which miscounts once two players have extra turns queued. The paragraph below is the original design
+and is wrong on that point; the protocol field it names was already upstream, so no protocol change and no image rebuild
+for it.
+
+Original design: Forge already keeps it: `Player.getExtraTurnCount()` (PlayerView `ExtraTurnCount`), set by
 `PhaseHandler.addExtraTurn` for every player and again at each turn start (`getExtraTurnForPlayer`), so it rises when
 Time Walk resolves and falls when the turn begins.
 
 - **Harness:** `InteractiveSnapshotExtractor.toPlayer` adds `extraTurnCount` next to `isExtraTurn` (line ~310).
-- **Protocol:** `PlayerDto` gains `extra_turn_count: u32` with a serde default of 0
+- **Protocol (not needed in the end, the field existed):** `PlayerDto` gains `extra_turn_count: u32` with a serde default of 0
   (`manabrew-rs/crates/manabrew-protocol/src/game/mod.rs`, beside `is_extra_turn`). A protocol change: rebuild BOTH
   images (mtg-forge-node and mtg-relay), one build at a time.
 - **Bridge:** a `PLAYER_MARKS`-style field on the table row (`extraTurns`), mapped in bridge/table-map.js; the log

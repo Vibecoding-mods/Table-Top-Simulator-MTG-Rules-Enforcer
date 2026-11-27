@@ -21,7 +21,7 @@ Where the source lives:
 
 | Place | What |
 |---|---|
-| `C:\Users\you\mtg-tts\tmp\mb-pc` | Current working checkout, branch `pc-on-batch1` (tip `4753e36`). Built batch1112 and batch2-1112. |
+| `C:\Users\you\mtg-tts\tmp\mb-pc` | Old working checkout (2026-11-12), branch `pc-on-batch1` (tip `4753e36`). Built batch1112 and batch2-1112. Since then every engine is built from its own tree `tmp/eb-<tag>` (newest, 2026-11-27: `tmp/eb-1134c`; section 3 names each tree). |
 | `C:\Users\you\mtg-tts\tmp\mb-batch1` | Worktree of branch `tts-engine` (tip `ba5ad41`). Origin of the batch 1 commits. |
 | `C:\Users\you\mtg-tts\manabrew` | Older shared checkout, branch `tts-engine` (tip `6186d11`, 2026-11-09). Also holds `planechase-1111` (tip `09d608b`) in `tmp/wt-planechase/manabrew`. Its `main` is upstream `fd16e2f`. |
 | `tmp/mb-wt-cards`, `tmp/mb-wt-game`, `tmp/mb-wt-damage` | Worktrees of `mb-pc` for branches `card-flags-1112`, `game-state-1112`, `damage-events-1112`. |
@@ -60,6 +60,9 @@ outer repo's `engine/manabrew.patch` history (`git -C mtg-tts log -- engine/mana
 ### Rules
 
 - No comments in Manabrew Java (`manabrew/AGENTS.md`). The patch history shows one reviewer fix for a Java comment (`75844bc`).
+  Not held since engine1130-ff (checked 2026-11-27): `engine/manabrew.patch` adds a Javadoc on the exhaust-pass class
+  in `PriorityFastForward.java` and `//` comments in `AttackTaxLethalTest` and `ReplacementIndexTest`. The engine1115b
+  entry's "only comment" was true on 2026-11-14 only.
 - Never push Manabrew (no upstream PR until TTS fully works). Local commits are allowed; `mb-pc`'s `origin` is a local clone.
   The public form is `engine/manabrew.patch` in `Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer`.
 - When the protocol changes (a new directive, StateOp variant, prompt field the relay must carry), rebuild **both** images
@@ -70,14 +73,20 @@ outer repo's `engine/manabrew.patch` history (`git -C mtg-tts log -- engine/mana
 - Open debt noted 2026-11-02/03: `yarn gen:types`, `build:harness` and `gen:protocol-docs` were not run for the early
   protocol additions (still open as far as the sources show; unconfirmed).
 
-## 2. Pending / in progress (2026-11-13)
+## 2. Pending / in progress (2026-11-13; status checked 2026-11-27)
+
+**Status 2026-11-27:** everything in this section was built and has since been deployed (planechase-fix-1113 inside
+`engine1114-rejoin`, live on `engine1115b`; engine1115-2hg, then `engine1115b`). What is still open is the engine1113
+follow-up list and the planechase break-it step below. The live engine is the top row of section 3. The text is kept as
+the record of why; it is not the queue.
 
 `engine1113` (the four engine1112 review follow-ups, section 4) is **deployed** (2026-11-13 09:37 UTC with main `75fc8a2`,
 `tools/deploy.js --image engine1113`; its live tests passed; live-checked on the table the same morning). Merged to main
 `e64787f` after an independent review (verdict: merge, no blockers; bridge claims 1395 pass). Backed up to
 `D:\MTG-Engine-Backup\2026-11-13`.
 
-Open follow-ups from that review (none a regression of engine1113; the table is protected by the bridge for 1 and 2):
+Open follow-ups from that review (none a regression of engine1113; the table is protected by the bridge for 1 and 2;
+checked 2026-11-27: 1 is still open, `EffectsView.effects(player)` has no `shownTo` filter in `engine/manabrew.patch`):
 1. `EffectsView.effects(player)` has no viewer filter: an effect whose source card went to a hand or library still sends
    that card's id, name and text in every seat's raw view (the bridge filters it: claims check "engine1112 hidden: an
    effect from a hand card"). Fix: give `effects` the same `shownTo` predicate `delayed` got.
@@ -93,7 +102,7 @@ Open follow-ups from that review (none a regression of engine1113; the table is 
    each card gets its own round, so nothing is shared (output unchanged).
 
 Planechase engine bugs found by the live spike `tests/live_planechase_check.js` on 2026-11-13 (engine1113 /
-`mtg-forge-node:exile`). **Fixed in source 2026-11-13, not built** (branch `planechase-fix-1113`, below). On engine1113 the
+`mtg-forge-node:exile`). **Fixed in source 2026-11-13, built 2026-11-14 in `engine1114-rejoin`** (branch `planechase-fix-1113`, below). On engine1113 the
 spike passes 41 of 41 checks by setting its cases up around them.
 Node log evidence is from the test stack, run 2026-11-13 18:54 and 19:00-19:07 local.
 1. **Abort (ConcurrentModificationException) in Forge `Game.onPlayerLost`, the 901.10 block** (`Game.java:1019`):
@@ -176,9 +185,9 @@ to do, on `engine1114-rejoin` in place of `pcfix1113`, before that image is depl
 `tests/live_planechase_check.js` passed 38 of 38 plain and 38 of 38 with `LIVE_ARGS=--raw` (LIVE_STACK=7). In the plain
 run the op left the plane with the active player at once (fix 3). Step 3 (the harness break-it) is still to do.
 
-**engine1115-2hg (Two-Headed Giant Level 1 and team plumbing, built 2026-11-14, not deployed).** Section 4's
-"2026-11-14 engine1115-2hg" entry. On top of engine1114-rejoin. Branch `2hg` of the outer repo (worktree `tmp/wt-2hg`),
-not merged to main.
+**engine1115-2hg (Two-Headed Giant Level 1 and team plumbing, built 2026-11-14).** Section 4's
+"2026-11-14 engine1115-2hg" entry. On top of engine1114-rejoin. Branch `2hg` of the outer repo (worktree `tmp/wt-2hg`).
+Superseded the same day by `engine1115b` (the same code minus one Java comment), which is deployed; its patches are in main.
 
 ## 3. Summary table (newest first)
 
@@ -188,8 +197,8 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
-| 2026-11-26 (tree `tmp/eb-1134c`, build id `eb-1b51db47fea9`) | `engine1134c` (node `4d4ee3f8a82f` / relay `ced675d235c0`; harness test `40c4732d7633`) | On top of engine1134b. The live slowdown blamed on engine1134b is the AI opponent's hand (damage spells), seen on engine1131 and engine1133-heapdraw too; engine1134b plays the identical game in the same time. Made cheaper: the AI's block prediction stops when no creature can block, damage predictions read each card's name once, and `Card.getName` skips an empty changed-name table (29% less game time on the slow headless seed, the game unchanged). Section 4 entry. | no | outer branch `engine1134c`; both patches regenerated | not deployed; deploy `--image engine1134c` with `MTG_MANABREW=tmp/eb-1134c` | engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`) |
-| 2026-11-26 (tree `tmp/eb-1134b`, build id `eb-b0494608ff19`) | `engine1134b` (node `b28a69581f33` / relay `9eb23cee5e46`; harness test `bea0066eb45d`) | engine1134 after its jr-programmer-suite review: the cast-board reader gate also reads every card's current states (a copy of a reader whose original left the game) and the `CastSA>` route to the board; the game scan visits cards instead of listing them; `heldRunBatches` reuses `asksHuman`. Section 4 entry. | no | outer branch `engine1134`; both patches regenerated | not deployed; deploy `--image engine1134b` with `MTG_MANABREW=tmp/eb-1134b` | engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`) |
+| 2026-11-26 (tree `tmp/eb-1134c`, build id `eb-1b51db47fea9`) | `engine1134c` (node `4d4ee3f8a82f` / relay `ced675d235c0`; harness test `40c4732d7633`) | On top of engine1134b. The live slowdown blamed on engine1134b is the AI opponent's hand (damage spells), seen on engine1131 and engine1133-heapdraw too; engine1134b plays the identical game in the same time. Made cheaper: the AI's block prediction stops when no creature can block, damage predictions read each card's name once, and `Card.getName` skips an empty changed-name table (29% less game time on the slow headless seed, the game unchanged). Section 4 entry. | no | outer branch `engine1134c`; both patches regenerated | deployed 2026-11-26 evening (main `cc1d646`; live as of 2026-11-27); deploy `--image engine1134c` with `MTG_MANABREW=tmp/eb-1134c` | engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`) |
+| 2026-11-26 (tree `tmp/eb-1134b`, build id `eb-b0494608ff19`) | `engine1134b` (node `b28a69581f33` / relay `9eb23cee5e46`; harness test `bea0066eb45d`) | engine1134 after its jr-programmer-suite review: the cast-board reader gate also reads every card's current states (a copy of a reader whose original left the game) and the `CastSA>` route to the board; the game scan visits cards instead of listing them; `heldRunBatches` reuses `asksHuman`. Section 4 entry. | no | outer branch `engine1134`; both patches regenerated | deployed 2026-11-26 18:47, replaced the same evening by engine1134c; deploy `--image engine1134b` with `MTG_MANABREW=tmp/eb-1134b` | engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`) |
 | 2026-11-26 (tree `tmp/eb-1134`, build id `eb-9da4ad19cd07`) | `engine1134` (node `cb20db51db12` / relay `b666051b13d6`; harness test `09578c9d5af8`) | On top of engine1133-heapdraw. A cast spell keeps the board as cast only when a script in the game can read it (the castSA board growth of the Kykar loop); a held run Forge can batch has no 20-cut and resolves in one step when every player is a person holding it; review nits (the resolving flag on a throw, Moved replacements that cannot touch a token entering no longer stop token batching, cleared cost-copy references pruned). Section 4 entry. | no | outer branch `engine1134`; both patches regenerated | not deployed; deploy `--image engine1134` with `MTG_MANABREW=tmp/eb-1134` | engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`) |
 | 2026-11-26 (tree `tmp/eb-heapdraw`, build id `eb-91ece5ec6e5e`) | `engine1133-heapdraw` (node `3efcf079a507` / relay `59e0bd228a4e`; harness test `6a2243c0852e`) | On top of engine1132-heap. A runaway draw thrown from inside the game loop (the heap guard at a resolution or a trigger, and any limit drawn there) now ends the session as a normal game over, a draw with its `drawReason`, instead of an engine error the node reported as `fatal`. `checkHeap` also skips a game already over, and the heap share it draws on is the one it read. Section 4 entry. | no | outer branch `engine1132-heap`; both patches regenerated | deployed 2026-11-26 (table `d1d68fff`, save `75d78b1b`; live Kykar stress ended as a clean game over); deploy `--image engine1133-heapdraw` with `MTG_MANABREW=tmp/eb-heapdraw` | engine1132-heap (`--image engine1132-heap`, `MTG_MANABREW=tmp/eb-heap`) |
 | 2026-11-26 (tree `tmp/eb-heap`, build id `eb-e4bd2113f096`) | `engine1132-heap` (node `1c1e208bf129` / relay `7f852af6e36a`; harness test `5b5821c4d701`) | On top of engine1131-batch. (1) The heap guard reads the heap between the limits too: at every trigger fired, ability resolved and replacement run, at most once every 50 ms (`HEAP_READ_MILLIS`), so a long turn is drawn (`drawReason` "heap") before an OutOfMemoryError; before, the heap was read only when a limit asked, and a Kykar + Mentor stress turn died of OOM 40 minutes after its one question. (2) A card that left the battlefield or graveyard no longer keeps a whole board of last-state copies alive for the rest of the turn (`Game.copyLastState` releases the zone copies it replaces). Section 4 entry. | no | outer branch `engine1132-heap`; both patches regenerated | deployed 2026-11-26 (table `d1d68fff`, save `75d78b1b`); deploy `--image engine1132-heap` with `MTG_MANABREW=tmp/eb-heap` | engine1131-batch (`--image engine1131-batch`, `MTG_MANABREW=tmp/eb-batch`) |
@@ -250,8 +259,8 @@ older ids come from the notes.
 | 2026-11-15 04:21 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams2` (`a904893325fc` / `5173c7e692c2`) | engine1116-teams + engine1115-2hgrules in one engine (the four 2hg-rules Forge commits and their harness tests cherry-picked) | Node only, as both parts | tree `tmp/wt-teams/tmp/eb1116-teams`, branch `teams-1116` (+ `6c97e3b`..`ba4da9e`), its `forge/` + `e7b32d36`..`85bc8c3d`; outer branch `teams-2v2-juggernaut` | not deployed | `engine1115b` |
 | 2026-11-15 03:16 / (relay layers cached, 2026-11-14 12:51 stamp) | `engine1116-teams` (`0966b1c0d6cb` / `b07cf1600b20`) | Per-player rules for 2v2 Team Commander and Juggernaut: perks (hidden effect cards from Forge script lines), a player's own commander-damage limit, a named first player, `ReplaceBeginTurn` `ExtraTurn$ False`; on top of engine1115b | Node only (`gameConfig` fields through the node's serde structs; relay source unchanged) | tree `tmp/wt-teams/tmp/eb1116-teams`, branch `teams-1116` (`0569073`, `36617e3`, `4eb95da` on `44de312`), its `forge/` branch `teams-1116` (`7451885e` on `19931d89`); outer branch `teams-2v2-juggernaut` | not deployed | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) |
 | 2026-11-15 (2026-11-15 03:46 / relay layers cached, 2026-11-14 12:51 stamp) | `engine1115-2hgrules` (`01be70a2e78f` / `b3d530c62920`) | Two-Headed Giant rules audit against CR 810: team pay life (810.9h), can't win (810.8a), can't get poison (810.10c), opponents' poison once a team (810.10a), set life and redistribution one member a team (810.9d, 810.9f), proliferate one poison a team (701.34b) | Both rebuilt, no protocol change | tree `tmp/wt-2hgrules/tmp/eb-rules`, branch `2hg-rules` (`8b33391` on `44de312`), its `forge/` branch `2hg-rules` (`ec4266d5` on `19931d89`); outer branch `2hg-team-rules` | not deployed | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) |
-| 2026-11-14 16:00 / (relay layers cached, 12:51 stamp) | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) | engine1115-2hg with the one Java comment taken out of `ActionSpace.getStackTargetCandidates` (the AGENTS.md rule); no code change | Both rebuilt, no protocol change (relay source unchanged) | tree `tmp/eb1115b`, branch `nocomment-1115` (`44de312` on `f995fab`), its `forge/` branch `nocomment-1115` = `19931d89`; outer branch `engine-nocomment` | not deployed | `engine1115-2hg` (`fcb808036400` / `034587f1f7b1`) |
-| 2026-11-14 12:49 / 12:51 | `engine1115-2hg` (`fcb808036400` / `034587f1f7b1`) | Two-Headed Giant Level 1 (shared life and poison, team loss, team blocks, team-lead start, 2HG Commander numbers) and the team plumbing (`gameConfig`, `teamRules`); the Forge AI blocks for its partner; on top of engine1114-rejoin | **Both** (protocol: `StartGameRequest` team fields, `GameViewDto.teamRules`, relay allow-list `gameConfig`) | tree `tmp/eb1115-2hg` in `tmp/wt-2hg`, branch `2hg-1115` (`4f4411c`, `f995fab`), its `forge/` branch `2hg-1115` (`ef17522a`, `7f3026cb`, `19931d89`); outer branch `2hg` | not deployed | `engine1114-rejoin` (or `engine1113`, the live one) |
+| 2026-11-14 16:00 / (relay layers cached, 12:51 stamp) | `engine1115b` (`c298b620cfd8` / `8f10863542e6`) | engine1115-2hg with the one Java comment taken out of `ActionSpace.getStackTargetCandidates` (the AGENTS.md rule); no code change | Both rebuilt, no protocol change (relay source unchanged) | tree `tmp/eb1115b`, branch `nocomment-1115` (`44de312` on `f995fab`), its `forge/` branch `nocomment-1115` = `19931d89`; outer branch `engine-nocomment` | deployed (the `:exile` image on 2026-11-15, see section 2; later engines replaced it) | `engine1115-2hg` (`fcb808036400` / `034587f1f7b1`) |
+| 2026-11-14 12:49 / 12:51 | `engine1115-2hg` (`fcb808036400` / `034587f1f7b1`) | Two-Headed Giant Level 1 (shared life and poison, team loss, team blocks, team-lead start, 2HG Commander numbers) and the team plumbing (`gameConfig`, `teamRules`); the Forge AI blocks for its partner; on top of engine1114-rejoin | **Both** (protocol: `StartGameRequest` team fields, `GameViewDto.teamRules`, relay allow-list `gameConfig`) | tree `tmp/eb1115-2hg` in `tmp/wt-2hg`, branch `2hg-1115` (`4f4411c`, `f995fab`), its `forge/` branch `2hg-1115` (`ef17522a`, `7f3026cb`, `19931d89`); outer branch `2hg` | not deployed on its own; replaced by engine1115b, which carries it | `engine1114-rejoin` (or `engine1113`, the live one) |
 | 2026-11-14 03:25 / (relay cached, 2026-11-12 20:07 stamp) | `engine1114-rejoin` (`3e8f2005bda9` / `4e47919e1966`) | A rewind brings back players who conceded or lost after the point; also carries planechase-fix-1113 (first build) | Node only (no protocol change; relay source unchanged) | tree `tmp/eb1114-rejoin` in worktree `agent-ac7d563c775ca72fd`, branch `rejoin-1114` (`866240c`, `0d6dfa3`, `df0e503`); bridge "is back in the game" line | not deployed | `engine1113` (`4d0f4dcaa0f7` / `d88922ebdd9f`) |
 | 2026-11-13 02:07 / (relay layers all cached, 20:07 stamp) | `engine1113` (`4d0f4dcaa0f7` / `d88922ebdd9f`) | Combat flags once per snapshot round; delayed-trigger ids per viewer; face-down `unlockedDoors` blanked; no ownerless or targetless damage entries | Node only (no protocol change; relay rebuilt from the same tree, source unchanged) | tree `tmp/eb1113` in the outer worktree (`engine/manabrew.patch` regenerated); bridge `delayedOf` reads an empty text as hidden | **deployed 2026-11-13 09:37 UTC** (main 75fc8a2) | `engine1112` (`0306d683de26` / `58cf2e3da251`) |
 | 2026-11-12 20:03 / 20:07 | `engine1112` (`0306d683de26` / `58cf2e3da251`) | Per-permanent card flags; effects, delayed triggers, storm and per-turn counts in the view; damage events in the feed | Node needed; relay optional (the old relay passes the new fields, proved live) | mb-wt-merge `86b9279`, `6b6d362`, `8fac2bb`, merge `ecf76ab`; no compile fix needed | **deployed 2026-11-12** (main `f66ba5e`, table `01875e13`, save `30d57321`) | `batch2-1112` (`975d62f6279e` / `57aa07a9b314`) |
@@ -363,8 +372,8 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
   1 on the built test image: 61.8 s of game time (pass 19 5.96 s), the same game, heap 99 MB at pass 19 as on
   engine1134b. The bridge is unchanged. Deploy `--image engine1134c` with `MTG_MANABREW=tmp/eb-1134c`.
 - **Live stress on engine1134c** (`tmp/stress/run-1134c.log`): 116 passes, 465 tokens, 231 mana, 5 runaway questions; pass 60 16.8 s, pass 90 38.9 s; no heap draw in 43 minutes; the driver's Crackle (X 78) won the game at 2604 s. engine1134b's run (`run-1134b.log`) drew the slow AI hand: 73 passes.
-- **Rollback:** engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`); engine1134b is not
-  deployed either.
+- **Rollback:** engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`); engine1134b was live
+  from 18:47 that evening until engine1134c replaced it.
 
 ### 2026-11-26 engine1134 / engine1134b: cast spells keep no board, batchable held runs go to the end (engine1134b deployed 2026-11-26 18:47, replaced the same evening by engine1134c)
 - **engine1134b (jr-programmer-suite review of engine1134, same day):** the reader gate missed two cases and is fixed
@@ -682,7 +691,7 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
   `ProtocolGoldenTest`, `SnapshotGoldenTest` and `src/test/resources/golden/*`. Outer repo:
   `engine/manabrew.patch`, `engine/checks/harness-tests.sh` (default list, `GOLDEN_WRITE`),
   `tools/mutate-engine-docker.js` (`--set golden`). No protocol, Rust or Forge change.
-- **Rollback:** engine1128 (`tmp/eb-1128`); not built or deployed.
+- **Rollback:** engine1128 (`tmp/eb-1128`). (Written as "not built or deployed" on 2026-11-24; it was built and deployed 2026-11-24 23:36 as `engine1129`, 59 classes passing, see the section 3 row.)
 
 ### 2026-11-18 engine1128: engine1125 + engine1126 + engine1127-longtail + engine1128-gift, built (not deployed)
 - **What:** the engine local main carries in `engine/manabrew.patch` and `engine/forge.patch` at `cb1cbfc` (the patches
@@ -745,8 +754,8 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
   - Cut tokens are never made, so they never fire enter triggers or count toward the card limit; counts (`Count$Valid`)
     see the real 500. A stolen token gets its new controller's key and isn't infinite.
   - `InteractiveSnapshotExtractor` sets `CardDto.unbounded`; the bridge sends `inf` and logs "creates infinitely many
-    X tokens (the engine stops counting at 500)"; the renderer's stack badge says "x∞" (`ENGINE_INF_BADGE`, "xINF" if
-    TTS's font draws a box: not yet seen on real TTS) with the hover "Infinitely many (the engine keeps 500 real tokens)".
+    X tokens (the engine stops counting at 500)"; the renderer's stack badge says "x∞" (`engineInfText()`, which reads "xINF" when
+    `ENGINE_INF.ascii` is set, for TTS's font drawing a box: not yet seen on real TTS) with the hover "Infinitely many (the engine keeps 500 real tokens)".
   - Removed: `recordTokenRequest` and its per-effect ask (100 copies), `DEFAULT_RUNAWAY_TOKENS_PER_EFFECT`.
   - **Rules note:** with an optional loop the shortcut rules (CR 732.2a in recent Comprehensive Rules, the user's
     "732?"; the number was not checked against the current document here) have the player name how many times it repeats.
@@ -1097,6 +1106,9 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
 - **Not done:** no image, no live game.
 
 ### 2026-11-16 big-turns-2 B: attack tax at the lethal minimum, one stack per defender (not built)
+- **Reversed 2026-11-27 (the user):** the automatic split by defending player (decision 7, and `attackSplit` below) is
+  removed. The bridge asks "whom?" once for the stack; a split happens only through the "Attack all split evenly" button
+  (`attackSplitEvenly`; `docs/big-turns-2-spec.md` has the reversal). Read the lines below as the original design.
 - **Why:** `docs/big-turns-2-spec.md` items 3 and 4, with the user's decisions 5 ("Pay for all" next to the lethal
   minimum) and 7 (attacks split into one stack per defending player automatically).
 - **Harness** (`publishAttackersPrompt`): each attacker's `damage` per legal defender, from Forge's own AI helpers:

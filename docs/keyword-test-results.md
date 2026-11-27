@@ -122,7 +122,7 @@ Played: 279 · Seen but not played by White: 5 · Not drawn: 1 · Problems: 39 �
 | Aura Swap | Arcanum Wings | played | White casts Arcanum Wings |
 | Awaken | Part the Waterveil | played | White uses Part the Waterveil's ability |
 | Backup | Archpriest of Shadows | played | White casts Archpriest of Shadows |
-| Banding | Benalish Hero | played | White casts Benalish Hero |
+| Banding | Benalish Hero | cast only: no band can be formed in an attack (HP12 finding 4, open) | White casts Benalish Hero |
 | Bargain | Beseech the Mirror | played | White uses Beseech the Mirror's ability |
 | Basic landcycling | Migratory Route | played | White uses Migratory Route's ability |
 | Battalion | Frontline Medic | played | White casts Frontline Medic |

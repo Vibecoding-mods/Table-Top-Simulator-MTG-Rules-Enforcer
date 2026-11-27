@@ -433,10 +433,10 @@ the lead seat; the game log comes from `gameView.events` (`engineFacts`), with b
 ## 10. Player-count limits (summary)
 
 - `CreateRoom` `max_players` clamped 2-8 (room:83); the hosted node is an observer and does not count (room:84-108).
-- `SetMaxPlayers` clamps to ≤4 (lobby:640).
+- `SetMaxPlayers` clamps to ≤4 upstream (lobby:640); our relay patch clamps to ≤8 (2026-11-16).
 - After every game, and whenever the last seat leaves a Lobby room the node still observes, `max_players` → 4 and format → `Any` (room:155-160; lobby:437-439, 797; cleanup:534-536). So `SEATS` 5-8 only holds for the first game after the node starts.
-- Bridge accepts 2 to `TABLE_COLORS.length` (4) players total (`startGame` in bridge.js). Before a bigger game it sends
-  `SetMaxPlayers`, which the relay still caps at 4 (above).
+- Bridge accepts 2 to `TABLE_COLORS.length` (4 on the 4-player table, up to 6 on the 6-player one) players total
+  (`startGame` in bridge.js). Before a bigger game it sends `SetMaxPlayers`, which our relay build clamps to 8 (upstream: 4).
 - `JoinRoom` → `room_full` at seats ≥ `max_players` (room:140-142, 173-182).
 - Node spawns at most `max_players - 1` bots (host:1023-1024).
 - `diceRolled` waits for one ack per remote seat, including Forge-AI seats (jb:1818).

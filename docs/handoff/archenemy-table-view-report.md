@@ -43,7 +43,7 @@ the centre to the mat, y 2.4), turned to read from that seat, and look-only.
   - A new game counts from 1 again.
 - **The archenemy:** the row's `arch`, else the board's `teams.archenemy` (`engineArchColor`).
 - **The setup button** (plan step 9's "button on the setup tile"): "Archenemy / Off" beside Teams, host only, on the
-  4-player table.
+  4-player table (drawn on either table since `docs/handoff/archenemy-six-report.md`).
   - Each press goes off, White, Red, Yellow, Blue, then off, sending `mtg archenemy <colour>` / `off` through the chat.
     The bridge keeps the setting and says it, as before.
   - `mtg archenemy` typed in chat updates the button too (`engineArchNoted`).

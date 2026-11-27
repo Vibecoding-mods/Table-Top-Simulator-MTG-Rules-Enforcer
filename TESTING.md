@@ -276,7 +276,7 @@ Board messages now average about 1.6 KB (bridge `/stats`). The remaining spikes 
 
 | What | Run | Covers |
 |---|---|---|
-| Bridge behaviour | `node tests/test_bridge_golden.js` | 145 scenarios: every prompt type and answer, gestures, board messages, reload, Scryfall up/down/busy. Network, disk, clock and timers are faked (`tests/bridge-harness.js`). Re-record with `node tools/capture_bridge_golden.js` only for a deliberate behaviour change. |
+| Bridge behaviour | `node tests/test_bridge_golden.js` | about 1,100 scenarios (1106 on 2026-11-27; a lower count means cases were lost): every prompt type and answer, gestures, board messages, reload, Scryfall up/down/busy. Network, disk, clock and timers are faked (`tests/bridge-harness.js`). Re-record with `node tools/capture_bridge_golden.js` only for a deliberate behaviour change. |
 | Bridge promises | `node tests/test_bridge_claims.js` | hidden hands never sent or logged, outbox merge keeps card details, one-pick answers, one cache writer, debug port refuses browsers |
 | Table script | `node tests/test_table_golden.js` | rebuilds the Global script from the sources and replays two recorded games (4-player and 1v1 with clicks) on fengari with a fake TTS (`tests/lua/tts-sim.lua`); ~35 s. Re-record: `node tools/capture_table_golden.js` |
 | Table fixes the games don't reach | `node tests/test_table_claims.js` | number questions above 59, crash barrier, select+pickup clicks, one-pause reset, game state forgotten at reset, enchanted tokens not grouped (each check shown to fail on the old script) |

@@ -2,6 +2,8 @@
 
 Scope: per-permanent statuses a player needs to see on the battlefield. Read-only audit, 2026-11-12. Prepared is excluded (another agent).
 
+**Status 2026-11-27:** gaps 1 ("Doesn't untap next untap step", `skipsNextUntap`), 2 ("Exerted (won't untap)"), 4 (Monstrous), 5 (Saddled, Harnessed), 7 (Detained until ...) and 8 ("Regeneration shield") are built (`statusLists` in `bridge/bridge.js`; search the strings). The line numbers below are from 2026-11-12 and have moved. Gaps 3 and 6 were not re-checked.
+
 Pipeline checked: Forge `Card.java` -> harness `InteractiveSnapshotExtractor.toCard` (manabrew/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java:755-898, the only fields the bridge can ever see) -> `tableCard` (bridge/bridge.js:1809-1896) -> `badgeParts` (tools/engine-renderer.lua:303-385: COPY chip, "tb" text-changed box, one green "kw" status box, counters box, P/T badge) and `description` (engine-renderer.lua:73-79, hover text).
 
 The only per-permanent status channel is the green "kw" status box, fed by `statusLists` (bridge.js:1881-1892) plus granted keywords from `cardKeywords` (bridge.js:2031-2050). Anything that is not a Forge keyword string, a DTO flag, or a bridge text-parsed set (`game.goaded/renowned/suspected/solved`) is invisible on the card.

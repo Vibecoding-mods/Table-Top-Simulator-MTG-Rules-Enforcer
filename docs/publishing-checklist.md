@@ -1,7 +1,6 @@
 # Publishing checklist (GitHub, open source)
 
-Status 2026-11-05: **prepared, not public.** The git repository exists (first commit 2026-10-30) and is pushed to a
-**private** GitHub repository; it has not been made public.
+Status 2026-11-27: **public** (made public 2026-11-13; names and screenshots scrubbed from tracked files and history 2026-11-13 and 2026-11-25, see below). What was written on 2026-11-05: prepared, not public; the git repository existed (first commit 2026-10-30) in a private GitHub repository. The open licence risk is the sounds (the list under "Done" below).
 Repository: `Vibecoding-mods/Table-Top-Simulator-MTG-Rules-Enforcer` (the name is the owner's decision).
 
 ## Done

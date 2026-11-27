@@ -10,9 +10,12 @@ still picture to hold once it has played, a small preview for the search panel, 
 
 It is careful in four ways:
 
-- **Only GIPHY's own picture addresses reach the table.** Every link in GIPHY's answer is checked: it must be a
+- **Only addresses built from GIPHY's own links reach the table.** Every link in GIPHY's answer is checked: it must be a
   secure link on one of GIPHY's media servers, with no port, no user name and no tricks in the path. Anything else is
-  thrown away, so a strange answer can never put some other website's picture on everyone's table.
+  thrown away, so a strange answer can never put some other website's picture on everyone's table. One exception, by
+  design: a still picture that GIPHY only offers as a .gif (which Tabletop Simulator can't load) is sent as a link to the
+  public image service wsrv.nl, which turns that same GIPHY picture into a .jpg. So wsrv.nl sees those requests and
+  serves those pictures to every player; the address inside the link is still checked as GIPHY's.
 - **The GIPHY key stays on the host's PC.** The key is typed into the companion app and kept on the host's computer.
   It is never put in the table's script (which friends receive), never shown in full (the companion sees only its
   last four characters), and never written into a log, even when something goes wrong.

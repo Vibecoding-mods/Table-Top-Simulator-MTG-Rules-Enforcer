@@ -500,7 +500,8 @@ cards, waiting, added}]}` (`source`: `table` = checked with mtg ready, `preset` 
   ("Not in <deck>, so added to the game: ..."), at Set and again at the start: the user named it, so the test asked for runs;
   dropping it silently would test something else. A named card the deck has but doesn't deal is added too, as an extra copy;
   the messages and the page's box say so.
-- **When:** the dealt hand is kept by itself at Forge's keep-or-mulligan question (the player is not asked), and at the player's
+- **Built since (2026-11-17, `engine1122-openinghand`):** on an engine that supports it the bridge sends `openingCards` in the game config and the picked hand is dealt as the opening hand: the keep-or-mulligan question already shows it and is the player's. The "When" and "Why not" paragraphs below describe the older route, still used on an engine without it (and for names the deck lacks).
+- **When (older route):** the dealt hand is kept by itself at Forge's keep-or-mulligan question (the player is not asked), and at the player's
   first priority with nothing on the stack (in turn 1, whoever's turn; the upkeep in the live check) one debug fix (applies at once against the AI) makes
   the hand the picked one: a picked card that was dealt stays (the deck's own card); each other picked card is created in the
   hand (`createCard`), and for each a dealt card goes to the bottom of the library (the last dealt first). Fewer than 7 named:
@@ -516,7 +517,7 @@ cards, waiting, added}]}` (`source`: `table` = checked with mtg ready, `preset` 
   given in `CardPool` iteration order (a ConcurrentHashMap), so the deck's own copies can't be moved by id; the first-player roll
   is the harness's own and takes only an acknowledgement. Free mulligans until the cards come were rejected: about 14 deals for
   one named card, hundreds for two.
-- **Engine change for a true opening hand** (not built; no image builds on this branch). Smallest honest version:
+- **Engine change for a true opening hand** (**built 2026-11-17 as `engine1122-openinghand`**, see `docs/engine-changes.md`; the plan as written before the build:). Smallest honest version:
   1. Deck JSON (`SetDeckSelection`'s `deck`, as `planes` rides today): `openingCards: [names]`, at most 7, in order. The relay
      must carry the field (its deck struct, as for `planes` in the planechase build) and the node must pass it to the harness.
   2. Harness: after `Match.prepareAllZones` has shuffled and before `GameAction.startGame` deals (the first
@@ -538,7 +539,7 @@ cards, waiting, added}]}` (`source`: `table` = checked with mtg ready, `preset` 
 
 ### 11.1 What the friend does (README.md:82-96; `README-FRIEND.txt` generated at `tools/make-friend-package.js:296-345`)
 Install Docker Desktop, start it once, sign out and in (the install adds the account to `docker-users`); download the zip from the
-repository's Releases page (**the repository is private and invite-only**, README.md:89); right-click the zip → Properties →
+repository's Releases page (**the repository is public**; it was private and invite-only until 2026-11-13); right-click the zip → Properties →
 Unblock; unzip to a plain folder (not OneDrive, Documents or Program Files); double-click `MTG Companion.exe` (**not code-signed**:
 SmartScreen "More info → Run anyway"; Smart App Control may block it outright). First start loads the engine (a few minutes) and
 makes the table from the host's subscribed Workshop copy (§5.4) and installs it in the TTS saves. Then in TTS: Create → Multiplayer → Games → Save & Load → "MTG Table (rules engine)".
@@ -724,12 +725,11 @@ the Linux/Mac companion (`companion-node`, merged d0dba68). Items 9-11 are not e
 7. **Mac and Linux.** The user decided cross-platform on 2026-11-06, then "scripts plus a browser page" later that day; neither was
    built. The app is Windows-only (WinForms, Windows named pipes, WMI, registry, `GetExtendedTcpTable`, DPAPI).
 8. **Code signing** of the exe, and Apple notarization: not done (`README-FRIEND.txt` tells friends to Unblock).
-9. **Updates against a private repository without a token** do not work; with the token they do. Working updates for friends need
-   either the repository public or each friend entering a token (decision pending, `docs/release-fix-plan-2026-11-10.md`).
+9. **Updates against a private repository without a token** do not work; with the token they do. (Settled 2026-11-13: the repository is public, so friends need no token.)
 10. **Draw and mill debug tools** (§10.3): built 2026-11-12; they work once the engine images are rebuilt with the `draw`/`mill` ops.
 11. `docs/publishing-checklist.md:59` still calls the companion "a later release"; the friend package already ships it.
-12. **Starting hand** (§10.3): built 2026-11-13 on what the engine has, so the picked cards come at the first priority, not at the
-    mulligan question; a true opening hand needs the engine change written up there (`openingCards`, relay and harness). Chat
+12. **Starting hand** (§10.3): built 2026-11-13 on what the engine had, so the picked cards came at the first priority; since
+    2026-11-17 (`engine1122-openinghand`) the engine deals them as the opening hand (`openingCards`). Chat
     `mtg hand` needs the table script deployed (`tools/make-engine-copy.js`); the page's box needs only the new bridge.
 
 ## 15. Changed from the earlier spec

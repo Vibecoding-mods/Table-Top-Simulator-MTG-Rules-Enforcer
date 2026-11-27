@@ -85,7 +85,7 @@ The report says exactly what the table will see:
 2. Add an entry to `docs/engine-changes.md`.
 3. Commit and push to **`cloud/team-block` only**. Make the branch from `cloud/engine1117`, after it has finished and
    pushed.
-4. Write `docs/handoff/team-block-report.md`.
+4. Write `docs/handoff/team-block-report.md`. (Never written: only `team-block-2-report.md` exists, 2026-11-27. The first part's results are in the `docs/engine-changes.md` entry for the team's joint block and in `docs/game-modes-spec.md` section 5.12.)
 
 ## Rules (the repo is public)
 

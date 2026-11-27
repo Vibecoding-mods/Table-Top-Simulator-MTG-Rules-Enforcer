@@ -1,6 +1,6 @@
 # Formats and ban lists spec: a Format button, ban and restricted switches, an always-current ban list
 
-Status: spec only, written 2026-11-18. Nothing is built. Code lines are from main at `e24696a` (2026-11-18); other
+Status: written 2026-11-18 as a spec. **Built since** (checked 2026-11-27): `bridge/legality.js` and `legality-worker.js` (the ban-list cache and its refresh), `format-rules.js`, and the table's Format button. Where the build differs from the text below: the refresh timer ticks **hourly** and a check is due **a day after the last one** (not every 12 hours, §4.2); **Old School is left out** of the bridge's format list (`KEYS` in `legality.js`: Forge has no list for it, so `has("oldschool")` is false and the table skips it, although `ENGINE_FORMATS` in the renderer still names it). Code lines are from main at `e24696a` (2026-11-18); other
 work moves them.
 
 ## What the owner wants
@@ -131,7 +131,7 @@ competitivebrawl alchemy paupercommander duel oldschool premodern predh tlr`.
 | Vintage | `vintage` | 101 / 52 | `Sanctioned/Vintage.txt` (`Restricted:`) | 60-card | yes |
 | Pauper | `pauper` | 76 / 0 | `Sanctioned/Pauper.txt` (rarity rule not readable by our builder) | 60-card | yes |
 | Premodern | `premodern` | 33 / 0 | `Casual/Premodern.txt` | 60-card | yes |
-| Old School | `oldschool` | 7 / 22 | none | 60-card | yes (Scryfall only) |
+| Old School | `oldschool` | 7 / 22 | none | 60-card | not built: left out of `KEYS` (no Forge list) |
 | Oathbreaker | `oathbreaker` | 210 / 0 | `Casual/Oathbreaker.txt` | 60 + oathbreaker + signature spell | **no**: no signature-spell zone or engine path (§9) |
 | **MTG Arena** | | | | | |
 | Standard (Arena) | `standard` (same list as paper; Scryfall has no separate Arena Standard key) | 13 / 0 | `Archived/Arena Standard/2026-09-29.txt` | 60-card | yes, as "Standard" |
@@ -209,7 +209,7 @@ Everything happens in the **bridge** (Node). The table never fetches, so the Web
 
 1. **At bridge start:** load the cache (§4.3) at once. Then check freshness in the background: `GET
    https://api.scryfall.com/bulk-data/oracle-cards`, and compare its `updated_at` with the cache's.
-2. **Every 12 hours** while the bridge runs, the same check.
+2. **Daily** while the bridge runs (as built: a tick every hour, a check when the last one is a day old), the same check.
 3. **`mtg banlist refresh`** (host) and the companion page's button: the same check, now, said in chat ("Ban lists:
    up to date (Scryfall, 2026-11-18)" or "Updating ...").
 4. Newer `updated_at` → download `jsonl_download_uri`, gunzip as a stream, read one card per line, keep only what §4.3

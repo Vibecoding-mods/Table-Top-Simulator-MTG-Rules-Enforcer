@@ -1,6 +1,10 @@
 # Big turns 2: infinite tokens, responses, attack taxes, split attacks, ties
 
-Spec only, 2026-11-16. Nothing here is built. It sits on top of branch `big-turns` (9cedf2d, cee1f5f; see
+Written 2026-11-16 as a spec; **all five items are built since** (checked 2026-11-27 against the patches and the bridge:
+1 `Game.UNBOUNDED_TOKENS` / `TokenPile` / the "x∞" badge, 2 the held-pass response window (`HeldPassResponseTest`), 3 the attack tax
+at the lethal minimum (`attackTaxPlan`, `AttackDamageDto`), 4 the one-stack-per-defender choice, with its automatic split
+reversed 2026-11-27 (section 4), 5 the tie offer (`TieOffer`, `tieVote`)). `docs/engine-changes.md` has an entry for each.
+The text below is the design as written and may differ from the build in detail. It sits on top of branch `big-turns` (9cedf2d, cee1f5f; see
 `docs/big-turns.md`). All file paths were read in a scratch tree: Forge `e7d2b93b` and Manabrew `fd16e2f` with the
 big-turns `engine/forge.patch` and `engine/manabrew.patch` applied, plus the bridge and renderer of `big-turns`.
 

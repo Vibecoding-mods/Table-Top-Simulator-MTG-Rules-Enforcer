@@ -125,10 +125,10 @@ estimated bill.
   - TTS itself comes from Steam after the alt account signs in.
 - **forge's first-boot script:**
   - installs Docker;
-  - receives the engine images from tts-host over SSH, using the same push as the "Own server" mode;
+  - gets the engine images by building them itself with `tools/setup-server.sh` (`engine/build-images.sh`), as Own server mode does; an image push from tts-host over SSH was assumed in the first draft of this spec and **does not exist** (Own server mode never pushes images; checked 2026-11-27);
   - starts the stack with `restart: always`, bound to the private IP.
 - **Updates:** the auto-update on tts-host downloads the new release as on any PC. When the engine images change, it
-  pushes them to forge over the private network before the next game.
+  must get them to forge over the private network before the next game: that step is **not built** (see the first-boot line above; forge would rebuild with `setup-server.sh`, or a push has to be written).
 
 ## 8. Work for us
 
@@ -136,7 +136,7 @@ estimated bill.
 |---|---|---|
 | CloudFormation template (VPC, SGs, 2 machines, IAM user + role, alarms, schedule, budget) | 4–6 | Checked with `cfn-lint`; first real run is the organiser's |
 | tts-host first-boot PowerShell (driver, DCV, auto-logon, Steam, companion) | 3–5 | Driver steps from AWS's published gaming-driver guide |
-| forge first-boot script + image push over SSH (reuses Own-server mode's push) | 2–3 | `setup-server.sh` already does most of it |
+| forge first-boot script + getting new engine images to forge (`setup-server.sh` builds them; a push over SSH does not exist and would be new work, add 3–5 h if wanted) | 2–3 | `setup-server.sh` already does most of it |
 | Companion **Cloud** mode: Start / Stop / Status / Open DCV / cost readout, AWS calls signed in-app (SigV4, no AWS CLI needed) | 8–12 | Plus tests against a recorded fake AWS endpoint |
 | Bridge and relay settings on tts-host (relay address + key) | 1 | `MTG_RELAY` and `MTG_KEY` exist already |
 | **Total** | **18–27 h** | About 20–30% of a week's usage |
