@@ -34,7 +34,6 @@ local engineHeld = {}     -- engine card id -> os.clock() while a dragged card w
 local lastTurnSet = nil
 local stashed = {}        -- imported deck objects moved aside while the engine plays: guid -> {pos, rot, lock}
 local lastTable = nil
-local renderQueued = false
 local engineColors = {}   -- colour -> true for every colour the engine is playing (humans and AI)
 
 -- ───────── geometry ─────────
@@ -2695,7 +2694,8 @@ function engineCombatLunge(m)
       for _, a in ipairs(c.blkOf or {}) do if atk[a] ~= nil and atk[a].blocker == nil then atk[a].blocker = c.id end end
     end
   end
-  if next(atk) ~= nil and not DAMAGE_STEPS[tostring(m.step)] then lunge.atk, lunge.turn = atk, turn end
+  -- (new attackers = a new combat: done is cleared, or an extra combat phase in the same turn never swung, 2026-11-27)
+  if next(atk) ~= nil and not DAMAGE_STEPS[tostring(m.step)] then lunge.atk, lunge.turn, lunge.done = atk, turn, nil end
   if not DAMAGE_STEPS[tostring(m.step)] or lunge.turn ~= turn or lunge.done == turn then return 0 end
   lunge.done = turn
   -- (when each swing lands, os.clock(): its target's id or colour, and a blocked attacker's own id; the table effects
@@ -4103,7 +4103,6 @@ do
   end
 end
 
-local rewindOffAt = -100
 -- where a board update spends its time (engineProfile.sect: name -> total ms; read over the debug channel)
 local sectAt = 0
 local function sect(name)
@@ -4337,8 +4336,12 @@ function engineRender(m)
   -- (a Two-Headed or Three-Headed Giant partner's hand: seen through the TTS team, engineTtsTeams; no copy is laid)
   okCtl, errCtl = pcall(engineTtsTeams, m)
   if not okCtl then print("[MTG] TTS teams: " .. tostring(errCtl)) end
-  local okPop, errPop = pcall(function() enginePopups(m) enginePopupsClose(m) engineEffects(m) end) -- a pop-up problem must never stop the board update
+  local okPop, errPop = pcall(function() enginePopups(m) enginePopupsClose(m) end) -- a pop-up problem must never stop the board update
   if not okPop then print("[MTG] pop-up: " .. tostring(errPop)) end
+  -- (apart from the pop-ups, 2026-11-27: their error skipped the effects, FX.prev stayed a board behind and the next
+  -- diff could lose a game-over banner)
+  okPop, errPop = pcall(engineEffects, m)
+  if not okPop then print("[MTG] effects: " .. tostring(errPop)) end
   sect("popups")
   -- The stack floats above its caster's own playmat (the table centre is where the life trackers are), newest on
   -- top and a little to the side, so you can read every spell waiting to resolve. At most ENGINE_STACK_SHOW objects a
@@ -4644,6 +4647,7 @@ function engineClear()
   engineFlipped, engineStatic, engineSearch, engineSearchIds, engineChoosable = {}, {}, {}, {}, {}
   engineBadge, cardClickAt, engineGroupShown = {}, {}, {}
   if engineResetUi ~= nil then engineResetUi() end -- the panel's per-player state (defined further down)
+  if enginePlayableForget ~= nil then pcall(enginePlayableForget) end -- (and the framed cards that are gone)
   engineObjs, engineSpawning, enginePlanned, engineColors, engineInHand, engineFace = {}, {}, {}, {}, {}, {}
   engineMeta, engineManual, engineHeld, lastTurnSet = {}, {}, {}, nil
   engineLifeSeen = {} -- the next game's first board sets the counters without a "-N"
@@ -5888,6 +5892,9 @@ function engineResetUi()
   for k in pairs(engineBrowse) do engineBrowse[k] = nil end
   for k in pairs(enginePage) do enginePage[k] = nil end
   for k in pairs(engineCombatTab) do engineCombatTab[k] = nil end
+  -- the Stops row too (2026-11-27): the bridge builds fresh seats per game and falls back to DEFAULT_STOPS, so the row
+  -- goes back to its defaults (start + end, engineStopsOf) or it would show stops the bridge no longer holds
+  if engineStops ~= nil then for k in pairs(engineStops) do engineStops[k] = nil end end
 end
 
 engineLogShown = {} -- colour -> true when the player opened the game log (Log button); closed by default
@@ -9929,6 +9936,13 @@ function engineFrameBuild(obj, color, on)
   local x = engineXmlWithout(tostring(obj.UI.getXml() or ""), "eng_play")
   obj.UI.setXml(x .. string.format(PLAYABLE_XML, color, on and "true" or "false"))
   playableBuilt[obj] = color
+end
+-- Forget the destroyed objects (engineClear, 2026-11-27): the table held every framed card of every game as a key
+function enginePlayableForget()
+  for o in pairs(playableBuilt) do
+    local ok, gone = pcall(function() return o.isDestroyed() end)
+    if not ok or gone then playableBuilt[o] = nil end
+  end
 end
 
 -- ───────── your own face-down cards: their face, for you only ─────────

@@ -123,8 +123,10 @@ for (const [name, prof] of [["4-player", FOUR], ["6-player", SIX]]) {
       local p = g.mat + g.right * r + g.fwd * f
       OBJECTS[#OBJECTS + 1] = { type = "Card", getPosition = function() return Vector(p.x, 1, p.z) end, getBounds = function() return { center = Vector(p.x, 1, p.z), size = Vector(2, 1, 2) } end }
     end end return "ok"`);
-  const [x, z] = spotOf("White", w).split(",").map(Number);
-  ok("frame: with every spot taken, the frame still keeps off the marks strip", !overlaps({ x, z }, GIF.SIZE, stripBox(w.lifeTracker, 180)), `${x}, ${z}`);
+  const full = spotOf("White", w);
+  const [x, z] = String(full).split(",").map(Number);
+  // (finite numbers first, 2026-11-27: an ERROR string made NaN, and overlaps with NaN is always false)
+  ok("frame: with every spot taken, the frame still keeps off the marks strip", Number.isFinite(x) && Number.isFinite(z) && !overlaps({ x, z }, GIF.SIZE, stripBox(w.lifeTracker, 180)), `${x}, ${z} ${full}`);
   q("OBJECTS = {} return 'ok'");
 }
 

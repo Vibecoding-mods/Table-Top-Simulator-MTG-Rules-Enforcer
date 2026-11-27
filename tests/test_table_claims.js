@@ -427,10 +427,25 @@ for (const m of s1.slice(0, 40)) if (m.t === "table") { const pl = JSON.parse(m.
     q('local t = engineTable() t.priority = "Blue" engineUpdateCorner("Blue", nil)', "my turn"), col("after")]);
   const c = (m) => String(valueOf(r, m)).split("|")[0];
   const rainbow = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#00C7BE", "#007AFF", "#AF52DE"];
-  ok("precondition: the hint says it waits for White", /|White$/.test(String(valueOf(r, "at 2 s"))), String(valueOf(r, "at 2 s")));
+  ok("precondition: the hint says it waits for White", /\|AI 1$/.test(String(valueOf(r, "at 2 s"))), String(valueOf(r, "at 2 s")));
   ok("waiting flash: plain before 5 s", c("at 2 s") === "#F2F2F2", c("at 2 s"));
   ok("waiting flash: a rainbow colour after 5 s, and it changes", rainbow.includes(c("at 6 s")) && rainbow.includes(c("at 6.3 s")) && c("at 6 s") !== c("at 6.3 s"), c("at 6 s") + " / " + c("at 6.3 s"));
   ok("waiting flash: back to normal when the wait ends", c("after") === "#F2F2F2", c("after"));
+}
+// 2026-11-27: the Stops row goes back to its defaults with a new game (the bridge builds fresh seats that use start +
+// end), and the attack lunge is once per COMBAT: an extra combat phase in the same turn swings again
+{
+  const r = run([
+    q('engineStopsOf("Blue").start = nil engineStopsOf("Blue").combat = true engineClear() local s = engineStopsOf("Blue") return tostring(s.start) .. " " .. tostring(s.combat) .. " " .. tostring(s["end"])', "stops"),
+    q(`local function board(step) return { turn = 7, step = step, players = { { color = "Blue", battlefield = { { id = "lunge-a", atk = true, atkT = "White" } } } } } end
+      local out = {}
+      -- (engineLungeHits is set when a swing is due, objects or none)
+      for _, st in ipairs({ "combatDeclareBlockers", "combatDamage", "combatEnd", "combatDeclareBlockers", "combatDamage" }) do
+        engineLungeHits = nil engineCombatLunge(board(st)) out[#out + 1] = engineLungeHits ~= nil and "1" or "0"
+      end
+      return table.concat(out, ",")`, "lunge")]);
+  ok("new game: the Stops row is back to start + end (the bridge's DEFAULT_STOPS)", valueOf(r, "stops") === "true nil true", String(valueOf(r, "stops")) + " " + r.errors.join(" | "));
+  ok("attack lunge: swings in the damage step, not again in the same combat, and again in an extra combat of the same turn", valueOf(r, "lunge") === "0,1,0,0,1", String(valueOf(r, "lunge")) + " " + r.errors.join(" | "));
 }
 // anyone, seated or not, switches engine mode, starts a game and clears a finished one; ending a game that is still
 // going stays the host's (2026-10-25: "allow non host to turn the engine on and off and to start games"; 2026-11-10:
@@ -1688,7 +1703,7 @@ for (const kind of ["Land", "Creature"]) {
   const r = run([{ msg: { t: "table", json: JSON.stringify(last) }, frames: 30 },
     ask({ promptId: 996, kind: "cards", title: "Sacrifice a creature", mode: "multi", min: 1, max: 1, options: ids.map((id) => ({ id, label: "Insect", img })) }), { frames: 10 },
     q('return tostring(UI.getAttribute("eng_panel_Blue", "active"))', "panel")]);
-  ok("no object but not in a pile: the panel stays shut", String(valueOf(r, "panel")) !== "true", String(valueOf(r, "panel")) + " " + r.errors.join(" | "));
+  ok("no object but not in a pile: the panel stays shut", !r.errors.length && String(valueOf(r, "panel")) !== "true", String(valueOf(r, "panel")) + " " + r.errors.join(" | "));
   const lastK = [...s1.slice(0, 40)].reverse().find((m) => m.t === "table" && (JSON.parse(m.json).players.find((x) => x.color === "Blue") || {}).battlefield);
   const mk = (gy, extraBf) => { const tk = JSON.parse(lastK.json); const blue = tk.players.find((x) => x.color === "Blue");
     tk.cards = { ...(tk.cards || {}), "gy-1": { n: "Swamp", ty: ["Land"] }, "gy-2": { n: "Hero", ty: ["Creature"] }, "gy-3": { n: "Plains", ty: ["Land"] } };
@@ -3078,6 +3093,9 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
       .flatMap((m) => [...m[0].matchAll(/seat = "(Red|Yellow|Blue)"/g)].map((s) => crypto.createHash("sha1").update(`${m[1]}:${s[1]}`).digest("hex").slice(0, 6)));
     ok("status pieces: each seat copy's GUID comes from its original's and its seat's alone", expect.length === 15 && expect.join() === copies.join(), `${expect.join()} / ${copies.join()}`);
     ok("status pieces: the original pieces keep their own GUIDs", ["8963ec", "197ab6", "2db63a", "cb418b", "d9fcbc", "94b67a", "da1b48", "576ccd", "4e8c7b"].every((g) => origGuids.has(g) && save.ObjectStates.some((o) => o.GUID === g)), "");
+  } else {
+    // (said out loud, 2026-11-27: without the original table JSON this block ran nothing and the summary still said all passed)
+    console.log("SKIP: status pieces in the copy (original table JSON not found; set MTG_TABLE_JSON)");
   }
 }
 // (2026-11-11, the player: "whenever a card mills the animation gets stuck unless you click the pile") a seated player
@@ -3628,10 +3646,10 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
     q('return tostring(engineChat("mtg art on", Player.Blue))', "host on"),
     q('return tostring(engineChat("mtg art maybe", Player.Blue))', "host other")] });
   ok("precondition: no errors", !r.errors.length, r.errors.join(" | "));
-  ok("art switch: a non-host is told it's the host's, and nothing is sent", /Only the host can switch custom card art/.test(told(r, "White off")) && !/"art"|t=art|art/.test(sent(r, "White off")),
+  ok("art switch: a non-host is told it's the host's, and nothing is sent", /Only the host can switch custom card art/.test(told(r, "White off")) && !/\bart\b/.test(sent(r, "White off")),
     JSON.stringify(fxOf(r, "White off").slice(0, 3)));
-  ok("art switch: the host's off goes to the bridge", /art/.test(sent(r, "host off")) && /false/.test(sent(r, "host off")), sent(r, "host off").slice(0, 300));
-  ok("art switch: the host's on goes to the bridge", /art/.test(sent(r, "host on")) && /true/.test(sent(r, "host on")), sent(r, "host on").slice(0, 300));
+  ok("art switch: the host's off goes to the bridge", /\bart\b/.test(sent(r, "host off")) && /\bfalse\b/.test(sent(r, "host off")), sent(r, "host off").slice(0, 300));
+  ok("art switch: the host's on goes to the bridge", /\bart\b/.test(sent(r, "host on")) && /\btrue\b/.test(sent(r, "host on")), sent(r, "host on").slice(0, 300));
   ok("art switch: anything else says how, and sends nothing", /mtg art off/.test(told(r, "host other")) && !/art/.test(sent(r, "host other")), JSON.stringify(fxOf(r, "host other").slice(0, 3)));
   ok("art switch: the chat line is hidden (handled)", ["White off", "host off", "host on", "host other"].every((m) => valueOf(r, m) === "false"), JSON.stringify(["White off", "host off"].map((m) => valueOf(r, m))));
 }

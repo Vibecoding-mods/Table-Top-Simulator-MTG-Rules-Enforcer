@@ -52,7 +52,8 @@ const broken = (name, lua, word, more = []) => {
 const quiet = (name, lua, word, more = []) => {
   const r = simulate({ save, steps: [...prefix, { lua: helpers }, { lua }, ...more, check("after")] });
   const after = valueOf(r, "after").problems;
-  ok(`${name}: no alarm`, Array.isArray(after) && !after.some((p) => p.includes(word)), r.errors.join(" | ") || JSON.stringify(after));
+  // (no errors either, 2026-11-27: a setup that threw left nothing to alarm about and passed)
+  ok(`${name}: no alarm`, !r.errors.length && Array.isArray(after) && !after.some((p) => p.includes(word)), r.errors.join(" | ") || JSON.stringify(after));
 };
 quiet("an untap waiting for its player", "local o, c = attackerObject() c.tap = false enginePending.Blue = { untap = { [c.id] = true }, draw = {}, mill = {} }", "should be untapped");
 quiet("a card still moving", `${first} o.isSmoothMoving = function() return true end o.setPosition(Vector(90, 2, 90))`, "wrong place");

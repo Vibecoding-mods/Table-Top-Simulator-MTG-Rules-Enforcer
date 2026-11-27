@@ -37,15 +37,17 @@ function simulate({ save, seated = ["Blue"], host = "Blue", steps = [], framesPe
     ${seated.map((c) => `__sim.seated[${JSON.stringify(c)}] = true`).join(" ")}`, "=setup");
   const fx = () => {
     const r = run(`local out = __fx __fx = {} return JSON.encode(out)`, "=fx");
+    if (r.error) errors.push(`recording the step's effects: ${r.error}`); // (2026-11-27: a failed encode used to lose them quietly)
     return JSON.parse(r.value || "[]");
   };
   // a button label real TTS draws see-through (so not at all), and a UI.setValue on a Button (ignored by real TTS)
-  const drift = () => run(`local out = {}
+  const drift = () => driftCheck(run(`local out = {}
     for _, h in ipairs(__sim.hiddenLabels) do out[#out + 1] = "button label " .. string.format("%q", h.label) .. " on " .. h.guid .. " has a see-through background: real TTS hides it" end
     for _, id in ipairs(__sim.buttonValues) do out[#out + 1] = "UI.setValue on a Button (" .. id .. "): real TTS ignores it, set its text attribute" end
     for _, b in ipairs(__sim.badXml) do out[#out + 1] = "screen UI text that real TTS can't parse when it rebuilds the UI (" .. b .. "): write <textcolor color=\\"#hex\\">, engineXmlRich" end
     __sim.hiddenLabels = {} __sim.buttonValues = {} __sim.badXml = {}
-    return table.concat(out, "; ")`, "=drift").value;
+    return table.concat(out, "; ")`, "=drift"));
+  const driftCheck = (r) => { if (r.error) errors.push(`reading the sim's drift list: ${r.error}`); return r.value; };
   const out = [];
   const record =(label, extra) => { const e = fx(); out.push({ step: label, ...(extra || {}), fx: e }); };
 

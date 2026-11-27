@@ -49,6 +49,8 @@ for (const sc of scenarios()) {
   failed += fails.length;
   if (firstFail && failed) process.exit(1);
 }
+// (a scenario with no recording fails like in the other golden tests, 2026-11-27: it used to pass with only its errors checked)
+for (const g of got) if (!want.find((x) => x.name === g.name)) { failed++; console.log(`FAIL ${g.name}: new game not in the golden file`); }
 for (const w of want) if (!got.find((x) => x.name === w.name)) { failed++; console.log(`FAIL ${w.name}: game missing`); }
 console.log(failed ? `\n${failed} of ${want.length} games differ` : `all ${want.length} games match (${want.reduce((n, g) => n + g.steps.length, 0)} steps)`);
 process.exit(failed ? 1 : 0);

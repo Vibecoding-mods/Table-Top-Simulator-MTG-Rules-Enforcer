@@ -64,16 +64,17 @@ const q = (lua, mark) => ({ lua, mark });
     mk("nocolor", nil, 300)
     mk("nobg", { 0, 0, 0, 0 }, 0)
     mk("", { 0, 0, 0, 0 }, 300)
+    mk("opaque", { 0, 0, 0, 1 }, 300) -- (never edited: the opaque-shows-its-label half, 2026-11-27)
     o.editButton({ index = 3, color = { 0, 0, 0, 0 } })
     local hidden = {}
     for _, h in ipairs(__sim.hiddenLabels) do hidden[#hidden + 1] = h.label end
     __sim.hiddenLabels = {}
-    return JSON.encode({ hidden = table.concat(hidden, ","), shown = { __sim.labelShown(o, 4), __sim.labelShown(o, 5), __sim.labelShown(o, 6) } })`, "alpha")]);
+    return JSON.encode({ hidden = table.concat(hidden, ","), shown = { __sim.labelShown(o, 4), __sim.labelShown(o, 5), __sim.labelShown(o, 6), __sim.labelShown(o, 8) } })`, "alpha")]);
   const v = value(r, "alpha");
   ok("a see-through button background hides its label (alpha 0, alpha 0.01, an r/g/b/a table, one edited to clear)",
     v.hidden === "clear,faint,named,solid", JSON.stringify(v));
   ok("a see-through button background hides its label: an opaque one, one with no colour and one with no background (width 0) show it",
-    JSON.stringify(v.shown) === "[false,true,true]", JSON.stringify(v));
+    JSON.stringify(v.shown) === "[false,true,true,true]", JSON.stringify(v));
   // and run-sim makes any hidden label a script error, so every table test refuses one
   const r2 = run([q('getObjectFromGUID("block1").createButton({ click_function = "x", function_owner = Global, label = "Pool", color = { 0, 0, 0, 0 }, width = 200, height = 80 }) return "made"', "made")]);
   ok("a see-through button background hides its label: run-sim reports it as an error of the step", r2.errors.some((e) => /label .*Pool.* see-through/.test(e)), JSON.stringify(r2.errors));

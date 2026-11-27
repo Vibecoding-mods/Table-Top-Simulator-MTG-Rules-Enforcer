@@ -271,7 +271,8 @@ function deckcheckReadTag(notes)
   return nil
 end
 
--- the label next to the commander: "Bracket 3 · Threat 54/96", one half when the other is missing, or nil
+-- the label next to the commander: "Bracket 3 · Threat 54 (32-51)" (the bracket's range; "Threat 54/96", out of the max,
+-- when there is no bracket), one half when the other is missing, or nil
 -- Each bracket's Threat Index range, from DeckCheck's "How the Threat Index works" (updated 2026-10).
 -- A gate or a card can raise a deck's bracket, so its score may sit outside its bracket's range.
 DECKCHECK_BRACKET_RANGE = { { 0, 15 }, { 16, 31 }, { 32, 51 }, { 52, 67 }, { 68, 96 } }

@@ -240,7 +240,11 @@ Wait = {
   frames = function(fn, n) return addWait({ fn = fn, at = SIM.frame + math.max(1, n or 1) }) end,
   time = function(fn, sec, reps) return addWait({ fn = fn, at = SIM.frame + math.max(1, math.ceil((sec or 0) * 60)), every = (reps and reps ~= 1) and math.max(1, math.ceil((sec or 0) * 60)) or nil, reps = reps }) end,
   condition = function(fn, cond, timeout, onTimeout) return addWait({ fn = fn, cond = cond, at = SIM.frame + 1, until_ = timeout and (SIM.frame + math.ceil(timeout * 60)) or nil, onTimeout = onTimeout }) end,
-  stop = function(id) for k, w in ipairs(SIM.waits) do if w.id == id then table.remove(SIM.waits, k) return end end end,
+  -- (also a wait already due this frame, SIM.due: its callback must not run once stopped, 2026-11-27)
+  stop = function(id)
+    for _, w in ipairs(SIM.due or {}) do if w.id == id then w.stopped = true end end
+    for k, w in ipairs(SIM.waits) do if w.id == id then table.remove(SIM.waits, k) return end end
+  end,
   stopAll = function() SIM.waits = {} end,
 }
 Time = { delta_time = 1 / 60, time = 0, fixed_delta_time = 1 / 60 }
@@ -270,10 +274,14 @@ local function runFrame()
     else keep[#keep + 1] = w end
   end
   SIM.waits = keep
+  SIM.due = due
   for _, w in ipairs(due) do
-    local ok, err = pcall(w.fn)
-    if not ok then fx("ERROR wait", tostring(err)) end
+    if not w.stopped then
+      local ok, err = pcall(w.fn)
+      if not ok then fx("ERROR wait", tostring(err)) end
+    end
   end
+  SIM.due = nil
   if onUpdate then local ok, err = pcall(onUpdate) if not ok then fx("ERROR onUpdate", tostring(err)) end end
 end
 function SIM.frames(n) for _ = 1, n do runFrame() end end
@@ -757,7 +765,16 @@ WebRequest = {
     return {}
   end,
 }
-function startLuaCoroutine(obj, name) local f = _G[name] if f then local co = coroutine.create(f) while coroutine.status(co) ~= "dead" do coroutine.resume(co) end end end
+function startLuaCoroutine(obj, name)
+  local f = _G[name]
+  if f then
+    local co = coroutine.create(f)
+    while coroutine.status(co) ~= "dead" do
+      local ok, err = coroutine.resume(co)
+      if not ok then fx("ERROR coroutine", tostring(err)) end -- (TTS logs it; the sim recorded nothing, 2026-11-27)
+    end
+  end
+end
 function addHotkey(name, fn) fx("addHotkey", name) end
 function addContextMenuItem(label, fn) fx("global menu+", label) SIM.globalMenu = SIM.globalMenu or {} SIM.globalMenu[label] = fn end
 function clearContextMenu() SIM.globalMenu = {} end
@@ -892,7 +909,7 @@ function SIM.longXml() local m = uiMap() if not m then return SIM.xml end return
 UI = {
   setXml = function(x) SIM.xml = x readButtons(x) fx("UI.setXml", hash(x)) end,
   getXml = function() return SIM.xml end,
-  setAttribute = function(id, k, v) id = uiSet(id) SIM.attrs[id .. "|" .. k] = tostring(v) redraw(id, { [k] = v }) fx("UI.setAttribute", uiLong(id), k, tostring(v)) end,
+  setAttribute = function(id, k, v) id = uiSet(id) SIM.attrs[id .. "|" .. k] = tostring(v) if k == "text" then uiXmlCheck(uiLong(id), v) end redraw(id, { [k] = v }) fx("UI.setAttribute", uiLong(id), k, tostring(v)) end,
   setAttributes = function(id, t) id = uiSet(id) for k, v in pairs(t) do SIM.attrs[id .. "|" .. k] = tostring(v) if k == "text" then uiXmlCheck(uiLong(id), v) end end redraw(id, t) fx("UI.setAttributes", uiLong(id), t) end,
   getAttribute = function(id, k) return SIM.attrs[uiShort(id) .. "|" .. k] end,
   -- (real TTS ignores UI.setValue on a Button, it draws the text attribute: live 2026-11-02. The call is recorded,
