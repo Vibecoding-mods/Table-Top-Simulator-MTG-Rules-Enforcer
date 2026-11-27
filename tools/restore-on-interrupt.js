@@ -1,7 +1,10 @@
 // Put a mutated source file back when a mutation run is interrupted. The in-place mutators write the broken text into
-// bridge.js / engine-renderer.lua / teams.js and put the pristine text back in a `finally` after the test; Ctrl+C, a
-// kill or a crash inside spawnSync skips that, and the next run's baseline then takes the mutated file for the pristine
-// one (or it gets committed). Require this first in a mutator (before it takes spawnSync from child_process):
+// bridge.js / engine-renderer.lua / teams.js (and the companion mutators' tools/*.js and companion-node files) and put
+// the pristine text back in a `finally` after the test; Ctrl+C or a crash inside spawnSync skips that, and the next
+// run's baseline then takes the mutated file for the pristine one (or it gets committed). Require this first in a
+// mutator (before it takes spawnSync from child_process). It covers writes made through fs.writeFileSync only, and
+// only while the process can still run its handlers: a hard kill (SIGKILL, taskkill /F, power loss) is NOT caught,
+// and on Windows SIGTERM/SIGHUP handlers may not run either; check git status after such a stop:
 //   require("./restore-on-interrupt");
 // It remembers the first text of every source file the process overwrites (a .js/.lua/.java/.patch/.cs/.sh outside
 // tmp/, which already exists), and writes that text back (1) on exit, (2) on SIGINT/SIGTERM/SIGHUP, and (3) when a

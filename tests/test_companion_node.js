@@ -50,6 +50,27 @@ function part(name, args, timeout) {
     ok("update.js: a malformed redirect address is an error answer", !!res && /broken address/.test(res.error || ""), JSON.stringify(res));
   } catch (err) { ok("update.js: a malformed redirect address is an error answer", false, String(err && err.message)); }
   srv.closeAllConnections?.(); srv.close();
+
+  // lastCheck policy (update.js checkInBackground, 2026-11-27): a failed check (offline, 500) leaves it alone so the next
+  // launch checks again; "not public" (404, quiet) is stamped so a private repo is not asked every launch
+  const fs2 = require("fs"), os2 = require("os");
+  for (const [status, stamped] of [[500, false], [404, true]]) {
+    const name = `update.js: GitHub answers ${status}: lastCheck ${stamped ? "stamped" : "left alone"}`;
+    const srv2 = http.createServer((q, r) => { r.writeHead(status, { "Content-Type": "application/json" }); r.end("{}"); });
+    await new Promise((d) => srv2.listen(0, "127.0.0.1", d));
+    const dir = fs2.mkdtempSync(path.join(os2.tmpdir(), "mtg-upd-"));
+    try {
+      const { Updater } = require(path.join(C, "update.js"));
+      const c = { update: {}, version: "v1", updateBusy: false, fire() {} };
+      const u = new Updater({ controller: c, stateDir: dir, keysFile: path.join(C, "none.txt"), testBase: `http://127.0.0.1:${srv2.address().port}` });
+      u.checkInBackground();
+      for (let i = 0; i < 100 && c.updateBusy; i++) await new Promise((d) => setTimeout(d, 50));
+      const st = u.state();
+      ok(name, !c.updateBusy && (st.lastCheck !== undefined) === stamped && typeof st.lastResult === "string", JSON.stringify(st));
+    } catch (err) { ok(name, false, String(err && err.message)); }
+    srv2.closeAllConnections?.(); srv2.close();
+    try { fs2.rmSync(dir, { recursive: true, force: true }); } catch {}
+  }
   console.log(`${passed} passed, ${failed} failed`);
   process.exitCode = failed ? 1 : 0;
 })();

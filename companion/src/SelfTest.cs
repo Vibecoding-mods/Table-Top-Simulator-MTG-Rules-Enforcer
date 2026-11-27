@@ -760,6 +760,20 @@ namespace MtgCompanion
             Check("another section only: [wsl2] appended", Logic.SetWslLimits(t, 2, "8GB") == "[interop]\r\nenabled=false\r\n\r\n[wsl2]\r\nprocessors=2\r\nmemory=8GB\r\n", Logic.SetWslLimits(t, 2, "8GB"));
             t = "[wsl2]\r\nmemory=4GB\r\n[experimental]\r\nprocessors=9\r\n";
             Check("only the [wsl2] section is edited", Logic.SetWslLimits(t, 2, "8GB") == "[wsl2]\r\nprocessors=2\r\nmemory=8GB\r\n[experimental]\r\nprocessors=9\r\n", Logic.SetWslLimits(t, 2, "8GB"));
+            // the shared writer (2026-11-27): a dated copy of the old file, then the new text
+            var wd = Path.Combine(Path.GetTempPath(), "mtg-companion-selftest-" + Guid.NewGuid().ToString("N").Substring(0, 6));
+            Directory.CreateDirectory(wd);
+            try
+            {
+                string wf = Path.Combine(wd, ".wslconfig");
+                Logic.WriteWslLimits(wf, null, 2, "8GB");
+                Check("writer, no file: written, no backup", File.ReadAllText(wf) == "[wsl2]\r\nprocessors=2\r\nmemory=8GB\r\n" && Directory.GetFiles(wd).Length == 1);
+                File.WriteAllText(wf, "[wsl2]\nswap=0\n");
+                Logic.WriteWslLimits(wf, "[wsl2]\nswap=0\n", 2, "8GB");
+                var baks = Directory.GetFiles(wd, ".wslconfig.bak-*");
+                Check("writer, existing file: old text kept in a .bak copy, new text written", baks.Length == 1 && File.ReadAllText(baks[0]) == "[wsl2]\nswap=0\n" && File.ReadAllText(wf).Contains("processors=2"));
+            }
+            finally { try { Directory.Delete(wd, true); } catch { } }
         }
 
         static string Part(string file, string version, string release = null, long size = 100)

@@ -217,7 +217,7 @@ const moved = (steps) => steps.filter((s) => /^docker (tag|compose)|start-bridge
     // (the list is read from the running engine: an old engine must not get a list stamped with this tree's build id)
     const { steps, error } = await go({ cardList: "eb-older", runningBuild: "eb-other" });
     ok("a card list for another build and a running engine of a third: stopped before the list is built or anything moves",
-      /the running engine is build eb-other/.test(error || "") && !steps.some((s) => /build-forge-card-index|start-bridge/.test(s)) && !steps.includes("write manifest"), error);
+      /the running engine is build eb-other/.test(error || "") && !steps.some((s) => /build-forge-card-index|start-bridge/.test(s)) && !steps.includes("write manifest") && moved(steps).length === 0, error);
   }
   {
     const { steps, error } = await go({ bridgeUp: false });

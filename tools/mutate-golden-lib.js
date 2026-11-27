@@ -8,6 +8,10 @@ const fs = require("fs");
 const crypto = require("crypto");
 const { spawnSync } = require("child_process");
 
+// The graders that run whole test files collect "failed" names; a "CRASH: " entry (a test that crashed or timed out)
+// is no check catching the mutant, so only a named failure counts as caught. One copy for them all (2026-11-27).
+const graded = (failed) => failed.some((f) => !f.startsWith("CRASH: "));
+
 const sha = (s) => crypto.createHash("sha256").update(s).digest("hex");
 
 function runMutations(file, test, mutations, pattern) {
@@ -51,4 +55,4 @@ function runMutations(file, test, mutations, pattern) {
   process.exit(escaped || skipped ? 1 : 0);
 }
 
-module.exports = { runMutations };
+module.exports = { runMutations, graded };

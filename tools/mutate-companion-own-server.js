@@ -12,6 +12,7 @@
 // The live relay on this PC's 9443 may answer a mutant that logs in there: the checks that need the fake relay's own
 // login say so (2026-11-17, Windows: "the login made on this PC with a server" showed the same green text).
 //   node tools/mutate-companion-own-server.js [label pattern]
+require("./restore-on-interrupt"); // (the in-place source file is put back on exit or Ctrl+C, 2026-11-27)
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
