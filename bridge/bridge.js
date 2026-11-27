@@ -7517,8 +7517,10 @@ function outLast(p) { const at = game?.outOrder?.[p.id]; return at == null || at
 // (a conceded player's reason is the concession, whatever the board shows: concededPlayers)
 function lossReasons(gv) {
   const said = [];
-  // (a winner still playing is no loser, whatever its poison or commander damage: 11 shared poison is under Two-Headed Giant's 15)
-  for (const p of (gv?.players || []).filter((p) => outLast(p) && p.status !== "conceded" && !(gv.gameOver && gv.winnerId && p.status === "playing"))) {
+  // (the winner and its teammates are no losers, whatever their poison or commander damage: 11 shared poison is under
+  // Two-Headed Giant's 15; a loser whose status the board has not updated yet is still named, 2026-11-27)
+  const won = (p) => gv.winnerId && (p.id === gv.winnerId || teammateOf(gv, p.id, gv.winnerId));
+  for (const p of (gv?.players || []).filter((p) => outLast(p) && p.status !== "conceded" && !won(p))) {
     const why = LOSS_REASONS.map((r) => r(p, gv)).filter(Boolean);
     if (why.length) said.push(`${nameOf(p.id)} ${why.join(" and ")}`);
   }
