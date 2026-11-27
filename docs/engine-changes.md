@@ -319,7 +319,7 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
 
-### 2026-11-26 engine1134c: the AI's slow hand on a big board costs less; the 1134b "regression" was the AI's hand (not deployed)
+### 2026-11-26 engine1134c: the AI's slow hand on a big board costs less; the 1134b "regression" was the AI's hand (deployed 2026-11-26 evening, main cc1d646)
 - **The report:** the live Kykar stress (`tmp/stress/kykar-loop.js`) was much slower on engine1134b than on
   engine1133-heapdraw (pass 40 23.86 s against 9.76 s, pass 70 115.6 s against 30.5 s; `tmp/stress/run-1133.log`,
   `run-1134b.log`).
@@ -362,10 +362,11 @@ creation stamp; it was not the deployed relay (unconfirmed what differs).
   (`tmp/harness-1134c.log`); `tools/live-check.sh engine1134c tests/live_phasing_check.js` 29 of 29. The headless seed
   1 on the built test image: 61.8 s of game time (pass 19 5.96 s), the same game, heap 99 MB at pass 19 as on
   engine1134b. The bridge is unchanged. Deploy `--image engine1134c` with `MTG_MANABREW=tmp/eb-1134c`.
+- **Live stress on engine1134c** (`tmp/stress/run-1134c.log`): 116 passes, 465 tokens, 231 mana, 5 runaway questions; pass 60 16.8 s, pass 90 38.9 s; no heap draw in 43 minutes; the driver's Crackle (X 78) won the game at 2604 s. engine1134b's run (`run-1134b.log`) drew the slow AI hand: 73 passes.
 - **Rollback:** engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`); engine1134b is not
   deployed either.
 
-### 2026-11-26 engine1134 / engine1134b: cast spells keep no board, batchable held runs go to the end (not deployed)
+### 2026-11-26 engine1134 / engine1134b: cast spells keep no board, batchable held runs go to the end (engine1134b deployed 2026-11-26 18:47, replaced the same evening by engine1134c)
 - **engine1134b (jr-programmer-suite review of engine1134, same day):** the reader gate missed two cases and is fixed
   (Cast board below): a card that has rules was not read from its states (a copy of a reader whose original had left
   the game), and the `CastSA>` route to a cast ability's board was not a reader. The game scan now visits the cards

@@ -196,7 +196,7 @@ prowess Monk tokens) were asked "keep going?" long before anything ran away, and
 - With Mentor, about 69% of what is left after holding is Forge's own resolution (`CardCopyService.getLKICopy`,
   `Card.getTempToughnessBoost`), plus AI 8% and the response probe 4%. That cannot be skipped and stay rules-correct.
 
-### 4.6 Trigger batching (engine, engine1131-batch, 2026-11-25, not deployed)
+### 4.6 Trigger batching (engine, engine1131-batch, 2026-11-25, deployed 2026-11-26)
 
 A held run of identical simple triggers (Mentor's 600 prowess triggers) used to resolve one by one with a catch-up every
 20. The merge (4.4) now takes more effects and is no longer stopped at 20 by the merge itself, so a held run resolves in
@@ -240,7 +240,7 @@ The prompts stay: each person is still asked at every 20 before the minute. At 9
 each 20 now resolves quickly, so the run reaches the one-minute rule later; the owner can drop the 20-cut for
 batchable runs (section 6, item 3).
 
-### 4.7 The heap in a long turn (engine, engine1132-heap, 2026-11-26, not deployed)
+### 4.7 The heap in a long turn (engine, engine1132-heap, 2026-11-26, deployed 2026-11-26)
 
 A 40-minute Kykar + Mentor turn on engine1131-batch died of an OutOfMemoryError instead of a draw.
 
@@ -255,11 +255,11 @@ A 40-minute Kykar + Mentor turn on engine1131-batch died of an OutOfMemoryError 
   "as you cast" checks), so a very long turn of spells on a big board still filled the heap, more slowly.
 
 
-- **The draw reaches the table (engine1133-heapdraw, not deployed):** on engine1132-heap a heap draw made inside the
+- **The draw reaches the table (engine1133-heapdraw, deployed 2026-11-26):** on engine1132-heap a heap draw made inside the
   game loop was reported to the node as an engine error (`fatal`), not as game over. Now it ends as a draw with
   `drawReason` "heap", like a draw at a question. The limit draws made inside the loop were fixed by the same change.
 
-### 4.8 Batchable runs go to the end, cast spells keep no board (engine, engine1134, 2026-11-26, not deployed)
+### 4.8 Batchable runs go to the end, cast spells keep no board (engine, engine1134, 2026-11-26, deployed as engine1134c)
 
 - **No 20-cut for a batchable run** (harness `ManaBrewInteractiveSession.heldRunBatches`,
   `ManaBrewInteractiveController.heldUnlimited`): a hold counts as a run held a minute when every player still in the
@@ -315,13 +315,13 @@ A 40-minute Kykar + Mentor turn on engine1131-batch died of an OutOfMemoryError 
 
 1. **Hold size 20** (`EXHAUST_RESOLUTIONS` in the engine, `HELD_RESOLUTIONS` in the bridge; keep them equal). It sets how
    often the table catches up and how soon `mtg stop` lands. After a run has been held a minute (`LONG_RUN_SECONDS`,
-   4.5) there is no catch-up until the run ends, so `mtg stop` lands only then. **Decided (2026-11-26, engine1134, not
-   deployed):** a run Forge can batch (item 3) has no 20-cut either; it resolves in one step and `mtg stop` lands at its
+   4.5) there is no catch-up until the run ends, so `mtg stop` lands only then. **Decided (2026-11-26, engine1134, deployed
+   2026-11-26):** a run Forge can batch (item 3) has no 20-cut either; it resolves in one step and `mtg stop` lands at its
    end. The size stays 20 for every other run, so both constants are unchanged; the bridge only says so in its chat
    lines (4.8).
 2. **3 "Keep going" a turn**, and the active person is the one asked (the first person when the active player is an AI).
 3. **Merging and trigger batching are off whenever an AI plays.** In games with AI seats only 4.1 helps. **Decided
-   (2026-11-26, the owner approved dropping the 20-cut for batchable runs; engine1134, not deployed):** when every
+   (2026-11-26, the owner approved dropping the 20-cut for batchable runs; engine1134, deployed 2026-11-26):** when every
    player still in the game is a person holding the run on top and that run is one `StackMerge` would batch (on the
    allowlist and not watched), the hold is not cut every 20 and the whole run batches through in one step (4.8). A run
    that cannot batch keeps the 20-cut until the minute rule, as before. Letting the AI waive priority between
