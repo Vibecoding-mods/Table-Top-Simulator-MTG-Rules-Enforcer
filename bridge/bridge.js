@@ -2810,7 +2810,6 @@ const imageWanted = new Set();
 const DUNGEON_NAMES = ["Lost Mine of Phandelver", "Dungeon of the Mad Mage", "Tomb of Annihilation", "Undercity"];
 let imageFetching = false;
 const exactAsked = new Set(); // (names asked of Scryfall's exact-name lookup this run: fetchImages)
-const stripQuery = (u) => (u ? u.split("?")[0] : null);
 
 function cachedImage(name) {
   const hit = imageCache[normName(name)];
@@ -15515,7 +15514,7 @@ function startBanlists() {
 
 if (require.main === module) {
   debugServer.listen(DEBUG_PORT, "127.0.0.1").on("error", (e) => log(`debug port ${DEBUG_PORT} unavailable: ${e.message}`));
-  server.listen(TTS_IN, "127.0.0.1", () => log(`Bridge listening for TTS on ${TTS_IN}; relay ${RELAY}, room "${ROOM}". Load tts/mtg-board.lua in TTS.`));
+  server.listen(TTS_IN, "127.0.0.1", () => log(`Bridge listening for TTS on ${TTS_IN}; relay ${RELAY}, room "${ROOM}". Open the MTG table in TTS.`));
   editorForward.start();
   process.on("SIGINT", () => { if (game) { game.closing = true; for (const s of allSeats()) s.close(); } setTimeout(() => process.exit(0), 200); });
   resumeGame();
