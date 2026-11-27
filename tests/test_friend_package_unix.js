@@ -22,6 +22,15 @@ const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
 const SYSTAR = process.platform === "win32" ? path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe") : "tar";
 
 async function pure() {
+  // ── the checks the Windows builder makes, made here too (2026-11-27 review: the data files were checked 3 of 6 and
+  // the key-file guard was missing)
+  const SRC = fs.readFileSync(path.join(__dirname, "..", "tools", "make-friend-package-unix.js"), "utf8");
+  ok("guards: all six bridge data files are required, as on Windows", win.BRIDGE_DATA.length === 6 && /for \(const f of pack\.BRIDGE_DATA\) if \(!fs\.existsSync/.test(SRC) && !/BRIDGE_SHIPPED\.slice\(/.test(SRC));
+  ok("guards: the key-file check runs before the package is written", /pack\.secretFiles\(tableCheckEntries\(entries, name\)\)/.test(SRC) && SRC.indexOf("pack.secretFiles(") < SRC.indexOf("writeTarGz(entries, fs.createWriteStream"));
+  same("guards: a stray server.json, .pem or .env in companion-node/ is found as a key file",
+    win.secretFiles(pack.tableCheckEntries([{ name: "p/companion/server.json", data: Buffer.from("{}") }, { name: "p/companion/a.PEM", data: Buffer.from("x") }, { name: "p/companion/.env", data: Buffer.from("K=1") }, { name: "p/companion/ok.js", data: Buffer.from("1") }], "p")),
+    ["companion/server.json", "companion/a.PEM", "companion/.env"]);
+
   // ── the tar writer
   same("ustar split: a short name as is", pack.splitName("a/b.json"), ["", "a/b.json"]);
   const long = `MTG-Table-linux-x64-2026-11-12/manabrew/public/preset_decks/${"x".repeat(80)}.json`;

@@ -4,6 +4,7 @@
 // The real files are never written: their sha256 is checked before and after each run, and the copies are removed. A
 // mutation no check catches is printed as SURVIVED.
 //   node tools/mutate-loop-quiet.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -39,8 +40,8 @@ const MUTATIONS = [
   ["show: never at the start", B, "  if (game) for (const s of game.seats.values()) if (s !== seat) loopQuietShow(s);\n}", "\n}"],
   ["show: sent again unchanged", B, "  if (key === (seat.quietShown ?? null)) return;", ""],
   ["show: over a question", B, "  if (seat.prompt || seat.loop) return;\n  const q = loopQuietLive(seat)", "  if (seat.loop) return;\n  const q = loopQuietLive(seat)"],
-  ["close: the panel not back after a question", B, "  seat.quietShown = null;\n  loopQuietShow(seat);\n}", "}"],
-  ["rewind: kept", B, "\"loop\", \"loopLog\", \"loopOffer\", \"loopQuiet\"];", "\"loop\", \"loopLog\", \"loopOffer\"];"],
+  ["close: the panel not back after a question", B, "  seat.quietShown = null;\n  loopQuietShow(seat);\n  seat.tloopShown = null;", "  seat.tloopShown = null;"],
+  ["rewind: kept", B, "\"loop\", \"loopLog\", \"loopOffer\", \"loopQuiet\", \"keepTargets\"", "\"loop\", \"loopLog\", \"loopOffer\", \"keepTargets\""],
   ["table: no third button", R, "or o.id == \"__loop\" or o.id == \"__quiet\") then group, groupTip", "or o.id == \"__loop\") then group, groupTip"],
   ["table: the third button's whole label", R, "      if p.options[group].id == \"__quiet\" then groupLabel = \"No responses\" end\n", ""],
   ["table: the big button's whole label", R, "    if p.options[1].id == \"__quiet\" then bigLabel = \"No responses\" end\n", ""],

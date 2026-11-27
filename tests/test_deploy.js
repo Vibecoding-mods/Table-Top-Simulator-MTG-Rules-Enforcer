@@ -214,6 +214,12 @@ const moved = (steps) => steps.filter((s) => /^docker (tag|compose)|start-bridge
     ok("a card list for another build: rebuilt before the bridge starts", error === null && idx(steps, /build-forge-card-index/) > 0 && idx(steps, /build-forge-card-index/) < idx(steps, /start-bridge/), error);
   }
   {
+    // (the list is read from the running engine: an old engine must not get a list stamped with this tree's build id)
+    const { steps, error } = await go({ cardList: "eb-older", runningBuild: "eb-other" });
+    ok("a card list for another build and a running engine of a third: stopped before the list is built or anything moves",
+      /the running engine is build eb-other/.test(error || "") && !steps.some((s) => /build-forge-card-index|start-bridge/.test(s)) && !steps.includes("write manifest"), error);
+  }
+  {
     const { steps, error } = await go({ bridgeUp: false });
     ok("the bridge not the new one: stopped, the save not written, no record", /bridge running isn't the new one/.test(error || "") && !steps.includes("patchSave write") && !steps.includes("write manifest"), error);
   }

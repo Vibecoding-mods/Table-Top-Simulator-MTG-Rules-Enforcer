@@ -3,6 +3,7 @@
 // the named check to fail. The real files are never written: their sha256 is checked before and after, and the copies
 // are removed.
 //   node tools/mutate-howto-commands.js
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const os = require("os");
 const path = require("path");

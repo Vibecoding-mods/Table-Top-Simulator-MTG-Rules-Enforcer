@@ -15,7 +15,8 @@ local function bucket()
 end
 
 function onExternalMessage(msg)
-  if type(msg) == "table" and msg.t == "table" then
+  -- (after the last bucket mode() is nil: bucket() would concatenate nil and every table message would throw before origMsg)
+  if mode() ~= nil and type(msg) == "table" and msg.t == "table" then
     bucket().msgs = bucket().msgs + 1
     if mode() == "C" then return end
   end
@@ -36,6 +37,7 @@ function onUpdate()
     if b.secs >= 90 then
       stutterAB.idx = stutterAB.idx + 1
       if mode() ~= "B" and lastTableForTest ~= nil then origRender(lastTableForTest) end
+      if mode() == nil then onExternalMessage = origMsg engineRender = origRender end -- (the test is over: the wrappers come off)
     end
   end
   if prevUpdate then prevUpdate() end

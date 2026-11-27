@@ -4,6 +4,7 @@
 // sha256. The companions' side: tools/mutate-companion-own-server.js, companion-node/breakit.js and
 // tests/test_companion_server.js --breakit.
 //   node tools/mutate-engine-build-record.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

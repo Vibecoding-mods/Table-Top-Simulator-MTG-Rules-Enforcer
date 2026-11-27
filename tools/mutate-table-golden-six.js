@@ -2,6 +2,7 @@
 // the table's script or its build (tools/engine-renderer.lua hello, tools/make-engine-copy.js start), runs the test,
 // requires it to FAIL, then puts the file back and checks it by sha256.
 //   node tools/mutate-table-golden-six.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -14,8 +15,8 @@ const R = "tools/engine-renderer.lua", M = "tools/make-engine-copy.js";
 
 // [label, file, from, to]: `from` must occur exactly once
 const MUTATIONS = [
-  ["table: hello without the six seats", R, "  if ENGINE_TABLE_SEATS ~= nil then m.tableSeats = ENGINE_TABLE_SEATS end\n  engineSend(\"hello\", m)", "  engineSend(\"hello\", m)"],
-  ["table: hello with the four seats", R, "m.tableSeats = ENGINE_TABLE_SEATS end\n  engineSend(\"hello\", m)", "m.tableSeats = { \"White\", \"Red\", \"Yellow\", \"Blue\" } end\n  engineSend(\"hello\", m)"],
+  ["table: hello without the six seats", R, "  if ENGINE_TABLE_SEATS ~= nil then m.tableSeats = ENGINE_TABLE_SEATS end\n  if engineRulesInto", "  if engineRulesInto"],
+  ["table: hello with the four seats", R, "m.tableSeats = ENGINE_TABLE_SEATS end\n  if engineRulesInto", "m.tableSeats = { \"White\", \"Red\", \"Yellow\", \"Blue\" } end\n  if engineRulesInto"],
   ["build: the six seats not set", M, "  if (SEATS.length !== 4) save.LuaScript += `\\nENGINE_TABLE_SEATS = TABLE_PROFILE.seats`;", "  void 0;"],
   ["build: start without the six seats", M, "  if ENGINE_TABLE_SEATS ~= nil then start.tableSeats = ENGINE_TABLE_SEATS end\n", ""],
 ];

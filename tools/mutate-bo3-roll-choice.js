@@ -3,6 +3,7 @@
 // answer's routing, sendStart's latest room and readiness), runs the test and requires the named check to fail, then
 // puts the file back and checks it by sha256.
 //   node tools/mutate-bo3-roll-choice.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

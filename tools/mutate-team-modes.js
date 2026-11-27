@@ -3,6 +3,7 @@
 // puts the file back and checks it by sha256. A mutation no check catches is printed as SURVIVED. The Two-Headed Giant
 // pieces they share are tools/mutate-teams.js's.
 //   node tools/mutate-team-modes.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -15,7 +16,7 @@ const TESTS = ["tests/test_bridge_team_modes.js", "tests/test_table_team_modes.j
 // [label, file, from, to]: `from` must occur exactly once
 const MUTATIONS = [
   ["setupOf: Juggernaut's teams as sent", "bridge/teams.js", "return { teams: juggTeams(jugg.color), mode: \"juggernaut\", jugg, turns: null };", "return { teams: teamsOf(m.teams), mode: \"juggernaut\", jugg, turns: null };"],
-  ["teamModeOf: every mode is 2HG", "bridge/teams.js", "(Object.prototype.hasOwnProperty.call(TEAM_MODES, raw) ? raw : \"2hg\")", "(\"2hg\")"],
+  ["teamModeOf: every mode is 2HG", "bridge/teams.js", "typeof raw === \"string\" && Object.prototype.hasOwnProperty.call(TEAM_MODES, raw) ? raw : \"2hg\"", "\"2hg\""],
   ["TEAM_MODES: 2v2 shares life", "bridge/teams.js", "\"2v2\": { rule: \"teams\",", "\"2v2\": { rule: \"sharedLife\","],
   ["juggOf: any colour", "bridge/teams.js", "if (TEAM_COLORS.includes(r.color)) out.color = r.color;", "if (r.color) out.color = r.color;"],
   ["juggOf: no limits", "bridge/teams.js", "if (r[k] != null && Number.isInteger(n) && n >= lo && n <= hi) out[k] = n;", "if (r[k] != null) out[k] = n;"],
@@ -45,8 +46,8 @@ const MUTATIONS = [
   ["table: Start sends no mode", "tools/engine-renderer.lua", "function engineTeamModeSent() return ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE or nil end", "function engineTeamModeSent() return nil end"],
   ["table: Start sends no Juggernaut", "tools/engine-renderer.lua", "function engineJuggSent() return (ENGINE_TEAMS ~= nil and ENGINE_TEAM_MODE == \"juggernaut\") and ENGINE_JUGG or nil end", "function engineJuggSent() return nil end"],
   ["teamModeProblem: every team mode in every game mode", "bridge/teams.js", "  if (t.gameMode === gameMode) return null;\n", "  return null;\n"],
-  ["TEAM_MODES: 2v2 in Commander", "bridge/teams.js", "\"2v2\": { rule: \"teams\", name: \"2v2\", gameMode: \"standard\" }", "\"2v2\": { rule: \"teams\", name: \"2v2\", gameMode: \"commander\" }"],
-  ["TEAM_MODES: Juggernaut in Standard", "bridge/teams.js", "juggernaut: { rule: \"teams\", name: \"Juggernaut\", gameMode: \"commander\" }", "juggernaut: { rule: \"teams\", name: \"Juggernaut\", gameMode: \"standard\" }"],
+  ["TEAM_MODES: 2v2 in Commander", "bridge/teams.js", "\"2v2\": { rule: \"teams\", name: \"2v2\", gameMode: \"standard\", seats: 4 }", "\"2v2\": { rule: \"teams\", name: \"2v2\", gameMode: \"commander\", seats: 4 }"],
+  ["TEAM_MODES: Juggernaut in Standard", "bridge/teams.js", "juggernaut: { rule: \"teams\", name: \"Juggernaut\", gameMode: \"commander\", seats: 4 }", "juggernaut: { rule: \"teams\", name: \"Juggernaut\", gameMode: \"standard\", seats: 4 }"],
   ["start: the game mode not checked", "bridge/bridge.js", "(teams2hg.teamModeProblem(teamMode, mode) || teams2hg.teamsProblem(", "(teams2hg.teamsProblem("],
   ["start: a Standard 2v2 said as free-for-all", "bridge/bridge.js", "${teams ? \"Standard\" : modeWords(mode, total)}", "${modeWords(mode, total)}"],
   ["table: no refusal for the wrong game mode", "tools/engine-renderer.lua", "  if refusal ~= nil then pl.broadcast(", "  if false then pl.broadcast("],
@@ -76,7 +77,7 @@ function runTests() {
       const m = line.match(/^\s*FAIL[: ]\s*(.+)$/);
       if (m && !/^test_/.test(m[1])) failed.push(m[1].slice(0, 110));
     }
-    if (r.status !== 0 && !failed.length) failed.push(`${t} exit ${r.status}: ${out.split("\n").slice(-3).join(" ").slice(0, 160)}`);
+    if (r.status !== 0 && !/^\s*FAIL/m.test(out)) failed.push(`CRASH: ${t} exit ${r.status}: ${out.split("\n").slice(-3).join(" ").slice(0, 160)}`);
   }
   return failed;
 }
@@ -96,8 +97,9 @@ for (const [label, rel, from, to] of list) {
   let failed;
   try { failed = runTests(); } finally { fs.writeFileSync(file, text); }
   const ok = sha(file) === before;
-  if (!failed.length) survived++;
-  console.log(`${failed.length ? "caught" : "SURVIVED"}: ${label}${failed.length ? ` -> ${failed.join(" | ")}` : ""}${ok ? "" : "  RESTORE MISMATCH"}`);
+  const caught = failed.some((f) => !f.startsWith("CRASH: ")); // (a test that crashed or timed out is no check catching it)
+  if (!caught) survived++;
+  console.log(`${caught ? "caught" : "SURVIVED"}: ${label}${failed.length ? ` -> ${failed.join(" | ")}` : ""}${ok ? "" : "  RESTORE MISMATCH"}`);
 }
 console.log(survived ? `${survived} of ${list.length} survived` : `all ${list.length} caught, every file restored`);
 process.exit(survived ? 1 : 0);

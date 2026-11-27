@@ -6,6 +6,7 @@
 // is put back and checked by sha256. Every LongTailTest check is named by at least one mutation (the script refuses to
 // run otherwise). Needs a patched engine tree with its jar (engine/test-harness-local.sh builds both).
 //   node tools/mutate-long-tail.js <engine tree> [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const os = require("os");
 const path = require("path");

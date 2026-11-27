@@ -4,6 +4,7 @@
 // and requires the named check to fail, then puts the file back and checks it by sha256. The engine's part:
 // tools/mutate-planar-owners-engine.js.
 //   node tools/mutate-followups-2.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

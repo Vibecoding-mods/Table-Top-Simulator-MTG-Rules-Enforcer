@@ -6,6 +6,7 @@
 // checks both itself; writing the download straight over the cache instead of a temp file, and leaving the temp file
 // after a worker failure, since the worker writes only once the whole file has read well: no failure leaves one.)
 //   node tools/mutate-legality.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -58,10 +59,10 @@ const MUTANTS = [
   ["hello's own format not used", BR, "if (!m.again && tableKnowsFormats(m)) sendBanlist(banlistFormat(m));", "if (!m.again && tableKnowsFormats(m)) sendBanlist();", T1, "bridge: hello with a format sends banlist once"],
   ["{format} answered with banlist, not the names", BR, "  toTTS(legality.banlistNamesMessage(format));\n}", "  sendBanlist(format);\n}", T1, "bridge: {format} answers banlistNames"],
   ["the refresh request ignored", BR, "  if (m.refresh) {\n    chat(\"[MTG] Ban lists: checking Scryfall ...\", m.color);", "  if (false) {\n    chat(\"[MTG] Ban lists: checking Scryfall ...\", m.color);", T1, "bridge: refresh tells the host it checks, then that the lists are up to date"],
-  ["a change not said to the table", BR, "function onBanlistChanged(l, summary) { chat(`[MTG] ${summary}`); if (tableHasFormats) sendBanlist(); }", "function onBanlistChanged(l, summary) { }", T1, "bridge: a refresh that changed the lists says so to everyone"],
+  ["a change not said to the table", BR, "  chat(`[MTG] ${summary}`);\n  if (tableHasFormats) sendBanlist();\n  guarded(\"ban list refresh\"", "  guarded(\"ban list refresh\"", T1, "bridge: a refresh that changed the lists says so to everyone"],
   // (the review fixes of 2026-11-18)
   ["a changed list not resent to a table that knows formats", BR, "      if (tableKnowsFormats(m)) tableHasFormats = true;\n", "", T1, "bridge: a refresh that changed the lists resends banlist to a table that knows formats (hello, resend, answer)"],
-  ["a changed list sent to an older table", BR, "if (tableHasFormats) sendBanlist(); }", "sendBanlist(); }", T1, "bridge: a changed refresh sends an older table (no format in its hello) only the answer"],
+  ["a changed list sent to an older table", BR, "  if (tableHasFormats) sendBanlist();\n  guarded(\"ban list refresh\"", "  sendBanlist();\n  guarded(\"ban list refresh\"", T1, "bridge: a changed refresh sends an older table (no format in its hello) only the answer"],
   ["Æ not spelled Ae", LEG, ".replace(/æ/gi, \"ae\")", "", T1, "status: an 'Æ' name is found by Scryfall's 'Ae' spelling"],
   ["Arena's 'A /// B' not read", LEG, "normName(slashes(name)), normName(frontFace(slashes(name)))", "normName(frontFace(name))", T1, "status: a split card as Arena writes it ('A /// B'), or 'A/B', or 'A / B'"],
   ["a failed check waits a day", LEG, "    lastCheck = 0; // (tried again at the next hourly tick, not a day later)\n", "", T3, "short download: the next hourly check tries again (not a day later)"],

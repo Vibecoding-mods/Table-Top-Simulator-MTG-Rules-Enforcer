@@ -1,8 +1,8 @@
 autopilotSecs = autopilotSecs or 900
--- In-TTS autopilot for White (no debug commands while it plays): 240 s from install.
+-- In-TTS autopilot for White (no debug commands while it plays): 900 s from install (autopilotSecs, set before this runs, changes it).
 autopilotStart = os.time()
 local function autopilot()
-  if os.time() - autopilotStart > (autopilotSecs or 240) then return end
+  if os.time() - autopilotStart > (autopilotSecs or 900) then return end
   if engineReleasePending then engineReleasePending("White", "all") end
   local p = enginePrompts.White
   if p ~= nil then
@@ -42,4 +42,4 @@ local function autopilot()
   Wait.time(autopilot, 1.5)
 end
 Wait.time(autopilot, 1.5)
-return "autopilot on for " .. (autopilotSecs or 240) .. " s"
+return "autopilot on for " .. (autopilotSecs or 900) .. " s"

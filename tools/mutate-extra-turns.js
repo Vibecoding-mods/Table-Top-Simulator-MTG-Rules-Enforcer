@@ -4,6 +4,7 @@
 // sha256 is checked before and after each run, and the copy is removed. A mutation no check catches is printed as
 // SURVIVED.
 //   node tools/mutate-extra-turns.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

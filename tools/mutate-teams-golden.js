@@ -58,7 +58,7 @@ const MUTATIONS = [
   ["teamModeProblem: Standard words swapped", "const words = (k) => (k === \"standard\" ? \"Standard\" : \"Commander\");", "const words = (k) => (k === \"commander\" ? \"Commander\" : \"Standard\");"],
   ["juggOf: order check case-insensitive", "if (r.order === \"after\") out.order = \"after\";", "if (String(r.order).toLowerCase() === \"after\") out.order = \"after\";"],
   // (equivalent: turnPartners is symmetric in a and b, so swapping them at turnPartnerOf's call site changes nothing)
-  ["turnPartnerOf: arguments swapped (EQUIVALENT)", "find((p) => turnPartners(pub, id, p.id))", "find((p) => turnPartners(pub, p.id, id))", true],
+  ["turnPartnerOf: arguments swapped (EQUIVALENT)", "filter((p) => turnPartners(pub, id, p.id))", "filter((p) => turnPartners(pub, p.id, id))", true],
 ];
 
 runMutations(path.join(ROOT, "bridge", "teams.js"), path.join(ROOT, "tests", "test_teams_golden.js"), MUTATIONS, process.argv[2]);

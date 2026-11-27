@@ -13,4 +13,6 @@ $audio = Start-Process -FilePath (Join-Path $dir "LoopbackRec.exe") -ArgumentLis
 $video = Start-Process -FilePath (Join-Path $dir "WindowRec.exe") -ArgumentList @("`"$ff`"", "`"$vid`"", "$Seconds", "30") -NoNewWindow -PassThru
 $audio.WaitForExit(); $video.WaitForExit()
 & $ff -hide_banner -loglevel error -y -i $vid -i $wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -shortest $Out
-Remove-Item $vid, $wav -ErrorAction SilentlyContinue
+# (the parts are kept when the mux failed: deleting them lost the whole recording, 2026-11-27)
+if ($LASTEXITCODE -eq 0 -and (Test-Path $Out)) { Remove-Item $vid, $wav -ErrorAction SilentlyContinue }
+else { Write-Error "ffmpeg failed to mux ($LASTEXITCODE); kept $vid and $wav"; exit 1 }

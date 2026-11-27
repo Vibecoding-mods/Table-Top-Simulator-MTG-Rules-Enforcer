@@ -12,6 +12,7 @@
 // without shared team turns, since the active team is then one player and nobody would be asked anyway:
 // levelOneHasOneActivePlayer checks the outcome.)
 //   node tools/mutate-team-choices.js <engine tree> [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const os = require("os");
 const path = require("path");

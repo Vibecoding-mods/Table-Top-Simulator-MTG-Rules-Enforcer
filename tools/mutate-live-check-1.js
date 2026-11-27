@@ -3,6 +3,7 @@
 // test, and must make the check it names fail by name; then the file is put back and checked by sha256. A mutation
 // whose named check still passes is printed as SURVIVED.
 //   node tools/mutate-live-check-1.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -35,14 +36,14 @@ const MUTATIONS = [
     "bridge: a card another let be played says why (ogw)"],
   ["a foretold card labelled for everyone", B, "...(row && zone === \"exile\" && !c.isFaceDown ? { og: \"exile\",", "...(row && zone === \"exile\" ? { og: \"exile\",",
     "bridge: a foretold card (face down to the others) has no og: its label is a button everyone may see"],
-  ["the planned line thin again", R, "planned = { color = {1, 0.75, 0.8}, thickness = 0.2601 } }", "planned = { color = {1, 0.75, 0.8}, thickness = 0.1201 } }",
-    "line: the planned line is as wide as a target line or wider (it was 0.12)"],
-  ["the planned line as wide as the attack line", R, "planned = { color = {1, 0.75, 0.8}, thickness = 0.2601 } }", "planned = { color = {1, 0.75, 0.8}, thickness = 0.3001 } }",
+  ["the planned line thin again", R, "planned = { color = {1, 0.75, 0.8}, thickness = 0.1651 } }", "planned = { color = {1, 0.75, 0.8}, thickness = 0.1201 } }",
+    "line: the planned line is about a block line's width"],
+  ["the planned line as wide as the attack line", R, "planned = { color = {1, 0.75, 0.8}, thickness = 0.1651 } }", "planned = { color = {1, 0.75, 0.8}, thickness = 0.2201 } }",
     "line: its width is its own (lines are told apart by width)"],
   ["halfway to white again", R, "{ (1 + 3 * rgb[1]) / 4, (1 + 3 * rgb[2]) / 4, (1 + 3 * rgb[3]) / 4 }", "{ (1 + rgb[1]) / 2, (1 + rgb[2]) / 2, (1 + rgb[3]) / 2 }",
     "line: a quarter towards white, not halfway (White's own stays white)"],
-  ["the low arc again, no counter passed", R, "plannedStyle(pa[3]), nil, true, lifeSpot(pa[3]), g and g.mat or nil)", "plannedStyle(pa[3]), 0.5, true)",
-    "line: drawn on a target line's arc, bent around the planner's own counter (engineDrawLines' call)"],
+  ["the high arc again", R, "plannedStyle(pa[3]), 0.3)", "plannedStyle(pa[3]), 0.5)",
+    "line: drawn solid on a block line's arc (engineDrawLines' call)"],
 ];
 function runTests() {
   const failed = [];

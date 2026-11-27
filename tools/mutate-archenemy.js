@@ -4,6 +4,7 @@
 // (tools/make-engine-copy.js) are not here: their tests need the TTS save. The table functions that need no save
 // (tools/engine-renderer.lua: the archenemy's marks, the Undo tab) are, through tests/test_table_archenemy_lua.js.
 //   node tools/mutate-archenemy.js [--golden] [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

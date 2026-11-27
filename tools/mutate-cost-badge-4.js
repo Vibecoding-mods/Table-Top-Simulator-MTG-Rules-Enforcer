@@ -2,6 +2,7 @@
 // switches one piece off (bridge/bridge.js spellCostNotes, bridge/table-map.js), runs the test and requires the named
 // check to fail, then puts the file back and checks it by sha256. The engine's pieces: tools/mutate-cost-badge-4-engine.js.
 //   node tools/mutate-cost-badge-4.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

@@ -2,6 +2,7 @@
 // fixes off (a choice of players only, the engine's "Choose an opponent", the unless cost asked as itself, "name a card"),
 // runs the test and requires the named check to fail; the file is put back and checked by sha256.
 //   node tools/mutate-prompt-shapes.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

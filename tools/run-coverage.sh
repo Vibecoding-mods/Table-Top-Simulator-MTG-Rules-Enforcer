@@ -42,7 +42,8 @@ for DECK in "${DECKS[@]}"; do
   tail -n +"$mark" "$LOG" > "tmp/coverage/bridge-$N.log"
   # only this game's console lines (the bridge keeps everything since it started)
   # (the bridge keeps the last 500 lines; if the start line rolled out, keep them all)
-  curl -s http://127.0.0.1:${BRIDGE_PORT:-48787}/log | awk -v m="$cmark" 'f{print} $0==m{f=1} END{}' | grep -v "print: nil" > "tmp/coverage/console-$N.log"
+  # (after the LAST line equal to the marker: the marker is often a repeated line, and the first match started inside the previous game's lines)
+  curl -s http://127.0.0.1:${BRIDGE_PORT:-48787}/log | awk -v m="$cmark" '{a[NR]=$0; if ($0==m) last=NR} END{for (i=last+1; i<=NR; i++) print a[i]}' | grep -v "print: nil" > "tmp/coverage/console-$N.log"
   [ -s "tmp/coverage/console-$N.log" ] || curl -s http://127.0.0.1:${BRIDGE_PORT:-48787}/log | grep -v "print: nil" > "tmp/coverage/console-$N.log"
   node -e '
     const fs = require("fs"); const n = process.argv[1];

@@ -10,6 +10,7 @@ const OUT = path.join(ROOT, process.argv[3] || "tmp/collage");
 fs.mkdirSync(OUT, { recursive: true });
 const F = path.join(ROOT, "tmp", "tts-stream.jsonl");
 let pos = fs.statSync(F).size;
+let carry = Buffer.alloc(0); // (the unfinished last line of what was read)
 const shots = {}; // kind -> count
 const want = { turn: 1, playable: 1, target: 2, attack: 2, block: 1, life: 2, badge: 2, death: 2, popup: 1, gameover: 1, choice: 1 };
 const prev = { life: {}, bf: {}, turn: null, active: null };
@@ -26,7 +27,10 @@ async function flush() {
     if ((shots[q.kind] || 0) >= (want[q.kind] || 1)) continue;
     shots[q.kind] = (shots[q.kind] || 0) + 1;
     const file = path.join(OUT, `${q.kind}-${shots[q.kind]}.jpg`);
-    try { execFileSync("powershell", ["-NoProfile", "-File", path.join(ROOT, "tools", "tts-shot.ps1"), file], { stdio: "ignore" }); } catch { }
+    let taken = false;
+    try { execFileSync("powershell", ["-NoProfile", "-File", path.join(ROOT, "tools", "tts-shot.ps1"), file], { stdio: "ignore" }); taken = fs.existsSync(file); } catch { }
+    // (no TTS window: not counted as a shot, so the kind is tried again at its next trigger, and not logged as one)
+    if (!taken) { shots[q.kind]--; console.log(new Date().toISOString().slice(11, 19), q.kind, q.note, "-> NO SHOT (tts-shot.ps1 failed)"); continue; }
     console.log(new Date().toISOString().slice(11, 19), q.kind, q.note, "->", path.basename(file));
   }
 }
@@ -68,7 +72,11 @@ function onMessage(m) {
     const size = fs.statSync(F).size;
     if (size > pos) {
       const fd = fs.openSync(F, "r"); const buf = Buffer.alloc(size - pos); fs.readSync(fd, buf, 0, buf.length, pos); fs.closeSync(fd); pos = size;
-      for (const line of buf.toString("utf8").split("\n")) { try { const x = JSON.parse(line); if (x.msg) onMessage(x.msg); } catch { } }
+      // (a line still being written is kept for the next round, not parsed in halves and lost)
+      const all = Buffer.concat([carry, buf]);
+      const cut = all.lastIndexOf(10) + 1;
+      carry = all.subarray(cut);
+      for (const line of all.subarray(0, cut).toString("utf8").split("\n")) { try { const x = JSON.parse(line); if (x.msg) onMessage(x.msg); } catch { } }
     }
     await flush();
     if (Object.keys(want).every((k) => (shots[k] || 0) >= want[k])) break;

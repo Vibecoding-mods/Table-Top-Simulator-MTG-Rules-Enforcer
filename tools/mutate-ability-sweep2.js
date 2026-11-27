@@ -3,6 +3,7 @@
 // loaded through BRIDGE_PATH), runs the test and needs the check it names among the ones that fail. The real file is never
 // written: its sha256 is checked before and after each run, and the copy is removed.
 //   node tools/mutate-ability-sweep2.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");

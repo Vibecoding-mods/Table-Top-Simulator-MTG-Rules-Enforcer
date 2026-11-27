@@ -3,6 +3,7 @@
 // check it names fail by name; then the file is put back and checked by sha256. A mutation whose named check still
 // passes is printed as SURVIVED.
 //   node tools/mutate-sideboard-imported.js [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -19,13 +20,13 @@ const MUTATIONS = [
     "ready: a 60-card deck with the 15 on the graveyard spot is ready for Standard, the sideboard counted"],
   ["the sideboard not checked with the deck", B, "problems.push(...standardProblems(cards, commanders, sideboard));", "problems.push(...standardProblems(cards, commanders));",
     "checked: a 16-card sideboard is refused (at most 15)"],
-  ["the sideboard not kept with the ready deck", B, "images, mode, ...(std ? { sideboard } : {}) };", "images, mode };",
+  ["the sideboard not kept with the ready deck", B, "images, mode, ...(std ? { sideboard } : {}),\n    ...(fr", "images, mode,\n    ...(fr",
     "ready: the bridge keeps the sideboard with the deck"],
   ["the ready line to everyone", B, "chat(`[MTG] ${label}: ready for Standard. ${cards.length} cards; every card is known to the engine and legal in Standard.${sb}${foreign}${artSaid}`, color);", "chat(`[MTG] ${label}: ready for Standard. ${cards.length} cards; every card is known to the engine and legal in Standard.${sb}${foreign}${artSaid}`);",
     "private: the sideboard is said to Blue only, never to the table"],
-  ["the log names the sideboard's cards", B, "${sideboard.length ? `, sideboard ${sideboard.length}` : \"\"}", "${sideboard.length ? `, sideboard ${sideboard.join(\", \")}` : \"\"}",
+  ["the log names the sideboard's cards", B, "ready for Standard: ${cards.length} cards${sideboard.length ? `, sideboard ${sideboard.length}` : \"\"}", "ready for Standard: ${cards.length} cards${sideboard.length ? `, sideboard ${sideboard.join(\", \")}` : \"\"}",
     "private: the log counts it and names no sideboard card"],
-  ["a Commander deck keeps a sideboard too", B, "images, mode, ...(std ? { sideboard } : {}) };", "images, mode, sideboard };",
+  ["a Commander deck keeps a sideboard too", B, "images, mode, ...(std ? { sideboard } : {}),\n    ...(fr", "images, mode, sideboard,\n    ...(fr",
     "commander: a deck on the graveyard spot is left alone (ready as before, no sideboard)"],
   ["foreign sideboard names not looked up", B, "...asList(entry?.library), ...asList(entry?.sideboard)]) {", "...asList(entry?.library)]) {",
     "foreign: a sideboard card the engine doesn't know by name is looked up on Scryfall first"],

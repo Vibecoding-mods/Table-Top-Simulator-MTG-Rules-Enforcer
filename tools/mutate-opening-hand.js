@@ -7,6 +7,7 @@
 //  - Rust (in the engine tree): cargo test of the node's gameConfig tests.
 // Needs a patched engine tree with its jar (engine/test-harness-local.sh builds both) and cargo.
 //   node tools/mutate-opening-hand.js <engine tree> [label pattern]
+require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
