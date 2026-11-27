@@ -251,7 +251,7 @@ namespace MtgCompanion
             timer.Start();
             if (showSignal != null)
             {
-                var t = new Thread(() => { while (true) { showSignal.WaitOne(); try { BeginInvoke((Action)ShowMe); } catch { return; } } });
+                var t = new Thread(() => { while (true) { showSignal.WaitOne(); try { BeginInvoke((Action)ShowMe); } catch { Thread.Sleep(500); } } }); // 2026-11-27: a throw (no handle yet, or closing) used to end the listener for good
                 t.IsBackground = true;
                 t.Start();
             }
@@ -508,7 +508,12 @@ namespace MtgCompanion
             if (MessageBox.Show(this, msg, "Limit Docker's CPU use", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
             try
             {
-                if (now != null) File.Copy(file, file + ".bak-" + DateTime.Now.ToString("yyyyMMdd-HHmm"), true);
+                if (now != null)
+                {
+                    // 2026-11-27: seconds in the name, and never over an existing copy: a second click in the same minute used to replace the original backup with the rewritten file
+                    string bak = file + ".bak-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                    if (!File.Exists(bak)) File.Copy(file, bak);
+                }
                 File.WriteAllText(file, Logic.SetWslLimits(now, 2, "8GB"));
                 Log.Write("wrote " + file + " (processors=2, memory=8GB), on the user's click");
                 MessageBox.Show(this, "Saved. It takes effect after WSL restarts (restart the PC, or quit Docker Desktop and run \"wsl --shutdown\" yourself).", "MTG Companion");

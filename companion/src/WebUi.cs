@@ -959,7 +959,12 @@ namespace MtgCompanion
             try
             {
                 string now = Probes.ReadText(WslFile);
-                if (now != null) File.Copy(WslFile, WslFile + ".bak-" + DateTime.Now.ToString("yyyyMMdd-HHmm"), true);
+                if (now != null)
+                {
+                    // 2026-11-27: seconds in the name, and never over an existing copy: a second click in the same minute used to replace the original backup with the rewritten file
+                    string bak = WslFile + ".bak-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                    if (!File.Exists(bak)) File.Copy(WslFile, bak);
+                }
                 File.WriteAllText(WslFile, Logic.SetWslLimits(now, cores, "8GB"));
                 Log.Write("wrote " + WslFile + " (processors=" + cores + ", memory=8GB), on a status-page click");
                 return Done("Saved. It takes effect after WSL restarts (restart the PC, or quit Docker Desktop and run \"wsl --shutdown\" yourself).");

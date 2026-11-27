@@ -29,7 +29,7 @@ goto waitdocker
 
 docker image inspect mtg-forge-node:exile mtg-relay:exile >nul 2>&1
 if errorlevel 1 (
-  echo       The engine images aren't built yet. In Git Bash, run this once (about 20 minutes):
+  echo       The engine images aren't built yet. In Git Bash, run this once ^(about 20 minutes^):
   echo         bash engine/build-images.sh
   pause
   exit /b 1

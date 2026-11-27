@@ -152,6 +152,9 @@ namespace MtgCompanion
             opened = OwnServer.OpenKey(resaved, unseal, seal, out resave, out problem);
             used = OwnServer.SettingOf(opened, null, null);
             Check("key: the encrypted file opens to the same key, and isn't saved again", problem == null && resave == null && used != null && used.Ok && used.Server.Key == Key && used.Server.Host == "mtg.example.org", Show(used));
+            opened = OwnServer.OpenKey(resaved.TrimEnd().TrimEnd('}') + ",\"key\":null}", unseal, seal, out resave, out problem);
+            used = OwnServer.SettingOf(opened, null, null);
+            Check("key: a null plain key listed after the encrypted one does not wipe it", problem == null && used != null && used.Ok && used.Server.Key == Key, Show(used));
             opened = OwnServer.OpenKey(resaved, b => { throw new InvalidOperationException("another account"); }, seal, out resave, out problem);
             Check("key: another account's encrypted key: a problem that says to put the key in again", opened == null && problem != null && problem.Contains("another Windows account") && problem.Contains("\"key\""), problem);
             opened = OwnServer.OpenKey(resaved.Replace("{", "{\"key\":\"new-key-0123\","), unseal, seal, out resave, out problem);

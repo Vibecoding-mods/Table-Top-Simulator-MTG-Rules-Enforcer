@@ -638,6 +638,9 @@ namespace MtgCompanion
                 if (bridgeProcess) return new Verdict(Light.Busy, "The bridge is starting.").WithAction(Actions.Wait);
                 return new Verdict(Light.Busy, "Starting the bridge.").WithAction(Actions.StartBridge);
             }
+            if (versions.Kind == HttpKind.Ok)
+                return new Verdict(Light.Amber, "The bridge answered with an error (HTTP " + versions.Status + "), not its version list. Restarting it usually clears that.")
+                    .WithFix(Fixes.BridgeRestart, "Restart the bridge");
             return new Verdict(Light.Amber, "The bridge runs but didn't answer in time (" + (versions.Error ?? versions.Kind.ToString()) + "). It may be busy.")
                 .WithFix(Fixes.BridgeRestart, "Restart the bridge");
         }
@@ -1083,7 +1086,7 @@ namespace MtgCompanion
         public static object Get(object o, string k) { var d = o as Dictionary<string, object>; object v; return d != null && d.TryGetValue(k, out v) ? v : null; }
         public static string Str(object o, string k) { var v = Get(o, k); return v == null ? null : Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture); }
         public static bool Bool(object o, string k) { var v = Get(o, k); return v is bool && (bool)v; }
-        public static int Int(object o, string k) { var v = Get(o, k); try { return v == null ? 0 : Convert.ToInt32(v); } catch { return 0; } }
+        public static int Int(object o, string k) { var v = Get(o, k); try { if (v == null) return 0; double d = Convert.ToDouble(v, System.Globalization.CultureInfo.InvariantCulture); return d > int.MaxValue ? int.MaxValue : d < int.MinValue ? int.MinValue : (int)d; } catch { return 0; } } // 2026-11-27: clamp, not 0: tableHeardMs passes 2^31 after 24.8 days
         public static object[] Arr(object o, string k) { var v = Get(o, k); var a = v as object[]; if (a != null) return a; var l = v as System.Collections.ArrayList; return l != null ? l.ToArray() : null; }
     }
 }

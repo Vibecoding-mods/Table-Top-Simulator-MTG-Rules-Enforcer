@@ -37,5 +37,19 @@ function part(name, args, timeout) {
   console.log(`breakit: ${m ? m[0] : "no summary"} in ${r.secs} s`);
 }
 
-console.log(`${passed} passed, ${failed} failed`);
-process.exitCode = failed ? 1 : 0;
+// a redirect whose Location can't be parsed is an error answer, not an uncaught throw that ends the companion (2026-11-27)
+(async () => {
+  const http = require("http");
+  const srv = http.createServer((q, r) => { r.writeHead(302, { Location: "http://[" }); r.end(); });
+  await new Promise((d) => srv.listen(0, "127.0.0.1", d));
+  const base = `http://127.0.0.1:${srv.address().port}`;
+  try {
+    const { Updater } = require(path.join(C, "update.js"));
+    const u = new Updater({ controller: { update: {} }, stateDir: require("os").tmpdir(), keysFile: path.join(C, "none.txt"), testBase: base });
+    const res = await Promise.race([u.get(base + "/x", "application/json"), new Promise((d) => setTimeout(() => d({ error: "hung" }), 10000))]);
+    ok("update.js: a malformed redirect address is an error answer", !!res && /broken address/.test(res.error || ""), JSON.stringify(res));
+  } catch (err) { ok("update.js: a malformed redirect address is an error answer", false, String(err && err.message)); }
+  srv.closeAllConnections?.(); srv.close();
+  console.log(`${passed} passed, ${failed} failed`);
+  process.exitCode = failed ? 1 : 0;
+})();
