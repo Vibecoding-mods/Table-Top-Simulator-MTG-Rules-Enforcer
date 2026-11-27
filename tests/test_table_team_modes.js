@@ -112,6 +112,7 @@ const label = 'local tile for _, o in ipairs(getObjects()) do if o.getGMNotes() 
     q(lines, "2v2 lines"),
     q(panels, "2v2 panels"),
     q('engineUpdateCorner("Yellow", nil) return tostring(UI.getValue("eng_phase_Yellow"))', "corner 2v2"),
+    q('engineUpdateCorner("Red", nil) return tostring(UI.getValue("eng_phase_Red"))', "corner 2v2 other team"),
     q('engineConcedeAsk = nil engineChat("mtg concede", Player.Blue) return "asked"', "concede ask"),
     q('local m = { winner = "Blue", teams = { rule = "teams", sides = { { "White", "Red", "Yellow" }, { "Blue" } }, won = { "Blue" } } } ' +
       'return tostring(engineWonBy(m, "Blue")) .. " " .. tostring(engineWonBy(m, "Yellow")) .. " " .. engineWinsWords(m) .. " | " .. string.upper(engineNameOf("Blue"))', "jugg won"),
@@ -128,6 +129,8 @@ const label = 'local tile for _, o in ipairs(getObjects()) do if o.getGMNotes() 
   ok("tint 2v2: a line round all four mats in the two teams' colours", valueOf(r, "2v2 lines") === "4 0.25,0.25,0.80,0.80", String(valueOf(r, "2v2 lines")));
   ok("tint 2v2: no team life panel (each player has their own life)", valueOf(r, "2v2 panels") === "0", String(valueOf(r, "2v2 panels")));
   ok("phase bar 2v2: the other team's turn names the team", /\(TEAM AI WHITE \+ PLAYERYELLOW\)|\(YOUR TEAM\)/.test(String(valueOf(r, "corner 2v2"))), String(valueOf(r, "corner 2v2")));
+  // (Yellow is White's teammate, so that one says YOUR TEAM; Red is on the other side and must see the team named)
+  ok("phase bar 2v2: a viewer on the other team sees the team named, not YOUR TEAM", /\(TEAM [^)]+\)/.test(String(valueOf(r, "corner 2v2 other team"))) && !/YOUR TEAM/.test(String(valueOf(r, "corner 2v2 other team"))), String(valueOf(r, "corner 2v2 other team")));
   ok("concede 2v2: the player's own, not the team's", /Concede the game\? You are out for good/.test(chats(r, "concede ask")) && !/for your team/.test(chats(r, "concede ask")), chats(r, "concede ask"));
   ok("end: the Juggernaut alone WINS", /^true false (.+) WINS THE GAME \| \1$/.test(String(valueOf(r, "jugg won"))), String(valueOf(r, "jugg won")));
   ok("end: the three WIN together", /^true false (.+) WIN THE GAME \| \1$/.test(String(valueOf(r, "three won"))), String(valueOf(r, "three won")));

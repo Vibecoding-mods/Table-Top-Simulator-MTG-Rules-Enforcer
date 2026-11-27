@@ -132,8 +132,12 @@ const script = rik ? rik.LuaScript : "";
 ok("the Deck tab's list of sites names deckcheck.co", script.includes("  - archidekt.com\n  - deckcheck.co\n  - decks.tcgplayer.com\n"));
 
 // ───────── the deploy gives the save's rikrassen importer this script (tools/patch-save.js importerScripts) ─────────
-{
-  const src = process.env.MTG_TABLE_JSON || path.join(process.env.USERPROFILE || process.env.HOME || "", "Documents", "My Games", "Tabletop Simulator", "Mods", "Workshop", "2296042369.json");
+const importerSrc = process.env.MTG_TABLE_JSON || path.join(process.env.USERPROFILE || process.env.HOME || "", "Documents", "My Games", "Tabletop Simulator", "Mods", "Workshop", "2296042369.json");
+if (!fs.existsSync(importerSrc)) {
+  // (a SKIP said out loud, as test_table_profile does, 2026-11-27: the same missing Workshop save used to crash this block with ENOENT)
+  console.log(`SKIP: the deploy's importer script (the Workshop table isn't at ${importerSrc}; set MTG_TABLE_JSON)`);
+} else {
+  const src = importerSrc;
   const work = JSON.parse(fs.readFileSync(src, "utf8"));
   const orig = (work.ObjectStates || []).find((o) => o.GUID === "ddf5de");
   const raw = JSON.stringify({ SaveName: "mine", ObjectStates: [{ GUID: "ddf5de", Nickname: orig && orig.Nickname, LuaScript: orig && orig.LuaScript }, { GUID: "deck01", Name: "Deck", LuaScript: "x" }], LuaScript: "g" }, null, 2);

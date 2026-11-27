@@ -617,7 +617,7 @@ for (const [winner, want] of [["Blue", "[MTG] GAME OVER - PlayerBlue wins!"], [n
   const sp = run([lua(PICKS(true), "picks"), send(k0, "first"), send(k1, "a death", 12), send(k2, "two more, 0.2 s later", 30), LAST]);
   const spSaid = sp.all("last").map((s) => JSON.parse(s.value || "{}").snd || [])[0];
   ok("bursts: a burst keeps its kind's 0.3 s spacing", JSON.stringify(spSaid) === '["death music"]', JSON.stringify(spSaid));
-  // the shipped links: the 34 of docs/sounds.md
+  // the shipped links: the 44 of docs/sounds.md
   const shipped = JSON.parse(run([lua(`return JSON.encode(engineSoundsShipped)`, "shipped")]).step("shipped").value || "{}");
   const keys = Object.keys(burstDoc);
   ok("bursts: the 44 links of docs/sounds.md are the shipped bursts", keys.length === 44 && keys.every((k) => shipped[k] === burstDoc[k])
