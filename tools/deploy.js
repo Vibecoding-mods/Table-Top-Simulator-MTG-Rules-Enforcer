@@ -32,6 +32,7 @@ GATES.push(
   "test_gifs_golden",
   "test_home_paths",
   "test_mutate_table_anchors",
+  "test_mutate_graded",
   "test_patch_save_write",
   "test_publish_release",
   "test_state_delta_golden",

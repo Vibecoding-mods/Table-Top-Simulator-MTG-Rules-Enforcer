@@ -149,6 +149,11 @@
     2
    ],
    [
+    "escapeRe",
+    "function",
+    1
+   ],
+   [
     "gameConfig",
     "function",
     3
