@@ -532,10 +532,13 @@ function jointBlockLines(lines, players, colored = true) {
   return (lines || []).map((line) => {
     let out = String(line).split(" -> ").join(" → ");
     if (!colored) return out;
-    for (const p of players || []) {
-      const hex = SEAT_HEX[p.color];
-      const said = `${p.name}'s `;
-      if (hex && p.name && out.includes(said)) out = out.split(said).join(`<color=${hex}>${p.name}'s</color> `);
+    // (one pass, the longest name first, and a name starts a word: "Joe" inside "Big Joe's Wall" took half of Big Joe's name in
+    // Joe's colour, 2026-11-27)
+    const named = (players || []).filter((p) => SEAT_HEX[p.color] && p.name);
+    if (named.length) {
+      const names = [...new Set(named.map((p) => String(p.name)))].sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+      const re = new RegExp(`(?<![\\p{L}\\p{N}_])(${names.join("|")})'s `, "gu");
+      out = out.replace(re, (m, n) => `<color=${SEAT_HEX[named.find((p) => String(p.name) === n).color]}>${n}'s</color> `);
     }
     return out;
   });

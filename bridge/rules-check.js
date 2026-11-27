@@ -818,7 +818,7 @@ function verdicts() {
     pass("Rewind: checkpoint for the upkeep of turn 6 offered", R.requested ? !!R.requested.checkpoint : null, JSON.stringify(R.requested?.available?.slice(-6) || []));
     pass("Rewind: the game goes back to it", R.back ? R.back.turn === 6 : (R.requested ? false : null), JSON.stringify(R.back && { turn: R.back.turn, step: R.back.step }));
     // the bridge's rewind detection relies on this (bridge.js checkRestored): later restore points are dropped
-    pass("Rewind: restore points after the one it went back to are dropped", R.back && R.requested?.checkpoint ? R.back.checkpoints.last <= R.requested.checkpoint.checkpointId && R.back.checkpoints.last < R.requested.lastId : null,
+    pass("Rewind: restore points after the one it went back to are dropped", R.back && R.requested?.checkpoint ? R.back.checkpoints.last != null && R.back.checkpoints.last <=R.requested.checkpoint.checkpointId && R.back.checkpoints.last < R.requested.lastId : null,
       JSON.stringify(R.back?.checkpoints || {}));
     pass("Rewind: life, commander casts and zones are as they were", R.back ? R.back.same : null, R.back && !R.back.same ? `now ${R.back.fp} was ${R.back.was}`.slice(0, 300) : "");
     const D = R.draws || { before: {}, after: {} };
@@ -856,7 +856,8 @@ function verdicts() {
     pass("Fix: poison set", a ? a.poison === 3 : null, `poison ${a?.poison} (${JSON.stringify(a?.opp?.counters || a?.opp?.playerCounters || {}).slice(0, 80)})`);
     pass("Fix: hand card onto the battlefield", a ? a.where[p.toField]?.zone === "battlefield" : null, JSON.stringify(a?.where[p?.toField] || {}));
     pass("Fix: permanent into the graveyard", a ? a.where[p.toGrave]?.zone === "graveyard" : null, JSON.stringify(a?.where[p?.toGrave] || {}));
-    pass("Fix: counters and tapped", a ? JSON.stringify(a.where[p.countered]).includes("2") && a.where[p.countered]?.tapped : null, JSON.stringify(a?.where[p?.countered] || {}));
+    pass("Fix: counters and tapped", a ? (a.where[p.countered]?.counters?.P1P1 || 0) === (F.before?.where?.[p.countered]?.counters?.P1P1 || 0) + 2 && !!a.where[p.countered]?.tapped : null, // (P1P1 up by exactly 2, counters being {name: n}: engine-interface-reference CardDto)
+ JSON.stringify(a?.where[p?.countered] || {}));
     pass("Fix: a Treasure token made", a ? a.treasures === p.treasures + 1 : null, `treasures ${p?.treasures} -> ${a?.treasures}`);
     pass("Fix: a hand card to the library bottom", a && p.toBottom ? a.where[p.toBottom] === undefined && a.library === p.library + 1 : null, `library ${p?.library} -> ${a?.library}`);
     pass("Fix: mana added (seven colourless)", a ? a.colorless >= 7 : null, `colourless ${a?.colorless}`);

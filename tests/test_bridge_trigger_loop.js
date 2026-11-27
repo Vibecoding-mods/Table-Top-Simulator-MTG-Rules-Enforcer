@@ -389,6 +389,19 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     ok("rewind: the next pass asked as usual", seat.prompt?.promptId === t && seat.prompt.ui.title === TARGET_TITLE, seat.prompt?.ui?.title);
   });
 
+  // 10b. a rewind while White's panel for the run is up takes the panel off White's screen (2026-11-27: it stayed)
+  await run(async (h) => {
+    const { seat, white } = setup(h);
+    const mark = h.effects.length;
+    await begin(h, seat, white);
+    ok("rewind panel: White's panel is up first", panels(h, "White", mark).pop()?.promptId === "__tloop", JSON.stringify(panels(h, "White", mark).slice(-1)));
+    seat.lastTurn = 6;
+    seat.board.state.gameView = board();
+    h.B._checkRestored(seat);
+    await h.flush();
+    ok("rewind panel: White's panel cleared", panels(h, "White", mark).pop()?.promptId === null, JSON.stringify(panels(h, "White", mark).slice(-1)));
+  });
+
   // 11. the edges the 2026-11-24 mutation pass found unchecked (tools/mutate-bridge.js "tl ..."), each failing by name
   // (another player's own trigger, twice this step, is not part of Blue's loop: not named, not counted)
   await run(async (h) => {

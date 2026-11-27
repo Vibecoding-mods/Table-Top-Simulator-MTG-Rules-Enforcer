@@ -89,7 +89,7 @@ const marksOf = (m, color) => m?.players?.find((p) => p.color === color)?.allMar
     // game 2: Blue wins
     n = h.effects.length;
     await ends(h, seat, { winner: "player-1" });
-    ok("game 2: Blue wins it, 1–1", logLines(h, n).some((l) => /^Blue wins game 2 \(AI 1 is at 0 life\. Blue wins\)\. Match: AI 1 1–1 Blue\.$/.test(l) || /^Blue wins game 2 .*Match: AI 1 1–1 Blue\.$/.test(l)), logLines(h, n).join(" | "));
+    ok("game 2: Blue wins it, 1–1", logLines(h, n).some((l) => /^Blue wins game 2 \(AI 1 is at 0 life\. Blue wins\)\. Match: AI 1 1–1 Blue\.$/.test(l)), logLines(h, n).join(" | "));
     ok("game 2: the AI, who lost, plays", chats(h, n).some((c) => /^\[MTG\] AI 1 chooses to play: AI 1 goes first in game 3\./.test(c)) && !prompts(h, "Blue", n).some((p) => p.promptId === "__match"), chats(h, n).join(" | "));
     seat = newGame(h);
     same("game 3: the AI's choice goes with the start", h.B._startConfig(), { type: "gameConfig", firstPlayer: 0, players: [] });

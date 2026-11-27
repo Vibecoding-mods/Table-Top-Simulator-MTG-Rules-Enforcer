@@ -70,6 +70,7 @@ const ids = (k, from) => Array.from({ length: k }, (_, i) => `engine-card-${from
     ok("custom: any other host is a player's", [SOL, RAT1, BAD_HTTP].every(h.B.isCustomArt));
     ok("custom: wsrv.nl proxying another site is a player's", ["https://wsrv.nl/?url=evil.example/x.png",
       "https://wsrv.nl/x.png"].every(h.B.isCustomArt));
+    ok("custom: a normal host's link with a quote or angle bracket is a player's, so artProblem sees it", ['https://img.klrmngr.com/x"<.webp', "https://cards.scryfall.io/a b.jpg"].every(h.B.isCustomArt));
     harness.restore();
   }
 
