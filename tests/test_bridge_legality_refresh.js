@@ -35,6 +35,7 @@ function world({ updatedAt = "2026-11-19T10:00:00.000+00:00", body = zlib.gzipSy
     w.asked.push(String(url));
     if (offline) throw new TypeError("fetch failed");
     if (String(url) === L.META_URL) {
+      w.metaHeaders = o.headers;
       if (metaStatus !== 200) return new Response("no", { status: metaStatus, headers: metaHeaders });
       return Response.json(meta || { object: "bulk_data", type: "oracle_cards", updated_at: updatedAt, jsonl_download_uri: DL, download_uri: DL.replace(".jsonl.gz", ".json") });
     }
@@ -59,7 +60,7 @@ const tmpLeft = (w) => fs.readdirSync(dir).filter((f) => f.startsWith(path.basen
     let r = await L.refreshLegality({ force: true });
     same("same updated_at: no download", [w.downloads, r.changed], [0, false]);
     same("same updated_at: the summary says up to date", r.summary, "Ban lists: up to date (Scryfall, 2026-11-18).");
-    same("same updated_at: the request names us and asks for JSON", [w.asked, L.HEADERS["User-Agent"].startsWith("mtg-tts-bridge")], [[L.META_URL], true]);
+    same("same updated_at: the request names us and asks for JSON", [w.asked, w.metaHeaders?.["User-Agent"]?.startsWith("mtg-tts-bridge"), (w.metaHeaders?.Accept || "").startsWith("application/json")], [[L.META_URL], true, true]); // (the headers the request SENT, not the constant it was given: dropping Accept from HEADERS passed; 2026-11-27)
 
     // ── newer, with changed lists: downloaded, reduced, renamed, told once ──
     w = world({ cache: older("2026-11-18T10:01:54.000+00:00", (c) => { c.formats.modern.banned = c.formats.modern.banned.filter((n) => n !== "Up the Beanstalk"); c.cards["up the beanstalk"] = c.cards["up the beanstalk"].replace(/^(.{6})b/, "$1l"); }) });
@@ -72,7 +73,7 @@ const tmpLeft = (w) => fs.readdirSync(dir).filter((f) => f.startsWith(path.basen
     same("newer: the cache is the reduced download", [saved.hash, saved.updatedAt, saved.stats], [GOLDEN.hash, "2026-11-19T10:00:00.000+00:00", GOLDEN.stats]);
     same("newer: loadLegality has the new data", [L.loadLegality().status("modern", "Up the Beanstalk"), L.loadLegality().date], ["b", "2026-11-19"]);
     same("newer: no temp file left", tmpLeft(w), []);
-    same("newer: the download sends the same headers", w.headers, L.HEADERS);
+    same("newer: the download sends the same headers", [w.headers?.["User-Agent"]?.startsWith("mtg-tts-bridge"), (w.headers?.Accept || "").startsWith("application/json")], [true, true]);
 
     // ── newer, same lists: the cache updated, nobody told ──
     w = world({ cache: older() });

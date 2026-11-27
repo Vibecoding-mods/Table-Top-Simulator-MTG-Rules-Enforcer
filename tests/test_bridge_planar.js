@@ -164,7 +164,8 @@ function withPlane(board, owner = "player-1", planar = {}) {
       input: { type: "chooseBoolean", presentation: { title: "Would you like to planeswalk?" } } });
     await h.flush();
     same("planeswalk now: the card's question", [seat.prompt?.ui?.title, (seat.prompt?.ui?.options || []).map((o) => o.label)], ["Start the TARDIS: planeswalk now?", ["Yes", "No"]]);
-    seat.prompt.toOutput && same("planeswalk now: Yes is a yes", seat.prompt.toOutput(["yes"]), { type: "decision", value: true });
+    ok("planeswalk now: the question maps its answer", typeof seat.prompt?.toOutput === "function"); // (the check below was skipped silently without it; 2026-11-27)
+    same("planeswalk now: Yes is a yes", seat.prompt?.toOutput?.(["yes"]), { type: "decision", value: true });
   });
   // (Interplanar Tunnel's script: DigUntil five planes, then "ChangeZone | ChangeType$ Card.IsImprinted | Origin$ PlanarDeck |
   // Destination$ PlanarDeck | LibraryPosition$ 0": Forge asks chooseSingleCardForZoneChange with lblSelectCardFromPlayerZone,

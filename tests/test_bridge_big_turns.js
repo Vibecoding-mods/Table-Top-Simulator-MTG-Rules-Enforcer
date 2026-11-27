@@ -69,9 +69,9 @@ const run = async (fn) => { const h = harness.load(); try { return await fn(h); 
     let r = await prio(h, seat, scutes(30));
     ok("held pass: a whole stack of one trigger alike passes with exhaustStack", r.passed && r.held && r.asked === null, JSON.stringify(r));
     ok("held pass: a run longer than one hold is said once, with mtg stop", r.said.length === 1 && /30 Scute Swarm triggers resolve back to back.*mtg stop/.test(r.said[0]), JSON.stringify(r.said));
-    r = await prio(h, seat, scutes(10));
+    r = await prio(h, seat, scutes(30)); // (a run past the 20 that chats: with the dedupe gone it would say it again; 10 was silent either way; 2026-11-27)
     ok("held pass: the same run again that turn is not said twice", r.held && !r.said.length, JSON.stringify(r.said));
-    r = await prio(h, seat, scutes(10), { more: { turn: 8 } });
+    r = await prio(h, seat, scutes(20), { more: { turn: 8 } }); // (the edge: 20 is not more than HELD_RESOLUTIONS)
     ok("held pass: a run of 20 or fewer says nothing", r.held && !r.said.length, JSON.stringify(r.said));
     const spell = { ...BOLT, controllerId: "player-0", targets: [], isPermanentSpell: false, sourceAbilityText: "" };
     r = await prio(h, seat, [spell, ...scutes(5)]);

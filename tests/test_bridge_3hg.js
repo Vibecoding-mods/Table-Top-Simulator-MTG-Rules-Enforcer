@@ -97,7 +97,8 @@ async function startFlow(h) {
     sixTable(h);
     h.B.onTTS({ t: "start", json: JSON.stringify({ seats: ["Blue"], bots: 3, teamMode: "2hg", teams: { White: 1, Red: 1, Yellow: 2, Blue: 2 } }) });
     await h.flush();
-    ok("a 2HG start on the six-seat table is checked as before (not the six-seat rule)", !chats(h).some((c) => /six|6-seat/.test(c)), chats(h).join(" | "));
+    // (by its own rule, positively: refused as 2HG, the 4-seat table; the old check was only that no line said six, which a dropped start also satisfied; 2026-11-27)
+    ok("a 2HG start on the six-seat table is checked as before (not the six-seat rule)", h.B._getGame() == null && chats(h).includes("[MTG] Not started: Two-Headed Giant is played on the 4-seat table (this table has 6 seats).") && !chats(h).some((c) => /six|Three-Headed/.test(c)), chats(h).join(" | "));
   });
 
   console.log(`${failed ? "FAIL" : "PASS"} test_bridge_3hg: ${passed} passed, ${failed} failed`);

@@ -79,12 +79,19 @@ async function show(h, seats, b) {
   }
 
   // ── the offer, the vote, the countdown, a forced tie ──
+  // every way into the file system the bridge could reach gif-keys.json by (sync, callback, promise, streams), wrapped before the bridge is
+  // loaded; a probe through each proves the watcher sees it (the old six sync calls missed readFile/writeFile/fs.promises; 2026-11-27)
   const touched = [];
-  const watch = ["readFileSync", "writeFileSync", "renameSync", "existsSync", "openSync", "unlinkSync"];
-  const real = {};
+  const watch = ["readFileSync", "writeFileSync", "appendFileSync", "renameSync", "existsSync", "openSync", "unlinkSync", "readFile", "writeFile", "appendFile", "rename", "unlink", "open", "createReadStream", "createWriteStream"];
+  const watchP = ["readFile", "writeFile", "appendFile", "open", "rename", "unlink"];
+  const real = {}, realP = {};
   for (const k of watch) { real[k] = fs[k]; }
+  for (const k of watchP) { realP[k] = fs.promises[k]; }
+  const restoreFs = () => { for (const k of watch) fs[k] = real[k]; for (const k of watchP) fs.promises[k] = realP[k]; };
+  for (const k of watch) { const was = real[k]; fs[k] = (p, ...a) => { touched.push(`${k} ${String(p)}`); return was.call(fs, p, ...a); }; }
+  for (const k of watchP) { const was = realP[k]; fs.promises[k] = (p, ...a) => { touched.push(`promises.${k} ${String(p)}`); return was.call(fs.promises, p, ...a); }; }
+  try {
   await run(async (h) => {
-    for (const k of watch) { const was = fs[k]; fs[k] = (p, ...a) => { touched.push(`${k} ${String(p)}`); return was.call(fs, p, ...a); }; }
     const { seats } = setGame(h);
     same("steamIds: only Steam IDs kept from the start message", h.B._getGame().steam, { White: STEAM.White, Red: STEAM.Red });
 
@@ -160,7 +167,16 @@ async function show(h, seats, b) {
     await h.flush();
     ok("mtg accomplishments: no Steam ID said", chatsTo(h, "Yellow", n).some((c) => /kept by Steam ID, and this seat has none/.test(c)), chatsTo(h, "Yellow", n).join(" | "));
   });
-  for (const k of watch) fs[k] = real[k];
+  {
+    // (the probe: a path of no consequence through each wrapper, then the check proper)
+    const probe = path.join(os.tmpdir(), "gif-keys-probe.json");
+    const seen0 = touched.length;
+    fs.existsSync(probe); fs.readFile(probe, () => {}); try { fs.createReadStream(probe).on("error", () => {}); } catch {}
+    await fs.promises.readFile(probe).catch(() => {});
+    ok("files: the watcher sees sync, callback, stream and promise access (a probe on gif-keys-probe.json)", ["existsSync ", "readFile ", "createReadStream ", "promises.readFile "].every((p) => touched.slice(seen0).some((t) => t.startsWith(p) && /gif-keys-probe/.test(t))));
+    touched.length = seen0; // (the probe is not the bridge)
+  }
+  } finally { restoreFs(); }
   ok("files: gif-keys.json never read or written", !touched.some((t) => /gif-keys/.test(t)), touched.filter((t) => /gif/.test(t)).join(" | "));
 
   // ── agreed, the lock broken, no offer ──

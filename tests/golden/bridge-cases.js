@@ -38,6 +38,11 @@ function promptCase(name, board, p, answers = [], opts = {}) {
     const seat = game(h, board, opts);
     h.B.onPrompt(seat, p);
     await h.flush();
+    // opts.stale: answers sent under an OLD prompt id (nothing is pushed to the effects: a bridge that ignores them leaves them as without; 2026-11-27)
+    for (const a of opts.stale || []) {
+      h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: p.promptId - 1, choice: a }) });
+      await h.flush();
+    }
     for (const a of answers) {
       h.effects.push({ answer: a });
       h.B.onTTS({ t: "answer", json: JSON.stringify({ color: "Blue", promptId: p.promptId, choice: a }) });
@@ -580,7 +585,7 @@ add(promptCase("chooseCards: from a graveyard pile", D2.board, prompt("chooseCar
 add(promptCase("game over", D2.board, prompt("gameOver", {}), []));
 add(promptCase("unknown prompt type", D2.board, prompt("somethingNew", {}), []));
 add(promptCase("priority kind passes", D2.board, { promptId: 901, kind: "priority" }, []));
-add(promptCase("answer for an old prompt id is ignored", D2.board, prompt("chooseNumber", { min: 0, max: 5 }), [], {}));
+add(promptCase("answer for an old prompt id is ignored", D2.board, prompt("chooseNumber", { min: 0, max: 5 }), [], { stale: [["3"]] }));
 
 // ── table gestures (intents) ──
 const mainB = myMain(D2.board);
@@ -5230,18 +5235,19 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
     {
       const HS = "Choose X. If this spell was cast using teamwork, choose both instead.\r\n• Destroy target noncreature artifact.\r\n• Target creature you control deals damage equal to its power to target creature an opponent controls.";
       const bd = myMain(D2.board);
+      const snap = () => structuredClone(bd); // (the board as it is at this case: promptCase runs after the file loads, when every later put() is on the shared one; 2026-11-27)
       const put = (o, c) => bd.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === o).cards.push({ ownerId: o, controllerId: o, text: "", ...c });
       put("player-0", { id: "engine-card-937", identity: { name: "Thran Dynamo" }, types: ["Artifact"] });
       put("player-0", { id: "engine-card-938", identity: { name: "Bloom Tender" }, types: ["Creature"] });
       put("player-0", { id: "engine-card-939", identity: { name: "Kenrith, the Returned King" }, types: ["Creature"] });
       put("player-1", { id: "engine-card-940", identity: { name: "Savannah Lions" }, types: ["Creature"] });
-      const t = (name, ids, title) => add(promptCase(`hp-15 gap: HULK SMASH!'s ${name}`, bd, { ...prompt("chooseBoardTargets", { cancellable: true, candidates: ids.map((id) => ({ id, kind: "card" })), chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title } }),
+      const t = (name, ids, title) => add(promptCase(`hp-15 gap: HULK SMASH!'s ${name}`, snap(), { ...prompt("chooseBoardTargets", { cancellable: true, candidates: ids.map((id) => ({ id, kind: "card" })), chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title } }),
         sourceAbilityText: HS, sourceCard: { id: "engine-card-941", identity: { name: "HULK SMASH!" }, text: HS } }, [[`card|${ids[0]}`]]));
       t("artifact", ["engine-card-937"], "Destroy");
       t("creature of yours", ["engine-card-939", "engine-card-938"], "Buff");
       t("opponent's creature", ["engine-card-940"], "Damage");
       // (its teamwork cost, as Forge asks it live: the creatures to tap, said as teamwork, not crew)
-      add(promptCase("hp-15 gap: teamwork's creatures to tap", bd, { ...prompt("chooseCards", { cancellable: true, min: 0, max: 1, cards: [{ id: "engine-card-939", identity: { name: "Kenrith, the Returned King" }, types: ["Creature"], ownerId: "player-0", controllerId: "player-0", zone: "battlefield", power: "5", toughness: "5", text: "" }],
+      add(promptCase("hp-15 gap: teamwork's creatures to tap", snap(), { ...prompt("chooseCards", { cancellable: true, min: 0, max: 1, cards: [{ id: "engine-card-939", identity: { name: "Kenrith, the Returned King" }, types: ["Creature"], ownerId: "player-0", controllerId: "player-0", zone: "battlefield", power: "5", toughness: "5", text: "" }],
         presentation: { description: "Select creatures to tap (total power 4 or greater)", targets: [], title: "HULK SMASH!" } }), sourceAbilityText: HS,
         sourceCard: { id: "engine-card-941", identity: { name: "HULK SMASH!" }, text: "Teamwork 4 (As an additional cost to cast this spell, you may tap any number of creatures you control with total power 4 or more.)\nChoose one. If this spell was cast using teamwork, choose both instead.\n• Destroy target noncreature artifact.\n• Target creature you control deals damage equal to its power to target creature an opponent controls." } }, [["engine-card-939"]]));
       // (mutation pass: an artifact creature of yours fits "creature you control", not "noncreature artifact"; two modes
@@ -5249,28 +5255,28 @@ add({ name: "bad json from TTS is logged", run: async (h) => { h.B.onTTS({ t: "a
       put("player-0", { id: "engine-card-943", identity: { name: "Steel Overseer" }, types: ["Artifact", "Creature"] });
       t("artifact creature of yours", ["engine-card-943"], "Buff");
       const TWO = "Choose one —\r\n• Destroy target creature an opponent controls.\r\n• Target creature an opponent controls gets -2/-2 until end of turn.";
-      add(promptCase("hp-15 gap: two modes with one target phrase", bd, { ...prompt("chooseBoardTargets", { cancellable: true, candidates: [{ id: "engine-card-940", kind: "card" }], chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title: "Hostile" } }),
+      add(promptCase("hp-15 gap: two modes with one target phrase", snap(), { ...prompt("chooseBoardTargets", { cancellable: true, candidates: [{ id: "engine-card-940", kind: "card" }], chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title: "Hostile" } }),
         sourceAbilityText: TWO, sourceCard: { id: "engine-card-944", identity: { name: "Some Charm" }, text: TWO } }, [["card|engine-card-940"]]));
       const ONE = "• Destroy target artifact.";
-      add(promptCase("hp-15 gap: a lone mode's bullet", bd, { ...prompt("chooseBoardTargets", { cancellable: true, candidates: [{ id: "engine-card-937", kind: "card" }], chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title: "Destroy" } }),
+      add(promptCase("hp-15 gap: a lone mode's bullet", snap(), { ...prompt("chooseBoardTargets", { cancellable: true, candidates: [{ id: "engine-card-937", kind: "card" }], chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title: "Destroy" } }),
         sourceAbilityText: ONE, sourceCard: { id: "engine-card-945", identity: { name: "Some Command" }, text: ONE } }, [["card|engine-card-937"]]));
       // (hp-17 gap: Gimli's Reckless Might's formidable, two targets in one sentence, no modes: the attacking creature of
       // yours, its condition left out)
       const GR = "Creatures you control have haste.\nFormidable — Whenever you attack, if creatures you control have total power 8 or greater, target attacking creature you control fights up to one target creature you don't control.";
       bd.gameView.zones.find((z) => z.zone === "battlefield" && z.ownerId === "player-0").cards.find((c) => c.id === "engine-card-939").isAttacking = true;
-      add(promptCase("hp-17 gap: formidable's attacker", bd, { ...prompt("chooseBoardTargets", { cancellable: false, candidates: [{ id: "engine-card-939", kind: "card" }], chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title: "Fight" } }),
+      add(promptCase("hp-17 gap: formidable's attacker", snap(), { ...prompt("chooseBoardTargets", { cancellable: false, candidates: [{ id: "engine-card-939", kind: "card" }], chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title: "Fight" } }),
         sourceCard: { id: "engine-card-949", identity: { name: "Gimli's Reckless Might" }, text: GR } }, [["card|engine-card-939"]]));
       // (mutation pass: a state word decides: a tapped creature fits "target tapped creature", not "target untapped
       // creature")
       const TU = "Choose one —\r\n• Destroy target tapped creature.\r\n• Target untapped creature gets +2/+2 until end of turn.";
       put("player-1", { id: "engine-card-950", identity: { name: "Tapped Bear" }, types: ["Creature"], tapped: true });
-      add(promptCase("hp-17 gap: a state word picks the mode", bd, { ...prompt("chooseBoardTargets", { cancellable: true, candidates: [{ id: "engine-card-950", kind: "card" }], chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title: "Hostile" } }),
+      add(promptCase("hp-17 gap: a state word picks the mode", snap(), { ...prompt("chooseBoardTargets", { cancellable: true, candidates: [{ id: "engine-card-950", kind: "card" }], chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title: "Hostile" } }),
         sourceAbilityText: TU, sourceCard: { id: "engine-card-951", identity: { name: "Some Charm" }, text: TU } }, [["card|engine-card-950"]]));
       // (and its second target, "up to one target creature you don't control", as Forge asks it live ("Fight"))
-      add(promptCase("hp-17 gap: formidable's creature to fight", bd, { ...prompt("chooseBoardTargets", { cancellable: false, candidates: [{ id: "engine-card-940", kind: "card" }], chosenTargets: 0, minTargets: 0, maxTargets: 1, presentation: { targets: [], title: "Fight" } }),
+      add(promptCase("hp-17 gap: formidable's creature to fight", snap(), { ...prompt("chooseBoardTargets", { cancellable: false, candidates: [{ id: "engine-card-940", kind: "card" }], chosenTargets: 0, minTargets: 0, maxTargets: 1, presentation: { targets: [], title: "Fight" } }),
         sourceCard: { id: "engine-card-949", identity: { name: "Gimli's Reckless Might" }, text: GR } }, [["card|engine-card-940"]]));
       // (one mode only, no bullets: the sentence as before)
-      add(promptCase("hp-15 gap: a single-mode target keeps its sentence", bd, { ...prompt("chooseBoardTargets", { cancellable: true, candidates: [{ id: "engine-card-937", kind: "card" }], chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title: "Destroy" } }),
+      add(promptCase("hp-15 gap: a single-mode target keeps its sentence", snap(), { ...prompt("chooseBoardTargets", { cancellable: true, candidates: [{ id: "engine-card-937", kind: "card" }], chosenTargets: 0, minTargets: 1, maxTargets: 1, presentation: { targets: [], title: "Destroy" } }),
         sourceAbilityText: "Destroy target artifact.", sourceCard: { id: "engine-card-942", identity: { name: "Shatter" }, text: "Destroy target artifact." } }, [["card|engine-card-937"]]));
     }
     // (hp-15 gap: Miracle's trigger, as Forge asks it live: no ability text, "<card> - Miracle" as its description)
@@ -7451,7 +7457,7 @@ add(promptCase("rebuilt #7: an opponent's reveal said once as theirs", D2.board,
   } });
 }
 
-// The tie offer (open-after-1121.md §3: no golden scenario yet; bridge.js tieState / tieNews / onTieVote /
+// The tie offer (open-after-1121.md §3: the "tie offer:" scenarios below; bridge.js tieState / tieNews / onTieVote /
 // forcedTieEarned, the harness's TieOffer as gameView.tieOffer): a plain four-player board from the 2HG protocol fixture
 // with its team rules taken off, three seated players and a harmless bot in the fourth seat. The accomplishments are
 // kept in memory here (no MTG_ACCOMPLISHMENTS), on the harness's frozen clock.

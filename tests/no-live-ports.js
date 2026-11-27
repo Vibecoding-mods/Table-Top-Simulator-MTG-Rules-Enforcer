@@ -10,7 +10,9 @@
 //   forget(port, from) drop that port's attempts from index `from` on (only a check that made them on purpose)
 // The live game's log files too (2026-11-11: a harness bridge driven after restore() put "[MTG] The host switched debug
 // tools on" into the real tmp/table-log.log, where the playgroup's games are kept): a write or append to one of
-// LIVE_FILES is dropped (the callback still gets no error) and recorded, and at exit it prints FAIL the same way.
+// LIVE_FILES is dropped (the callback still gets no error) and recorded, and at exit it prints FAIL the same way. So are
+// a rename onto it or from it, an unlink of it, their fs.promises forms, and <file>.tmp (the resume file is written as
+// a .tmp and renamed over the file).
 //   fileAttempts()   the dropped writes so far: [{ file, from }]
 const net = require("net");
 const fs = require("fs");
@@ -22,7 +24,9 @@ const LIVE_FILES = Object.freeze(["tmp/table-log.log", "tmp/table-check.log", "t
 const liveFile = (f) => {
   if (typeof f !== "string" && !(f instanceof URL)) return false; // (a file descriptor: not opened by name here)
   const p = path.resolve(f instanceof URL ? require("url").fileURLToPath(f) : f).toLowerCase();
-  return LIVE_FILES.some((l) => l.toLowerCase() === p);
+  // (saveResume writes <file>.tmp and renames it over the file: the tmp is as live as the file; 2026-11-27)
+  const q = p.endsWith(".tmp") ? p.slice(0, -4) : p;
+  return LIVE_FILES.some((l) => l.toLowerCase() === q);
 };
 const wrote = [];
 
@@ -69,6 +73,32 @@ if (!net.Socket.prototype.connect[KEY]) {
       wrote.push({ file: path.relative(REPO, path.resolve(String(file))), from: stackFrom() });
     };
   }
+  // the rest of what can replace or remove a live file: rename (the file or the one moved onto it), unlink, and the
+  // promise forms of all of these (a write through fs.promises went past the guard above)
+  const note = (file) => wrote.push({ file: path.relative(REPO, path.resolve(String(file))), from: stackFrom() });
+  for (const name of ["rename", "renameSync"]) {
+    const real = fs[name];
+    fs[name] = function guardedRename(a, b, ...rest) {
+      if (!liveFile(a) && !liveFile(b)) return real.call(this, a, b, ...rest);
+      note(liveFile(b) ? b : a);
+      const cb = rest.find((x) => typeof x === "function");
+      if (cb) process.nextTick(cb, null);
+    };
+  }
+  for (const name of ["unlink", "unlinkSync"]) {
+    const real = fs[name];
+    fs[name] = function guardedUnlink(file, ...rest) {
+      if (!liveFile(file)) return real.call(this, file, ...rest);
+      note(file);
+      const cb = rest.find((x) => typeof x === "function");
+      if (cb) process.nextTick(cb, null);
+    };
+  }
+  for (const name of ["writeFile", "appendFile", "unlink"]) {
+    const real = fs.promises[name];
+    fs.promises[name] = function guardedPromise(file, ...rest) { if (!liveFile(file)) return real.call(this, file, ...rest); note(file); return Promise.resolve(); };
+  }
+  { const real = fs.promises.rename; fs.promises.rename = function guardedPromiseRename(a, b, ...rest) { if (!liveFile(a) && !liveFile(b)) return real.call(this, a, b, ...rest); note(liveFile(b) ? b : a); return Promise.resolve(); }; }
   process.on("exit", () => {
     if (!tried.length && !wrote.length) return;
     for (const t of tried) process.stdout.write(`FAIL a test tried to reach the live table on ${t.host}:${t.port} (refused): ${t.from}\n`);

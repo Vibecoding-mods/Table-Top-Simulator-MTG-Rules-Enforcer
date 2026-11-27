@@ -530,7 +530,13 @@ async function main() {
     ok("changed manifest on disk: refused at the install", forged.code === 1 && forged.out.includes("isn't signed by this project's release key"), JSON.stringify(forged));
     same("changed manifest on disk: nothing done", effects(p), []);
     fs.writeFileSync(stored, signedBytes);
-    server.game = true;
+    // (the refusals above left the update pending: the game still on, it must wait again, not install or fetch again; 2026-11-27)
+    server.game = true; server.requests = [];
+    const again = await now(p);
+    ok("game still on: deferred again, exit 3", again.code === 3 && again.out.includes("Update ready — will install after this game"), JSON.stringify(again));
+    same("game still on: nothing done", effects(p), []);
+    same("game still on: not downloaded again", dl(), []);
+    same("game still on: still pending", json(path.join(p.state, "updates.json")).pending, "v7");
     server.game = false; server.requests = [];
     const r2 = await now(p);
     ok("game over: installed", r2.code === 0 && r2.out.includes("Updated to v7"), JSON.stringify(r2));
@@ -830,7 +836,7 @@ async function main() {
     const swapped = await wait(() => { try { return fs.readFileSync(path.join(p.pkg, "MTG Companion.exe")).equals(newExe) && fs.existsSync(path.join(p.pkg, "MTG Companion.old.exe")); } catch { return false; } });
     ok("self-update: MTG Companion.exe is the new one, the old kept as .old.exe", swapped, read(p.log)?.split("\n").filter((l) => l.includes("swap")).join(" | "));
     ok("self-update: no .new.exe left", await wait(() => !fs.existsSync(path.join(p.pkg, "MTG Companion.new.exe")), 5000));
-    await wait(() => json(path.join(p.pkg, "version.json")).parts.companion === "c2", 5000);
+    await wait(() => { try { return json(path.join(p.pkg, "version.json")).parts.companion === "c2"; } catch { return false; } }, 5000); // (the new exe may be mid-write: retry, as the waits above do)
     same("self-update: version.json has the new companion", json(path.join(p.pkg, "version.json")).parts.companion, "c2");
     same("self-update: the old app never starts the bridge (its loop would hold the exe being swapped)", effects(p), ["stop-bridge", "reload"]);
     ok("self-update: the old exe is the old bytes", fs.existsSync(path.join(p.pkg, "MTG Companion.old.exe")) && fs.readFileSync(path.join(p.pkg, "MTG Companion.old.exe")).equals(fs.readFileSync(EXE)));
