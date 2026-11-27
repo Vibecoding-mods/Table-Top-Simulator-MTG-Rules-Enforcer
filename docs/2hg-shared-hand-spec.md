@@ -1,4 +1,4 @@
-# 2HG: see your partner's real hand (spec, 2026-11-24, not built)
+# 2HG: see your partner's real hand (spec, 2026-11-24; option A built 2026-11-24, copies removed 2026-11-25, see "Done" below)
 
 ## The ask
 The user, 2026-11-24: "in 2hg don't duplicate my teammates deck on my side make it so that I can see their live hand

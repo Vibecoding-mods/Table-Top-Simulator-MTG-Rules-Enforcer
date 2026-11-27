@@ -14,14 +14,17 @@ const PROFILE = path.join(require("os").tmpdir(), "mtg-tutorial-edge-prof");
 const URL0 = "http://127.0.0.1:48790/";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+let edge = null; // (module-level so the failure path can kill it: a headless Edge left running locks the profile folder)
 async function main() {
   fs.mkdirSync(OUT, { recursive: true });
-  const edge = spawn(EDGE, ["--headless=new", `--remote-debugging-port=${PORT}`, `--user-data-dir=${PROFILE}`, "--no-first-run", "--disable-extensions", "--hide-scrollbars", "about:blank"], { stdio: "ignore" });
+  edge = spawn(EDGE, ["--headless=new", `--remote-debugging-port=${PORT}`, `--user-data-dir=${PROFILE}`, "--no-first-run", "--disable-extensions", "--hide-scrollbars", "about:blank"], { stdio: "ignore" });
+  edge.on("error", (e) => console.error(`could not start Edge at ${EDGE}: ${e.message}`));
   let list;
   for (let i = 0; i < 50; i++) {
     try { list = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json(); if (list.some((t) => t.type === "page")) break; } catch {}
     await sleep(200);
   }
+  if (!list) throw new Error(`Edge did not answer on debug port ${PORT} (is it at ${EDGE}? is an older run still holding ${PROFILE}?)`);
   const page = list.find((t) => t.type === "page");
   const ws = new WebSocket(page.webSocketDebuggerUrl);
   await new Promise((r) => (ws.onopen = r));
@@ -103,4 +106,4 @@ async function main() {
   ws.close();
   edge.kill();
 }
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => { console.error(e); if (edge) edge.kill(); process.exit(1); });

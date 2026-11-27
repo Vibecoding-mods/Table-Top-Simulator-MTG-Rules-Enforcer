@@ -107,6 +107,9 @@ table.trouble .q { font-style: italic; }
     <p>How to host rules-enforced Commander games in Tabletop Simulator, step by step, with pictures.</p>
   </div>
 
+  <div class="call warn"><span class="t">Parts of this guide are out of date (2026-11-27).</span>
+  The text was fixed for the points below; the screenshots were not re-taken. The companion now only <i>checks</i> the lights on launch and does the work when you press <span class="ui">Start engine</span>; the package ships no table (subscribe to the table on the Steam Workshop: that is the light that goes red, not a missing file in the package); the CPU-limit button now offers 2, 3 or 4 cores for Docker; the project's page is public; a Linux and Mac companion exists (not covered here).</div>
+
   <p class="lead">MTG Companion is a small Windows program. One double-click starts everything the rules engine needs
   (Docker, the Forge engine, the bridge) and shows <b>six status lights</b> on a page in your web browser. When all six are
   green, you load the table in Tabletop Simulator and play.</p>
@@ -120,8 +123,8 @@ table.trouble .q { font-style: italic; }
     <div><b>Tabletop Simulator</b>Bought on Steam.</div>
     <div><b>Docker Desktop</b>Free. It runs the rules engine. Step 1 shows how.</div>
     <div><b>Disk space</b>About 1.5 GB inside Docker plus about 400 MB for the MTG folder.</div>
-    <div><b>The MTG package</b>A .zip from the project's Releases page. The project is invite-only: ask its owner for access.</div>
-    <div><b>Not available</b>No Mac or Linux version exists. The app isn't code-signed (Step 3 explains the warning).</div>
+    <div><b>The MTG package</b>A .zip from the project's Releases page (the project is public).</div>
+    <div><b>This guide is for Windows</b>A Linux and Mac companion exists but is not covered here. The app isn't code-signed (Step 3 explains the warning).</div>
   </div>
 
   <h3>Contents</h3>
@@ -281,7 +284,7 @@ table.trouble .q { font-style: italic; }
         &nbsp;├─ version.json<br>
         &nbsp;├─ bridge\ &nbsp;decks\ &nbsp;scenarios\<br>
         &nbsp;├─ images\mtg-images.tar &nbsp;(the engine)<br>
-        &nbsp;├─ table\MTG Table.json<br>
+        &nbsp;├─ (no table file: the table comes from the Steam Workshop)<br>
         &nbsp;├─ runtime\ &nbsp;stack\ &nbsp;manabrew\<br>
         &nbsp;├─ logs\ &nbsp;(fills up as it runs)<br>
         &nbsp;└─ LICENSES\</div>
@@ -339,7 +342,7 @@ table.trouble .q { font-style: italic; }
 <!-- ============ 6. FIRST START ============ -->
 <section class="page">
   <div class="head"><span class="stepno">4</span><h2>The first start: wait for the lights</h2></div>
-  <p class="lead">The companion runs the six steps in order. The first start takes a few minutes, mostly for step 2.</p>
+  <p class="lead">The six steps run in order once you press <span class="ui">Start engine</span> (on launch the companion only checks them). The first start takes a few minutes, mostly for step 2.</p>
   <figure style="width:66%">
     <img src="img/first-start.png" alt="Status page while loading the engine images">
     <figcaption><span class="tag ex">REAL PAGE · EXAMPLE</span>Step 2 is loading the engine into Docker; the blue light means "working, wait".
@@ -620,7 +623,7 @@ table.trouble .q { font-style: italic; }
   <table class="trouble">
     <tr><th>The light says</th><th>Do this</th></tr>
     <tr><td><span class="dot a"></span><span class="q">A newer table is in this package; it installs after the game.</span></td><td>Nothing; it happens after the game.</td></tr>
-    <tr><td><span class="dot r"></span><span class="q">table\MTG Table.json is missing from the package. Unzip the package again, then press Try again.</span> <b>[Try again]</b></td><td>Unzip again (Step 2), then <b>Try again</b>.</td></tr>
+    <tr><td><span class="dot r"></span><span class="q">Subscribe to the table on the Steam Workshop: ... then press Try again.</span></td><td>Subscribe to the table on the Workshop in Steam, then press <b>Try again</b>.</td></tr>
     <tr><td><span class="dot r"></span><span class="q">Couldn't install the table save: …</span> <b>[Try again]</b></td><td><b>Try again</b>; if it repeats, send the logs.</td></tr>
   </table>
 

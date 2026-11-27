@@ -95,24 +95,30 @@ longer the bottleneck. It is the next step if a 3,000-token board is still slow 
 
 ### 4.3 The runaway limit asks (engine)
 
-- At a limit Forge asks through `Game.RunawayChoice`. The harness session (`keepGoingPastCap`) asks the active person, or
-  else the first person at the table. Title: "This turn passed the engine's limit". Body: "5,001 triggers have fired this
-  turn, past the engine's limit of 5,000. Every one of them is real and the game is slower with each. Keep going allows as
-  many again (2 more times this turn after this). End in a draw ends the game now: the rules' result when a loop can't
-  be stopped." Buttons: "Keep going" and "End in a draw".
-- "Keep going" raises that limit by its own size, at most `RUNAWAY_CONTINUES_PER_TURN` (3) times a turn. The fourth time
-  in a turn it is a draw without asking. A new turn starts the count again.
+- **Updated 2026-11-27 (checked against `engine/manabrew.patch` and `engine/forge.patch`; the text below was written for
+  the first build and the 3-continues cap and the per-effect token question are gone).** At a limit Forge asks through
+  `Game.RunawayChoice`. The harness session (`keepGoingPastCap`) asks the active person, or else the first person at the
+  table. Title: "This turn passed the engine's limit". Body (`runawayWords`): "5,001 triggers have fired this turn, past
+  the engine's limit of 5,000. Every one of them is real and the game is slower with each. Keep going allows as many
+  again. The engine asks again at the next limit. End in a draw ends the game now: the rules' result when a loop can't
+  be stopped. No answer in 90 seconds counts as Keep going; two unanswered in a row this turn end the game in a draw."
+  Buttons: "Keep going" and "End in a draw".
+- "Keep going" raises that limit by its own size. There is no cap on how often (the old `RUNAWAY_CONTINUES_PER_TURN` is
+  gone); a person who never answers is stopped by `RUNAWAY_MISSES_TO_DRAW` (2 unanswered in a row in one turn), and the
+  heap guard ends a game that runs out of memory.
 - The card limit is asked at the next trigger or token request, not in the middle of making a card (`cardsCapPending`).
   Two card limits passed before that point are a draw.
-- The token limit for one effect (100) asks once for that size: 128 copies from stacked doublers asks once, and the next
-  effect that size goes through.
-- A pass or a timeout is "End in a draw". With no person in the game (AI only), it is a draw as before.
+- The token limit for one effect (100, with its question) was removed (`recordTokenRequest`): one pile or one effect now
+  makes at most `Game.UNBOUNDED_TOKENS` (500) real tokens without asking, and the table shows "x∞" for the rest
+  (`docs/big-turns-2-spec.md`).
+- A timeout counts as "Keep going" (a second one in a row that turn is a draw); only the "End in a draw" button ends the
+  game at once. With no person in the game (AI only), it is a draw as before.
 - **Bridge:** the question is shown with the engine's words and buttons, with no "×N" buttons. After the answer, everyone
   is told: "Blue kept the turn going past the engine's limit." or "Blue ended the game in a draw at the engine's limit
   (too many triggers or tokens this turn)."
 - **Rules:** CR 104.4b: a loop of mandatory actions that can't be stopped is a draw. That stays the answer for a real
-  loop: a person who picks "Keep going" is at most asked 3 times, then the draw comes. A huge but finite turn (Second
-  Harvest) now gets to finish if the players want it to.
+  loop: a person can end it with "End in a draw" and an unattended table draws after two unanswered questions. A huge
+  but finite turn (Second Harvest) now gets to finish if the players want it to.
 
 ### 4.4 Merge (engine): Forge's `StackMerge`, allowlist only
 

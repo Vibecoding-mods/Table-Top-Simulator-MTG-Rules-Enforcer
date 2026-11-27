@@ -22,7 +22,7 @@ How each function is written up:
 - **Odd** covers bugs and oddities.
 - A line is left out when its answer is "none".
 
-"Bag 4f3387" is Pie's MTG Enablers bag. Objects inside it are inert until someone takes them out. In engine mode, `tools/make-engine-copy.js:356-361` puts anything taken out of that bag straight back in.
+"Bag 4f3387" is Pie's MTG Enablers bag. Objects inside it are inert until someone takes them out. In engine mode, `onObjectLeaveContainer` in `tools/make-engine-copy.js` (about line 1006; the old reference to lines 356-361 was wrong, that is `engineBlocked`) puts anything taken out of that bag straight back in.
 
 ---
 
@@ -377,7 +377,7 @@ Other objects also store their own state in Global:
 - **State W:** `objs` and `card` (leak).
 - **Effects:** Spawns a card.
 - **Odd:**
-  - `Wait.Condition` at 1287 has a capital C. The TTS API is `Wait.condition`, so the Encoder copy step probably errors after the spawn.
+  - `Wait.Condition` at 1287 has a capital C. The TTS API is `Wait.condition`, so the Encoder copy step probably errors after the spawn. It is in the table author's script (not in this repo); engine mode guards `cardToken`, so only play without the engine is affected. Not ours to patch unless `make-engine-copy.js` is given a patch for it.
   - `objs[1]` is nil when nothing is selected, which errors at 1276.
 
 #### `cardCascade(ply)` — L1298-1320 (DISABLE)
@@ -1995,6 +1995,6 @@ The tooltip lists the supported sites: aetherhub, archidekt, tcgplayer, deckstat
 #### `build(base_url)` — L1281-1332
 **Ret** 19 custom assets: tab images, buttons, the coffee image, and the Roboto AssetBundle (type 1). URLs that are not https are prefixed with `base_url`.
 
-**How it fits with the rules engine:** DISABLE in engine mode, or allow it only before the game.
-- **Security:** it spawns remote server object JSON unchecked and rewrites the Global UI XML (`UI.setXmlTable`).
-- If it is kept for pre-game use, take it out of the engine-mode save or gate `click_show_import` on `engineMode`.
+**How it fits with the rules engine:** as built (checked 2026-11-27), the engine copy keeps the importer and patches it (`tools/make-engine-copy.js`, patches 6): every object the server returns goes through `engineCopyStripScripts`, which removes `LuaScript`, `LuaScriptState` and `XmlUI` before `spawnObjectJSON`, so only cards and images are spawned; and `check_version` is disabled, so it downloads no importer code. The advice below was written before that and is what the patches replace.
+- **Security (before the patches):** it spawns remote server object JSON unchecked and rewrites the Global UI XML (`UI.setXmlTable`).
+- Original advice, not followed: take it out of the engine-mode save or gate `click_show_import` on `engineMode`.

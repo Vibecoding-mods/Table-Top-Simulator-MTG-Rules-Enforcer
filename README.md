@@ -232,7 +232,7 @@ The table test needs the Workshop table on your PC: subscribe to it, or set `MTG
 bash tools/rules-check.sh tax
 ```
 
-- **`test_bridge_golden.js`:** 849 bridge scenarios against recorded outputs.
+- **`test_bridge_golden.js`:** about 1,100 bridge scenarios against recorded outputs (1106 on 2026-11-27; the count only grows, a lower count means cases were lost).
 - **`test_table_golden.js`:** the table's Lua replayed on a fake TTS (needs `npm install` in `tests/lua`).
 - **`rules-check.sh`:** Commander rules against the real engine. Other modes: `cmddmg`, `exile`, `library`,
   `keywords`, `rewind`, `concede`.

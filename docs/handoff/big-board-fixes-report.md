@@ -46,6 +46,9 @@ prompt is pending. The engine change is `engine1117-bigboard` in `docs/engine-ch
 - `checkpointCap(cards) = max(1, min(40, CHECKPOINT_BUDGET_BYTES / (CHECKPOINT_BYTES_PER_CARD × cards)))`, with
   `CHECKPOINT_BUDGET_BYTES` = 250 MB and `CHECKPOINT_BYTES_PER_CARD` = 27 KB. The cards are `Game.getCardsInGame()`.
   That gives 40 at 100 cards, 23 at 400, 15 at 600, 10 at 900, 3 at 3,000.
+- **Superseded 2026-11-17 (the owner's decision, `owner-decisions-1117-report.md`):** the cap now thins by turn and keeps each
+  turn's first point and the newest (`thinVictim`); the test below was renamed `restorePointsAreCappedAt40KeepingTheTurnsFirst`
+  (60 points in one turn keep 1 and 22..60). What follows is what was true when this report was written.
 - **Not "keep each turn's first".** There is no such thinning on origin. The session drops the oldest first, and the
   existing `StressCapsTest.restorePointsAreCappedAt40OldestFirst` requires that: 60 points in one turn keep the
   newest 21..60, the turn's first not kept.

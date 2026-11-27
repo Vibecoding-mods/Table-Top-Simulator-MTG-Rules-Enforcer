@@ -250,13 +250,13 @@ The test tools log one CSV row per sample: `bridge/echo-bridge.js` to `bridge/la
 |---|---|---|
 | TTS | 10 seated colors | TTS |
 | Manabrew relay, room creation | clamped to 2–8 | `manabrew-server/src/room.rs:83` |
-| Manabrew relay, in-lobby "set max players" | clamped to 4 | `manabrew-server/src/lobby.rs:640` |
+| Manabrew relay, in-lobby "set max players" | clamped to 4 upstream; **8 in our relay build** (`engine/manabrew.patch`, `lobby.rs`, 2026-11-16) | `manabrew-server/src/lobby.rs:640` |
 | Manabrew relay, lobby reset | resets to 4 | `room.rs:158` |
 | Self-hosted node | `SELF_HOSTED_NODE_MAX_PLAYERS` (u8, no own cap) | `self-hosted-node/src/config.rs:103` |
 | Forge | up to 8 (its own network play) | Forge wiki Network-Play |
 | Manabrew docs | "commander up to 4 players" | docs.manabrew.app |
 
-**v1 targets 4 players.** M6 is the stretch goal, cut from 5–8 to 4–6 players on 2026-11-05. The node's env var does make a bigger room: `SEATS=6` seated all 6 and played 12 turns headless (2026-10-20, PLAN M6). The relay resets the room to 4 seats after every game (engine-interface-reference §10), so the bridge's controller seat sends `SetMaxPlayers` when a game needs more. That message is capped at 4 (`lobby.rs:640`, unchanged in our relay build), so a second 5–6 player game without a node restart would need a relay change. On the table, the bridge refuses more than the 4 colours in `TABLE_COLORS`, so 5–6 players need the 6-player table below.
+**v1 targets 4 players.** M6 is the stretch goal, cut from 5–8 to 4–6 players on 2026-11-05. The node's env var does make a bigger room: `SEATS=6` seated all 6 and played 12 turns headless (2026-10-20, PLAN M6). The relay resets the room to 4 seats after every game (engine-interface-reference §10), so the bridge's controller seat sends `SetMaxPlayers` when a game needs more. That message was capped at 4 upstream (`lobby.rs:640`); our relay build clamps it to 8 instead (`engine/manabrew.patch`, 2026-11-16; the room still falls back to 4 after each game, so the bridge asks again). On the table, the bridge seats the colours the table sends (`TABLE_COLORS`, 2-6 seats; the four default colours on the 4-player table), so 5–6 players need the 6-player table below.
 
 ### The 6-player table (added 2026-10-31, not started)
 

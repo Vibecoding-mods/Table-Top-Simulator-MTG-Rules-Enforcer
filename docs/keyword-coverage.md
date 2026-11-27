@@ -99,7 +99,7 @@ Generated 2026-11-06 from docs/keywords-by-card-count.md (Scryfall, 342 names), 
 | 140 | Soulbond | 25 | played | Deadeye Navigator |
 | 141 | Disturb | 25 | played | (named in a plan) |
 | 142 | Backup | 25 | played | no |
-| 143 | Banding | 24 | played | Benalish Hero |
+| 143 | Banding | 24 | cast only: a band can't be formed in an attack (HP12 finding 4, still open 2026-11-27) | Benalish Hero |
 | 147 | Modular | 24 | played | Power Depot |
 | 148 | Improvise | 23 | played | no |
 | 149 | Craft | 24 | played | (named in a plan) |

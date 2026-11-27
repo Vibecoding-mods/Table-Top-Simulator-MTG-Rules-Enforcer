@@ -1,6 +1,6 @@
 # Shots still needed for the table tutorial
 
-The players' tutorial (`index.html`, printed to `docs/tutorials/MTG-Table-Tutorial.pdf`) has 11 striped placeholder boxes.
+The players' tutorial (`index.html`, printed to `docs/tutorials/MTG-Table-Tutorial.pdf`) had 11 striped placeholder boxes. **Status 2026-11-27: 10 of the 11 files exist in `img/needed/`; only `rewind-vote.jpg` (shot 10, it needs a second person) is still a placeholder.** The list below is how each shot was made.
 Each box shows its picture as soon as the file `docs/tutorials/table/img/needed/<name>.jpg` exists (the box crops the
 picture to fill it, so keep about the aspect given below). Then re-print:
 
@@ -25,7 +25,7 @@ Rules of the live checks apply: no game of the user's running (`lc.js start` res
 (one debug game per TTS launch; past ~83k loaded objects TTS crashes), never Save & Play. Shots 2-9 fit in **one game**
 (two scenario files below); shot 1 is before it, shot 10 needs a second person, shot 11 is the companion page.
 
-### The two scenario files to add (`scenarios/`)
+### The two scenario files (`scenarios/tut-a.json` and `scenarios/tut-marks.json`, both in the repo; shown here for reference)
 
 `scenarios/tut-a.json` (White on the default `rebuilt_mairsil`, U/B/R, against `ai_passive_lands`):
 

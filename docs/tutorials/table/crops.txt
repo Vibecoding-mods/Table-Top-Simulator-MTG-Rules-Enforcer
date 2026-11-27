@@ -1,4 +1,5 @@
 # Crops of real table screenshots for the tutorial: src|x|y|w|h|out|maxWidth (pixels of the source image)
+# The "you" paths below are placeholders for the repo root (make-crops.ps1 swaps in this checkout); the source shots are in tmp/, which is not in the repo.
 # Re-make: powershell -File docs/tutorials/table/make-crops.ps1 docs/tutorials/table/crops.txt docs/tutorials/table/img
 C:\Users\you\mtg-tts\tmp\live-checks\shots\b1-01-start.jpg|0|0|0|0|overview.jpg|1600
 C:\Users\you\mtg-tts\tmp\live-checks\shots\b1-01-start.jpg|80|122|570|42|dock.jpg|570

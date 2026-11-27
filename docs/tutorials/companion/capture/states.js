@@ -32,7 +32,10 @@ function menu(locked, gameText) {
     { id: "stop-everything", label: "Stop everything", enabled: true, title: "Stops the bridge and the engine containers; Docker Desktop and TTS keep running.",
       confirm: locked ? gameText + "\n\nStopping everything ends that game for everyone. Stop anyway?" : "Stop the bridge and the engine containers? Docker Desktop and TTS keep running.", confirmLocked: locked },
     { id: "open-logs", label: "Open logs folder", enabled: true, title: "C:\\Games\\MTG-Table\\logs", confirm: null, confirmLocked: false },
-    { id: "wsl-limits", label: "Limit Docker's CPU use…", enabled: true, title: "Optional: gives Docker 2 cores so TTS runs smoother.", confirm: "(confirm)", confirmLocked: false },
+    // (the three Docker cores buttons since 2026-11-20, WebUi.WslButtons; the old single "Limit Docker's CPU use…" button is gone)
+    { id: "wsl-cores-2", label: "Docker: 2 cores", enabled: true, title: "2 cores: TTS runs smoother; the engine slows down on a big board.", confirm: "(confirm)", confirmLocked: false },
+    { id: "wsl-cores-3", label: "Docker: 3 cores", enabled: true, title: "3 cores: the engine keeps up better on a big board; TTS has fewer cores to itself.", confirm: "(confirm)", confirmLocked: false },
+    { id: "wsl-cores-4", label: "Docker: 4 cores", enabled: true, title: "4 cores: the engine keeps up better on a big board; TTS has fewer cores to itself.", confirm: "(confirm)", confirmLocked: false },
   ];
 }
 
@@ -104,7 +107,7 @@ S.gameOn = status({ phase: "Ready", game: GAME, lights: [GREEN[0], GREEN[1],
   GREEN[5]] });
 
 S.update = status({ phase: "Ready", lights: GREEN, update: {
-  title: "Update available: v2026.11.14-1910", line: "Update available: v2026.11.14-1910 (bridge and decks, table; 3.4 MB to download).", status: "available",
+  title: "Update available: v2026.11.14-1910", line: "Update available: v2026.11.14-1910: changes the table and the app (bridge and decks, table; 3.4 MB to download).", status: "available",
   current: "v2026.11.12-2040", available: "v2026.11.14-1910", progress: -1, deferred: false, error: null, lastCheck: "20:13",
   actions: [
     { id: "update-now", label: "Update now", enabled: true, title: "Downloads and installs v2026.11.14-1910.", confirm: "(confirm)", confirmLocked: false },

@@ -56,6 +56,8 @@ table (`tools/engine-renderer.lua`) and, for item 2, two fields from the bridge 
 
 ## 3. The planned attack line
 
+**Superseded 2026-11-19 and 2026-11-24 (the user's "i want it the same as the blocker lines"; `tests/test_table_live_check_1.js` pins the current form).** The planned line is now about a block line's width (not 0.2601), solid, on a block line's arc, a quarter towards white, and the bend around the attacker's own counter (`ENGINE_LINE_AVOID`) was unused from 2026-11-19 and deleted 2026-11-24. The numbers below are the first fix as written on the day.
+
 **Why it was faint.**
 
 - 0.12 wide (target lines are 0.30, attack lines 0.22);

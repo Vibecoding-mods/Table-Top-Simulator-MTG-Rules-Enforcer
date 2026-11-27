@@ -1,9 +1,9 @@
 # M6 spec: 4–6 seats on the 6-player table
 
-Written 2026-11-05 (night). Spec only: nothing here is built. Sizes are bytes. Hours include updating tests.
+Written 2026-11-05 (night) as a spec. Steps 7-14 in the table below are built (2026-11-16/17); the real-TTS games are not yet played. Sizes are bytes. Hours include updating tests.
 
-**Parked 2026-11-06 (the user):** no work on M6 until the 4-player table is polished and mostly complete. The open
-questions in §7 wait until then.
+**Parked 2026-11-06 (the user); un-parked 2026-11-15, now top priority.** The open questions in §7 were answered when
+it un-parked (the step table shows the choices taken). Never paste the 4-player script over the 6-player table.
 
 Inputs:
 - `docs/m6-ui-size.md`: the UI measurements and the reviewed shrink plan (read its "Review" list first).

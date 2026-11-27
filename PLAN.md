@@ -27,11 +27,10 @@ Archenemy polish, 2HG shared-turn looks, 3HG table). Rollback is engine1119.
 - M6: headless six-seat games and the six-seat table golden (in the deploy gates).
 
 **⬜ Still open (an agent can do these):**
-- Bo3: the roll winner should choose play or draw (it plays now).
+- ~~Bo3: the roll winner chooses play or draw~~ built 2026-11-17 (30 s, then they play; `ROLL_CHOICE_SECONDS`); the real opening hand (`openingCards`) is built too (`engine1122-openinghand`, 2026-11-17). Neither is seen on a real table yet.
 - Cost badge "cheapest" compares mana value only.
 - Companion own-server break-it: 3 survivors to close.
 - Quadratic token creation (static abilities recomputed per entering card): needs a design.
-- Real opening hand at the mulligan (`openingCards`), not at first priority.
 - Remaining stress catalog items past the top ten; unprobed prompt shapes (ChooseNumber, GenericChoice, ChoosePlayer, Fortify, Reconfigure, Bestow).
 - Slow-tail re-measure on a quiet PC.
 
@@ -830,7 +829,7 @@ Players drag and use the table normally; every move is a request the engine acce
 
 | Idea | Spec | Notes |
 |---|---|---|
-| Companion .exe: choose self-host or dedicated server | §10b, `docs/companion-app-spec.md` | The bridge always stays on the host's PC. Self-host also starts Docker. Status lights, latency readout. Built (Windows only, 6 lights, browser status page); spec rewritten from the code 2026-11-11. Own server and Cloud modes not built |
+| Companion .exe: choose self-host or dedicated server | §10b, `docs/companion-app-spec.md` | The bridge always stays on the host's PC. Self-host also starts Docker. Status lights, latency readout. Built (Windows only, 6 lights, browser status page); spec rewritten from the code 2026-11-11. Own server mode built 2026-11-17 (companion-app-spec 5.8; Windows and Linux/Mac); Cloud mode not built |
 | Dedicated server | §10b, `docs/server-setup-spec.md` | TLS relay, strong server key, measure the internet round-trip cost (~62 ms measured by Manabrew). Full AWS hosting paused by the user 2026-11-02 |
 | Bridge forwards editor messages to VSCode | §8 | Lets the host use the VSCode TTS plugin while the bridge runs |
 | Decklist import | §11 | Paste an Arena/Moxfield list as well as importing with the table's Card Importer (`mtg ready`) |

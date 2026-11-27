@@ -59,7 +59,7 @@ All of this is in the `eb-1117b` tree (also in the published `engine/forge.patch
 | Harness | `TEAM_RULES_SHARED_TURNS`, validation, snapshot `teamRules.rule = "sharedTurns"` (`InteractiveSnapshotExtractor.java:486`), `PriorityFastForward` knows the team turn (2 uses). |
 | Joint block prompt fields | `title`, `reviseRound`, `currentAssignments`, `teamBlockLines` on the existing `chooseBlockers` prompt (spec §5.12). |
 | Protocol and node | `gameConfig` already carries `teamRules` as a free string. The relay allow-list already passes `gameConfig`. No protocol change was needed for `sharedTurns`. Not run on a built image. |
-| Bridge | `bridge/teams.js` has `sharesTurns`, `turnPlayerIds`, `isTurnOf`, joint block, trigger-order words. `gameConfig` sends `sharedTurns` when teamMode is 2hg and turns is "shared". Spec §5.11 says "shared" is now the default (`mtg 2hg turns own` goes back to Level 1). |
+| Bridge | `bridge/teams.js` has `sharesTurns`, `turnPlayerIds`, `isTurnOf`, joint block, trigger-order words. `gameConfig` sends `sharedTurns` when teamMode is 2hg and turns is "shared". Spec §5.11 once said "shared" is the default; it is not (corrected 2026-11-27): `ENGINE_TEAM_TURNS` is unset (own turns, Level 1) and the host opts in with `mtg 2hg turns shared`. |
 | Table | `engineMyTurn`, team-turn phase bar, both partners attack, the Agree/Done corner button, `engineTeamDeclaring`. Built against the fake TTS only. |
 | Tests | `tests/test_bridge_2hg_level2.js`, `test_bridge_2hg_team_block.js`, `test_table_2hg_level2.js`, `test_table_2hg_team_block.js`, `tools/mutate-team-block.js`. They run on **hand-built fixtures**, not recorded engine output (`tests/golden/fixtures/2hg-level2-protocol.json`, `2hg-team-block.json`). `tests/live_2hg_check.js` is Level 1 only (it sends `sharedLife`). |
 
@@ -82,9 +82,10 @@ All of this is in the `eb-1117b` tree (also in the published `engine/forge.patch
 
 ### 1.4 Risks
 
-- **Default flip.** `ENGINE_TEAM_TURNS` defaults to "shared". The moment `engine1117` is deployed, every 2HG start is
-  Level 2. If Level 2 has a bug, all 2HG games hit it. Fix: deploy only after the live check, and keep
-  `mtg 2hg turns own` as the escape (check it still works on the new image).
+- **Default flip (decided against, 2026-11-27).** The plan was that `ENGINE_TEAM_TURNS` defaults to "shared", so every 2HG
+  start would be Level 2. The built default is the other way: `ENGINE_TEAM_TURNS = nil` in `tools/engine-renderer.lua`,
+  the bridge sends `sharedTurns` only when the start says shared, and `HOW-TO-PLAY.md` calls own turns the default. A
+  bug in Level 2 therefore reaches only a host who typed `mtg 2hg turns shared`.
 - **Turn-state spread.** 38 `PhaseHandler` call sites plus the AI's 122 `isPlayerTurn` uses (counted in the spec on
   2026-11-13). A call site that still thinks "one active player" gives wrong behaviour only in odd cards (extra combat,
   "each opponent's upkeep", delayed triggers, "your next turn"). Tests cover the common ones, not the long tail.

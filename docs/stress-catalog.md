@@ -1,6 +1,6 @@
 # Stress catalog: what breaks at large N, besides tokens
 
-Catalog only, 2026-11-16. Nothing here is built. It covers every system I could find that a big Commander game can push
+Catalog only, 2026-11-16. **Status 2026-11-27: some of it is built since** (the number-scan cap `ENGINE_NUMBER_SCAN` 100000, the engine's checkpoint cap of 40 and the 4096-entry event ring, `EXTRA TURNS` past 99; see `docs/engine-changes.md` "engine stress caps"); the rest is still a catalog. It covers every system I could find that a big Commander game can push
 past what the engine, the bridge or the table handle. Two areas are left out because other work owns them:
 - tokens, the token cap, the runaway "Keep going / End in a draw" limits, the 999-item stack draw, the attack tax and
   tie offers: `docs/big-turns-2-spec.md`;

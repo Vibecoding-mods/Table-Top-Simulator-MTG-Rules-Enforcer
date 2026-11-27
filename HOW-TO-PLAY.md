@@ -313,7 +313,8 @@ Each answer is said in chat. Your own cards' "unless you pay" (Mystic Remora's u
   **Keep playing**, or `mtg vote yes` / `mtg vote no`), and you can take it back with Keep playing. Once everyone
   agrees it happens at once; if someone still has a question open, a **Rewind to ...** button appears for everyone, and
   pressing it goes back without answering the question. Undo is off in Archenemy games ("the schemes in play can't be
-  rewound yet").
+  rewound yet"). A Planechase game takes no restore points either (the engine can't copy the planes), so its Undo list stays
+  empty and says nothing about why.
 - **A game that can't end:** when a player can't lose (Platinum Angel, "can't lose life", all damage to them
   prevented), a pop-up offers a tie: "<who> can't lose the game: the game may never end. A tie is offered." Each
   seated player presses **Tie** or **Keep playing** (or `mtg tie yes` / `mtg tie no`); AI players accept. If everyone

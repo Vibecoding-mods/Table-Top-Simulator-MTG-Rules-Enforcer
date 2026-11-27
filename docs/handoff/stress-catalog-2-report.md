@@ -4,7 +4,7 @@ Cloud session, 2026-11-17, branch `cloud/stress-catalog-2`, from `origin/main` (
 
 - Bridge and table only. No engine patch changes.
 - Not tried on the real table or against a live engine.
-- The list is the peer's message of 2026-11-17. `docs/stress-catalog.md` was never committed.
+- The list is the peer's message of 2026-11-17. `docs/stress-catalog.md` was not committed when this was written; it is in the repo now (2026-11-27).
 
 ## The seven items
 
