@@ -112,6 +112,46 @@ async function engineTests(d, tree) {
   if (ran.code !== 0 || !livePassed(ran.out)) stop(`engine tests didn't pass (exit ${ran.code}${failedLine ? `, ${failedLine[0]}` : ", no PASSED line"})`);
 }
 
+// The gates three at a time (the user 2026-11-27: "make the deploy faster"; one at a time they took ~25 minutes). A
+// gate that opens a fixed local port (a debug server, an editor forward, a headless TTS) runs in lane 0, one after
+// another, so two never want one port. Each gate's output is kept and printed only when it fails; the first failure
+// stops the others and the deploy, as the one-at-a-time loop did.
+const GATE_LANES = 3;
+function gateUsesPort(g) {
+  try { return /\blisten\(|MTG_DEBUG_PORT|BRIDGE_PORT|headless-tts|4878\d|4899\d|39999/.test(fs.readFileSync(path.join(ROOT, "tests", `${g}.js`), "utf8")); } catch { return true; }
+}
+function runGatesParallel(gates, lanes) {
+  const serial = gates.filter(gateUsesPort);
+  const free = gates.filter((g) => !serial.includes(g));
+  const queues = Array.from({ length: lanes }, (_, i) => (i === 0 ? [...serial] : []));
+  free.forEach((g, i) => queues[(i % (lanes - 1)) + 1].push(g));
+  const kids = new Set();
+  let failed = null, done = 0;
+  const t0 = Date.now();
+  const one = (g) => new Promise((resolve) => {
+    let out = "";
+    const p = spawn(process.execPath, [`tests/${g}.js`], { cwd: ROOT, windowsHide: true });
+    kids.add(p);
+    const take = (b) => { out += b.toString(); };
+    p.stdout.on("data", take);
+    p.stderr.on("data", take);
+    const timer = setTimeout(() => { out += "\n(timed out after 10 min)\n"; p.kill(); }, 600000);
+    p.on("close", (code) => {
+      clearTimeout(timer);
+      kids.delete(p);
+      done++;
+      if (code !== 0 && !failed) {
+        failed = g;
+        process.stdout.write(`${out.split("\n").slice(-30).join("\n")}\ngate ${g} FAILED (exit ${code})\n`);
+        for (const k of kids) k.kill();
+      } else if (code === 0) console.log(`gate ${g} ok (${done}/${gates.length}, ${Math.round((Date.now() - t0) / 1000)} s)`);
+      resolve();
+    });
+  });
+  const lane = async (q) => { for (const g of q) { if (failed) return; await one(g); } };
+  return Promise.all(queues.map(lane)).then(() => { if (failed) stop(`gate ${failed} failed`); });
+}
+
 // the real effects; tests/test_deploy.js hands main its own
 function realDeps() {
   return {
@@ -138,6 +178,7 @@ function realDeps() {
       p.on("error", (e) => { clearTimeout(timer); done({ code: -1, out: `${out}${e.message}\n` }); });
       p.on("close", (code) => { clearTimeout(timer); if (quiet && code !== 0) process.stdout.write(out.split("\n").slice(-20).join("\n")); done({ code: code ?? -1, out }); });
     }),
+    runGates: (gates) => runGatesParallel(gates, GATE_LANES),
     readFile: (f) => fs.readFileSync(f, "utf8"),
     writeFile: (f, s) => fs.writeFileSync(f, s),
     removeFile: (f) => fs.rmSync(f),
@@ -173,7 +214,8 @@ async function main(d = realDeps()) {
   checkHarnessList(d, tree);
 
   const { trial } = d.patchSave(false); // (a table that can't be patched stops it here, with nothing moved)
-  for (const g of GATES) { d.log(`gate ${g}`); d.run(process.execPath, [`tests/${g}.js`]); }
+  if (d.runGates) await d.runGates(GATES);
+  else for (const g of GATES) { d.log(`gate ${g}`); d.run(process.execPath, [`tests/${g}.js`]); }
   // the gates play the source's build; this plays the script going out, with what is held back left out
   const trialFile = path.join(ROOT, "tmp", "patched-trial.json");
   d.writeFile(trialFile, trial);
