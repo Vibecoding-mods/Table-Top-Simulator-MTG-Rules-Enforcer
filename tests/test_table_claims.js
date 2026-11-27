@@ -3332,15 +3332,15 @@ const matZones = () => save.ObjectStates.filter((o) => o.Name === "ScriptingTrig
   ok("combat colours: precondition, no errors", !r.errors.length && !r2.errors.length && !r3.errors.length, [...r.errors, ...r2.errors, ...r3.errors].join(" | "));
   ok("combat colours: a blockers line is red, brighter once picked", v(r, "block line") === "#5E1E1E" && v(r, "block picked") === "#C62828", `${v(r, "block line")} / ${v(r, "block picked")}`);
   ok("combat colours: the blockers question's Done is red", v(r, "block done") === "#C62828", v(r, "block done"));
-  ok("combat colours: COMBAT is red in the phase bar of the player attacked", v(r, "attacked bar").includes("<COLOR=#FF6B6B>COMBAT"), v(r, "attacked bar"));
-  ok("combat colours: and green in the attacking player's", v(r, "attacker bar").includes("<COLOR=#7CFC9A>COMBAT"), v(r, "attacker bar"));
-  ok("combat colours: COMBAT stays gold for a player nobody attacks", v(r2, "not attacked bar").includes("<COLOR=#FFD27A>COMBAT"), v(r2, "not attacked bar"));
-  ok("combat colours: COMBAT is red for a player whose planeswalker is attacked", !r2b.errors.length && v(r2b, "walker attacked bar").includes("<COLOR=#FF6B6B>COMBAT"), `${v(r2b, "walker attacked bar")} ${r2b.errors.join(" | ")}`);
+  ok("combat colours: COMBAT is red in the phase bar of the player attacked", v(r, "attacked bar").includes('<TEXTCOLOR COLOR="#FF6B6B">COMBAT'), v(r, "attacked bar"));
+  ok("combat colours: and green in the attacking player's", v(r, "attacker bar").includes('<TEXTCOLOR COLOR="#7CFC9A">COMBAT'), v(r, "attacker bar"));
+  ok("combat colours: COMBAT stays gold for a player nobody attacks", v(r2, "not attacked bar").includes('<TEXTCOLOR COLOR="#FFD27A">COMBAT'), v(r2, "not attacked bar"));
+  ok("combat colours: COMBAT is red for a player whose planeswalker is attacked", !r2b.errors.length && v(r2b, "walker attacked bar").includes('<TEXTCOLOR COLOR="#FF6B6B">COMBAT'), `${v(r2b, "walker attacked bar")} ${r2b.errors.join(" | ")}`);
   ok("combat colours: an attack line is green, brighter once picked", v(r3, "attack line") === "#1F4D2B" && v(r3, "attack picked") === "#2E9E4F", `${v(r3, "attack line")} / ${v(r3, "attack picked")}`);
   ok("combat colours: All attack green, No attacks navy", v(r3, "all attack") === "#2E9E4F" && v(r3, "no attacks") === "#2E3A59", `${v(r3, "all attack")} / ${v(r3, "no attacks")}`);
   ok("combat colours: the corner's No attacks navy and All attack green", v(r3, "big none") === "#2E3A59" && v(r3, "small all") === "#2E9E4F", `${v(r3, "big none")} / ${v(r3, "small all")}`);
   ok("combat colours: Attack (1) green", v(r3, "big attack") === "#2E9E4F" && v(r3, "big attack text") === "ATTACK (1)", `${v(r3, "big attack")} / ${v(r3, "big attack text")}`);
-  ok("combat colours: COMBAT is green on your own turn", v(r3, "attacking bar").includes("<COLOR=#7CFC9A>COMBAT"), v(r3, "attacking bar"));
+  ok("combat colours: COMBAT is green on your own turn", v(r3, "attacking bar").includes('<TEXTCOLOR COLOR="#7CFC9A">COMBAT'), v(r3, "attacking bar"));
   ok("combat colours: the next question's corner is orange and navy again", v(r3, "big after") === "#E8711A" && v(r3, "small after") === "#2E3A59", `${v(r3, "big after")} / ${v(r3, "small after")}`);
 }
 // Combat pickers under tabs (item 2): an attack question with 20 Spirit tokens, a Grizzly Bears and a Hill Giant has one
