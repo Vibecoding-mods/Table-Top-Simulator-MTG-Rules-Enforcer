@@ -705,6 +705,19 @@ namespace MtgCompanion
             return null;
         }
 
+        // Writes the limits to the .wslconfig after a dated copy of the old file beside it (one place for the status form and the web page, 2026-11-27);
+        // `now` is the file's current text (null = none), already read by the caller
+        public static void WriteWslLimits(string file, string now, int cores, string memory)
+        {
+            if (now != null)
+            {
+                // seconds in the name, and never over an existing copy: a second click in the same minute used to replace the original backup with the rewritten file
+                string bak = file + ".bak-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                if (!File.Exists(bak)) File.Copy(file, bak);
+            }
+            File.WriteAllText(file, SetWslLimits(now, cores, memory));
+        }
+
         // Sets processors= and memory= in the [wsl2] section, keeping every other line and the file's line ends
         public static string SetWslLimits(string text, int cores, string memory)
         {

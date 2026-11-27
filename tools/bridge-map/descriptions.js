@@ -50,7 +50,6 @@ module.exports = {
   clockwiseOrder: "Puts the turn order clockwise round the table, the way the seats sit.",
   onGameStarted: "Maps relay player ids to table colours and AI names when the game starts.",
   saveImageCache: "Saves the card picture cache to disk, batched.",
-  stripQuery: "Drops the query string from a picture URL.",
   cachedImage: "A card's picture from the cache, or asks for it to be fetched.",
   imageFailure: "Backs off and retries when Scryfall can't be reached.",
   fetchNamed: "Looks up one card on Scryfall by name.",

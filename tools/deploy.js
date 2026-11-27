@@ -248,7 +248,8 @@ async function main(d = realDeps()) {
   if (cardList !== d.engineBuildId()) {
     // (the list is read from the RUNNING engine but stamped with this tree's id: when they differ the stamp is a lie, a
     // later --image deploy sees it equal and skips the rebuild, and the new engine runs with the old one's cards,
-    // "unknown to the engine" at READY. So stop here, before the list is written or anything moves, 2026-11-27)
+    // "unknown to the engine" at READY. So stop here, before the list is written or the bridge starts, 2026-11-27;
+    // in an --image deploy the engine was already swapped above, so only without --image does nothing move at all)
     const runningNow = await new Promise((done) => d.versions.containerBuild(done));
     if (runningNow && runningNow !== d.engineBuildId()) stop(`the card list is for engine ${cardList || "(unrecorded)"} and the running engine is build ${runningNow}, but this tree's patches make ${d.engineBuildId()}: the list would be read from the wrong engine. Deploy the new engine first (--image), then the list is rebuilt from it`);
     d.log(`the card list is for engine ${cardList || "(unrecorded)"}, this tree's is ${d.engineBuildId()}: rebuilding it from the running engine`);

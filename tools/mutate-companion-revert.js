@@ -9,6 +9,7 @@
 //    back and checked by sha256 (never put back by an inverse replace).
 // A mutation whose check doesn't fail is printed as SURVIVED. Windows only (build.cmd).
 //   node tools/mutate-companion-revert.js [label pattern]
+require("./restore-on-interrupt"); // (the in-place source file is put back on exit or Ctrl+C, 2026-11-27)
 const fs = require("fs");
 const os = require("os");
 const path = require("path");

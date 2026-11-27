@@ -501,6 +501,19 @@ async function main() {
     const r = await now(p);
     ok("404: the quiet line, exit 0", r.code === 0 && r.out === "Updates will work once the project is public.", JSON.stringify(r));
     ok("404: remembered for the tray", (read(path.join(p.state, "updates.json")) || "").includes("once the project is public"));
+    // 2026-11-27: "not public" is stamped so a private repo is not asked every launch (Updater.Check)
+    ok("404: lastCheck stamped (a quiet result is a real answer)", !!json(path.join(p.state, "updates.json")).lastCheck, read(path.join(p.state, "updates.json")));
+  }
+
+  // 5b. a failed check (GitHub answers 500): lastCheck left alone, so the next launch checks again
+  {
+    reset();
+    server.latestStatus = 500;
+    const p = makePkg();
+    const r = await now(p);
+    const st = fs.existsSync(path.join(p.state, "updates.json")) ? json(path.join(p.state, "updates.json")) : {};
+    ok("500: the check failed, exit 1", r.code === 1, JSON.stringify(r));
+    ok("500: lastCheck not stamped (the next launch checks again)", st.lastCheck === undefined && !!st.lastResult, JSON.stringify(st));
   }
 
   // 6. a game on: downloaded, installed after the game
