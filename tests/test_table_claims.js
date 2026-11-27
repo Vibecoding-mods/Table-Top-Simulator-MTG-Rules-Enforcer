@@ -1348,7 +1348,7 @@ for (const kind of ["Land", "Creature"]) {
   const white = (c) => /^#F[EF]F[EF]F[EF]$/i.test(c);
   ok("ability panel+: no errors", r.errors.length === 0, r.errors.join(" | "));
   ok("ability panel+: nine abilities show six and More", head("page 1")[0] === "true" && head("page 1")[1] === "true" && head("page 1")[2] === "More... (1-6 of 9)" && [1, 2, 3, 4, 5, 6].every((k) => row("page 1", k)[0] === "true"), String(valueOf(r, "page 1")));
-  ok("ability panel+: a line is its cost in gold, then the effect, white", row("page 1", 1)[1].includes('<color=#FFD27A>{1}:</color>') && row("page 1", 1)[1].includes("Scry 1.") && white(row("page 1", 1)[2]), row("page 1", 1).join("~"));
+  ok("ability panel+: a line is its cost in gold, then the effect, white", row("page 1", 1)[1].includes('<textcolor color="#FFD27A">{1}:</textcolor>') && row("page 1", 1)[1].includes("Scry 1.") && white(row("page 1", 1)[2]), row("page 1", 1).join("~"));
   ok("ability panel+: as tall as its lines (6 and More)", head("page 1")[3] === String(44 + 6 * 44 + 34), head("page 1")[3]);
   ok("ability panel+: More shows the last three, the rest hidden", head("page 2")[2] === "More... (7-9 of 9)" && row("page 2", 1)[1].includes("Scry 7.") && row("page 2", 3)[1].includes("Scry 9.") && [4, 5, 6].every((k) => row("page 2", k)[0] === "false") && head("page 2")[3] === String(44 + 3 * 44 + 34), String(valueOf(r, "page 2")));
   ok("ability panel+: X shuts it", valueOf(r, "x") === "false", String(valueOf(r, "x")));

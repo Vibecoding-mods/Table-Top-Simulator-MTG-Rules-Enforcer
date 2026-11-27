@@ -111,7 +111,7 @@ const pickId = (c, id) => `local p = enginePrompts.${c} for i, o in ipairs(p.opt
   const rv = parts(r, "revise");
   ok("panel: a joint block opens the panel", rv[0] === "true", rv.join(" | "));
   ok("panel: the engine's title", rv[1] === "Blue changed the blocks. Agree or change?", rv[1]);
-  ok("panel: the team's block line by line, Blue's name in her colour", rv[2]?.includes("The team's block:\nGrizzly Bears → your Grizzly Bears + <color=#4DA3FF>Blue's</color> Hill Giant\nJuggernaut → not blocked"), rv[2]);
+  ok("panel: the team's block line by line, Blue's name in her colour", rv[2]?.includes("The team's block:\nGrizzly Bears → your Grizzly Bears + <textcolor color=\"#4DA3FF\">Blue's</textcolor> Hill Giant\nJuggernaut → not blocked"), rv[2]);
   ok("pre-fill: her own block is picked already", valueOf(r, "prefilled") === "true" && valueOf(r, "not prefilled") === "false", `${valueOf(r, "prefilled")} ${valueOf(r, "not prefilled")}`);
   ok("corner: the big button is Agree while nothing changed", rv[3] === "Agree", rv[3]);
   ok("corner: the hint says agree or change", /^Blue changed the blocks\. Agree or change\?\nAgree, or change: your creature, then the attacker it blocks, then Done\./.test(rv[4] || ""), rv[4]);

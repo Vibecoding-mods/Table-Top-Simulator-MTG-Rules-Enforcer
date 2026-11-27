@@ -6443,7 +6443,7 @@ function logEvents(prev, cur, pub, facts = null) {
     if (d?.bat) return `${d.name} (${who(d.ctl)}'s battle${d.prot ? `, protected by ${who(d.prot)}` : ""})`;
     return d ? `${d.name} (${who(d.ctl)})` : null;
   };
-  // (one stack split among players, attackSplit: one line, "Red attacks Blue with 7 Zombie tokens, Red with 7, Yellow
+  // (one stack split among players, by "Attack all split evenly" or picked so: one line, "Red attacks Blue with 7 Zombie tokens, Red with 7, Yellow
   // with 6", when everything one player sends at two or more is tokens of one kind)
   const attackLines = [];
   const byCtl = new Map();
@@ -8087,7 +8087,7 @@ function attackTaxWords(gv, attackerId, targetId, E = null) {
 // once none is left, back(): the attack question again }; each: one creature at a time.
 // The planned attacks a step after the attack question shows the table (the user 2026-11-16: lines "to show who
 // you're targeting before attacks"): "attackerId|targetId" for each attacker whose target is chosen, the attack
-// question's own option ids, sorted; one still at "whom?" has none. A token stack split among players (attackSplit) is
+// question's own option ids, sorted; one still at "whom?" has none. A token stack split among players ("Attack all split evenly") is
 // there token by token, so the table draws one stack, and one planned line, per player (engine-renderer.lua
 // enginePlannedAttacks). byAttacker: attacker id -> target id or "?".
 function attackPlanIds(byAttacker) {
@@ -8123,56 +8123,6 @@ function attackWhom(o, each = false) {
     return attackWhom({ ...o, byAttacker }, each);
   };
   return next(ui, toOutput);
-}
-
-// One stack per defending player (docs/big-turns-2-spec.md item 4; the user's decision 7, 2026-11-16: a token stack
-// that attacks splits by itself, no menu step). A stack is two or more tokens of one controller, name and size still
-// waiting for "whom?" (All attack, or "whom?" picked); a token clicked at a player or planeswalker keeps that pick.
-// Players only, in seat order from the attacker's left; with shared life (2HG, 3HG) a team is one share, given to the
-// partner with the fewest taxes on the stack (then the first in seat order). Each share is floor(N/k), the first N mod
-// k one more; a token that can't attack a share's player goes to the next. A stack with fewer than two players to
-// split among is left to "whom?". slot: the attacking player; E: engineAttackData or null. Returns a copy of
-// byAttacker with each split token at its player.
-function attackSplit(gv, input, byAttacker, slot, E) {
-  const byId = cardIndex(gv);
-  const out = { ...byAttacker };
-  const stacks = new Map();
-  for (const at of input.attackers || []) {
-    const c = byId[at.attackerId];
-    if (out[at.attackerId] !== "?" || !c?.identity?.isToken) continue;
-    const key = `${c.controllerId}|${c.identity.name}|${c.power}/${c.toughness}`;
-    if (!stacks.has(key)) stacks.set(key, []);
-    stacks.get(key).push(at);
-  }
-  const ids = (gv.players || []).map((p) => p.id);
-  const from = ids.indexOf(slot);
-  const seatOrder = from < 0 ? ids : [...ids.slice(from + 1), ...ids.slice(0, from + 1)];
-  const taxes = (at, d) => (E?.costs[at.attackerId] || []).filter((x) => x.defenderId === d).length;
-  for (const group of stacks.values()) {
-    if (group.length < 2) continue;
-    const valid = new Set(group.flatMap((at) => at.validTargetIds.filter((t) => String(t).startsWith("player-"))));
-    const units = [];
-    const teamsSeen = new Set();
-    for (const id of seatOrder) {
-      const p = (gv.players || []).find((q) => q.id === id);
-      if (!valid.has(id) || !p) continue;
-      const team = teams2hg.teamOf(p, gv).map((q) => q.id).filter((q) => valid.has(q));
-      const key = [...team].sort().join("|");
-      if (teamsSeen.has(key)) continue;
-      teamsSeen.add(key);
-      units.push(team.sort((a, b) => taxes(group[0], a) - taxes(group[0], b) || seatOrder.indexOf(a) - seatOrder.indexOf(b))[0]);
-    }
-    if (units.length < 2) continue;
-    const left = units.map((_, i) => Math.floor(group.length / units.length) + (i < group.length % units.length ? 1 : 0));
-    for (const at of group) {
-      let pick = units.findIndex((u, i) => left[i] > 0 && at.validTargetIds.includes(u));
-      if (pick < 0) pick = units.findIndex((u) => at.validTargetIds.includes(u));
-      if (pick < 0) continue;
-      out[at.attackerId] = units[pick];
-      left[pick]--;
-    }
-  }
-  return out;
 }
 
 // "Attack all split evenly" (the user 2026-11-25: "When someone has more than 10 creatures add another button next to
@@ -12471,8 +12421,9 @@ function onPrompt(seat, prompt) {
           const [att, tgt] = v.split("|");
           if (tgt !== "?" || byAttacker[att] == null) byAttacker[att] = tgt;
         }
-        // (a token stack still waiting for "whom?" is split among the players by itself, one stack each: attackSplit)
-        Object.assign(byAttacker, attackSplit(gv, input, byAttacker, forP || seat.slot, attackData));
+        // (a token stack still waiting for "whom?" is asked once, the whole stack at one player or One by one (attackWhom):
+        // it no longer splits by itself, the user 2026-11-27 "its still auto spliting on normal attacks"; spreading a
+        // swing is "Attack all split evenly")
         const asked = input.attackers.filter((at) => byAttacker[at.attackerId] === "?");
         const all = split ? "Attack all split evenly" : a.includes("__allattack") && "All attack";
         if (!asked.length) return declare(byAttacker, all, none, split ? (sent) => attackSplitLine(gv, sent, forP || seat.slot) : null);

@@ -544,7 +544,7 @@
      "f72 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 1st turn (game turn 0) - untap - priority: PlayerBlue\"",
      "f72 \"UI.setAttribute\" \"eng_phase_Blue\" \"active\" \"true\"",
      "f72 \"UI.setAttribute\" \"eng_phasebg_Blue\" \"active\" \"true\"",
-     "f72 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f72 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f72 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f72 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f72 \"setPosition\" obj:e2f7ae V(27,-18.97,27)",
@@ -674,7 +674,7 @@
     "step": "16 table",
     "fx": [
      "f126 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 1st turn (game turn 1) - upkeep - priority: PlayerBlue\"",
-     "f126 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f126 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f126 \"UI.setValue\" \"eng_banner_Blue\" \"AI 3'S TURN\"",
      "f126 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#D6E4FF\"",
      "f126 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#0b1a3aE0\"",
@@ -920,7 +920,7 @@
     "fx": [
      "f138 \"takeObject\" obj:s00009 obj:s00046 V(-20,6,34.5)",
      "f138 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 1st turn (game turn 1) - draw - priority: PlayerBlue\"",
-     "f138 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f138 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -934,7 +934,7 @@
     "fx": [
      "f150 \"spawnObjectData\" \"Card\" obj:s00047 \"Island\\\nBasic Land — Island\\\n0CMC\" V(-8.65,1.15,22.44) 0 300900 \"3009\"",
      "f150 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 1st turn (game turn 1) - main1 - priority: PlayerBlue\"",
-     "f150 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f150 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -947,7 +947,7 @@
     "step": "22 table",
     "fx": [
      "f162 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 1st turn (game turn 1) - combatBegin - priority: PlayerBlue\"",
-     "f162 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f162 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -976,14 +976,14 @@
     "step": "25 table",
     "fx": [
      "f180 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 1st turn (game turn 1) - main2 - priority: PlayerBlue\"",
-     "f180 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f180 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
     "step": "26 table",
     "fx": [
      "f186 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 1st turn (game turn 1) - endOfTurn - priority: PlayerBlue\"",
-     "f186 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f186 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -996,7 +996,7 @@
     "step": "28 table",
     "fx": [
      "f198 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - upkeep - priority: PlayerBlue\"",
-     "f198 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f198 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f198 \"UI.setValue\" \"eng_banner_Blue\" \"YOUR TURN\"",
      "f198 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFD27A\"",
      "f198 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#2a1600E0\""
@@ -1020,7 +1020,7 @@
      "f216 \"spawnObjectData\" \"Card\" obj:s00048 \"Price of Fame\\\nInstant\\\n4CMC\" V(20,5,34.5) 0 301200 \"3012\"",
      "f216 \"takeObject\" obj:s00003 obj:s00049 V(20,6,34.5)",
      "f216 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - draw - priority: PlayerBlue\"",
-     "f216 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f216 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f217 \"setLock\" obj:s00048 false"
     ]
    },
@@ -1049,7 +1049,7 @@
     "step": "34 table",
     "fx": [
      "f234 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - main1 - priority: PlayerBlue\"",
-     "f234 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f234 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1222,7 +1222,7 @@
     "step": "48 table",
     "fx": [
      "f318 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - combatBegin - priority: PlayerBlue\"",
-     "f318 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f318 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#7CFC9A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1241,14 +1241,14 @@
     "step": "51 table",
     "fx": [
      "f336 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - main2 - priority: PlayerBlue\"",
-     "f336 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f336 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
     "step": "52 table",
     "fx": [
      "f342 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - endOfTurn - priority: PlayerBlue\"",
-     "f342 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f342 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -1261,7 +1261,7 @@
     "step": "54 table",
     "fx": [
      "f354 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 3) - upkeep - priority: PlayerBlue\"",
-     "f354 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f354 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f354 \"UI.setValue\" \"eng_banner_Blue\" \"AI 1'S TURN\"",
      "f354 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#D6E4FF\"",
      "f354 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#0b1a3aE0\""
@@ -1279,7 +1279,7 @@
     "fx": [
      "f366 \"takeObject\" obj:s00005 obj:s00050 V(20,6,-34.5)",
      "f366 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 3) - draw - priority: PlayerBlue\"",
-     "f366 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f366 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1294,7 +1294,7 @@
     "fx": [
      "f378 \"spawnObjectData\" \"Card\" obj:s00051 \"Forest\\\nBasic Land — Forest\\\n0CMC\" V(8.65,1.15,-22.44) 0 301300 \"3013\"",
      "f378 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 3) - main1 - priority: PlayerBlue\"",
-     "f378 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f378 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1307,7 +1307,7 @@
     "step": "60 table",
     "fx": [
      "f390 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 3) - combatBegin - priority: PlayerBlue\"",
-     "f390 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f390 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1336,14 +1336,14 @@
     "step": "63 table",
     "fx": [
      "f408 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 3) - main2 - priority: PlayerBlue\"",
-     "f408 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f408 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
     "step": "64 table",
     "fx": [
      "f414 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 3) - endOfTurn - priority: PlayerBlue\"",
-     "f414 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f414 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -1356,7 +1356,7 @@
     "step": "66 table",
     "fx": [
      "f426 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 1st turn (game turn 4) - upkeep - priority: PlayerBlue\"",
-     "f426 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f426 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f426 \"UI.setValue\" \"eng_banner_Blue\" \"AI 2'S TURN\"",
      "f426 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"true\""
     ]
@@ -1372,7 +1372,7 @@
     "fx": [
      "f438 \"takeObject\" obj:s00007 obj:s00052 V(-20,6,-34.5)",
      "f438 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 1st turn (game turn 4) - draw - priority: PlayerBlue\"",
-     "f438 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f438 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1387,7 +1387,7 @@
     "fx": [
      "f450 \"spawnObjectData\" \"Card\" obj:s00053 \"Drowned Catacomb\\\nLand\\\n0CMC\" V(-30.15,1.15,-22.44) 0 301400 \"3014\"",
      "f450 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 1st turn (game turn 4) - main1 - priority: PlayerBlue\"",
-     "f450 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f450 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1401,7 +1401,7 @@
     "step": "72 table",
     "fx": [
      "f462 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 1st turn (game turn 4) - combatBegin - priority: PlayerBlue\"",
-     "f462 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f462 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1430,14 +1430,14 @@
     "step": "75 table",
     "fx": [
      "f480 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 1st turn (game turn 4) - main2 - priority: PlayerBlue\"",
-     "f480 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f480 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
     "step": "76 table",
     "fx": [
      "f486 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 1st turn (game turn 4) - endOfTurn - priority: PlayerBlue\"",
-     "f486 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f486 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -1450,7 +1450,7 @@
     "step": "78 table",
     "fx": [
      "f498 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 2nd turn (game turn 5) - upkeep - priority: PlayerBlue\"",
-     "f498 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f498 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f498 \"UI.setValue\" \"eng_banner_Blue\" \"AI 3'S TURN\""
     ]
    },
@@ -1465,7 +1465,7 @@
     "fx": [
      "f510 \"takeObject\" obj:s00009 obj:s00054 V(-20,6,34.5)",
      "f510 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 2nd turn (game turn 5) - draw - priority: PlayerBlue\"",
-     "f510 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f510 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1479,7 +1479,7 @@
     "fx": [
      "f522 \"spawnObjectData\" \"Card\" obj:s00055 \"Fetid Pools\\\nLand — Island Swamp\\\n0CMC\" V(-11.05,1.15,22.44) 0 301500 \"3015\"",
      "f522 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 2nd turn (game turn 5) - main1 - priority: PlayerBlue\"",
-     "f522 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f522 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1493,7 +1493,7 @@
     "step": "84 table",
     "fx": [
      "f534 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 2nd turn (game turn 5) - combatBegin - priority: PlayerBlue\"",
-     "f534 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f534 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1522,14 +1522,14 @@
     "step": "87 table",
     "fx": [
      "f552 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 2nd turn (game turn 5) - main2 - priority: PlayerBlue\"",
-     "f552 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f552 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
     "step": "88 table",
     "fx": [
      "f558 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 2nd turn (game turn 5) - endOfTurn - priority: PlayerBlue\"",
-     "f558 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f558 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -1543,7 +1543,7 @@
     "fx": [
      "f570 \"setRotationSmooth\" obj:s00014 V(0,360,0)",
      "f570 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 3rd turn (game turn 6) - upkeep - priority: PlayerBlue\"",
-     "f570 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f570 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f570 \"UI.setValue\" \"eng_banner_Blue\" \"YOUR TURN\"",
      "f570 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFD27A\"",
      "f570 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#2a1600E0\""
@@ -1565,7 +1565,7 @@
     "step": "93 table",
     "fx": [
      "f588 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 3rd turn (game turn 6) - draw - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f588 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f588 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1578,7 +1578,7 @@
     "step": "95 table",
     "fx": [
      "f600 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 3rd turn (game turn 6) - main1 - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f600 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f600 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f606 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"main1\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":6}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -1586,7 +1586,7 @@
     "step": "96 table",
     "fx": [
      "f606 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 3rd turn (game turn 6) - combatBegin - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f606 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f606 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#7CFC9A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1641,14 +1641,14 @@
     "step": "101 table",
     "fx": [
      "f636 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 3rd turn (game turn 6) - main2 - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f636 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f636 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
     "step": "102 table",
     "fx": [
      "f642 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 3rd turn (game turn 6) - endOfTurn - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f642 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f642 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -1676,7 +1676,7 @@
      "f666 \"spawnObjectData\" \"Card\" obj:s00056 \"Plains\\\nBasic Land — Plains\\\n0CMC\" V(11.05,1.15,-22.44) 0 301600 \"3016\"",
      "f666 \"takeObject\" obj:s00005 obj:s00057 V(20,6,-34.5)",
      "f666 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 2nd turn (game turn 7) - main1 - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f666 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f666 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f666 \"UI.setValue\" \"eng_banner_Blue\" \"AI 1'S TURN\"",
      "f666 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#D6E4FF\"",
      "f666 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#0b1a3aE0\"",
@@ -1694,7 +1694,7 @@
     "step": "108 table",
     "fx": [
      "f678 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 2nd turn (game turn 7) - combatBegin - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f678 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f678 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1713,14 +1713,14 @@
     "step": "111 table",
     "fx": [
      "f696 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 2nd turn (game turn 7) - main2 - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f696 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f696 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
     "step": "112 table",
     "fx": [
      "f702 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 2nd turn (game turn 7) - endOfTurn - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f702 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\"",
+     "f702 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\"",
      "f703 \"setGMNotes\" obj:s00057 \"enginetrash\"",
      "f703 \"highlightOff\" obj:s00057",
      "f703 \"setInvisibleTo\" obj:s00057 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -1744,7 +1744,7 @@
     "fx": [
      "f714 \"setRotationSmooth\" obj:s00053 V(0,180,0)",
      "f714 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 2nd turn (game turn 8) - upkeep - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f714 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f714 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f714 \"UI.setValue\" \"eng_banner_Blue\" \"AI 2'S TURN\""
     ]
    },
@@ -1759,7 +1759,7 @@
     "fx": [
      "f726 \"takeObject\" obj:s00007 obj:s00058 V(-20,6,-34.5)",
      "f726 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 2nd turn (game turn 8) - draw - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f726 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f726 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1773,7 +1773,7 @@
     "fx": [
      "f738 \"spawnObjectData\" \"Card\" obj:s00059 \"Shipwreck Marsh\\\nLand\\\n0CMC\" V(-27.75,1.15,-22.44) 0 301700 \"3017\"",
      "f738 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 2nd turn (game turn 8) - main1 - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f738 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f738 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1787,7 +1787,7 @@
     "step": "120 table",
     "fx": [
      "f750 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 2nd turn (game turn 8) - combatBegin - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f750 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f750 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1831,7 +1831,7 @@
      "f780 \"spawnObjectData\" \"Card\" obj:s00060 \"Slither Blade\\\nCreature — Snake Rogue\\\n1CMC\" V(-30.15,1.15,-7.4) 0 301800 \"3018\"",
      "f780 \"setRotationSmooth\" obj:s00053 V(0,270,0)",
      "f780 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 2nd turn (game turn 8) - main2 - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f780 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f780 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
@@ -1851,7 +1851,7 @@
     "fx": [
      "f798 \"setRotationSmooth\" obj:s00055 V(0,360,0)",
      "f798 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 3rd turn (game turn 9) - upkeep - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f798 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f798 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f798 \"UI.setValue\" \"eng_banner_Blue\" \"AI 3'S TURN\""
     ]
    },
@@ -1866,7 +1866,7 @@
     "fx": [
      "f810 \"takeObject\" obj:s00009 obj:s00061 V(-20,6,34.5)",
      "f810 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 3rd turn (game turn 9) - draw - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f810 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f810 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1887,7 +1887,7 @@
      "f822 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FFFFFF\"",
      "f822 \"spawnObjectData\" \"Card\" obj:s00063 \"Bojuka Bog\\\nOn the stack\\\n0CMC\" V(-21.4,3.4,15.4) 0 301900 \"3019\"",
      "f822 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 3rd turn (game turn 9) - main1 - priority: PlayerBlue\\\nStack (top first): Bojuka Bog\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f822 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f822 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f824 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/5/5/55b5b094-9d2d-4d96-b90c-78fecdae725a.jpg\""
     ]
    },
@@ -1916,7 +1916,7 @@
     "step": "135 table",
     "fx": [
      "f840 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 3rd turn (game turn 9) - combatBegin - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f840 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f840 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\"",
      "f846 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"combatBegin\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":9}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -1961,7 +1961,7 @@
      "f864 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FEFEFE\"",
      "f864 \"spawnObjectData\" \"Card\" obj:s00064 \"Arcane Signet\\\nOn the stack\\\n0CMC\" V(-21.4,3.4,15.4) 0 302000 \"3020\"",
      "f864 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 3rd turn (game turn 9) - main2 - priority: PlayerBlue\\\nStack (top first): Arcane Signet\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f864 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f864 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f866 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/8/4/84128e98-87d6-4c2f-909b-9435a7833e63.jpg\""
     ]
    },
@@ -1997,7 +1997,7 @@
     "step": "143 table",
     "fx": [
      "f888 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 3rd turn (game turn 9) - endOfTurn - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f888 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\"",
+     "f888 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\"",
      "f894 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"endOfTurn\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":9}\\\",\\\"t\\\":\\\"check\\\"}\"",
      "f894 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"false\""
     ]
@@ -2012,7 +2012,7 @@
     "step": "145 table",
     "fx": [
      "f900 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 4th turn (game turn 10) - upkeep - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f900 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f900 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f900 \"UI.setValue\" \"eng_banner_Blue\" \"YOUR TURN\"",
      "f900 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFD27A\"",
      "f900 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#2a1600E0\"",
@@ -2035,7 +2035,7 @@
     "step": "148 table",
     "fx": [
      "f918 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 4th turn (game turn 10) - draw - priority: PlayerBlue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f918 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f918 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2046,7 +2046,7 @@
     "step": "150 table",
     "fx": [
      "f930 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 4th turn (game turn 10) - main1 - priority: PlayerBlue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f930 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f930 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2071,7 +2071,7 @@
     "step": "152 table",
     "fx": [
      "f942 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 4th turn (game turn 10) - combatDeclareAttackers - priority: PlayerBlue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f942 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f942 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#7CFC9A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2101,14 +2101,14 @@
     "step": "155 table",
     "fx": [
      "f960 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 4th turn (game turn 10) - main2 - priority: PlayerBlue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f960 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f960 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
     "step": "156 table",
     "fx": [
      "f966 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 4th turn (game turn 10) - endOfTurn - priority: PlayerBlue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f966 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f966 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -2161,7 +2161,7 @@
     "step": "158 table",
     "fx": [
      "f978 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 4th turn (game turn 10) - cleanup - priority: PlayerBlue\"",
-     "f978 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>CLEANUP</color></b>\""
+     "f978 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">CLEANUP</textcolor></b>\""
     ]
    },
    {
@@ -2203,7 +2203,7 @@
      "f996 \"setPosition\" obj:s00013 V(40.762,1.15,22.872)",
      "f996 \"setRotation\" obj:s00013 V(0,360,0)",
      "f996 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 3rd turn (game turn 11) - upkeep - priority: PlayerBlue\"",
-     "f996 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f996 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f996 \"UI.setValue\" \"eng_banner_Blue\" \"AI 1'S TURN\"",
      "f996 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#D6E4FF\"",
      "f996 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#0b1a3aE0\"",
@@ -2276,7 +2276,7 @@
     "fx": [
      "f1020 \"takeObject\" obj:s00005 obj:s00070 V(20,6,-34.5)",
      "f1020 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 3rd turn (game turn 11) - main1 - priority: AI 1\"",
-     "f1020 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f1020 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2315,7 +2315,7 @@
     "step": "170 table",
     "fx": [
      "f1050 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 3rd turn (game turn 11) - combatBegin - priority: PlayerBlue\"",
-     "f1050 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f1050 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2362,7 +2362,7 @@
      "f1080 \"setRotationSmooth\" obj:s00056 V(0,270,0)",
      "f1080 \"setRotationSmooth\" obj:s00071 V(0,270,0)",
      "f1080 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 3rd turn (game turn 11) - main2 - priority: PlayerBlue\"",
-     "f1080 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f1080 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f1081 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"combatEnd\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":11}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -2376,7 +2376,7 @@
     "step": "177 table",
     "fx": [
      "f1092 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 3rd turn (game turn 11) - endOfTurn - priority: PlayerBlue\"",
-     "f1092 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f1092 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -2391,7 +2391,7 @@
      "f1104 \"setRotationSmooth\" obj:s00053 V(0,180,0)",
      "f1104 \"setRotationSmooth\" obj:s00059 V(0,180,0)",
      "f1104 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 3rd turn (game turn 12) - upkeep - priority: PlayerBlue\"",
-     "f1104 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1104 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1104 \"UI.setValue\" \"eng_banner_Blue\" \"AI 2'S TURN\"",
      "f1104 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#D6E4FF\"",
      "f1104 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#0b1a3aE0\"",
@@ -2409,7 +2409,7 @@
     "fx": [
      "f1116 \"takeObject\" obj:s00007 obj:s00073 V(-20,6,-34.5)",
      "f1116 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 3rd turn (game turn 12) - draw - priority: PlayerBlue\"",
-     "f1116 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f1116 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2423,7 +2423,7 @@
     "fx": [
      "f1128 \"spawnObjectData\" \"Card\" obj:s00074 \"Choked Estuary\\\nLand\\\n0CMC\" V(-25.35,1.15,-22.44) 0 302600 \"3026\"",
      "f1128 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 3rd turn (game turn 12) - main1 - priority: PlayerBlue\"",
-     "f1128 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f1128 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2436,7 +2436,7 @@
     "step": "185 table",
     "fx": [
      "f1140 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 3rd turn (game turn 12) - combatBegin - priority: PlayerBlue\"",
-     "f1140 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f1140 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2503,14 +2503,14 @@
      "f1182 \"highlightOff\" obj:s00060",
      "f1182 \"Global.setVectorLines\" 0 \"\"",
      "f1182 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 3rd turn (game turn 12) - main2 - priority: PlayerBlue\"",
-     "f1182 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f1182 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
     "step": "193 table",
     "fx": [
      "f1188 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 3rd turn (game turn 12) - endOfTurn - priority: PlayerBlue\"",
-     "f1188 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f1188 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -2536,7 +2536,7 @@
      "f1206 \"setRotationSmooth\" obj:s00062 V(0,360,0)",
      "f1206 \"takeObject\" obj:s00009 obj:s00075 V(-20,6,34.5)",
      "f1206 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 4th turn (game turn 13) - draw - priority: PlayerBlue\"",
-     "f1206 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1206 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1206 \"UI.setValue\" \"eng_banner_Blue\" \"AI 3'S TURN\"",
      "f1206 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"true\""
     ]
@@ -2554,7 +2554,7 @@
      "f1212 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FFFFFF\"",
      "f1212 \"spawnObjectData\" \"Card\" obj:s00076 \"Farseek\\\nOn the stack\\\n0CMC\" V(-21.4,3.4,15.4) 0 302700 \"3027\"",
      "f1212 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 4th turn (game turn 13) - main1 - priority: PlayerBlue\\\nStack (top first): Farseek\"",
-     "f1212 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f1212 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f1214 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/c/1/c1aac0f5-1d01-4673-b8d3-878d9a1d423c.jpg\""
     ]
    },
@@ -2600,7 +2600,7 @@
     "step": "202 table",
     "fx": [
      "f1242 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 4th turn (game turn 13) - combatBegin - priority: PlayerBlue\"",
-     "f1242 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f1242 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\"",
      "f1243 \"setGMNotes\" obj:s00075 \"enginetrash\"",
      "f1243 \"highlightOff\" obj:s00075",
      "f1243 \"setInvisibleTo\" obj:s00075 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -2644,7 +2644,7 @@
      "f1266 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FEFEFE\"",
      "f1266 \"spawnObjectData\" \"Card\" obj:s00079 \"Lightning Greaves\\\nOn the stack\\\n0CMC\" V(-21.4,3.4,15.4) 0 302900 \"3029\"",
      "f1266 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 4th turn (game turn 13) - main2 - priority: PlayerBlue\\\nStack (top first): Lightning Greaves\"",
-     "f1266 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f1266 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f1268 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/b/6/b61634ae-05be-4b56-8ebb-9d4ade902e42.jpg\""
     ]
    },
@@ -2681,7 +2681,7 @@
     "step": "210 table",
     "fx": [
      "f1290 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 4th turn (game turn 13) - endOfTurn - priority: PlayerBlue\"",
-     "f1290 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f1290 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -2707,7 +2707,7 @@
     "step": "214 table",
     "fx": [
      "f1314 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 5th turn (game turn 14) - draw - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1314 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1314 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1314 \"UI.setValue\" \"eng_banner_Blue\" \"YOUR TURN\"",
      "f1314 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFD27A\"",
      "f1314 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#2a1600E0\"",
@@ -2743,7 +2743,7 @@
     "step": "217 table",
     "fx": [
      "f1332 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 5th turn (game turn 14) - main1 - priority: PlayerBlue\"",
-     "f1332 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f1332 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2778,7 +2778,7 @@
     "step": "221 table",
     "fx": [
      "f1356 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 5th turn (game turn 14) - combatBegin - priority: PlayerBlue\"",
-     "f1356 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f1356 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#7CFC9A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2843,14 +2843,14 @@
     "step": "226 table",
     "fx": [
      "f1386 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 5th turn (game turn 14) - main2 - priority: PlayerBlue\"",
-     "f1386 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f1386 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
     "step": "227 table",
     "fx": [
      "f1392 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 5th turn (game turn 14) - endOfTurn - priority: PlayerBlue\"",
-     "f1392 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f1392 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -2866,7 +2866,7 @@
      "f1404 \"setRotationSmooth\" obj:s00056 V(0,180,0)",
      "f1404 \"setRotationSmooth\" obj:s00071 V(0,180,0)",
      "f1404 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 4th turn (game turn 15) - upkeep - priority: PlayerBlue\"",
-     "f1404 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1404 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1404 \"UI.setValue\" \"eng_banner_Blue\" \"AI 1'S TURN\"",
      "f1404 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#D6E4FF\"",
      "f1404 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#0b1a3aE0\""
@@ -2886,7 +2886,7 @@
     "fx": [
      "f1416 \"takeObject\" obj:s00005 obj:s00083 V(20,6,-34.5)",
      "f1416 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 4th turn (game turn 15) - draw - priority: PlayerBlue\"",
-     "f1416 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1416 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1417 \"UI.setAttribute\" \"eng_pop\" \"active\" \"false\""
     ]
    },
@@ -2913,7 +2913,7 @@
      "f1440 \"spawnObjectData\" \"Card\" obj:s00084 \"Treasure Token\\\nArtifact — Treasure\\\n0CMC\" V(8.65,1.15,-13.8) 0 303100 \"3031\"",
      "f1440 \"spawnObjectData\" \"Card\" obj:s00085 \"Path of Ancestry\\\nLand\\\n0CMC\" V(15.85,1.15,-22.44) 0 303200 \"3032\"",
      "f1440 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 4th turn (game turn 15) - main1 - priority: PlayerBlue\"",
-     "f1440 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f1440 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f1446 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/b/6/b61634ae-05be-4b56-8ebb-9d4ade902e42.jpg\""
     ]
    },
@@ -2927,7 +2927,7 @@
     "step": "237 table",
     "fx": [
      "f1452 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 4th turn (game turn 15) - combatBegin - priority: PlayerBlue\"",
-     "f1452 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f1452 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\"",
      "f1453 \"setGMNotes\" obj:s00083 \"enginetrash\"",
      "f1453 \"highlightOff\" obj:s00083",
      "f1453 \"setInvisibleTo\" obj:s00083 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -2953,7 +2953,7 @@
      "f1464 \"highlightOn\" obj:s00072 {1=1,2=0.12,3=0.08}",
      "f1464 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(3.5,2.6) mid y1.8\"",
      "f1464 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 4th turn (game turn 15) - combatDeclareAttackers - priority: PlayerBlue\"",
-     "f1464 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FF6B6B>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f1464 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FF6B6B\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -3055,7 +3055,7 @@
      "f1530 \"highlightOff\" obj:s00072",
      "f1530 \"Global.setVectorLines\" 0 \"\"",
      "f1530 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 4th turn (game turn 15) - main2 - priority: PlayerBlue\\\nStack (top first): Fury, Fury\"",
-     "f1530 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f1530 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f1532 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/9/3/932d0fb9-382d-464a-9427-b91fa2398cdb.jpg\"",
      "f1536 \"objUI.setAttribute\" obj:23e485 \"eng_fx_1\" \"active\" \"false\""
     ]
@@ -3155,7 +3155,7 @@
      "f1584 \"call\" obj:23e485 \"sL\" \"43\"",
      "f1584 \"call\" obj:23e485 \"updateSave\"",
      "f1584 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 4th turn (game turn 16) - upkeep - priority: PlayerBlue\"",
-     "f1584 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1584 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1584 \"UI.setValue\" \"eng_banner_Blue\" \"AI 2'S TURN\"",
      "f1584 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#D6E4FF\"",
      "f1584 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#0b1a3aE0\"",
@@ -3185,7 +3185,7 @@
     "fx": [
      "f1596 \"takeObject\" obj:s00007 obj:s00092 V(-20,6,-34.5)",
      "f1596 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 4th turn (game turn 16) - draw - priority: PlayerBlue\"",
-     "f1596 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1596 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1599 \"objUI.setAttributes\" obj:23e485 \"eng_fx_3_img\" {color=\"#3D1A5CDD\",fontSize=222,height=262,width=262}"
     ]
    },
@@ -3212,7 +3212,7 @@
      "f1608 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FEFEFE\"",
      "f1608 \"spawnObjectData\" \"Card\" obj:s00094 \"Rush of Dread\\\nOn the stack\\\n0CMC\" V(-17.4,3.4,-15.4) 0 303700 \"3037\"",
      "f1608 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 4th turn (game turn 16) - main1 - priority: PlayerBlue\\\nStack (top first): Rush of Dread\"",
-     "f1608 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f1608 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f1610 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/7/2/721c7122-91b6-45ea-ba28-de0246a2fc1b.jpg\"",
      "f1614 \"spawnObjectData\" \"Deck\" obj:s00095 \"Graveyard\" V(40.762,1.35,22.872) 2 0 \"3008,3010\"",
      "f1614 \"spawnObjectData\" \"Deck\" obj:s00096 \"Graveyard\" V(-40.75,1.35,-22.903) 2 0 \"3018,3028\""
@@ -3314,7 +3314,7 @@
     "step": "268 table",
     "fx": [
      "f1638 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 4th turn (game turn 16) - combatBegin - priority: PlayerBlue\"",
-     "f1638 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f1638 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\"",
      "f1639 \"objUI.setAttribute\" obj:23e485 \"eng_fx_2\" \"active\" \"false\"",
      "f1644 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"combatBegin\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":16}\\\",\\\"t\\\":\\\"check\\\"}\"",
      "f1644 \"objUI.setAttribute\" obj:23e485 \"eng_fx_3\" \"active\" \"false\""
@@ -3338,7 +3338,7 @@
     "step": "271 table",
     "fx": [
      "f1656 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 4th turn (game turn 16) - main2 - priority: PlayerBlue\"",
-     "f1656 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f1656 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f1662 \"setGMNotes\" obj:s00086 \"enginetrash\"",
      "f1662 \"highlightOff\" obj:s00086",
      "f1662 \"setInvisibleTo\" obj:s00086 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -3358,7 +3358,7 @@
     "step": "272 table",
     "fx": [
      "f1662 \"UI.setValue\" \"eng_status_Blue\" \"AI 2's 4th turn (game turn 16) - endOfTurn - priority: PlayerBlue\"",
-     "f1662 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\"",
+     "f1662 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\"",
      "f1663 \"setHiddenFrom\" obj:s00086 {}",
      "f1663 \"setHiddenFrom\" obj:s00072 {}",
      "f1663 \"setLock\" obj:s00045 true",
@@ -3380,7 +3380,7 @@
      "f1674 \"setRotationSmooth\" obj:s00055 V(0,360,0)",
      "f1674 \"setRotationSmooth\" obj:s00062 V(0,360,0)",
      "f1674 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 5th turn (game turn 17) - upkeep - priority: PlayerBlue\"",
-     "f1674 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1674 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1674 \"UI.setValue\" \"eng_banner_Blue\" \"AI 3'S TURN\""
     ]
    },
@@ -3396,7 +3396,7 @@
     "fx": [
      "f1686 \"takeObject\" obj:s00009 obj:s00099 V(-20,6,34.5)",
      "f1686 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 5th turn (game turn 17) - draw - priority: PlayerBlue\"",
-     "f1686 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f1686 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -3434,7 +3434,7 @@
      "f1698 \"editButton\" obj:baffa9 8 \"2\"",
      "f1698 \"editButton\" obj:baffa9 9 \"2\"",
      "f1698 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 5th turn (game turn 17) - main1 - priority: PlayerBlue\\\nStack (top first): Teval, the Balanced Scale\"",
-     "f1698 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f1698 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f1699 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"557 -417 -70\",rotation=\"0 0 360\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f1699 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_img\" {color=\"#FF9A40E6\",fontSize=296,height=349,width=349}",
      "f1699 \"highlightOn\" obj:37e533 {1=1,2=0.2,3=0.15}",
@@ -3493,7 +3493,7 @@
     "step": "283 table",
     "fx": [
      "f1728 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 5th turn (game turn 17) - combatBegin - priority: PlayerBlue\"",
-     "f1728 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f1728 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -3656,7 +3656,7 @@
      "f1806 \"highlightOff\" obj:s00008",
      "f1806 \"Global.setVectorLines\" 0 \"\"",
      "f1806 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 5th turn (game turn 17) - main2 - priority: PlayerBlue\"",
-     "f1806 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f1806 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f1808 \"setGMNotes\" obj:s00105 \"enginetrash\"",
      "f1808 \"highlightOff\" obj:s00105",
      "f1808 \"setInvisibleTo\" obj:s00105 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -3672,7 +3672,7 @@
     "step": "297 table",
     "fx": [
      "f1812 \"UI.setValue\" \"eng_status_Blue\" \"AI 3's 5th turn (game turn 17) - endOfTurn - priority: PlayerBlue\"",
-     "f1812 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f1812 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -3696,7 +3696,7 @@
     "fx": [
      "f1824 \"setRotationSmooth\" obj:s00081 V(0,360,0)",
      "f1824 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 6th turn (game turn 18) - upkeep - priority: PlayerBlue\"",
-     "f1824 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1824 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1824 \"UI.setValue\" \"eng_banner_Blue\" \"YOUR TURN\"",
      "f1824 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFD27A\"",
      "f1824 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#2a1600E0\"",
@@ -3720,7 +3720,7 @@
     "step": "302 table",
     "fx": [
      "f1842 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 6th turn (game turn 18) - draw - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1842 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f1842 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -3772,7 +3772,7 @@
     "step": "305 table",
     "fx": [
      "f1860 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 6th turn (game turn 18) - main1 - priority: PlayerBlue\"",
-     "f1860 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f1860 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -4892,7 +4892,7 @@
      "f78 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 1st turn (game turn 0) - untap - priority: PlayerBlue\"",
      "f78 \"UI.setAttribute\" \"eng_phase_Blue\" \"active\" \"true\"",
      "f78 \"UI.setAttribute\" \"eng_phasebg_Blue\" \"active\" \"true\"",
-     "f78 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f78 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f78 \"setPosition\" obj:e2f7ae V(27,-18.97,27)",
      "f78 \"setPosition\" obj:c489e1 V(19,-19,27)",
      "f78 \"setPosition\" obj:b49d50 V(25,-18.97,27)",
@@ -4955,7 +4955,7 @@
     "step": "13 table",
     "fx": [
      "f108 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 1) - upkeep - priority: PlayerBlue\"",
-     "f108 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f108 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f108 \"UI.setValue\" \"eng_banner_Blue\" \"AI 1'S TURN\"",
      "f108 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#D6E4FF\"",
      "f108 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#0b1a3aE0\"",
@@ -4973,7 +4973,7 @@
     "fx": [
      "f120 \"spawnObjectData\" \"Card\" obj:s00013 \"Mountain\\\nBasic Land — Mountain\\\n0CMC\" V(8.65,1.15,-22.44) 0 300900 \"3009\"",
      "f120 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 1) - main1 - priority: PlayerBlue\"",
-     "f120 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f120 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -4986,7 +4986,7 @@
     "step": "17 table",
     "fx": [
      "f132 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 1) - combatBegin - priority: PlayerBlue\"",
-     "f132 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f132 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -5013,7 +5013,7 @@
      "f150 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FFFFFF\"",
      "f150 \"spawnObjectData\" \"Card\" obj:s00014 \"Sol Ring\\\nOn the stack\\\n0CMC\" V(21.4,3.398,-15.4) 0 301000 \"3010\"",
      "f150 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 1) - main2 - priority: PlayerBlue\\\nStack (top first): Sol Ring\"",
-     "f150 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f150 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f152 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/9/1/9138d11a-d55f-4c46-bb27-7e8e15a44e8c.jpg\""
     ]
    },
@@ -5051,7 +5051,7 @@
     "step": "24 table",
     "fx": [
      "f174 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 1) - endOfTurn - priority: PlayerBlue\"",
-     "f174 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f174 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -5064,7 +5064,7 @@
     "step": "26 table",
     "fx": [
      "f186 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - upkeep - priority: PlayerBlue\"",
-     "f186 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f186 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f186 \"UI.setValue\" \"eng_banner_Blue\" \"YOUR TURN\"",
      "f186 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFD27A\"",
      "f186 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#2a1600E0\""
@@ -5088,7 +5088,7 @@
      "f204 \"spawnObjectData\" \"Card\" obj:s00017 \"Dokuchi Silencer\\\nCreature — Human Ninja\\\n2CMC\" V(20,5,34.5) 0 301100 \"3011\"",
      "f204 \"takeObject\" obj:s00010 obj:s00018 V(20,6,34.5)",
      "f204 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - draw - priority: PlayerBlue\"",
-     "f204 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f204 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f205 \"setLock\" obj:s00017 false"
     ]
    },
@@ -5128,7 +5128,7 @@
     "step": "33 table",
     "fx": [
      "f228 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - main1 - priority: PlayerBlue\"",
-     "f228 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f228 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -5582,7 +5582,7 @@
     "fx": [
      "f444 \"highlightOff\" obj:s00004",
      "f444 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - combatBegin - priority: PlayerBlue\"",
-     "f444 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f444 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#7CFC9A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -5595,14 +5595,14 @@
     "step": "71 table",
     "fx": [
      "f456 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - main2 - priority: PlayerBlue\"",
-     "f456 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f456 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
     "step": "72 table",
     "fx": [
      "f462 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - endOfTurn - priority: PlayerBlue\"",
-     "f462 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f462 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -5617,7 +5617,7 @@
      "f474 \"setRotationSmooth\" obj:s00013 V(0,180,0)",
      "f474 \"takeObject\" obj:s00012 obj:s00019 V(20,6,-34.5)",
      "f474 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 2nd turn (game turn 3) - draw - priority: PlayerBlue\"",
-     "f474 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f474 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f474 \"UI.setValue\" \"eng_banner_Blue\" \"AI 1'S TURN\"",
      "f474 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#D6E4FF\"",
      "f474 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#0b1a3aE0\"",
@@ -5635,7 +5635,7 @@
     "fx": [
      "f486 \"spawnObjectData\" \"Card\" obj:s00020 \"Rockfall Vale\\\nLand\\\n0CMC\" V(11.05,1.15,-22.44) 0 301200 \"3012\"",
      "f486 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 2nd turn (game turn 3) - main1 - priority: PlayerBlue\"",
-     "f486 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f486 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -5648,7 +5648,7 @@
     "step": "78 table",
     "fx": [
      "f498 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 2nd turn (game turn 3) - combatBegin - priority: PlayerBlue\"",
-     "f498 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f498 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -5697,7 +5697,7 @@
      "f516 \"editButton\" obj:908f60 8 \"2\"",
      "f516 \"editButton\" obj:908f60 9 \"2\"",
      "f516 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 2nd turn (game turn 3) - main2 - priority: PlayerBlue\\\nStack (top first): Ashling, the Limitless\"",
-     "f516 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f516 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f518 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/5/9/5924c01f-2815-4e37-b700-3ba6cc81e0e4.jpg\""
     ]
    },
@@ -5719,7 +5719,7 @@
     "step": "84 table",
     "fx": [
      "f534 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 2nd turn (game turn 3) - endOfTurn - priority: PlayerBlue\"",
-     "f534 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f534 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -5741,7 +5741,7 @@
      "f552 \"setRotationSmooth\" obj:s00006 V(0,360,0)",
      "f552 \"setRotationSmooth\" obj:s00008 V(0,360,0)",
      "f552 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 3rd turn (game turn 4) - draw - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f552 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f552 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f552 \"UI.setValue\" \"eng_banner_Blue\" \"YOUR TURN\"",
      "f552 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFD27A\"",
      "f552 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#2a1600E0\""
@@ -5808,7 +5808,7 @@
     "step": "90 table",
     "fx": [
      "f570 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 3rd turn (game turn 4) - main1 - priority: PlayerBlue\"",
-     "f570 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f570 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -6091,7 +6091,7 @@
      "f678 \"setColorTint\" obj:31832a {1=1,2=1,3=1,4=0}",
      "f678 \"setInvisibleTo\" obj:31832a {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
      "f678 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 3rd turn (game turn 4) - combatDeclareAttackers - priority: PlayerBlue\"",
-     "f678 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f678 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#7CFC9A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -6142,7 +6142,7 @@
      "f720 \"highlightOff\" obj:s00004",
      "f720 \"Global.setVectorLines\" 0 \"\"",
      "f720 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 3rd turn (game turn 4) - main2 - priority: PlayerBlue\"",
-     "f720 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f720 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f723 \"setPositionSmooth\" obj:s00004 V(5.632,2.05,-1.818)",
      "f724 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1\" {active=\"true\",height=349,position=\"0 0 -70\",rotation=\"0 0 180\",visibility=\"White|Brown|Red|Orange|Yellow|Green|Teal|Blue|Purple|Pink|Grey|Black\",width=349}",
      "f724 \"objUI.setAttributes\" obj:23e485 \"eng_fx_1_txt\" {color=\"#FFFFFF\",text=\" \"}",
@@ -6154,7 +6154,7 @@
     "step": "116 table",
     "fx": [
      "f726 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 3rd turn (game turn 4) - endOfTurn - priority: PlayerBlue\"",
-     "f726 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f726 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -6170,7 +6170,7 @@
      "f738 \"setRotationSmooth\" obj:s00013 V(0,180,0)",
      "f738 \"setRotationSmooth\" obj:s00020 V(0,180,0)",
      "f738 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 3rd turn (game turn 5) - upkeep - priority: PlayerBlue\"",
-     "f738 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f738 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f738 \"UI.setValue\" \"eng_banner_Blue\" \"AI 1'S TURN\"",
      "f738 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#D6E4FF\"",
      "f738 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#0b1a3aE0\"",
@@ -6189,7 +6189,7 @@
     "fx": [
      "f750 \"takeObject\" obj:s00012 obj:s00023 V(20,6,-34.5)",
      "f750 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 3rd turn (game turn 5) - main1 - priority: PlayerBlue\"",
-     "f750 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f750 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f751 \"objUI.setAttribute\" obj:23e485 \"eng_fx_1\" \"active\" \"false\""
     ]
    },
@@ -6197,7 +6197,7 @@
     "step": "121 table",
     "fx": [
      "f756 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 3rd turn (game turn 5) - combatBegin - priority: PlayerBlue\"",
-     "f756 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f756 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -6206,7 +6206,7 @@
      "f762 \"setLock\" obj:s00011 false",
      "f762 \"UI.setValue\" \"eng_title_Blue\" \"Declare blockers (select none for no blocks)\"",
      "f762 \"UI.setAttributes\" \"eng_opt_Blue_1\" {active=\"true\",color=\"#5E1E1E\",text=\"[  ] Dokuchi Silencer blocks Ashling, the Limitless\",textColor=\"#ffffff\"}",
-     "f762 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FF6B6B>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f762 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FF6B6B\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\"",
      "f762 \"UI.setValue\" \"eng_hint_Blue\" \"Declare blockers (select none for no blocks)\\\nClick your creature, then the attacker it blocks.\"",
      "f762 \"UI.setAttributes\" \"eng_big_Blue\" {active=\"true\",color=\"#C62828\",text=\"Done\",textColor=\"#fffffE\"}",
      "f762 \"UI.setAttributes\" \"eng_confirm_Blue\" {active=\"true\",color=\"#1e6f5c\",textColor=\"#fffffE\"}",
@@ -6306,7 +6306,7 @@
      "f810 \"highlightOff\" obj:s00011",
      "f810 \"Global.setVectorLines\" 0 \"\"",
      "f810 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 3rd turn (game turn 5) - main2 - priority: PlayerBlue\\\nStack (top first): Greenwarden of Murasa\"",
-     "f810 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f810 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f812 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/2/4/24249343-8274-4c16-bb51-4d37b4b60741.jpg\""
     ]
    },
@@ -6412,7 +6412,7 @@
      "f858 \"setLock\" obj:s00027 false",
      "f858 \"putObject\" obj:s00016 obj:s00027",
      "f858 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 3rd turn (game turn 5) - endOfTurn - priority: PlayerBlue\\\nStack (top first): Ashling, the Limitless\"",
-     "f858 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\"",
+     "f858 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\"",
      "f859 \"setHiddenFrom\" obj:s00024 {}",
      "f859 \"setHiddenFrom\" obj:s00027 {}",
      "f859 \"setLock\" obj:s00016 true",
@@ -6452,7 +6452,7 @@
      "f876 \"setRotationSmooth\" obj:s00003 V(0,360,0)",
      "f876 \"setRotationSmooth\" obj:s00006 V(0,360,0)",
      "f876 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 4th turn (game turn 6) - upkeep - priority: PlayerBlue\"",
-     "f876 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f876 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f876 \"UI.setValue\" \"eng_banner_Blue\" \"YOUR TURN\"",
      "f876 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFD27A\"",
      "f876 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#2a1600E0\"",
@@ -6476,7 +6476,7 @@
     "step": "144 table",
     "fx": [
      "f894 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 4th turn (game turn 6) - draw - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f894 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f894 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f900 \"UI.setAttribute\" \"eng_rowimg_Blue_1\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/1/c/1c1ead90-10d8-4217-80e4-6f40320c5569.jpg\"",
      "f900 \"UI.setAttribute\" \"eng_rowimg_Blue_2\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/4/0/4031e5e4-e573-4130-8d20-4a606edef0a0.jpg\""
     ]
@@ -6537,7 +6537,7 @@
     "step": "147 table",
     "fx": [
      "f912 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 4th turn (game turn 6) - main1 - priority: PlayerBlue\"",
-     "f912 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f912 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f918 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"main1\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":6}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -6908,7 +6908,7 @@
     "step": "168 table",
     "fx": [
      "f1038 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 4th turn (game turn 6) - combatDeclareAttackers - priority: PlayerBlue\"",
-     "f1038 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f1038 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#7CFC9A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -7190,7 +7190,7 @@
      "f1194 \"highlightOff\" obj:s00004",
      "f1194 \"Global.setVectorLines\" 0 \"\"",
      "f1194 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 4th turn (game turn 6) - endOfTurn - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1194 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\"",
+     "f1194 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\"",
      "f1200 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"lines\\\\\\\":\\\\\\\"2026-10-20 12:00:00 Blue drew 1: held on the library until the library or Draw is clicked (Auto off)\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"tlog\\\\\\\"}\\\",\\\"t\\\":\\\"tlog\\\"}\""
     ]
    },
@@ -7209,7 +7209,7 @@
      "f1206 \"setRotationSmooth\" obj:s00013 V(0,180,0)",
      "f1206 \"setRotationSmooth\" obj:s00020 V(0,180,0)",
      "f1206 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 4th turn (game turn 7) - upkeep - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1206 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1206 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1206 \"UI.setValue\" \"eng_banner_Blue\" \"AI 1'S TURN\"",
      "f1206 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#D6E4FF\"",
      "f1206 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#0b1a3aE0\"",
@@ -7227,14 +7227,14 @@
     "fx": [
      "f1218 \"takeObject\" obj:s00012 obj:s00030 V(20,6,-34.5)",
      "f1218 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 4th turn (game turn 7) - draw - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1218 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f1218 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
     "step": "199 table",
     "fx": [
      "f1224 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 4th turn (game turn 7) - combatBegin - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1224 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f1224 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -7251,7 +7251,7 @@
      "f1236 \"highlightOn\" obj:s00011 {1=1,2=0.12,3=0.08}",
      "f1236 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(3.5,2.6) mid y1.8\"",
      "f1236 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 4th turn (game turn 7) - combatDeclareAttackers - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1236 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FF6B6B>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f1236 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FF6B6B\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -7319,7 +7319,7 @@
      "f1272 \"highlightOff\" obj:s00011",
      "f1272 \"Global.setVectorLines\" 0 \"\"",
      "f1272 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 4th turn (game turn 7) - main2 - priority: PlayerBlue\\\nStack (top first): Greenwarden of Murasa\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1272 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f1272 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f1274 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/2/4/24249343-8274-4c16-bb51-4d37b4b60741.jpg\""
     ]
    },
@@ -7431,7 +7431,7 @@
      "f1326 \"setLock\" obj:s00033 false",
      "f1326 \"putObject\" obj:s00016 obj:s00033",
      "f1326 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 4th turn (game turn 7) - endOfTurn - priority: PlayerBlue\\\nStack (top first): Ashling, the Limitless\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1326 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\"",
+     "f1326 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\"",
      "f1327 \"setHiddenFrom\" obj:s00031 {}",
      "f1327 \"setHiddenFrom\" obj:s00033 {}",
      "f1327 \"setLock\" obj:s00016 true",
@@ -7474,7 +7474,7 @@
      "f1344 \"setRotationSmooth\" obj:s00008 V(0,360,0)",
      "f1344 \"setRotationSmooth\" obj:s00009 V(0,360,0)",
      "f1344 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 5th turn (game turn 8) - upkeep - priority: PlayerBlue\\\nWaiting for you: draw 1 (click your library or press Draw)\"",
-     "f1344 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1344 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1344 \"UI.setValue\" \"eng_banner_Blue\" \"YOUR TURN\"",
      "f1344 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFD27A\"",
      "f1344 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#2a1600E0\"",
@@ -7498,7 +7498,7 @@
     "step": "222 table",
     "fx": [
      "f1362 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 5th turn (game turn 8) - draw - priority: PlayerBlue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f1362 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f1362 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -7558,7 +7558,7 @@
     "step": "225 table",
     "fx": [
      "f1380 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 5th turn (game turn 8) - main1 - priority: PlayerBlue\"",
-     "f1380 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f1380 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f1386 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"main1\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":8}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -7926,7 +7926,7 @@
     "step": "248 table",
     "fx": [
      "f1518 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 5th turn (game turn 8) - combatDeclareAttackers - priority: PlayerBlue\"",
-     "f1518 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f1518 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#7CFC9A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\"",
      "f1524 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"combatDeclareAttackers\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":8}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -8394,7 +8394,7 @@
      "f1770 \"highlightOff\" obj:s00035",
      "f1770 \"Global.setVectorLines\" 0 \"\"",
      "f1770 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 5th turn (game turn 8) - main2 - priority: PlayerBlue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f1770 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f1770 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f1770 \"UI.setValue\" \"eng_banner_Blue\" \"MAIN PHASE 2\"",
      "f1770 \"UI.setAttribute\" \"eng_banner_Blue\" \"active\" \"true\""
     ]
@@ -8532,7 +8532,7 @@
     "step": "301 table",
     "fx": [
      "f1836 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 5th turn (game turn 8) - endOfTurn - priority: PlayerBlue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f1836 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f1836 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -8549,7 +8549,7 @@
      "f1848 \"setRotationSmooth\" obj:s00013 V(0,180,0)",
      "f1848 \"setRotationSmooth\" obj:s00020 V(0,180,0)",
      "f1848 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 5th turn (game turn 9) - upkeep - priority: PlayerBlue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f1848 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1848 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1848 \"UI.setValue\" \"eng_banner_Blue\" \"AI 1'S TURN\"",
      "f1848 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#D6E4FF\"",
      "f1848 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#0b1a3aE0\"",
@@ -8567,21 +8567,21 @@
     "fx": [
      "f1860 \"takeObject\" obj:s00012 obj:s00038 V(20,6,-34.5)",
      "f1860 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 5th turn (game turn 9) - draw - priority: PlayerBlue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f1860 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f1860 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
     "step": "306 table",
     "fx": [
      "f1866 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 5th turn (game turn 9) - main1 - priority: PlayerBlue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f1866 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f1866 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
     "step": "307 table",
     "fx": [
      "f1872 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 5th turn (game turn 9) - combatBegin - priority: PlayerBlue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f1872 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f1872 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -8597,7 +8597,7 @@
      "f1884 \"highlightOn\" obj:s00011 {1=1,2=0.12,3=0.08}",
      "f1884 \"Global.setVectorLines\" 1 \"1.00,0.32,0.40 t0.220 n11 (8.6,-7.4)->(3.5,2.6) mid y1.8\"",
      "f1884 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 5th turn (game turn 9) - combatDeclareAttackers - priority: PlayerBlue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f1884 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FF6B6B>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f1884 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FF6B6B\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -8665,7 +8665,7 @@
      "f1920 \"highlightOff\" obj:s00011",
      "f1920 \"Global.setVectorLines\" 0 \"\"",
      "f1920 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 5th turn (game turn 9) - main2 - priority: PlayerBlue\\\nStack (top first): Greenwarden of Murasa\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f1920 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f1920 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f1922 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/2/4/24249343-8274-4c16-bb51-4d37b4b60741.jpg\""
     ]
    },
@@ -8776,7 +8776,7 @@
      "f1980 \"setLock\" obj:s00041 false",
      "f1980 \"putObject\" obj:s00016 obj:s00041",
      "f1980 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 5th turn (game turn 9) - endOfTurn - priority: PlayerBlue\\\nStack (top first): Ashling, the Limitless\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f1980 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\"",
+     "f1980 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\"",
      "f1981 \"setHiddenFrom\" obj:s00039 {}",
      "f1981 \"setHiddenFrom\" obj:s00041 {}",
      "f1981 \"setLock\" obj:s00016 true",
@@ -8823,7 +8823,7 @@
      "f1998 \"setRotationSmooth\" obj:s00007 V(0,360,0)",
      "f1998 \"spawnObjectData\" \"Card\" obj:s00042 \"Greenwarden of Murasa\\\nCreature — Elemental\\\n6CMC\" V(40.765,1.15,-22.88) 0 301400 \"3014\"",
      "f1998 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 6th turn (game turn 10) - upkeep - priority: PlayerBlue\\\nWaiting for you: draw 2 (click your library or press Draw)\"",
-     "f1998 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1998 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1998 \"UI.setValue\" \"eng_banner_Blue\" \"YOUR TURN\"",
      "f1998 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFD27A\"",
      "f1998 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#2a1600E0\"",
@@ -8847,7 +8847,7 @@
     "step": "331 table",
     "fx": [
      "f2016 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 6th turn (game turn 10) - draw - priority: PlayerBlue\\\nWaiting for you: draw 3 (click your library or press Draw)\"",
-     "f2016 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f2016 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -8926,7 +8926,7 @@
     "step": "334 table",
     "fx": [
      "f2034 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 6th turn (game turn 10) - main1 - priority: PlayerBlue\"",
-     "f2034 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f2034 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f2040 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"lines\\\\\\\":\\\\\\\"2026-10-20 12:00:00 Blue drew 1: held on the library until the library or Draw is clicked (Auto off)\\\\\\\\n2026-10-20 12:00:00 Blue takes the held all\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"tlog\\\\\\\"}\\\",\\\"t\\\":\\\"tlog\\\"}\""
     ]
    },
@@ -9119,7 +9119,7 @@
     "step": "342 table",
     "fx": [
      "f2082 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 6th turn (game turn 10) - combatDeclareAttackers - priority: PlayerBlue\"",
-     "f2082 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f2082 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#7CFC9A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -11978,7 +11978,7 @@
      "f5382 \"highlightOff\" obj:s00102",
      "f5382 \"highlightOff\" obj:s00104",
      "f5382 \"Global.setVectorLines\" 2 \"1.00,1.00,1.00 t0.500 n2 (0.0,0.0)->(1.0,1.0) mid y2.0 | 1.00,0.32,0.40 t0.220 n11 (30.1,7.4)->(3.5,-2.6) mid y1.8\"",
-     "f5382 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f5382 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f5382 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 6th turn (game turn 15) - upkeep - priority: PlayerBlue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
      "f5383 \"setLock\" obj:s00117 false",
      "f5383 \"putObject\" obj:s00117 obj:s00123",
@@ -12097,7 +12097,7 @@
      "f5426 \"spawnObjectData\" \"Card\" obj:s00135 \"Face-down card\" V(27.2,1.13,14.9) 0 300700 \"3007\"",
      "f5426 \"spawnObjectData\" \"Card\" obj:s00136 \"Face-down card\" V(28.3,1.11,14.9) 0 300700 \"3007\"",
      "f5426 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 6th turn (game turn 10) - combatDeclareBlockers - priority: PlayerBlue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
-     "f5426 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f5426 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#7CFC9A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\"",
      "f5427 \"setLock\" obj:s00050 false",
      "f5427 \"putObject\" obj:s00050 obj:s00128",
      "f5427 \"setLock\" obj:s00016 true",
@@ -13190,7 +13190,7 @@
      "f6031 \"UI.setAttributes\" \"eng_tax_Blue\" {active=\"false\"}",
      "f6031 \"UI.setAttributes\" \"eng_undo_Blue\" {active=\"false\"}",
      "f6031 \"UI.setValue\" \"eng_status_Blue\" \"GAME OVER\\\nPlayerBlue's 6th turn (game turn 10) - combatDeclareBlockers - priority: PlayerBlue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
-     "f6031 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#FFD27A>GAME OVER</color></b>\"",
+     "f6031 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#FFD27A\\\">GAME OVER</textcolor></b>\"",
      "f6031 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"false\"",
      "f6031 \"UI.setValue\" \"eng_hint_Blue\" \" \"",
      "f6031 \"createButton\" obj:s00001 \"New game\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
@@ -13257,7 +13257,7 @@
      "f6079 \"UI.setAttributes\" \"eng_voteyes_Blue\" {active=\"true\",color=\"#2e7d32\",textColor=\"#ffffff\"}",
      "f6079 \"UI.setAttributes\" \"eng_voteno_Blue\" {active=\"true\",color=\"#8e2a2a\",textColor=\"#ffffff\"}",
      "f6079 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 6th turn (game turn 10) - combatDeclareBlockers - priority: PlayerBlue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
-     "f6079 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f6079 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#7CFC9A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\"",
      "f6079 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f6079 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f6079 \"UI.setAttribute\" \"eng_scoopask_White\" \"active\" \"false\"",
@@ -13826,7 +13826,7 @@
      "f6175 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 6th turn (game turn 10) - combatDeclareBlockers - priority: PlayerBlue\\\nStack (top first): Dokuchi Silencer\\\nYour mana pool: C\"",
      "f6175 \"UI.setAttribute\" \"eng_phase_Blue\" \"active\" \"true\"",
      "f6175 \"UI.setAttribute\" \"eng_phasebg_Blue\" \"active\" \"true\"",
-     "f6175 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f6175 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#7CFC9A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\"",
      "f6175 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f6175 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f6175 \"createButton\" obj:s00001 \"Engine: off\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
@@ -14561,7 +14561,7 @@
      "f96 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 1st turn (game turn 0) - untap - priority: PlayerBlue\"",
      "f96 \"UI.setAttribute\" \"eng_phase_Blue\" \"active\" \"true\"",
      "f96 \"UI.setAttribute\" \"eng_phasebg_Blue\" \"active\" \"true\"",
-     "f96 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f96 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f96 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f96 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f96 \"UI.setAttributes\" \"eng_scoop_White\" {active=\"true\",color=\"#c62828\",textColor=\"#fffffE\"}",
@@ -14675,11 +14675,11 @@
      "f362 \"UI.setAttributes\" \"eng_autores_White\" {active=\"false\"}",
      "f362 \"UI.setAttributes\" \"eng_tax_White\" {active=\"false\"}",
      "f362 \"UI.setValue\" \"eng_status_White\" \"GAME OVER - winner: Blue\\\nPlayerBlue's 1st turn (game turn 0) - untap - priority: PlayerBlue\"",
-     "f362 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#FFD27A>GAME OVER</color></b>\"",
+     "f362 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#FFD27A\\\">GAME OVER</textcolor></b>\"",
      "f362 \"UI.setAttribute\" \"eng_hint_White\" \"active\" \"false\"",
      "f362 \"UI.setValue\" \"eng_hint_White\" \" \"",
      "f362 \"UI.setValue\" \"eng_status_Blue\" \"GAME OVER - winner: Blue\\\nPlayerBlue's 1st turn (game turn 0) - untap - priority: PlayerBlue\"",
-     "f362 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#FFD27A>GAME OVER</color></b>\"",
+     "f362 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#FFD27A\\\">GAME OVER</textcolor></b>\"",
      "f362 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"false\"",
      "f362 \"UI.setValue\" \"eng_hint_Blue\" \" \"",
      "f362 \"createButton\" obj:s00001 \"New game\" \"0.28,0.33,0.46\" \"at 0.00,0.60,0.00 scale 0.4545\"",
@@ -16268,7 +16268,7 @@
      "f78 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 1st turn (game turn 0) - untap - priority: PlayerBlue\"",
      "f78 \"UI.setAttribute\" \"eng_phase_Blue\" \"active\" \"true\"",
      "f78 \"UI.setAttribute\" \"eng_phasebg_Blue\" \"active\" \"true\"",
-     "f78 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f78 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f78 \"setPosition\" obj:e2f7ae V(27,-18.97,27)",
      "f78 \"setPosition\" obj:c489e1 V(19,-19,27)",
      "f78 \"setPosition\" obj:b49d50 V(25,-18.97,27)",
@@ -17475,7 +17475,7 @@
      "f1114 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 1st turn (game turn 0) - untap - priority: PlayerBlue\"",
      "f1114 \"UI.setAttribute\" \"eng_phase_Blue\" \"active\" \"true\"",
      "f1114 \"UI.setAttribute\" \"eng_phasebg_Blue\" \"active\" \"true\"",
-     "f1114 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1114 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1114 \"UI.setAttribute\" \"eng_hint_Blue\" \"active\" \"true\"",
      "f1114 \"UI.setValue\" \"eng_hint_Blue\" \"Thinking...\"",
      "f1114 \"UI.setAttribute\" \"eng_scoopask_White\" \"active\" \"false\"",
@@ -18447,7 +18447,7 @@
      "f78 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 1st turn (game turn 0) - untap - priority: PlayerBlue\"",
      "f78 \"UI.setAttribute\" \"eng_phase_Blue\" \"active\" \"true\"",
      "f78 \"UI.setAttribute\" \"eng_phasebg_Blue\" \"active\" \"true\"",
-     "f78 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f78 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f78 \"setPosition\" obj:e2f7ae V(27,-18.97,27)",
      "f78 \"setPosition\" obj:c489e1 V(19,-19,27)",
      "f78 \"setPosition\" obj:b49d50 V(25,-18.97,27)",
@@ -18510,7 +18510,7 @@
     "step": "13 table",
     "fx": [
      "f108 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 1) - upkeep - priority: PlayerBlue\"",
-     "f108 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f108 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f108 \"UI.setValue\" \"eng_banner_Blue\" \"AI 1'S TURN\"",
      "f108 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#D6E4FF\"",
      "f108 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#0b1a3aE0\"",
@@ -18528,7 +18528,7 @@
     "fx": [
      "f120 \"spawnObjectData\" \"Card\" obj:s00013 \"Mountain\\\nBasic Land — Mountain\\\n0CMC\" V(8.65,1.15,-22.44) 0 300900 \"3009\"",
      "f120 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 1) - main1 - priority: PlayerBlue\"",
-     "f120 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f120 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -18541,7 +18541,7 @@
     "step": "17 table",
     "fx": [
      "f132 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 1) - combatBegin - priority: PlayerBlue\"",
-     "f132 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f132 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -18568,7 +18568,7 @@
      "f150 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FFFFFF\"",
      "f150 \"spawnObjectData\" \"Card\" obj:s00014 \"Sol Ring\\\nOn the stack\\\n0CMC\" V(21.4,3.398,-15.4) 0 301000 \"3010\"",
      "f150 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 1) - main2 - priority: PlayerBlue\\\nStack (top first): Sol Ring\"",
-     "f150 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f150 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f152 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/9/1/9138d11a-d55f-4c46-bb27-7e8e15a44e8c.jpg\""
     ]
    },
@@ -18606,7 +18606,7 @@
     "step": "24 table",
     "fx": [
      "f174 \"UI.setValue\" \"eng_status_Blue\" \"AI 1's 1st turn (game turn 1) - endOfTurn - priority: PlayerBlue\"",
-     "f174 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f174 \"UI.setValue\" \"eng_phase_Blue\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -18619,7 +18619,7 @@
     "step": "26 table",
     "fx": [
      "f186 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - upkeep - priority: PlayerBlue\"",
-     "f186 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f186 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f186 \"UI.setValue\" \"eng_banner_Blue\" \"YOUR TURN\"",
      "f186 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFD27A\"",
      "f186 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#2a1600E0\""
@@ -18643,7 +18643,7 @@
      "f204 \"spawnObjectData\" \"Card\" obj:s00017 \"Dokuchi Silencer\\\nCreature — Human Ninja\\\n2CMC\" V(20,5,34.5) 0 301100 \"3011\"",
      "f204 \"takeObject\" obj:s00010 obj:s00018 V(20,6,34.5)",
      "f204 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - draw - priority: PlayerBlue\"",
-     "f204 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f204 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f205 \"setLock\" obj:s00017 false"
     ]
    },
@@ -18676,7 +18676,7 @@
     "step": "32 table",
     "fx": [
      "f222 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - main1 - priority: PlayerBlue\"",
-     "f222 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f222 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -20185,7 +20185,7 @@
      "f352 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 1st turn (game turn 0) - untap - priority: PlayerBlue\"",
      "f352 \"UI.setAttribute\" \"eng_phase_Blue\" \"active\" \"true\"",
      "f352 \"UI.setAttribute\" \"eng_phasebg_Blue\" \"active\" \"true\"",
-     "f352 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f352 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f352 \"UI.setAttributes\" \"eng_scoop_White\" {active=\"true\",color=\"#c62828\",textColor=\"#fffffE\"}",
      "f352 \"UI.setAttribute\" \"eng_scoopask_Red\" \"active\" \"false\"",
      "f352 \"UI.setAttribute\" \"eng_scoopask_Yellow\" \"active\" \"false\"",
@@ -20246,13 +20246,13 @@
     "step": "38 table",
     "fx": [
      "f382 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 1st turn (game turn 1) - upkeep - priority: PlayerBlue\"",
-     "f382 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f382 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f382 \"UI.setValue\" \"eng_banner_White\" \"YOUR TURN\"",
      "f382 \"UI.setAttribute\" \"eng_banner_White\" \"color\" \"#FFD27A\"",
      "f382 \"UI.setAttribute\" \"eng_banner_White\" \"outline\" \"#2a1600E0\"",
      "f382 \"UI.setAttribute\" \"eng_banner_White\" \"active\" \"true\"",
      "f382 \"UI.setValue\" \"eng_status_Blue\" \"PlayerWhite's 1st turn (game turn 1) - upkeep - priority: PlayerBlue\"",
-     "f382 \"UI.setValue\" \"eng_phase_Blue\" \"<b>PLAYERWHITE'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f382 \"UI.setValue\" \"eng_phase_Blue\" \"<b>PLAYERWHITE'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f382 \"UI.setValue\" \"eng_banner_Blue\" \"PLAYERWHITE'S TURN\"",
      "f382 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#D6E4FF\"",
      "f382 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#0b1a3aE0\"",
@@ -20271,9 +20271,9 @@
     "fx": [
      "f394 \"spawnObjectData\" \"Card\" obj:s00013 \"Mountain\\\nBasic Land — Mountain\\\n0CMC\" V(8.65,1.15,-22.44) 0 300900 \"3009\"",
      "f394 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 1st turn (game turn 1) - main1 - priority: PlayerBlue\"",
-     "f394 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f394 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f394 \"UI.setValue\" \"eng_status_Blue\" \"PlayerWhite's 1st turn (game turn 1) - main1 - priority: PlayerBlue\"",
-     "f394 \"UI.setValue\" \"eng_phase_Blue\" \"<b>PLAYERWHITE'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f394 \"UI.setValue\" \"eng_phase_Blue\" \"<b>PLAYERWHITE'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f395 \"setLock\" obj:s00013 false"
     ]
    },
@@ -20287,9 +20287,9 @@
     "step": "42 table",
     "fx": [
      "f406 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 1st turn (game turn 1) - combatBegin - priority: PlayerBlue\"",
-     "f406 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f406 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#7CFC9A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\"",
      "f406 \"UI.setValue\" \"eng_status_Blue\" \"PlayerWhite's 1st turn (game turn 1) - combatBegin - priority: PlayerBlue\"",
-     "f406 \"UI.setValue\" \"eng_phase_Blue\" \"<b>PLAYERWHITE'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f406 \"UI.setValue\" \"eng_phase_Blue\" \"<b>PLAYERWHITE'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -20318,9 +20318,9 @@
      "f424 \"UI.setAttribute\" \"eng_pop_x\" \"textColor\" \"#FFFFFF\"",
      "f424 \"spawnObjectData\" \"Card\" obj:s00014 \"Sol Ring\\\nOn the stack\\\n0CMC\" V(21.4,3.398,-15.4) 0 301000 \"3010\"",
      "f424 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 1st turn (game turn 1) - main2 - priority: PlayerBlue\\\nStack (top first): Sol Ring\"",
-     "f424 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f424 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f424 \"UI.setValue\" \"eng_status_Blue\" \"PlayerWhite's 1st turn (game turn 1) - main2 - priority: PlayerBlue\\\nStack (top first): Sol Ring\"",
-     "f424 \"UI.setValue\" \"eng_phase_Blue\" \"<b>PLAYERWHITE'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f424 \"UI.setValue\" \"eng_phase_Blue\" \"<b>PLAYERWHITE'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f426 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/9/1/9138d11a-d55f-4c46-bb27-7e8e15a44e8c.jpg\""
     ]
    },
@@ -20361,9 +20361,9 @@
     "step": "49 table",
     "fx": [
      "f448 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 1st turn (game turn 1) - endOfTurn - priority: PlayerBlue\"",
-     "f448 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\"",
+     "f448 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\"",
      "f448 \"UI.setValue\" \"eng_status_Blue\" \"PlayerWhite's 1st turn (game turn 1) - endOfTurn - priority: PlayerBlue\"",
-     "f448 \"UI.setValue\" \"eng_phase_Blue\" \"<b>PLAYERWHITE'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f448 \"UI.setValue\" \"eng_phase_Blue\" \"<b>PLAYERWHITE'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -20377,12 +20377,12 @@
     "step": "51 table",
     "fx": [
      "f460 \"UI.setValue\" \"eng_status_White\" \"PlayerBlue's 2nd turn (game turn 2) - upkeep - priority: PlayerBlue\"",
-     "f460 \"UI.setValue\" \"eng_phase_White\" \"<b>PLAYERBLUE'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f460 \"UI.setValue\" \"eng_phase_White\" \"<b>PLAYERBLUE'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f460 \"UI.setValue\" \"eng_banner_White\" \"PLAYERBLUE'S TURN\"",
      "f460 \"UI.setAttribute\" \"eng_banner_White\" \"color\" \"#D6E4FF\"",
      "f460 \"UI.setAttribute\" \"eng_banner_White\" \"outline\" \"#0b1a3aE0\"",
      "f460 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - upkeep - priority: PlayerBlue\"",
-     "f460 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f460 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f460 \"UI.setValue\" \"eng_banner_Blue\" \"YOUR TURN\"",
      "f460 \"UI.setAttribute\" \"eng_banner_Blue\" \"color\" \"#FFD27A\"",
      "f460 \"UI.setAttribute\" \"eng_banner_Blue\" \"outline\" \"#2a1600E0\""
@@ -20407,9 +20407,9 @@
      "f478 \"spawnObjectData\" \"Card\" obj:s00017 \"Dokuchi Silencer\\\nCreature — Human Ninja\\\n2CMC\" V(20,5,34.5) 0 301100 \"3011\"",
      "f478 \"takeObject\" obj:s00010 obj:s00018 V(20,6,34.5)",
      "f478 \"UI.setValue\" \"eng_status_White\" \"PlayerBlue's 2nd turn (game turn 2) - draw - priority: PlayerBlue\"",
-     "f478 \"UI.setValue\" \"eng_phase_White\" \"<b>PLAYERBLUE'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f478 \"UI.setValue\" \"eng_phase_White\" \"<b>PLAYERBLUE'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f478 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - draw - priority: PlayerBlue\"",
-     "f478 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f478 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f479 \"setLock\" obj:s00017 false"
     ]
    },
@@ -20442,9 +20442,9 @@
     "step": "57 table",
     "fx": [
      "f496 \"UI.setValue\" \"eng_status_White\" \"PlayerBlue's 2nd turn (game turn 2) - main1 - priority: PlayerBlue\"",
-     "f496 \"UI.setValue\" \"eng_phase_White\" \"<b>PLAYERBLUE'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f496 \"UI.setValue\" \"eng_phase_White\" \"<b>PLAYERBLUE'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f496 \"UI.setValue\" \"eng_status_Blue\" \"PlayerBlue's 2nd turn (game turn 2) - main1 - priority: PlayerBlue\"",
-     "f496 \"UI.setValue\" \"eng_phase_Blue\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f496 \"UI.setValue\" \"eng_phase_Blue\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {

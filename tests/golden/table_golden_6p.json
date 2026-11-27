@@ -495,7 +495,7 @@
      "f45 \"UI.setAttributes\" \"eng_opt_White_30\" {active=\"false\"}",
      "f45 \"UI.setAttribute\" \"eng_phase_White\" \"active\" \"true\"",
      "f45 \"UI.setAttribute\" \"eng_phasebg_White\" \"active\" \"true\"",
-     "f45 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f45 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f45 \"UI.setAttribute\" \"eng_hint_White\" \"active\" \"true\"",
      "f45 \"UI.setValue\" \"eng_hint_White\" \"Thinking...\"",
      "f45 \"UI.setAttributes\" \"eng_big_White\" {active=\"false\",color=\"#e8711a\",fontSize=\"26\",text=\" \",textColor=\"#fffffE\",tooltip=\"\"}",
@@ -692,7 +692,7 @@
      "f102 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f102 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f102 \"UI.setValue\" \"eng_status_White\" \"AI 3's 1st turn (game turn 1) - upkeep - priority: PlayerWhite\"",
-     "f102 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f102 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f102 \"UI.setValue\" \"eng_banner_White\" \"AI 3'S TURN\"",
      "f102 \"UI.setAttribute\" \"eng_banner_White\" \"color\" \"#D6E4FF\"",
      "f102 \"UI.setAttribute\" \"eng_banner_White\" \"outline\" \"#0b1a3aE0\"",
@@ -1062,7 +1062,7 @@
      "f120 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f120 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f120 \"UI.setValue\" \"eng_status_White\" \"AI 3's 1st turn (game turn 1) - draw - priority: PlayerWhite\"",
-     "f120 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f120 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1079,7 +1079,7 @@
      "f132 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f132 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f132 \"UI.setValue\" \"eng_status_White\" \"AI 3's 1st turn (game turn 1) - main1 - priority: PlayerWhite\"",
-     "f132 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f132 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1095,7 +1095,7 @@
      "f144 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f144 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f144 \"UI.setValue\" \"eng_status_White\" \"AI 3's 1st turn (game turn 1) - combatBegin - priority: PlayerWhite\"",
-     "f144 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f144 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1133,7 +1133,7 @@
      "f162 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f162 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f162 \"UI.setValue\" \"eng_status_White\" \"AI 3's 1st turn (game turn 1) - main2 - priority: PlayerWhite\"",
-     "f162 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f162 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
@@ -1143,7 +1143,7 @@
      "f168 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f168 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f168 \"UI.setValue\" \"eng_status_White\" \"AI 3's 1st turn (game turn 1) - endOfTurn - priority: PlayerWhite\"",
-     "f168 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f168 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -1159,7 +1159,7 @@
      "f180 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f180 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f180 \"UI.setValue\" \"eng_status_White\" \"AI 4's 1st turn (game turn 2) - upkeep - priority: PlayerWhite\"",
-     "f180 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f180 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f180 \"UI.setValue\" \"eng_banner_White\" \"AI 4'S TURN\""
     ]
    },
@@ -1177,7 +1177,7 @@
      "f192 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f192 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f192 \"UI.setValue\" \"eng_status_White\" \"AI 4's 1st turn (game turn 2) - draw - priority: PlayerWhite\"",
-     "f192 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f192 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1194,7 +1194,7 @@
      "f204 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f204 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f204 \"UI.setValue\" \"eng_status_White\" \"AI 4's 1st turn (game turn 2) - main1 - priority: PlayerWhite\"",
-     "f204 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f204 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1235,7 +1235,7 @@
      "f228 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f228 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f228 \"UI.setValue\" \"eng_status_White\" \"AI 4's 1st turn (game turn 2) - combatBegin - priority: PlayerWhite\"",
-     "f228 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f228 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\"",
      "f229 \"setGMNotes\" obj:s00079 \"enginetrash\"",
      "f229 \"highlightOff\" obj:s00079",
      "f229 \"setInvisibleTo\" obj:s00079 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -1273,7 +1273,7 @@
      "f246 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f246 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f246 \"UI.setValue\" \"eng_status_White\" \"AI 4's 1st turn (game turn 2) - main2 - priority: PlayerWhite\"",
-     "f246 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f246 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
@@ -1283,7 +1283,7 @@
      "f252 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f252 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f252 \"UI.setValue\" \"eng_status_White\" \"AI 4's 1st turn (game turn 2) - endOfTurn - priority: PlayerWhite\"",
-     "f252 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f252 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -1299,7 +1299,7 @@
      "f264 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f264 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f264 \"UI.setValue\" \"eng_status_White\" \"AI 5's 1st turn (game turn 3) - upkeep - priority: PlayerWhite\"",
-     "f264 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f264 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f264 \"UI.setValue\" \"eng_banner_White\" \"AI 5'S TURN\""
     ]
    },
@@ -1318,7 +1318,7 @@
      "f276 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f276 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f276 \"UI.setValue\" \"eng_status_White\" \"AI 5's 1st turn (game turn 3) - draw - priority: PlayerWhite\"",
-     "f276 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f276 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f282 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"draw\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":3}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -1336,7 +1336,7 @@
      "f288 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f288 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f288 \"UI.setValue\" \"eng_status_White\" \"AI 5's 1st turn (game turn 3) - main1 - priority: PlayerWhite\"",
-     "f288 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f288 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1352,7 +1352,7 @@
      "f300 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f300 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f300 \"UI.setValue\" \"eng_status_White\" \"AI 5's 1st turn (game turn 3) - combatBegin - priority: PlayerWhite\"",
-     "f300 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f300 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1405,7 +1405,7 @@
      "f324 \"spawnObjectData\" \"Card\" obj:s00084 \"Sol Ring\\\nOn the stack\\\n0CMC\" V(29.46,3.4,14.87) 0 301700 \"3017\"",
      "f324 \"createButton\" obj:2ee5fb \"SPELLS THIS\\\nTURN: 1 (STORM 1)\" \"0.04,0.20,0.05\" \"at -0.20,0.05,2.56\"",
      "f324 \"UI.setValue\" \"eng_status_White\" \"AI 5's 1st turn (game turn 3) - main2 - priority: PlayerWhite\\\nStack (top first): Sol Ring\"",
-     "f324 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f324 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f326 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/d/f/df1b01b9-e654-1a1f-c95c-11950b494eea.jpg\""
     ]
    },
@@ -1447,7 +1447,7 @@
      "f348 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f348 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f348 \"UI.setValue\" \"eng_status_White\" \"AI 5's 1st turn (game turn 3) - endOfTurn - priority: PlayerWhite\"",
-     "f348 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f348 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -1466,7 +1466,7 @@
      "f360 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f360 \"removeButton\" obj:2ee5fb 0",
      "f360 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 1st turn (game turn 4) - upkeep - priority: PlayerWhite\"",
-     "f360 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f360 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f360 \"UI.setValue\" \"eng_banner_White\" \"YOUR TURN\"",
      "f360 \"UI.setAttribute\" \"eng_banner_White\" \"color\" \"#FFD27A\"",
      "f360 \"UI.setAttribute\" \"eng_banner_White\" \"outline\" \"#2a1600E0\"",
@@ -1494,7 +1494,7 @@
      "f378 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f378 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f378 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 1st turn (game turn 4) - draw - priority: PlayerWhite\"",
-     "f378 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f378 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f379 \"setLock\" obj:s00086 false"
     ]
    },
@@ -1511,7 +1511,7 @@
      "f390 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f390 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f390 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 1st turn (game turn 4) - main1 - priority: PlayerWhite\"",
-     "f390 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f390 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1616,7 +1616,7 @@
      "f432 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f432 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f432 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 1st turn (game turn 4) - combatBegin - priority: PlayerWhite\"",
-     "f432 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f432 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#7CFC9A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1645,7 +1645,7 @@
      "f450 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f450 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f450 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 1st turn (game turn 4) - main2 - priority: PlayerWhite\"",
-     "f450 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f450 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f456 \"UI.setAttribute\" \"eng_banner_White\" \"active\" \"false\""
     ]
    },
@@ -1656,7 +1656,7 @@
      "f456 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f456 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f456 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 1st turn (game turn 4) - endOfTurn - priority: PlayerWhite\"",
-     "f456 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f456 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -1676,7 +1676,7 @@
      "f468 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f468 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f468 \"UI.setValue\" \"eng_status_White\" \"AI 1's 1st turn (game turn 5) - upkeep - priority: PlayerWhite\"",
-     "f468 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f468 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f468 \"UI.setValue\" \"eng_banner_White\" \"AI 1'S TURN\"",
      "f468 \"UI.setAttribute\" \"eng_banner_White\" \"color\" \"#D6E4FF\"",
      "f468 \"UI.setAttribute\" \"eng_banner_White\" \"outline\" \"#0b1a3aE0\""
@@ -1696,7 +1696,7 @@
      "f480 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f480 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f480 \"UI.setValue\" \"eng_status_White\" \"AI 1's 1st turn (game turn 5) - draw - priority: PlayerWhite\"",
-     "f480 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f480 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1713,7 +1713,7 @@
      "f492 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f492 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f492 \"UI.setValue\" \"eng_status_White\" \"AI 1's 1st turn (game turn 5) - main1 - priority: PlayerWhite\"",
-     "f492 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f492 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1729,7 +1729,7 @@
      "f504 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f504 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f504 \"UI.setValue\" \"eng_status_White\" \"AI 1's 1st turn (game turn 5) - combatBegin - priority: PlayerWhite\"",
-     "f504 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f504 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1767,7 +1767,7 @@
      "f522 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f522 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f522 \"UI.setValue\" \"eng_status_White\" \"AI 1's 1st turn (game turn 5) - main2 - priority: PlayerWhite\"",
-     "f522 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f522 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
@@ -1777,7 +1777,7 @@
      "f528 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f528 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f528 \"UI.setValue\" \"eng_status_White\" \"AI 1's 1st turn (game turn 5) - endOfTurn - priority: PlayerWhite\"",
-     "f528 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\"",
+     "f528 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\"",
      "f529 \"UI.setAttribute\" \"eng_banner_White\" \"active\" \"false\""
     ]
    },
@@ -1795,7 +1795,7 @@
      "f540 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f540 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f540 \"UI.setValue\" \"eng_status_White\" \"AI 2's 1st turn (game turn 6) - upkeep - priority: PlayerWhite\"",
-     "f540 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f540 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f540 \"UI.setValue\" \"eng_banner_White\" \"AI 2'S TURN\"",
      "f540 \"UI.setAttribute\" \"eng_banner_White\" \"active\" \"true\""
     ]
@@ -1814,7 +1814,7 @@
      "f552 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f552 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f552 \"UI.setValue\" \"eng_status_White\" \"AI 2's 1st turn (game turn 6) - draw - priority: PlayerWhite\"",
-     "f552 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f552 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f558 \"UI.setAttribute\" \"eng_pop\" \"active\" \"false\""
     ]
    },
@@ -1832,7 +1832,7 @@
      "f564 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f564 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f564 \"UI.setValue\" \"eng_status_White\" \"AI 2's 1st turn (game turn 6) - main1 - priority: PlayerWhite\"",
-     "f564 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f564 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1848,7 +1848,7 @@
      "f576 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f576 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f576 \"UI.setValue\" \"eng_status_White\" \"AI 2's 1st turn (game turn 6) - combatBegin - priority: PlayerWhite\"",
-     "f576 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f576 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1868,7 +1868,7 @@
      "f588 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f588 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f588 \"UI.setValue\" \"eng_status_White\" \"AI 2's 1st turn (game turn 6) - main2 - priority: PlayerWhite\"",
-     "f588 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f588 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f589 \"setGMNotes\" obj:s00090 \"enginetrash\"",
      "f589 \"highlightOff\" obj:s00090",
      "f589 \"setInvisibleTo\" obj:s00090 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -1888,7 +1888,7 @@
      "f594 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f594 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f594 \"UI.setValue\" \"eng_status_White\" \"AI 2's 1st turn (game turn 6) - endOfTurn - priority: PlayerWhite\"",
-     "f594 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f594 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -1905,7 +1905,7 @@
      "f606 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f606 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f606 \"UI.setValue\" \"eng_status_White\" \"AI 3's 2nd turn (game turn 7) - upkeep - priority: PlayerWhite\"",
-     "f606 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f606 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f606 \"UI.setValue\" \"eng_banner_White\" \"AI 3'S TURN\""
     ]
    },
@@ -1923,7 +1923,7 @@
      "f618 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f618 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f618 \"UI.setValue\" \"eng_status_White\" \"AI 3's 2nd turn (game turn 7) - draw - priority: PlayerWhite\"",
-     "f618 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f618 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1940,7 +1940,7 @@
      "f630 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f630 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f630 \"UI.setValue\" \"eng_status_White\" \"AI 3's 2nd turn (game turn 7) - main1 - priority: PlayerWhite\"",
-     "f630 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f630 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -1956,7 +1956,7 @@
      "f642 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f642 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f642 \"UI.setValue\" \"eng_status_White\" \"AI 3's 2nd turn (game turn 7) - combatBegin - priority: PlayerWhite\"",
-     "f642 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f642 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\"",
      "f648 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"combatBegin\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":7}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -1976,7 +1976,7 @@
      "f654 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f654 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f654 \"UI.setValue\" \"eng_status_White\" \"AI 3's 2nd turn (game turn 7) - main2 - priority: PlayerWhite\"",
-     "f654 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f654 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f655 \"setGMNotes\" obj:s00092 \"enginetrash\"",
      "f655 \"highlightOff\" obj:s00092",
      "f655 \"setInvisibleTo\" obj:s00092 {1=\"White\",2=\"Red\",3=\"Yellow\",4=\"Blue\",5=\"Grey\",6=\"Black\"}",
@@ -1996,7 +1996,7 @@
      "f660 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f660 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f660 \"UI.setValue\" \"eng_status_White\" \"AI 3's 2nd turn (game turn 7) - endOfTurn - priority: PlayerWhite\"",
-     "f660 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f660 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -2013,7 +2013,7 @@
      "f672 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f672 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f672 \"UI.setValue\" \"eng_status_White\" \"AI 4's 2nd turn (game turn 8) - upkeep - priority: PlayerWhite\"",
-     "f672 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f672 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f672 \"UI.setValue\" \"eng_banner_White\" \"AI 4'S TURN\""
     ]
    },
@@ -2031,7 +2031,7 @@
      "f684 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f684 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f684 \"UI.setValue\" \"eng_status_White\" \"AI 4's 2nd turn (game turn 8) - draw - priority: PlayerWhite\"",
-     "f684 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f684 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2048,7 +2048,7 @@
      "f696 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f696 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f696 \"UI.setValue\" \"eng_status_White\" \"AI 4's 2nd turn (game turn 8) - main1 - priority: PlayerWhite\"",
-     "f696 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f696 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2064,7 +2064,7 @@
      "f708 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f708 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f708 \"UI.setValue\" \"eng_status_White\" \"AI 4's 2nd turn (game turn 8) - combatBegin - priority: PlayerWhite\"",
-     "f708 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f708 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2119,7 +2119,7 @@
      "f732 \"spawnObjectData\" \"Card\" obj:s00096 \"Springheart Nantuko\\\nOn the stack\\\n0CMC\" V(0.068,3.4,14.87) 0 300100 \"3001\"",
      "f732 \"createButton\" obj:395037 \"SPELLS THIS\\\nTURN: 1 (STORM 1)\" \"0.04,0.20,0.05\" \"at 0.20,0.05,2.56\"",
      "f732 \"UI.setValue\" \"eng_status_White\" \"AI 4's 2nd turn (game turn 8) - main2 - priority: PlayerWhite\\\nStack (top first): Springheart Nantuko\"",
-     "f732 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f732 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f734 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://steamusercontent-a.akamaihd.net/ugc/1647720103762682461/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/\""
     ]
    },
@@ -2180,7 +2180,7 @@
      "f762 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f762 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f762 \"UI.setValue\" \"eng_status_White\" \"AI 4's 2nd turn (game turn 8) - endOfTurn - priority: PlayerWhite\"",
-     "f762 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\"",
+     "f762 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\"",
      "f768 \"UI.setAttribute\" \"eng_banner_White\" \"active\" \"false\""
     ]
    },
@@ -2199,7 +2199,7 @@
      "f774 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f774 \"removeButton\" obj:395037 0",
      "f774 \"UI.setValue\" \"eng_status_White\" \"AI 5's 2nd turn (game turn 9) - upkeep - priority: PlayerWhite\"",
-     "f774 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f774 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f774 \"UI.setValue\" \"eng_banner_White\" \"AI 5'S TURN\"",
      "f774 \"UI.setAttribute\" \"eng_banner_White\" \"active\" \"true\""
     ]
@@ -2219,7 +2219,7 @@
      "f786 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f786 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f786 \"UI.setValue\" \"eng_status_White\" \"AI 5's 2nd turn (game turn 9) - draw - priority: PlayerWhite\"",
-     "f786 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f786 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2236,7 +2236,7 @@
      "f798 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f798 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f798 \"UI.setValue\" \"eng_status_White\" \"AI 5's 2nd turn (game turn 9) - main1 - priority: PlayerWhite\"",
-     "f798 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f798 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2252,7 +2252,7 @@
      "f810 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f810 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f810 \"UI.setValue\" \"eng_status_White\" \"AI 5's 2nd turn (game turn 9) - combatBegin - priority: PlayerWhite\"",
-     "f810 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f810 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2290,7 +2290,7 @@
      "f828 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f828 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f828 \"UI.setValue\" \"eng_status_White\" \"AI 5's 2nd turn (game turn 9) - main2 - priority: PlayerWhite\"",
-     "f828 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f828 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
@@ -2306,7 +2306,7 @@
      "f840 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f840 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f840 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 2nd turn (game turn 10) - upkeep - priority: PlayerWhite\\\nWaiting for you: untap (press Untap)\"",
-     "f840 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f840 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f840 \"UI.setValue\" \"eng_banner_White\" \"YOUR TURN\"",
      "f840 \"UI.setAttribute\" \"eng_banner_White\" \"color\" \"#FFD27A\"",
      "f840 \"UI.setAttribute\" \"eng_banner_White\" \"outline\" \"#2a1600E0\""
@@ -2332,7 +2332,7 @@
      "f858 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f858 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f858 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 2nd turn (game turn 10) - draw - priority: PlayerWhite\\\nWaiting for you: draw 1 (click your library or press Draw), untap (press Untap)\"",
-     "f858 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f858 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2346,7 +2346,7 @@
      "f870 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f870 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f870 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 2nd turn (game turn 10) - main1 - priority: PlayerWhite\\\nWaiting for you: draw 1 (click your library or press Draw), untap (press Untap)\"",
-     "f870 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f870 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -2444,7 +2444,7 @@
      "f906 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f906 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f906 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 2nd turn (game turn 10) - combatBegin - priority: PlayerWhite\"",
-     "f906 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#7CFC9A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f906 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#7CFC9A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\"",
      "f912 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://steamusercontent-a.akamaihd.net/ugc/1647720103762682461/35EF6E87970E2A5D6581E7D96A99F8A575B7A15F/\""
     ]
    },
@@ -2638,7 +2638,7 @@
      "f972 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f972 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f972 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 2nd turn (game turn 10) - main2 - priority: PlayerWhite\"",
-     "f972 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f972 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
@@ -3091,7 +3091,7 @@
      "f1116 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1116 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1116 \"UI.setValue\" \"eng_status_White\" \"PlayerWhite's 2nd turn (game turn 10) - endOfTurn - priority: PlayerWhite\"",
-     "f1116 \"UI.setValue\" \"eng_phase_White\" \"<b><color=#7CFC9A>YOUR TURN</color></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\"",
+     "f1116 \"UI.setValue\" \"eng_phase_White\" \"<b><textcolor color=\\\"#7CFC9A\\\">YOUR TURN</textcolor></b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\"",
      "f1116 \"UI.setValue\" \"eng_banner_White\" \"END STEP\"",
      "f1116 \"UI.setAttribute\" \"eng_banner_White\" \"active\" \"true\""
     ]
@@ -3138,7 +3138,7 @@
      "f1140 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1140 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1140 \"UI.setValue\" \"eng_status_White\" \"AI 1's 2nd turn (game turn 11) - draw - priority: PlayerWhite\"",
-     "f1140 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1140 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1140 \"UI.setValue\" \"eng_banner_White\" \"DRAW\"",
      "f1140 \"UI.setValue\" \"eng_banner_White\" \"AI 1'S TURN\"",
      "f1140 \"UI.setAttribute\" \"eng_banner_White\" \"color\" \"#D6E4FF\"",
@@ -3321,7 +3321,7 @@
      "f1206 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1206 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1206 \"UI.setValue\" \"eng_status_White\" \"AI 1's 2nd turn (game turn 11) - main1 - priority: PlayerWhite\"",
-     "f1206 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f1206 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -3354,7 +3354,7 @@
      "f1224 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1224 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1224 \"UI.setValue\" \"eng_status_White\" \"AI 1's 2nd turn (game turn 11) - combatBegin - priority: PlayerWhite\"",
-     "f1224 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f1224 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -3403,7 +3403,7 @@
      "f1248 \"highlightOn\" obj:s00089 {1=0.75,2=0.35,3=1}",
      "f1248 \"createButton\" obj:448880 \"SPELLS THIS\\\nTURN: 1 (STORM 1)\" \"0.04,0.20,0.05\" \"at 0.20,0.05,2.56\"",
      "f1248 \"UI.setValue\" \"eng_status_White\" \"AI 1's 2nd turn (game turn 11) - main2 - priority: PlayerWhite\\\nStack (top first): Path of Ancestry, Flamebraider\"",
-     "f1248 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f1248 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f1250 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/7/c/7c0a9b45-9c2b-fa9c-7cd2-08139774caf1.jpg\""
     ]
    },
@@ -3504,7 +3504,7 @@
      "f1296 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1296 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1296 \"UI.setValue\" \"eng_status_White\" \"AI 1's 2nd turn (game turn 11) - endOfTurn - priority: PlayerWhite\"",
-     "f1296 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f1296 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 1'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -3539,7 +3539,7 @@
      "f1314 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1314 \"removeButton\" obj:448880 0",
      "f1314 \"UI.setValue\" \"eng_status_White\" \"AI 2's 2nd turn (game turn 12) - upkeep - priority: PlayerWhite\"",
-     "f1314 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1314 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1314 \"UI.setValue\" \"eng_banner_White\" \"UPKEEP\"",
      "f1314 \"UI.setValue\" \"eng_banner_White\" \"AI 2'S TURN\"",
      "f1314 \"UI.setAttribute\" \"eng_banner_White\" \"color\" \"#D6E4FF\"",
@@ -3743,7 +3743,7 @@
      "f1392 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1392 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1392 \"UI.setValue\" \"eng_status_White\" \"AI 2's 2nd turn (game turn 12) - draw - priority: PlayerWhite\"",
-     "f1392 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1392 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1398 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/0/5/056fa3d8-40f4-8b7b-fbbd-68c19a4797b3.jpg\""
     ]
    },
@@ -3770,7 +3770,7 @@
      "f1410 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1410 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1410 \"UI.setValue\" \"eng_status_White\" \"AI 2's 2nd turn (game turn 12) - combatBegin - priority: PlayerWhite\"",
-     "f1410 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\"",
+     "f1410 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\"",
      "f1416 \"UI.setValue\" \"eng_banner_White\" \"COMBAT\"",
      "f1416 \"UI.setAttribute\" \"eng_banner_White\" \"color\" \"#FFFFFF\"",
      "f1416 \"UI.setAttribute\" \"eng_banner_White\" \"outline\" \"#101010E0\"",
@@ -3851,7 +3851,7 @@
      "f1446 \"spawnObjectData\" \"Card\" obj:s00117 \"Evie Frye\\\nOn the stack\\\n0CMC\" V(-29.47,3.4,-14.87) 0 302600 \"3026\"",
      "f1446 \"createButton\" obj:37e533 \"SPELLS THIS\\\nTURN: 1 (STORM 1)\" \"0.04,0.20,0.05\" \"at -0.20,0.05,2.56\"",
      "f1446 \"UI.setValue\" \"eng_status_White\" \"AI 2's 2nd turn (game turn 12) - main2 - priority: PlayerWhite\\\nStack (top first): Evie Frye\"",
-     "f1446 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\"",
+     "f1446 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\"",
      "f1448 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/9/1/91f6f231-ece5-54b4-76e7-808ac75b5f8a.jpg\""
     ]
    },
@@ -4025,7 +4025,7 @@
      "f1518 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1518 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1518 \"UI.setValue\" \"eng_status_White\" \"AI 2's 2nd turn (game turn 12) - endOfTurn - priority: PlayerWhite\"",
-     "f1518 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f1518 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 2'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -4071,7 +4071,7 @@
      "f1536 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1536 \"removeButton\" obj:37e533 0",
      "f1536 \"UI.setValue\" \"eng_status_White\" \"AI 3's 3rd turn (game turn 13) - upkeep - priority: PlayerWhite\"",
-     "f1536 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1536 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1536 \"UI.setValue\" \"eng_banner_White\" \"UPKEEP\"",
      "f1536 \"UI.setValue\" \"eng_banner_White\" \"AI 3'S TURN\"",
      "f1536 \"UI.setAttribute\" \"eng_banner_White\" \"color\" \"#D6E4FF\"",
@@ -4101,7 +4101,7 @@
      "f1554 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1554 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1554 \"UI.setValue\" \"eng_status_White\" \"AI 3's 3rd turn (game turn 13) - draw - priority: PlayerWhite\"",
-     "f1554 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f1554 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -4311,7 +4311,7 @@
      "f1626 \"spawnObjectData\" \"Card\" obj:s00125 \"Strip Mine\\\nOn the stack\\\n0CMC\" V(-29.303,3.398,14.87) 0 302700 \"3027\"",
      "f1626 \"Global.setVectorLines\" 1 \"0.35,0.85,1.00 t0.300 n11 (-41.7,23.7)->(12.8,21.9) mid y8.5\"",
      "f1626 \"UI.setValue\" \"eng_status_White\" \"AI 3's 3rd turn (game turn 13) - main1 - priority: PlayerWhite\\\nStack (top first): Strip Mine\"",
-     "f1626 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f1626 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f1628 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/2/6/26b175a9-1cef-8cc4-9df9-224a3111c214.jpg\"",
      "f1632 \"UI.setAttribute\" \"eng_banner_White\" \"active\" \"false\""
     ]
@@ -4400,7 +4400,7 @@
      "f1662 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1662 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1662 \"UI.setValue\" \"eng_status_White\" \"AI 3's 3rd turn (game turn 13) - combatBegin - priority: PlayerWhite\"",
-     "f1662 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f1662 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -4429,7 +4429,7 @@
      "f1680 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1680 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1680 \"UI.setValue\" \"eng_status_White\" \"AI 3's 3rd turn (game turn 13) - main2 - priority: PlayerWhite\"",
-     "f1680 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f1680 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
@@ -4439,7 +4439,7 @@
      "f1686 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1686 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1686 \"UI.setValue\" \"eng_status_White\" \"AI 3's 3rd turn (game turn 13) - endOfTurn - priority: PlayerWhite\"",
-     "f1686 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f1686 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 3'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {
@@ -4474,7 +4474,7 @@
      "f1704 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1704 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1704 \"UI.setValue\" \"eng_status_White\" \"AI 4's 3rd turn (game turn 14) - upkeep - priority: PlayerWhite\"",
-     "f1704 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1704 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1704 \"UI.setValue\" \"eng_banner_White\" \"UPKEEP\"",
      "f1704 \"UI.setValue\" \"eng_banner_White\" \"AI 4'S TURN\"",
      "f1704 \"UI.setAttribute\" \"eng_banner_White\" \"color\" \"#D6E4FF\"",
@@ -4675,7 +4675,7 @@
      "f1776 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1776 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1776 \"UI.setValue\" \"eng_status_White\" \"AI 4's 3rd turn (game turn 14) - draw - priority: PlayerWhite\"",
-     "f1776 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f1776 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -4708,7 +4708,7 @@
      "f1794 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1794 \"highlightOn\" obj:s00098 {1=0.75,2=0.35,3=1}",
      "f1794 \"UI.setValue\" \"eng_status_White\" \"AI 4's 3rd turn (game turn 14) - main1 - priority: PlayerWhite\\\nStack (top first): Springheart Nantuko\"",
-     "f1794 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\"",
+     "f1794 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\"",
      "f1796 \"UI.setAttribute\" \"eng_pop_img\" \"image\" \"https://wsrv.nl/?url=cards.scryfall.io/normal/front/7/3/73ef159f-f627-50cc-2486-8f16d0858b85.jpg\""
     ]
    },
@@ -4843,7 +4843,7 @@
      "f1854 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1854 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1854 \"UI.setValue\" \"eng_status_White\" \"AI 4's 3rd turn (game turn 14) - combatBegin - priority: PlayerWhite\"",
-     "f1854 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f1854 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -4872,7 +4872,7 @@
      "f1872 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1872 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1872 \"UI.setValue\" \"eng_status_White\" \"AI 4's 3rd turn (game turn 14) - main2 - priority: PlayerWhite\"",
-     "f1872 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f1872 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
@@ -4882,7 +4882,7 @@
      "f1878 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1878 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1878 \"UI.setValue\" \"eng_status_White\" \"AI 4's 3rd turn (game turn 14) - endOfTurn - priority: PlayerWhite\"",
-     "f1878 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\"",
+     "f1878 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 4'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\"",
      "f1884 \"WebRequest.custom\" \"http://127.0.0.1:48787/msg\" \"POST\" \"{\\\"json\\\":\\\"{\\\\\\\"ms\\\\\\\":0,\\\\\\\"problems\\\\\\\":\\\\\\\"\\\\\\\",\\\\\\\"stamp\\\\\\\":\\\\\\\"dev\\\\\\\",\\\\\\\"step\\\\\\\":\\\\\\\"endOfTurn\\\\\\\",\\\\\\\"t\\\\\\\":\\\\\\\"check\\\\\\\",\\\\\\\"turn\\\\\\\":14}\\\",\\\"t\\\":\\\"check\\\"}\""
     ]
    },
@@ -4918,7 +4918,7 @@
      "f1896 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1896 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1896 \"UI.setValue\" \"eng_status_White\" \"AI 5's 3rd turn (game turn 15) - upkeep - priority: PlayerWhite\"",
-     "f1896 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      <b><color=#FFD27A>UPKEEP</color></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
+     "f1896 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      <b><textcolor color=\\\"#FFD27A\\\">UPKEEP</textcolor></b>   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   End\"",
      "f1896 \"UI.setValue\" \"eng_banner_White\" \"UPKEEP\"",
      "f1896 \"UI.setValue\" \"eng_banner_White\" \"AI 5'S TURN\"",
      "f1896 \"UI.setAttribute\" \"eng_banner_White\" \"color\" \"#D6E4FF\"",
@@ -4948,7 +4948,7 @@
      "f1914 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1914 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1914 \"UI.setValue\" \"eng_status_White\" \"AI 5's 3rd turn (game turn 15) - draw - priority: PlayerWhite\"",
-     "f1914 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   <b><color=#FFD27A>DRAW</color></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
+     "f1914 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   <b><textcolor color=\\\"#FFD27A\\\">DRAW</textcolor></b>   ›   Main 1   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -4974,7 +4974,7 @@
      "f1932 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1932 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f1932 \"UI.setValue\" \"eng_status_White\" \"AI 5's 3rd turn (game turn 15) - main1 - priority: PlayerWhite\"",
-     "f1932 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   <b><color=#FFD27A>MAIN 1</color></b>   ›   Combat   ›   Main 2   ›   End\""
+     "f1932 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 1</textcolor></b>   ›   Combat   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -5210,7 +5210,7 @@
      "f2016 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f2016 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f2016 \"UI.setValue\" \"eng_status_White\" \"AI 5's 3rd turn (game turn 15) - combatDeclareAttackers - priority: PlayerWhite\"",
-     "f2016 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><color=#FFD27A>COMBAT</color></b>   ›   Main 2   ›   End\""
+     "f2016 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   <b><textcolor color=\\\"#FFD27A\\\">COMBAT</textcolor></b>   ›   Main 2   ›   End\""
     ]
    },
    {
@@ -5229,7 +5229,7 @@
      "f2028 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f2028 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f2028 \"UI.setValue\" \"eng_status_White\" \"AI 5's 3rd turn (game turn 15) - main2 - priority: PlayerWhite\"",
-     "f2028 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><color=#FFD27A>MAIN 2</color></b>   ›   End\""
+     "f2028 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   <b><textcolor color=\\\"#FFD27A\\\">MAIN 2</textcolor></b>   ›   End\""
     ]
    },
    {
@@ -5239,7 +5239,7 @@
      "f2034 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f2034 \"AssetBundle.getTriggerEffects\" obj:s00013",
      "f2034 \"UI.setValue\" \"eng_status_White\" \"AI 5's 3rd turn (game turn 15) - endOfTurn - priority: PlayerWhite\"",
-     "f2034 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><color=#FFD27A>END</color></b>\""
+     "f2034 \"UI.setValue\" \"eng_phase_White\" \"<b>AI 5'S TURN</b>      Upkeep   ›   Draw   ›   Main 1   ›   Combat   ›   Main 2   ›   <b><textcolor color=\\\"#FFD27A\\\">END</textcolor></b>\""
     ]
    },
    {

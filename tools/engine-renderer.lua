@@ -4755,6 +4755,7 @@ local function setButton(id, attrs)
   local changed, n = {}, 0
   for k, v in pairs(attrs) do
     v = tostring(v)
+    if k == "text" then v = engineXmlRich(v) end
     local key = k == "text" and id or (id .. "|" .. k)
     if uiCache[key] ~= v then
       uiCache[key] = v
@@ -4773,8 +4774,35 @@ local function setButton(id, attrs)
   engineUI.setAttributes(id, changed)
 end
 
+-- Unity's <color=#hex> written the XML way, <textcolor color="#hex"> (TTS's own tag): a value is kept in the UI's XML,
+-- and TTS parses that XML again when it rebuilds the UI (a player changing seat), where "<color=" is not a name and the
+-- whole rebuild fails ("Error Building Xml UI on Global: The '=' character", live 2026-11-27)
+function engineXmlRich(s)
+  if not string.find(s, "<color=", 1, true) then return s end
+  local out, i = {}, 1
+  while true do
+    local a = string.find(s, "<color=", i, true)
+    if a == nil then break end
+    local b = string.find(s, ">", a, true)
+    if b == nil then break end
+    out[#out + 1] = string.sub(s, i, a - 1) .. '<textcolor color="' .. string.sub(s, a + 7, b - 1) .. '">'
+    i = b + 1
+  end
+  out[#out + 1] = string.sub(s, i)
+  local r, j = {}, 1
+  s = table.concat(out)
+  while true do
+    local a = string.find(s, "</color>", j, true)
+    if a == nil then break end
+    r[#r + 1] = string.sub(s, j, a - 1) .. "</textcolor>"
+    j = a + 8
+  end
+  r[#r + 1] = string.sub(s, j)
+  return table.concat(r)
+end
+
 local function setText(id, text)
-  text = tostring(text or "")
+  text = engineXmlRich(tostring(text or ""))
   if isButton(id) then return setButton(id, { text = text }) end
   if uiCache[id] == text then return end
   uiCache[id] = text

@@ -43,7 +43,8 @@ function simulate({ save, seated = ["Blue"], host = "Blue", steps = [], framesPe
   const drift = () => run(`local out = {}
     for _, h in ipairs(__sim.hiddenLabels) do out[#out + 1] = "button label " .. string.format("%q", h.label) .. " on " .. h.guid .. " has a see-through background: real TTS hides it" end
     for _, id in ipairs(__sim.buttonValues) do out[#out + 1] = "UI.setValue on a Button (" .. id .. "): real TTS ignores it, set its text attribute" end
-    __sim.hiddenLabels = {} __sim.buttonValues = {}
+    for _, b in ipairs(__sim.badXml) do out[#out + 1] = "screen UI text that real TTS can't parse when it rebuilds the UI (" .. b .. "): write <textcolor color=\\"#hex\\">, engineXmlRich" end
+    __sim.hiddenLabels = {} __sim.buttonValues = {} __sim.badXml = {}
     return table.concat(out, "; ")`, "=drift").value;
   const out = [];
   const record =(label, extra) => { const e = fx(); out.push({ step: label, ...(extra || {}), fx: e }); };

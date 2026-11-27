@@ -266,6 +266,8 @@ After `attackWhom` and before `declare` (bridge.js ~9745), for each taxed defend
 
 **Feasible: yes. The drawing is already built; the choice is not.**
 
+**Reversed 2026-11-27** (the user: "its still auto spliting on normal attacks so fix it"): the automatic split (`attackSplit`) is removed. All attack, or "whom?" picked for each token, asks "whom?" once for the whole stack, with One by one. Spreading a swing over the players is the "Attack all split evenly" button (more than 10 attackers). Tests: `tests/test_bridge_stack_split.js` now pins that nothing splits by itself.
+
 ### 4.1 Today
 
 - Engine and harness: every token is its own attacker. `declareAttackers` takes `{attackerId, targetId}` per token.
@@ -438,4 +440,4 @@ All yes:
 4. AI players accept a tie offer when the lock is real.
 5. The attack-tax question offers "Pay for all" next to the lethal minimum.
 6. The forced tie comes after 3 rounds with no progress (default kept).
-7. Attacks split into one stack per defending player automatically.
+7. Attacks split into one stack per defending player automatically. (Reversed 2026-11-27: no automatic split; see section 4.)

@@ -3,8 +3,8 @@
 // ui.plan, "attackerId|targetId" sorted, the attack question's own option ids; the table draws them dashed
 // (test_table_attack_lines.js). The checks:
 //  - the attack question itself has no plan (its picks are the table's own, drawn from its selection)
-//  - "whom?" after All attack: the split token stack token by token, 7/7/6 is not asked (2/3/2 here with a creature
-//    left), the creature still at "whom?" is not in it; a creature picked at a player is
+//  - "whom?" after All attack: nothing is planned yet (a token stack no longer splits by itself, 2026-11-27), the
+//    creatures still at "whom?" are not in it; a creature picked at a player is
 //  - one by one: each step's plan has the earlier answers
 //  - Back: the attack question again, no plan
 //  - the attack tax: the plan has every assignment; after "Don't attack" at the first defender, the next defender's
@@ -64,7 +64,7 @@ const count = (plan) => { const n = {}; for (const v of plan || []) { const t = 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 (async () => {
-  // ── All attack: the split stack in the plan, the creature still at "whom?" not ──
+  // ── All attack: nothing planned yet, everything still at "whom?" ──
   await run(async (h) => {
     const gv = board(FOUR);
     const seat = setup(h, gv);
@@ -74,7 +74,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     ok("question: the attack question itself has no plan", q?.ui && q.ui.plan === undefined, JSON.stringify(q?.ui?.plan));
     const step = q.toOutput(["__allattack"])?.__next;
     ok("whom: the step after All attack carries the plan", Array.isArray(step?.ui?.plan), JSON.stringify(step?.ui).slice(0, 300));
-    ok("whom: the split stack is in it, 2, 2 and 2 from the attacker's left", same(count(step?.ui?.plan), { "player-1": 2, "player-2": 2, "player-3": 2 }), JSON.stringify(count(step?.ui?.plan)));
+    ok("whom: the token stack is not spread into it (no auto split)", same(count(step?.ui?.plan), {}), JSON.stringify(count(step?.ui?.plan)));
     ok("whom: the creature still at whom? is not", !(step?.ui?.plan || []).some((v) => v.startsWith(`${angel}|`)), JSON.stringify(step?.ui?.plan));
     ok("whom: the plan is attacker|target ids, sorted", same(step?.ui?.plan, [...(step?.ui?.plan || [])].sort()) && (step?.ui?.plan || []).every((v) => /^engine-card-\d+\|player-\d$/.test(v)), JSON.stringify(step?.ui?.plan));
     const back = step.toOutput(["__back"])?.__next;

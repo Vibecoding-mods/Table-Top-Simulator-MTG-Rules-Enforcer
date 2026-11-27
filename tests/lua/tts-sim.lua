@@ -873,18 +873,33 @@ local function uiSet(id)
 end
 SIM.longIds = {}
 SIM.buttonValues = {}
+-- A screen UI value or text attribute is kept in the UI's XML, and real TTS parses that XML again when it rebuilds the
+-- UI (a player changing seat): Unity's "<color=#hex>" there is not XML, the rebuild fails ("Error Building Xml UI on
+-- Global: The '=' character", live 2026-11-27). Listed in SIM.badXml (run-sim makes it an error).
+SIM.badXml = {}
+local function uiXmlCheck(id, v)
+  local s = tostring(v)
+  local a = string.find(s, "<", 1, true)
+  while a ~= nil do
+    local name = string.match(string.sub(s, a + 1, a + 40), "^/?[%w]*")
+    local after = string.sub(s, a + 1 + #name, a + 1 + #name)
+    if after == "=" then SIM.badXml[#SIM.badXml + 1] = tostring(id) .. ": " .. string.sub(s, a, a + 20) break end
+    a = string.find(s, "<", a + 1, true)
+  end
+end
 -- the screen XML with the long ids back in (tests read the built XML by them)
 function SIM.longXml() local m = uiMap() if not m then return SIM.xml end return (SIM.xml:gsub(' id="([%w_]+)"', function(c) return ' id="' .. (m.l[c] or c) .. '"' end)) end
 UI = {
   setXml = function(x) SIM.xml = x readButtons(x) fx("UI.setXml", hash(x)) end,
   getXml = function() return SIM.xml end,
   setAttribute = function(id, k, v) id = uiSet(id) SIM.attrs[id .. "|" .. k] = tostring(v) redraw(id, { [k] = v }) fx("UI.setAttribute", uiLong(id), k, tostring(v)) end,
-  setAttributes = function(id, t) id = uiSet(id) for k, v in pairs(t) do SIM.attrs[id .. "|" .. k] = tostring(v) end redraw(id, t) fx("UI.setAttributes", uiLong(id), t) end,
+  setAttributes = function(id, t) id = uiSet(id) for k, v in pairs(t) do SIM.attrs[id .. "|" .. k] = tostring(v) if k == "text" then uiXmlCheck(uiLong(id), v) end end redraw(id, t) fx("UI.setAttributes", uiLong(id), t) end,
   getAttribute = function(id, k) return SIM.attrs[uiShort(id) .. "|" .. k] end,
   -- (real TTS ignores UI.setValue on a Button, it draws the text attribute: live 2026-11-02. The call is recorded,
   -- the value is not kept, and the call is listed in SIM.buttonValues, which run-sim makes an error)
   setValue = function(id, v)
     id = uiSet(id)
+    uiXmlCheck(uiLong(id), v)
     if SIM.btn ~= nil and SIM.btn[id] ~= nil then SIM.buttonValues[#SIM.buttonValues + 1] = tostring(uiLong(id))
     else SIM.values[id] = v end
     fx("UI.setValue", uiLong(id), v)
