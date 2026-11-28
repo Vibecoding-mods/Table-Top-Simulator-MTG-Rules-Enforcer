@@ -1019,7 +1019,7 @@ end
 function engineIdentityNote(o, found)
   if o.type ~= "Card" then return end
   local name = tostring(o.getName())
-  if name:find("Identity \226\128\148", 1, true) == nil then return end -- ("Identity ", an em dash: not Identity Crisis)
+  if name:find("Identity —", 1, true) == nil then return end -- ("Identity ", an em dash: not Identity Crisis; a literal, as real TTS reads "\226\128\148" as three letters)
   found.any = true
   if name:find("Leader", 1, true) == nil then return end
   local seat = engineIdentitySeat(o)
@@ -10215,7 +10215,7 @@ end
 -- ───────── DeckCheck bracket and threat label (docs/deckcheck-spec.md) ─────────
 -- In engine mode with no game running, each seated player whose deck on their library spot came from a DeckCheck link
 -- (the tag the Card Importer writes in the deck's GM notes, tools/deckcheck-import.lua) gets one label beside their
--- commander zones: "Bracket 3 · Threat 54 (32-51)" (deckcheckLabel, tools/deckcheck.lua). No tag, no label: brackets
+-- commander zones: "Bracket 3 | Threat 54 (32-51)" (deckcheckLabel, tools/deckcheck.lua). No tag, no label: brackets
 -- are never estimated here. The label goes with the setup buttons: hidden while a game runs; after it, back once the
 -- decks are back on their spots (NEW GAME / mtg reset: while the game-over board shows they are still put away).
 -- It lies on the strip between the two commander zones and the exile pile (empty before a game), readable from the
@@ -12214,7 +12214,7 @@ ENGINE_AB_COSTWORDS = { Sacrifice = true, Discard = true, Pay = true, Exile = tr
   Return = true, Put = true, Reveal = true, Mill = true, Collect = true, Forage = true }
 -- "+1", "−2" (U+2212), "-X", "0" -> the number (a minus is negative, X counts 0), else nil
 function engineLoyaltyCost(cost)
-  local s = tostring(cost):gsub("\226\136\146", "-")
+  local s = tostring(cost):gsub("−", "-") -- (a literal U+2212: real TTS reads a byte escape as one letter a byte)
   s = s:gsub("^%s+", ""):gsub("%s+$", "")
   if #s == 0 or #s > 4 then return nil end
   local sign, n = s:sub(1, 1), s
@@ -12314,7 +12314,7 @@ function engineAbList(color, id)
   -- (the board's entry with its static details: a slim entry carries only what changes)
   local entry, st = engineAbilityCard(id), engineStatic[id] or {}
   local card = entry ~= nil and { ty = entry.ty or st.ty, tx = entry.ct or entry.tx or st.tx, tap = entry.tap, sick = entry.sick, ctr = entry.ctr } or nil
-  local function norm(s) return (tostring(s):lower():gsub("\226\136\146", "-"):gsub("[%s%.]", "")) end
+  local function norm(s) return (tostring(s):lower():gsub("−", "-"):gsub("[%s%.]", "")) end
   local taken, manaUsed, manaOpt, greyMana = {}, false, nil, {}
   for _, o in ipairs(others) do if tostring(o.label):find("^Mana:") then manaOpt = o end end
   for _, a in ipairs(card ~= nil and engineTextAbilities(card.tx) or {}) do

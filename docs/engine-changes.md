@@ -197,6 +197,7 @@ older ids come from the notes.
 
 | Date (image created) | Tag (node id / relay id) | What changed | Protocol? | Source commits | Live since (deploy) | Rollback tag |
 |---|---|---|---|---|---|---|
+| 2026-11-28 (tree `tmp/eb-1135`, build id `eb-56c52844554c`) | `engine1135` (node `f0cccf63c2d0` / relay `26c9944116e4`; harness test `ebf1aa8c1f88`) | On top of engine1134c: the 2026-11-27 sweep's 22 engine findings. Restricted pool mana no longer counts as payable for any spell, an effect from a card the viewer may not see goes out unnamed, `applyState` restores trigger suppression in a `finally`, a hidden-source effect goes out with no id or duration, the TRK booster sheets name real cards, the relay logs an unusable `seat_order`; 13 tests repaired so they can fail (counted work in place of wall-clock ratios), golden re-recorded; 3 findings skipped with reasons. Section 4 entry. | no | both patches regenerated (work tree `tmp/eb-1135-work`) | built, not deployed; deploy `--image engine1135` with `MTG_MANABREW=tmp/eb-1135` | engine1134c (`--image engine1134c`, `MTG_MANABREW=tmp/eb-1134c`) |
 | 2026-11-26 (tree `tmp/eb-1134c`, build id `eb-1b51db47fea9`) | `engine1134c` (node `4d4ee3f8a82f` / relay `ced675d235c0`; harness test `40c4732d7633`) | On top of engine1134b. The live slowdown blamed on engine1134b is the AI opponent's hand (damage spells), seen on engine1131 and engine1133-heapdraw too; engine1134b plays the identical game in the same time. Made cheaper: the AI's block prediction stops when no creature can block, damage predictions read each card's name once, and `Card.getName` skips an empty changed-name table (29% less game time on the slow headless seed, the game unchanged). Section 4 entry. | no | outer branch `engine1134c`; both patches regenerated | deployed 2026-11-26 evening (main `cc1d646`; live as of 2026-11-27); deploy `--image engine1134c` with `MTG_MANABREW=tmp/eb-1134c` | engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`) |
 | 2026-11-26 (tree `tmp/eb-1134b`, build id `eb-b0494608ff19`) | `engine1134b` (node `b28a69581f33` / relay `9eb23cee5e46`; harness test `bea0066eb45d`) | engine1134 after its jr-programmer-suite review: the cast-board reader gate also reads every card's current states (a copy of a reader whose original left the game) and the `CastSA>` route to the board; the game scan visits cards instead of listing them; `heldRunBatches` reuses `asksHuman`. Section 4 entry. | no | outer branch `engine1134`; both patches regenerated | deployed 2026-11-26 18:47, replaced the same evening by engine1134c; deploy `--image engine1134b` with `MTG_MANABREW=tmp/eb-1134b` | engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`) |
 | 2026-11-26 (tree `tmp/eb-1134`, build id `eb-9da4ad19cd07`) | `engine1134` (node `cb20db51db12` / relay `b666051b13d6`; harness test `09578c9d5af8`) | On top of engine1133-heapdraw. A cast spell keeps the board as cast only when a script in the game can read it (the castSA board growth of the Kykar loop); a held run Forge can batch has no 20-cut and resolves in one step when every player is a person holding it; review nits (the resolving flag on a throw, Moved replacements that cannot touch a token entering no longer stop token batching, cleared cost-copy references pruned). Section 4 entry. | no | outer branch `engine1134`; both patches regenerated | not deployed; deploy `--image engine1134` with `MTG_MANABREW=tmp/eb-1134` | engine1133-heapdraw (`--image engine1133-heapdraw`, `MTG_MANABREW=tmp/eb-heapdraw`) |
@@ -327,6 +328,121 @@ needs a rebuild. Their ids above come from the notes. `mtg-relay:walker` has a d
 creation stamp; it was not the deployed relay (unconfirmed what differs).
 
 ## 4. Changes, newest first
+
+### 2026-11-28 engine1135: the 2026-11-27 sweep's 22 engine findings (built, not deployed)
+- **Source:** `tmp/swarm-2026-11-27/batches/engine.json` (22 findings). On top of engine1134c; work tree
+  `tmp/eb-1135-work` (a copy of `tmp/eb-1134c-work`, which stays the rollback source), clean tree `tmp/eb-1135-clean`.
+- **Fixed in the engine:**
+  - `ActionSpace.canPayWithManaCostSources` (the payability fast path) counted every floating mana in the pool; it now
+    counts only pool mana whose restrictions the spell meets (`Mana.meetsManaRestrictions`), as the battlefield sources
+    already were. A Lightning Bolt was offered with only "creature spells" red mana floating and a Signet. The
+    review's follow-up: the second path, `addFloatingManaSources` (behind `canPayManaCostFromCurrentSources`: an
+    ability with a reserved sacrifice, `canPayManaCostWithReservedSacrifices`, `canPayManaOnly` and
+    `DeterministicController`), counted every floating mana too; it now applies the same filter, so restricted pool
+    mana no longer pays Mind Stone's draw ability.
+  - `EffectsView.effects` has the viewer filter `delayed` got (open follow-up 1 of the engine1113 review): an effect
+    whose source card the viewer may not see (a hand or library card) goes out with the name `Effect`, empty text, no
+    `sourceCardId`, no `duration` and `untilEndOfTurn` false; an emblem stays whole. The review's follow-up: the first
+    version kept the id and the source ability's fields, but a library card's id is in no zone entry (the library is a
+    count) and a raw `Duration$` such as `UntilHostLeavesPlay`, or the Effect / Fog api behind `untilEndOfTurn`, tells
+    what the card is; `delayed` already leaves a hidden `hostCardId` out, and the two now match. **Bridge:** with no
+    `sourceCardId`, `effectMark` (`bridge/bridge.js`) treated the effect as open ("EFFECT", hover "Effect: (no
+    text)"); the bridge now treats a non-emblem "Effect" with no text and no id as hidden, so it reads "RULES EFFECT"
+    with no hover as on engine1134c (tests/test_bridge_hidden_effects.js, a deploy gate, broken and caught by name).
+    A hidden skip or fog no longer reads "SKIPS NEXT TURN" / "FOG THIS TURN". Nothing leaks either way.
+  - `applyState` resets the trigger suppression and the resolving flag in a `finally` (an `Error` from an op left all
+    triggers off for the rest of the game). No `restoreState(before)` after an `Error`: the `Error` leaves
+    `applyState` and the priority loop and ends the match in `runMatch` (`catch (RuntimeException | Error)`,
+    `recordEngineError`), so no one plays on the half-applied state, and catching it to restore and play on would keep
+    a game going after a StackOverflowError inside Forge (the heap guard owns out-of-memory).
+  - TRK custom booster sheets: eight entries had a space before the `|` (`Dominion Infiltration |TRK|[349]` and seven
+    more). Not dropped, as the finding said, but worse: `CardPool` makes a placeholder card with no set for a name that
+    matches none, so those boosters held set-less placeholders. Spaces removed (`forge-gui/res/editions/Star Trek.txt`).
+  - Relay: a `seat_order` that is not the room's players is logged (`warn`) instead of silently ignored; the game
+    still starts in join order.
+  - Doc fixes: the harness `AGENTS.md` said the event ring is 512 (it is 4096, `EngineEventLog.CAPACITY`, the stress
+    caps' choice) and that a pass or timeout at the runaway question is the draw. The code is right and the doc was
+    stale: big-turns-2 item 2 (2026-11-16, section 3) deliberately made a timeout Keep going with
+    `RUNAWAY_MISSES_TO_DRAW` = 2 misses in a turn drawing, and dropped the per-turn ask count and the per-effect token
+    limit; the prompt text, `docs/big-turns.md` and `BigTurnsTest` (`aTimeoutKeepsGoing`,
+    `twoTimeoutsInARowInATurnDraw`) all say so. The doc now says it (and that the stuck-loop question's timeout is the
+    draw). The first engine1135 build's `AGENTS.md` had the package-boundaries part of the file pasted into the effects
+    paragraph (a JavaScript `replace` read the `$` + backtick in "`Duration$`" as "the text before the match"); the
+    rebuild has the paragraph whole, with the effects filter sentence. The Rust doc comments on `engine_build` said "the image's tag"; it is `engine-build-id.sh`'s hash.
+- **Fixed in mtg-tts (`engine/`):** `checks/HeadlessGameServer.java` answers an `Error` too (it caught only
+  `RuntimeException`, so a StackOverflowError ended the server with no reply and the driver waited out its timeout;
+  after a `VirtualMachineError` it replies and exits 3). `test-harness-local.sh` compiles the harness main sources
+  fresh on every run, ahead of the jar, as `harness-tests.sh` does (it tested the jar's stale copies unless `REBUILD=1`).
+  `checks/TrekCardsLoadCheck.java` fails with no edition named and on an edition with no cards (both passed checking
+  nothing) and checks that every custom sheet line names a card of its set.
+- **Tests repaired (each now able to fail; break-its below):**
+  - `BigTurnTimingTest` printed PASS with no assertion: now 10 named checks (landfall and Second Harvest at 25 to 400
+    Scute Swarms): every Scute's landfall on the stack, the triggers make tokens, Second Harvest under Adrix and Nev
+    makes exactly `min(2n, 500 - n)` (the token pile cap).
+  - `SnapshotGoldenTest`: the golden master re-recorded for the effects change (rows `snapshot effects viewer 1/2/-1`; the
+    only rows that differed).
+  - `PassiveAiTest`: new control `theAiAttacksWhereThePassiveAiHolds` (the plain AI attacks with the Hill Giant), so
+    `thePassiveAiDeclaresNoAttack` no longer passes vacuously.
+  - `PlayerRulesTest.perksAreHiddenFromTheCommandZoneAndEffects` first checks the view lists White's command zone and a
+    commander in it.
+  - `MayPlayVisibilityTest`: the 14 negative checks go through `notPlayable`, which fails when the card is missing from
+    the view.
+  - `ManaSourcesTest`: `sameBothWays` restores `shareManaSources` in a `finally`; the 10x wall-clock check became
+    `theHeldCheckOn500CluesBuildsTheManaSourcesOnce`, counted work (`ActionSpace.getSourceBuilds`, Forge
+    `StaticSourceScope.getIndexed`, both new counters): the shared held check builds the source lists at least 50
+    times fewer than the unshared one and uses the static scope, which the unshared one never does, plus a generous
+    half-the-time bound; new `restrictedPoolManaPaysOnlyTheSpellsItMay` and
+    `restrictedPoolManaDoesNotPayAnAbilityThatSacrificesItsSource` (Mind Stone's draw: not offered with Beastcaller
+    Savant's creature-spell mana floating, offered with a Forest's). `tools/mutate-ai-budgets.js` follows the
+    rename.
+  - Wall-clock ratios: `SnapshotSpeedTest` (1,000 tokens 3x, 3,000 vs 1,000 under 7x) keep their bounds (measured
+    about 20x and 3x) and add counted work (one statics scan and one flag computation per creature per round, at
+    every size); `SnapshotViewersTest`'s 10,000-token check counts the cards built (the first viewer builds every
+    battlefield card, the next ones none) and its ratio drops from 3x to 2x (measured 5.5x); `TriggerBatchTest`
+    `batchingIsFaster` counts the merged resolutions (at least 299 of 300 batched, none one by one) and only needs
+    batched to be faster; `TokenBatchTest` timing sanity counts 399 of 399 batched and its bound goes from 15 to 60 s.
+  - `EffectsViewTest`: new `anEffectFromAHandCardIsNotNamedToAnotherSeat` (Teferi's Protection from White's hand: White
+    sees it with its source id and duration, Blue gets `Effect` with no text, id or duration, and the text once the
+    card is in a graveyard) and `anEffectFromALibraryCardSendsNoSourceIdOrDuration` (the same card moved to White's
+    library: neither seat gets the id, duration or name).
+- **Skipped, with reasons:** a wrong-size answer to an optional card choice becoming "none chosen" is deliberate
+  (2026-11-07 "optional exactly-N card choices", as Forge's human controller does; `OptionalCardChoiceTest` pins it).
+  The `answersPrompt` stamp race is closed one layer up: the node refuses a response whose `prompt_id` is not the open
+  prompt (`java_backend.rs`, `StalePrompt`), so a late click for prompt N never reaches the session once N+1 is out.
+  A team block still invalid after the retries stands by design (`aRefusedTeamBlockIsAskedAgainThenStands`,
+  `theTeamsBlockIsCheckedForTheSecondDefenderToo`): restrictions are cleaned by `finishBlockersDeclaration`, only an
+  unmet requirement (Watchdog) can remain, and there is no safe legal-block generator to fall back to. The other
+  wall-clock findings (`batched is not 3x faster`, the 15 s token bound) are covered above.
+- **Break-its** (`tools/mutate-engine-docker.js --set sweep`, on `mtg-harness-test:engine1134c` with the Forge
+  overlay, mutated copies only; log `tmp/mutate-1135-sweep.log`): 14 of 14 caught by name, every baseline passing (13 in the first run; the half-tokens row was redone after the `BigTurnTimingTest` bound became `min(2n, 500 - n)`, 1 of 1, replacing a pile-cap row the exact bound made unreachable): the
+  passive AI attacking like the plain one (`thePassiveAiDeclaresNoAttack`); the command zone renamed
+  (`perksAreHiddenFromTheCommandZoneAndEffects`); graveyards / exile not sent (`mayhemCardNotDiscardedIsNotPlayable`,
+  `unplottedCardInExileIsNotPlayable`, both passed by absence before); the battlefield memo always rebuilt and no
+  static scope (`theHeldCheckOn500CluesBuildsTheManaSourcesOnce`: 501 shared builds; 0 static indexes); restricted
+  pool mana counted (`restrictedPoolManaPaysOnlyTheSpellsItMay`); the combat statics scanned per creature (both
+  `SnapshotSpeedTest` timing checks, by count); every viewer building the cards again (the 10,000-token check, by
+  count); nothing batchable (`batchingIsFaster`); no token batched (the token timing sanity, by count); an effect
+  making half its tokens (`secondHarvest 25 Scute Swarms`); a hand card's effect named to every seat
+  (`anEffectFromAHandCardIsNotNamedToAnotherSeat`). `TrekCardsLoadCheck` (run by hand in both images, scripts in
+  `tmp/trek-check`): with no edition the old one printed PASS and the new one fails ("no edition named"); its sheet
+  check fails on engine1134c's data naming all eight spaced entries and passes on engine1135's. The review's
+  follow-ups (`--set review`, on `mtg-harness-test:engine1135`, log `tmp/mutate-1135-review.log`; the four files'
+  sha256 the same before and after, `tmp/review-1135-hashes-before.txt`): 5 of 5 caught by name, every baseline
+  passing: the pool filter off on the reserved-sacrifice path
+  (`restrictedPoolManaDoesNotPayAnAbilityThatSacrificesItsSource`); a hidden effect's `sourceCardId` sent, and its
+  source ability's duration sent (each caught by `anEffectFromAHandCardIsNotNamedToAnotherSeat` and
+  `anEffectFromALibraryCardSendsNoSourceIdOrDuration`).
+- **Build:** patches regenerated (`ENGINE_WORK_DIR=tmp/eb-1135-work ENGINE_BUILD_DIR=tmp/eb-1135-clean bash
+  engine/make-patches.sh`; forge.patch 492 files, manabrew.patch 114), then `ENGINE_BUILD_DIR=tmp/eb-1135 bash
+  engine/build-images.sh engine1135` (log `tmp/build-1135.log`, build id `eb-56c52844554c`): node `f0cccf63c2d0`, relay
+  `26c9944116e4`; harness test `ebf1aa8c1f88` (`docker build --target java-builder`, log `tmp/build-harness-1135.log`).
+  **Proof:** full `harness-tests.sh` in `mtg-harness-test:engine1135` on `tmp/eb-1135/forge-harness`: all 60 classes passed, 1,336 `ok` lines (1,321 on engine1134c; the new checks add 15)
+  (`tmp/harness-1135.log`); `tools/live-check.sh engine1135 tests/live_phasing_check.js` (test stack 3) 29 of 29;
+  `tests/test_engine_build_record.js` 18/18, `tests/test_alignment.js` 121/121, `tests/test_deploy.js` 52/52 (53/53 with
+  `MTG_MANABREW=tmp/eb-1135-work`), all rerun on the rebuild after the review follow-ups (the first build,
+  `eb-064bfc1c95dc`, is replaced under the same tag). The bridge is unchanged.
+- **Deploy (not done):** `--image engine1135` with `MTG_MANABREW=tmp/eb-1135`. **Rollback:** engine1134c (`--image
+  engine1134c`, `MTG_MANABREW=tmp/eb-1134c`).
 
 ### 2026-11-26 engine1134c: the AI's slow hand on a big board costs less; the 1134b "regression" was the AI's hand (deployed 2026-11-26 evening, main cc1d646)
 - **The report:** the live Kykar stress (`tmp/stress/kykar-loop.js`) was much slower on engine1134b than on

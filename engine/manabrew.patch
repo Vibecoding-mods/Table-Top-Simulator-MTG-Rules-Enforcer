@@ -22,7 +22,7 @@ index b363b43..228c02a 100644
 +  }
  ]
 diff --git a/forge-harness/src/main/java/forge/harness/AGENTS.md b/forge-harness/src/main/java/forge/harness/AGENTS.md
-index 54173c6..592f345 100644
+index 54173c6..8522ea0 100644
 --- a/forge-harness/src/main/java/forge/harness/AGENTS.md
 +++ b/forge-harness/src/main/java/forge/harness/AGENTS.md
 @@ -15,7 +15,7 @@ Dependency rule (do not violate): `parity → common`, `host → common`, `Main
@@ -30,7 +30,7 @@ index 54173c6..592f345 100644
  - **common** — anything used by both engines: RNG (`CountingRandom`), logging (`DecisionLog`, `ParityLog`), snapshot base (`SnapshotExtractor`), GUI bootstrap (`HeadlessGuiBase`), deterministic ordering / id mapping / reset (`ParityOrder`, `ParityCardMap`, `ForgeEngineReset`), the shared decision/cost/play plumbing (`ActionSpace`, `ChoiceSpace`, `CombatChoiceSpace`, `AutoPay`, `HarnessCostPlumbing`, `HarnessPlayPlumbing`, `HarnessPlayHooks`), and the prompt acceptance-rule facade (`EngineHandler`). `EngineHandler` is the one entrypoint for Forge GUI/controller legality: per prompt it returns the legal choice set (so a caller only offers valid picks) and post-validates the submitted answer for whole-answer constraints a per-option set can't express (e.g. `CombatUtil.validateBlocks`). Heavy mechanics stay in `ActionSpace`/`ChoiceSpace`/`CombatChoiceSpace`; `EngineHandler` unifies them.
  - **parity** — `DeterministicController`, `DeterministicLobbyPlayer`, `PresetDecks`.
 -- **host** — `ManaBrewEngineAdapter` (the in-process facade Rust j4rs talks to), `ManaBrewInteractiveSession`, `ManaBrewInteractiveController`, `ManaBrewInteractiveLobbyPlayer`, `InteractiveSnapshotExtractor`, `PriorityFastForward` (`reachedTarget`/`canSkip`: skips priority windows with no roundtrip while the player has a standing **held** pass-until whose target is a `(player, phase)` slot — a bare phase can't tell "my end" from an opponent's. The controller holds the declaration across windows and clears it on reaching the target, on casting, when the target player has lost — their slot would never arrive — when the holder begins an extra turn while the target points at another player (the client computed the slot assuming normal turn order, so honoring it would silently fast-forward the holder's own extra turn), or when the phase sequence steps backward within a turn (`invalidatedByExtraPhase`: an inserted extra phase — Moraug, Aggravated Assault — breaks the linear phase model the client computed the target from; without the clear, the hold swallows the repeated combat, empty attacker declaration included); mirrors `manabrew-engine` `priority.rs` and the `AdvanceTurn` clear in `game_loop/phase_handler.rs` — the extra-phase clear is NOT yet mirrored in the Rust engine). `PriorityFastForward` also carries the exhaust-stack pass (`stackIds`/`exhaustEnded`, host-only — the Rust engine ignores the protocol's `exhaustStack` flag for now): the controller snapshots the stack-instance ids at declaration and silently passes priority until the stack empties, stopping early as soon as any new object — spell, activated ability, or trigger — enters the stack, so the holder can respond to it.
-+- **host** — `ManaBrewEngineAdapter` (the in-process facade Rust j4rs talks to), `ManaBrewInteractiveSession`, `ManaBrewInteractiveController`, `ManaBrewInteractiveLobbyPlayer`, `InteractiveSnapshotExtractor`, `PriorityFastForward` (`reachedTarget`/`canSkip`: skips priority windows with no roundtrip while the player has a standing **held** pass-until whose target is a `(player, phase)` slot — a bare phase can't tell "my end" from an opponent's. The controller holds the declaration across windows and clears it on reaching the target, on casting, when the target player has lost — their slot would never arrive — when the holder begins an extra turn while the target points at another player (the client computed the slot assuming normal turn order, so honoring it would silently fast-forward the holder's own extra turn), or when the phase sequence steps backward within a turn (`invalidatedByExtraPhase`: an inserted extra phase — Moraug, Aggravated Assault — breaks the linear phase model the client computed the target from; without the clear, the hold swallows the repeated combat, empty attacker declaration included); mirrors `manabrew-engine` `priority.rs` and the `AdvanceTurn` clear in `game_loop/phase_handler.rs` — the extra-phase clear is NOT yet mirrored in the Rust engine). `PriorityFastForward` also carries the exhaust-stack pass (`stackIds`/`exhaustEnded`, host-only — the Rust engine ignores the protocol's `exhaustStack` flag for now): the controller snapshots the ids of the run on top of the stack at declaration (`topRunIds`: the top item and the items under it with the same controller, source name and ability text; a spell is a run of one) and silently passes priority until that run is gone (the stack empties or the item under the run is on top), stopping early as soon as any new object — spell, activated ability, or trigger — enters the stack, so the holder can respond to it. It also ends once `EXHAUST_RESOLUTIONS` (20) of the declared items have left the stack, so a held pass over a huge run of triggers still asks the holder (and refreshes their board) every 20 resolutions, until the same run (`topRunKey`) has been held for `LONG_RUN_SECONDS` (60): from then on it is not cut at 20 and runs to the end of the run (`heldRunLong`, clock `heldClock`). Nor is a run Forge would batch (`heldRunBatches`: every player still in the game a person whose hold covers the top item, that item on `StackMerge`'s allowlist and not watched); both together are `heldUnlimited`, which the gate and the controller's own end check read. A hold that follows a hold ended at the 20 keeps the run's start time; any other answer starts it over. While every player still in the game is a person holding such a pass, the session's merge gate (`heldByEveryone`, installed with `MagicStack.setMergeGate`) lets Forge's `StackMerge` resolve allowlisted alike items as one batch (life gain, prowess-style +N/+N on its own source, +1/+1 counters on its own source, plain tokens, fixed mana; each item still its own event, each checked as it comes), up to where the first of those passes ends; Forge asks the gate again after every item, so a new response (`heldActionsChanged`) ends the batch where it would have ended the hold; an AI or Manabot seat in the game turns batching off. The session is also Forge's `Game.RunawayChoice` (`keepGoingPastCap`): at the per-turn trigger, card or per-effect token limit it asks the active person, else the first person, "Keep going" or "End in a draw" (a pass or timeout is the draw), at most `Game.RUNAWAY_CONTINUES_PER_TURN` times a turn; with no person to ask the limit is a draw as before.
++- **host** — `ManaBrewEngineAdapter` (the in-process facade Rust j4rs talks to), `ManaBrewInteractiveSession`, `ManaBrewInteractiveController`, `ManaBrewInteractiveLobbyPlayer`, `InteractiveSnapshotExtractor`, `PriorityFastForward` (`reachedTarget`/`canSkip`: skips priority windows with no roundtrip while the player has a standing **held** pass-until whose target is a `(player, phase)` slot — a bare phase can't tell "my end" from an opponent's. The controller holds the declaration across windows and clears it on reaching the target, on casting, when the target player has lost — their slot would never arrive — when the holder begins an extra turn while the target points at another player (the client computed the slot assuming normal turn order, so honoring it would silently fast-forward the holder's own extra turn), or when the phase sequence steps backward within a turn (`invalidatedByExtraPhase`: an inserted extra phase — Moraug, Aggravated Assault — breaks the linear phase model the client computed the target from; without the clear, the hold swallows the repeated combat, empty attacker declaration included); mirrors `manabrew-engine` `priority.rs` and the `AdvanceTurn` clear in `game_loop/phase_handler.rs` — the extra-phase clear is NOT yet mirrored in the Rust engine). `PriorityFastForward` also carries the exhaust-stack pass (`stackIds`/`exhaustEnded`, host-only — the Rust engine ignores the protocol's `exhaustStack` flag for now): the controller snapshots the ids of the run on top of the stack at declaration (`topRunIds`: the top item and the items under it with the same controller, source name and ability text; a spell is a run of one) and silently passes priority until that run is gone (the stack empties or the item under the run is on top), stopping early as soon as any new object — spell, activated ability, or trigger — enters the stack, so the holder can respond to it. It also ends once `EXHAUST_RESOLUTIONS` (20) of the declared items have left the stack, so a held pass over a huge run of triggers still asks the holder (and refreshes their board) every 20 resolutions, until the same run (`topRunKey`) has been held for `LONG_RUN_SECONDS` (60): from then on it is not cut at 20 and runs to the end of the run (`heldRunLong`, clock `heldClock`). Nor is a run Forge would batch (`heldRunBatches`: every player still in the game a person whose hold covers the top item, that item on `StackMerge`'s allowlist and not watched); both together are `heldUnlimited`, which the gate and the controller's own end check read. A hold that follows a hold ended at the 20 keeps the run's start time; any other answer starts it over. While every player still in the game is a person holding such a pass, the session's merge gate (`heldByEveryone`, installed with `MagicStack.setMergeGate`) lets Forge's `StackMerge` resolve allowlisted alike items as one batch (life gain, prowess-style +N/+N on its own source, +1/+1 counters on its own source, plain tokens, fixed mana; each item still its own event, each checked as it comes), up to where the first of those passes ends; Forge asks the gate again after every item, so a new response (`heldActionsChanged`) ends the batch where it would have ended the hold; an AI or Manabot seat in the game turns batching off. The session is also Forge's `Game.RunawayChoice` (`keepGoingPastCap`): at the per-turn trigger limit, the per-turn card limit and the stack limit it asks the active person, else the first person, "Keep going" or "End in a draw", at every limit of a turn. A pass or a timeout (`RUNAWAY_ANSWER_SECONDS`) counts as Keep going, and `RUNAWAY_MISSES_TO_DRAW` (2) unanswered in a row in one turn are a draw (`drawReason` "unanswered"); at the stuck-loop question a pass or timeout is the draw ("stuckLoop"). With no person to ask the limit is a draw as before ("noPerson").
  
  ### Host payability probes must stay silent
  
@@ -63,7 +63,7 @@ index 54173c6..592f345 100644
 +
 +### Effects, delayed triggers and turn counts in the view
 +
-+Forge's Effect cards (`isImmutable`) stay out of the command zone list; `EffectsView.effects` sends them as `PlayerDto.effects` instead, but only those Forge itself would show: `getRenderForUI()` (so unearth's and the Prepared Spell's helper effects stay hidden), an effect source (the player's built-in Monarch, Initiative, Ring, Commander, Keyword and other effects have none) and non-empty ability text. `untilEndOfTurn` is set for an `Effect` or `Fog` source with no `Duration$` (both end at cleanup); otherwise the source's raw `Duration$` goes out as `duration`. `GameViewDto.delayed` lists `TriggerHandler`'s delayed triggers (read by reflection, both fields named in `reflect-config.json`), immediate (reflexive) ones excepted, plus the player-defined ones still waiting for that player's next turn (`turnOf`); `when` is worded from a `Phase` trigger's `Phase$`, and `cardIds` are the trigger's remembered cards. Per viewer, a host or remembered card the viewer may not see (`shownTo`: a hand, a library) is left out of `hostCardId`/`cardIds`, and then `text` is sent empty, since Forge's text names it. Forge writes card names with their engine id (`Card.toString`, "Hill Giant (2)"); the ids of the cards involved are taken out of names and texts. Triggers still parked in a cleanup `addUntil` (`NextTurn$`, `UpcomingTurn$`) are not in the handler yet and are not sent. `spellsCastThisTurn`, `lifeGainedThisTurn`, `lifeLostThisTurn` and `stormCount` (`MagicStack.getSpellsCastThisTurn().size()`: the copies a storm spell cast now would get) are sent only when above zero, and every new field is absent when empty, so an older reader sees the same view.
++Forge's Effect cards (`isImmutable`) stay out of the command zone list; `EffectsView.effects` sends them as `PlayerDto.effects` instead, but only those Forge itself would show: `getRenderForUI()` (so unearth's and the Prepared Spell's helper effects stay hidden), an effect source (the player's built-in Monarch, Initiative, Ring, Commander, Keyword and other effects have none) and non-empty ability text. `untilEndOfTurn` is set for an `Effect` or `Fog` source with no `Duration$` (both end at cleanup); otherwise the source's raw `Duration$` goes out as `duration`. Per viewer, an effect whose source card the viewer may not see (a card in a hand or library) goes out with the name `Effect`, empty text, no `sourceCardId`, no `duration` and `untilEndOfTurn` false, as `delayed` leaves out a hidden `hostCardId` (a library card's id is in no zone entry, and the source ability's `Duration$` and api name it); an emblem stays whole. `GameViewDto.delayed` lists `TriggerHandler`'s delayed triggers (read by reflection, both fields named in `reflect-config.json`), immediate (reflexive) ones excepted, plus the player-defined ones still waiting for that player's next turn (`turnOf`); `when` is worded from a `Phase` trigger's `Phase$`, and `cardIds` are the trigger's remembered cards. Per viewer, a host or remembered card the viewer may not see (`shownTo`: a hand, a library) is left out of `hostCardId`/`cardIds`, and then `text` is sent empty, since Forge's text names it. Forge writes card names with their engine id (`Card.toString`, "Hill Giant (2)"); the ids of the cards involved are taken out of names and texts. Triggers still parked in a cleanup `addUntil` (`NextTurn$`, `UpcomingTurn$`) are not in the handler yet and are not sent. `spellsCastThisTurn`, `lifeGainedThisTurn`, `lifeLostThisTurn` and `stormCount` (`MagicStack.getSpellsCastThisTurn().size()`: the copies a storm spell cast now would get) are sent only when above zero, and every new field is absent when empty, so an older reader sees the same view.
 +
 +### Teams and Two-Headed Giant (`teamRules`)
 +
@@ -97,7 +97,7 @@ index 54173c6..592f345 100644
 +
 +A permanent's own states come from Forge's card, never from text: `exerted` is `isExertedBy` any player (Forge clears the this-turn count at cleanup but keeps the creature frozen until that player's untap step), `skipsNextUntap` the hidden "doesn't untap during your next untap step" keyword `Card.canUntap` checks, plus `monstrous`, `saddled`/`saddledBy`, `harnessed`, `solved`, `unlockedDoors` (Room halves; blanked by `redact` on a face-down permanent the viewer may not see, as its names are), `pairedWith`, `attachedToPlayer` (a curse's `getEntityAttachedTo`), and `protectorId`. `cantBlock` is `!CombatUtil.canBlock(card, true)` and `cantAttack` is `canAttackNextTurn` failing against every possible defender, so tapped and summoning-sick creatures are not flagged but a creature with defender is; `mustAttack` is a non-empty `StaticAbilityMustAttack.entitiesMustAttack` (goad is not in it). `CardStateFlagsTest` sets each state on a real card.
 +
-+`GameViewDto.events` is a ring of the last 512 zone changes and damage events, from `EngineEventLog`, which the session subscribes to the game in `attach`. The same ring goes to every seat and each entry has a rising `seq`, so a client that misses a snapshot loses nothing and a gap shows it fell behind. Each entry also carries an `id`: the relay's state patches key an array by `id`, and without one every new entry resends the whole ring. Forge fires no draw or discard event, so one entry carries `how`, set from the event order: `sacrificed` from the event just before the move, `destroyed` from `CardView.wasDestroyed` (`GameAction` sets it on a destroy and on a state-based death but fires `GameEventCardDestroyed` only on the first, and sets it on a sacrifice too, so `sacrificed` is checked first), `played`, `discard` and `surveil` from the event just after it, and `draw` from `Card.getDrawnThisTurn`, read at the next move, phase or snapshot because Forge sets it after the move (at the next move, or a card drawn and then discarded in one resolution, as Faithless Looting does, moves before its draw is read and loses it); `mill` likewise from `Card.wasMilled`, read at the next move or snapshot because `Player.mill` sets it after `moveTo`; and, the same way, `foretell`, `plot` and `suspend` for a card still in exile with `isForetold`, `isPlotted` or `hasSuspend` (special actions resolve off the stack, so no ability names them). `GameEventCardChangeZone` carries no cause, so `cause` is read from the game at the move: a move made while `ReplacementHandler.isReplacing()` takes the next `EFFECT_REPLACED` log message (Dredge's reads `<card> - Dredge N`); a move made while `game.costPaymentStack` holds a cost part takes `Cost:<name>`, the name being `Delve` for a card exiled while the mana part of a delve card is paid, else the paying ability's keyword (`Cycling`, `TypeCycling`), else its alternative cost (`Escape`, `Emerge`), else the cost part's class without `Cost` (`Sacrifice`, `Discard`, `Exile`), with the ability's host as `causeName`; and otherwise a move made while the stack resolves takes the resolving ability's `ApiType` name (`Explore`, `Mill`, `Surveil`), with its host as `causeName`/`causeCardId`. Moves off the stack never get a cause. Moves onto the stack and moves before `GameStage.Play` are skipped. An entry names its card only when a public zone is involved and the card isn't face down; foretell turns its card face down after the move, so an exile entry whose card is face down in exile when the move settles loses its name too; a draw stays a count. Moves made by a restore are ignored. Damage entries (`kind: "damage"`, `to: "Damage"`, so a client that compares `to` with zone names skips them; no `cardId`) take the same `seq` as moves, carry `sourceCardId`, `targetCardId` or `targetPlayerId`, `amount` and `combat`, and `ownerId` is the source's owner. One whose source has no owner in the game, or whose target has no id in the view (a token that died before any snapshot saw it), is not sent, so `seq` can skip a number. A player's comes whole from `GameEventPlayerDamaged`. A card's is read from the `Pair` that `CardDamageHistory.registerDamage` adds to the target's `getDamageReceivedThisTurn()` (amount, combat flag, and the source by `Game.getDamageLKI`), at the next event or snapshot, since Forge fires `GameEventCardDamaged` before registering it and gives it no combat flag; a non-creature planeswalker or battle fires no damage event at all, so a drop in its loyalty or defense counters is waited on the same way and kept only when the received list grew (a loyalty cost does not). Prevented damage is never dealt, so it sends the amount left, or nothing. The ring is 512 so that one board's wipe (a damage entry and a death per creature) does not push out moves a client has not read. `EngineEventLog` is named in `native/extra-config/reflect-config.json` like `GameLogFormatter` in the frozen config: Guava finds `@Subscribe` by reflection, so a subscriber missing from that file receives nothing in the native image while working on a JVM.
++`GameViewDto.events` is a ring of the last 4096 (`EngineEventLog.CAPACITY`) zone changes and damage events, from `EngineEventLog`, which the session subscribes to the game in `attach`. The same ring goes to every seat and each entry has a rising `seq`, so a client that misses a snapshot loses nothing and a gap shows it fell behind. Each entry also carries an `id`: the relay's state patches key an array by `id`, and without one every new entry resends the whole ring. Forge fires no draw or discard event, so one entry carries `how`, set from the event order: `sacrificed` from the event just before the move, `destroyed` from `CardView.wasDestroyed` (`GameAction` sets it on a destroy and on a state-based death but fires `GameEventCardDestroyed` only on the first, and sets it on a sacrifice too, so `sacrificed` is checked first), `played`, `discard` and `surveil` from the event just after it, and `draw` from `Card.getDrawnThisTurn`, read at the next move, phase or snapshot because Forge sets it after the move (at the next move, or a card drawn and then discarded in one resolution, as Faithless Looting does, moves before its draw is read and loses it); `mill` likewise from `Card.wasMilled`, read at the next move or snapshot because `Player.mill` sets it after `moveTo`; and, the same way, `foretell`, `plot` and `suspend` for a card still in exile with `isForetold`, `isPlotted` or `hasSuspend` (special actions resolve off the stack, so no ability names them). `GameEventCardChangeZone` carries no cause, so `cause` is read from the game at the move: a move made while `ReplacementHandler.isReplacing()` takes the next `EFFECT_REPLACED` log message (Dredge's reads `<card> - Dredge N`); a move made while `game.costPaymentStack` holds a cost part takes `Cost:<name>`, the name being `Delve` for a card exiled while the mana part of a delve card is paid, else the paying ability's keyword (`Cycling`, `TypeCycling`), else its alternative cost (`Escape`, `Emerge`), else the cost part's class without `Cost` (`Sacrifice`, `Discard`, `Exile`), with the ability's host as `causeName`; and otherwise a move made while the stack resolves takes the resolving ability's `ApiType` name (`Explore`, `Mill`, `Surveil`), with its host as `causeName`/`causeCardId`. Moves off the stack never get a cause. Moves onto the stack and moves before `GameStage.Play` are skipped. An entry names its card only when a public zone is involved and the card isn't face down; foretell turns its card face down after the move, so an exile entry whose card is face down in exile when the move settles loses its name too; a draw stays a count. Moves made by a restore are ignored. Damage entries (`kind: "damage"`, `to: "Damage"`, so a client that compares `to` with zone names skips them; no `cardId`) take the same `seq` as moves, carry `sourceCardId`, `targetCardId` or `targetPlayerId`, `amount` and `combat`, and `ownerId` is the source's owner. One whose source has no owner in the game, or whose target has no id in the view (a token that died before any snapshot saw it), is not sent, so `seq` can skip a number. A player's comes whole from `GameEventPlayerDamaged`. A card's is read from the `Pair` that `CardDamageHistory.registerDamage` adds to the target's `getDamageReceivedThisTurn()` (amount, combat flag, and the source by `Game.getDamageLKI`), at the next event or snapshot, since Forge fires `GameEventCardDamaged` before registering it and gives it no combat flag; a non-creature planeswalker or battle fires no damage event at all, so a drop in its loyalty or defense counters is waited on the same way and kept only when the received list grew (a loyalty cost does not). Prevented damage is never dealt, so it sends the amount left, or nothing. The ring is that large so that one board's wipe (a damage entry and a death per creature) does not push out moves a client has not read. `EngineEventLog` is named in `native/extra-config/reflect-config.json` like `GameLogFormatter` in the frozen config: Guava finds `@Subscribe` by reflection, so a subscriber missing from that file receives nothing in the native image while working on a JVM.
  
  ## Boundary API discipline
  
@@ -118,18 +118,24 @@ index da0433a..78ed941 100644
                  FModel.initialize(null, null);
              }
 diff --git a/forge-harness/src/main/java/forge/harness/common/ActionSpace.java b/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
-index 972f4ae..18289b4 100644
+index 972f4ae..5819c77 100644
 --- a/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
 +++ b/forge-harness/src/main/java/forge/harness/common/ActionSpace.java
-@@ -1,6 +1,7 @@
+@@ -1,7 +1,7 @@
  package forge.harness.common;
  
  import forge.ai.ComputerUtilMana;
+-import forge.card.MagicColor;
 +import forge.game.staticability.StaticSourceScope;
- import forge.card.MagicColor;
  import forge.card.mana.ManaAtom;
  import forge.card.mana.ManaCost;
-@@ -20,6 +21,8 @@ import forge.game.mana.ManaCostBeingPaid;
+ import forge.card.mana.ManaCostShard;
+@@ -16,10 +16,13 @@ import forge.game.card.CardCollectionView;
+ import forge.game.card.CardCopyService;
+ import forge.game.card.CardLists;
+ import forge.game.card.CardPredicates;
++import forge.game.mana.Mana;
+ import forge.game.mana.ManaCostBeingPaid;
  import forge.game.player.Player;
  import forge.game.spellability.AbilityManaPart;
  import forge.game.spellability.AlternativeCost;
@@ -138,8 +144,11 @@ index 972f4ae..18289b4 100644
  import forge.game.spellability.SpellAbility;
  import forge.game.spellability.SpellAbilityStackInstance;
  import forge.game.spellability.TargetRestrictions;
-@@ -48,6 +51,43 @@ import java.util.Map;
+@@ -46,8 +49,51 @@ import java.util.LinkedHashSet;
+ import java.util.List;
+ import java.util.Map;
  import java.util.Set;
++import java.util.concurrent.atomic.AtomicLong;
  
  public final class ActionSpace {
 +    private static final ThreadLocal<Map<Card, List<SpellAbility>>> MANA_ABILITIES = new ThreadLocal<>();
@@ -167,6 +176,11 @@ index 972f4ae..18289b4 100644
 +        }
 +    }
 +    public static volatile boolean shareManaSources = true;
++    private static final AtomicLong SOURCE_BUILDS = new AtomicLong();
++
++    public static long getSourceBuilds() {
++        return SOURCE_BUILDS.get();
++    }
 +
 +    private record SourceOption(SpellAbility ability, AbilityManaPart part, ManaOption option) {
 +    }
@@ -182,7 +196,7 @@ index 972f4ae..18289b4 100644
      private static final String SPEND_ONLY_COLORED_ON_X =
              "Spend only colored mana on X. No more than one mana of each color may be spent this way.";
  
-@@ -110,6 +150,15 @@ public final class ActionSpace {
+@@ -110,6 +156,15 @@ public final class ActionSpace {
              final Player player,
              final boolean includeManaAbilities,
              final boolean lifePaymentFallback
@@ -198,7 +212,7 @@ index 972f4ae..18289b4 100644
      ) {
          final Game game = player.getGame();
          final Set<Card> candidates = new LinkedHashSet<>();
-@@ -139,10 +188,22 @@ public final class ActionSpace {
+@@ -139,10 +194,22 @@ public final class ActionSpace {
          final List<SpellAbility> actions = new ArrayList<>();
          final Map<Card, Card> spellHosts = new IdentityHashMap<>();
          boolean stackStatics = false;
@@ -222,7 +236,7 @@ index 972f4ae..18289b4 100644
                  sa.setActivatingPlayer(player);
                  possible.add(sa);
                  spellHost(sa, game, spellHosts);
-@@ -152,6 +213,7 @@ public final class ActionSpace {
+@@ -152,6 +219,7 @@ public final class ActionSpace {
                  && game.getAction().hasStaticAbilityAffectingZone(ZoneType.Stack, StaticAbilityLayer.ABILITIES)) {
              stackStatics = true;
              applyStackStatics(game, spellHosts.values());
@@ -230,7 +244,7 @@ index 972f4ae..18289b4 100644
          }
          for (final SpellAbility sa : possible) {
              final Cost payCosts = sa.getPayCosts();
-@@ -173,6 +235,19 @@ public final class ActionSpace {
+@@ -173,6 +241,19 @@ public final class ActionSpace {
              actions.add(sa);
          }
          } finally {
@@ -250,7 +264,7 @@ index 972f4ae..18289b4 100644
              game.getAction().setHoldCheckingStaticAbilities(false);
              game.getAction().checkStaticAbilities(false);
              if (stackStatics) {
-@@ -201,13 +276,22 @@ public final class ActionSpace {
+@@ -201,13 +282,22 @@ public final class ActionSpace {
              if (!lifePaymentFallback) {
                  return false;
              }
@@ -277,7 +291,7 @@ index 972f4ae..18289b4 100644
          } finally {
              if (probeHost != null) {
                  sa.setHostCard(host);
-@@ -269,21 +353,45 @@ public final class ActionSpace {
+@@ -269,21 +359,45 @@ public final class ActionSpace {
              return true;
          }
          final Card host = sa.getHostCard();
@@ -330,7 +344,7 @@ index 972f4ae..18289b4 100644
      }
  
      private static boolean canPayManaWithTargets(
-@@ -385,7 +493,13 @@ public final class ActionSpace {
+@@ -385,7 +499,13 @@ public final class ActionSpace {
              if (stackSa == sa || stackSa.getId() == sa.getId()) {
                  continue;
              }
@@ -345,7 +359,7 @@ index 972f4ae..18289b4 100644
                  continue;
              }
              final Card sourceCard = si.getSourceCard();
-@@ -417,6 +531,194 @@ public final class ActionSpace {
+@@ -417,6 +537,197 @@ public final class ActionSpace {
          return reserved;
      }
  
@@ -360,6 +374,7 @@ index 972f4ae..18289b4 100644
 +    }
 +
 +    private static List<SourceOptions> buildManaSources(final Player player) {
++        SOURCE_BUILDS.incrementAndGet();
 +        final List<SourceOptions> sources = new ArrayList<>();
 +        for (final Card card : player.getCardsIn(ZoneType.Battlefield)) {
 +            final List<SourceOption> options = new ArrayList<>();
@@ -434,8 +449,10 @@ index 972f4ae..18289b4 100644
 +        }
 +        final List<Integer> fixedUnits = new ArrayList<>();
 +        for (final byte type : ManaAtom.MANATYPES) {
-+            for (int i = player.getManaPool().getAmountOfColor(type); i > 0; i--) {
-+                fixedUnits.add((int) type);
++            for (final Mana mana : player.getManaPool()) {
++                if (mana.getColor() == type && mana.meetsManaRestrictions(sa)) {
++                    fixedUnits.add((int) type);
++                }
 +            }
 +        }
 +        final List<List<ManaOption>> choices = new ArrayList<>();
@@ -540,7 +557,7 @@ index 972f4ae..18289b4 100644
      private static boolean canPayManaCostWithReservedSacrifices(
              final SpellAbility sa,
              final Player player,
-@@ -470,6 +772,22 @@ public final class ActionSpace {
+@@ -470,6 +781,22 @@ public final class ActionSpace {
  
      private static ManaCostBeingPaid probeManaCost(
              final Cost cost, final SpellAbility sa, final Player payer, final boolean effect) {
@@ -563,7 +580,44 @@ index 972f4ae..18289b4 100644
          final Card host = sa.getHostCard();
          Zone castFromBackup = null;
          if (sa.isSpell() && !host.isInZone(ZoneType.Stack)) {
-@@ -642,13 +960,40 @@ public final class ActionSpace {
+@@ -604,30 +931,17 @@ public final class ActionSpace {
+     ) {
+         final List<Integer> sourceMasks = new ArrayList<>();
+ 
+-        addFloatingManaSources(player, sourceMasks);
++        addFloatingManaSources(sa, player, sourceMasks);
+         addBattlefieldManaSources(sa, player, reservedSacrifices == null ? Set.of() : reservedSacrifices, sourceMasks);
+ 
+         return canPayManaCostFromSources(manaCost, sourceMasks);
+     }
+ 
+-    private static void addFloatingManaSources(final Player player, final List<Integer> sourceMasks) {
+-        for (int i = 0; i < player.getManaPool().getAmountOfColor(MagicColor.WHITE); i++) {
+-            sourceMasks.add((int) ManaAtom.WHITE);
+-        }
+-        for (int i = 0; i < player.getManaPool().getAmountOfColor(MagicColor.BLUE); i++) {
+-            sourceMasks.add((int) ManaAtom.BLUE);
+-        }
+-        for (int i = 0; i < player.getManaPool().getAmountOfColor(MagicColor.BLACK); i++) {
+-            sourceMasks.add((int) ManaAtom.BLACK);
+-        }
+-        for (int i = 0; i < player.getManaPool().getAmountOfColor(MagicColor.RED); i++) {
+-            sourceMasks.add((int) ManaAtom.RED);
+-        }
+-        for (int i = 0; i < player.getManaPool().getAmountOfColor(MagicColor.GREEN); i++) {
+-            sourceMasks.add((int) ManaAtom.GREEN);
+-        }
+-        for (int i = 0; i < player.getManaPool().getAmountOfColor(MagicColor.COLORLESS); i++) {
+-            sourceMasks.add(0);
++    private static void addFloatingManaSources(final SpellAbility sa, final Player player, final List<Integer> sourceMasks) {
++        for (final Mana mana : player.getManaPool()) {
++            if (mana.meetsManaRestrictions(sa)) {
++                sourceMasks.add(mana.getColor() == ManaAtom.COLORLESS ? 0 : (int) mana.getColor());
++            }
+         }
+     }
+ 
+@@ -642,13 +956,41 @@ public final class ActionSpace {
                  ? saBeingPaid.getHostCard()
                  : null;
  
@@ -601,6 +655,7 @@ index 972f4ae..18289b4 100644
 +    }
 +
 +    private static List<BattlefieldSource> buildBattlefieldSources(final Player player) {
++        SOURCE_BUILDS.incrementAndGet();
 +        final List<BattlefieldSource> sources = new ArrayList<>();
 +        for (final Card card : player.getCardsIn(ZoneType.Battlefield)) {
 +            final List<PlayableMana> abilities = new ArrayList<>();
@@ -608,7 +663,7 @@ index 972f4ae..18289b4 100644
                  if (!manaAbility.isManaAbility()) {
                      continue;
                  }
-@@ -660,7 +1005,7 @@ public final class ActionSpace {
+@@ -660,7 +1002,7 @@ public final class ActionSpace {
                      continue;
                  }
                  final AbilityManaPart manaPart = manaAbility.getManaPart();
@@ -617,7 +672,7 @@ index 972f4ae..18289b4 100644
                      continue;
                  }
                  if (manaAbility.getPayCosts() != null
-@@ -672,24 +1017,12 @@ public final class ActionSpace {
+@@ -672,24 +1014,12 @@ public final class ActionSpace {
                  )) {
                      continue;
                  }
@@ -646,7 +701,7 @@ index 972f4ae..18289b4 100644
      }
  
      private static List<Integer> mergeAlternativeManaAbility(
-@@ -897,6 +1230,35 @@ public final class ActionSpace {
+@@ -897,6 +1227,35 @@ public final class ActionSpace {
      }
  
      private static boolean hasValidTargets(final SpellAbility sa) {
@@ -1574,10 +1629,10 @@ index 0000000..3fa96b5
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/EffectsView.java b/forge-harness/src/main/java/forge/harness/host/EffectsView.java
 new file mode 100644
-index 0000000..1ecaebb
+index 0000000..9e70a68
 --- /dev/null
 +++ b/forge-harness/src/main/java/forge/harness/host/EffectsView.java
-@@ -0,0 +1,192 @@
+@@ -0,0 +1,196 @@
 +package forge.harness.host;
 +
 +import com.google.common.collect.ListMultimap;
@@ -1607,24 +1662,28 @@ index 0000000..1ecaebb
 +
 +    private EffectsView() {}
 +
-+    static List<Map<String, Object>> effects(final Player player) {
++    static List<Map<String, Object>> effects(final Player player, final Predicate<Card> shown) {
 +        final List<Map<String, Object>> effects = new ArrayList<>();
 +        for (final Card card : player.getCardsIn(ZoneType.Command)) {
 +            if (!card.isImmutable() || !card.getRenderForUI() || card.getEffectSource() == null) {
 +                continue;
 +            }
-+            final List<Card> named = List.of(card.getEffectSource());
++            final Card sourceCard = card.getEffectSource();
++            final List<Card> named = List.of(sourceCard);
 +            final String text = withoutIds(plainText(card.getAbilityText()), named);
 +            if (text.isEmpty()) {
 +                continue;
 +            }
++            final boolean hidden = !card.isEmblem() && !sourceCard.isImmutable() && !shown.test(sourceCard);
 +            final Map<String, Object> effect = new LinkedHashMap<>();
 +            effect.put("id", "effect-" + card.getId());
-+            effect.put("name", withoutIds(card.getName(), named));
-+            effect.put("text", text);
-+            effect.put("sourceCardId", SnapshotExtractor.javaCardId(card.getEffectSource()));
++            effect.put("name", hidden ? "Effect" : withoutIds(card.getName(), named));
++            effect.put("text", hidden ? "" : text);
++            if (!hidden) {
++                effect.put("sourceCardId", SnapshotExtractor.javaCardId(sourceCard));
++            }
 +            effect.put("emblem", card.isEmblem());
-+            final SpellAbility source = card.getEffectSourceAbility();
++            final SpellAbility source = hidden ? null : card.getEffectSourceAbility();
 +            final String duration = source == null ? null : source.getParam("Duration");
 +            effect.put("untilEndOfTurn", source != null && duration == null
 +                    && (source.getApi() == ApiType.Effect || source.getApi() == ApiType.Fog));
@@ -2290,7 +2349,7 @@ index 0000000..9d713d1
 +    }
 +}
 diff --git a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
-index 713e1ef..43dd19e 100644
+index 713e1ef..4a707b3 100644
 --- a/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 +++ b/forge-harness/src/main/java/forge/harness/host/InteractiveSnapshotExtractor.java
 @@ -26,27 +26,37 @@ import forge.card.MagicColor;
@@ -2595,7 +2654,7 @@ index 713e1ef..43dd19e 100644
          final Player controller = player.getControllingPlayer();
          if (controller != null && controller != player) {
              out.put("controlledBy", "player-" + SnapshotExtractor.playerIndex(game, controller));
-@@ -299,18 +463,34 @@ public final class InteractiveSnapshotExtractor {
+@@ -299,18 +463,35 @@ public final class InteractiveSnapshotExtractor {
          out.put("ringLevel", player.getNumRingTemptedYou());
          out.put("speed", player.getSpeed());
          out.put("hasEnduringStory", player.hasEnduringStory());
@@ -2621,7 +2680,8 @@ index 713e1ef..43dd19e 100644
          if (teamNumber != null) {
              out.put("teamNumber", teamNumber);
          }
-+        final List<Map<String, Object>> effects = EffectsView.effects(player);
++        final Player viewerPlayer = playerForIndex(game, viewer);
++        final List<Map<String, Object>> effects = EffectsView.effects(player, card -> shownTo(card, viewerPlayer));
 +        if (!effects.isEmpty()) {
 +            out.put("effects", effects);
 +        }
@@ -2631,7 +2691,7 @@ index 713e1ef..43dd19e 100644
          return out;
      }
  
-@@ -325,19 +505,6 @@ public final class InteractiveSnapshotExtractor {
+@@ -325,19 +506,6 @@ public final class InteractiveSnapshotExtractor {
          return names;
      }
  
@@ -2651,7 +2711,7 @@ index 713e1ef..43dd19e 100644
      private static List<String> activeSchemeNames(final Player player) {
          final List<String> names = new ArrayList<>();
          for (final Card card : player.getCardsIn(ZoneType.Command)) {
-@@ -348,6 +515,27 @@ public final class InteractiveSnapshotExtractor {
+@@ -348,6 +516,27 @@ public final class InteractiveSnapshotExtractor {
          return names;
      }
  
@@ -2679,7 +2739,7 @@ index 713e1ef..43dd19e 100644
      private static Integer teamNumber(final Game game, final Player player) {
          for (final Player other : game.getRegisteredPlayers()) {
              if (other != player && other.getTeam() == player.getTeam()) {
-@@ -367,7 +555,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -367,7 +556,7 @@ public final class InteractiveSnapshotExtractor {
          return counters;
      }
  
@@ -2688,7 +2748,7 @@ index 713e1ef..43dd19e 100644
          if (value > 0) {
              map.put(key, value);
          }
-@@ -411,7 +599,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -411,7 +600,7 @@ public final class InteractiveSnapshotExtractor {
      private static Map<String, Object> zoneEntry(
              final String zone,
              final String ownerId,
@@ -2697,7 +2757,7 @@ index 713e1ef..43dd19e 100644
              final int count
      ) {
          final Map<String, Object> out = new LinkedHashMap<>();
-@@ -422,6 +610,32 @@ public final class InteractiveSnapshotExtractor {
+@@ -422,6 +611,32 @@ public final class InteractiveSnapshotExtractor {
          return out;
      }
  
@@ -2730,7 +2790,7 @@ index 713e1ef..43dd19e 100644
      private static JsonObject visibleCard(final CardDto dto) {
          final JsonObject obj = GSON.toJsonTree(dto).getAsJsonObject();
          obj.addProperty("visibility", "visible");
-@@ -444,13 +658,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -444,13 +659,14 @@ public final class InteractiveSnapshotExtractor {
              final boolean castable,
              final Player viewerPlayer,
              final boolean keepHiddenEntries,
@@ -2747,7 +2807,7 @@ index 713e1ef..43dd19e 100644
                  views.add(visibleCard(toCard(
                          game, card, ownerIndex, castable, viewerPlayer, secretChoiceVisibility)));
              } else if (keepHiddenEntries) {
-@@ -465,7 +680,8 @@ public final class InteractiveSnapshotExtractor {
+@@ -465,7 +681,8 @@ public final class InteractiveSnapshotExtractor {
          if (viewerPlayer != null) {
              return card.getView().canBeShownTo(viewerPlayer.getView());
          }
@@ -2757,7 +2817,7 @@ index 713e1ef..43dd19e 100644
          if (zone == ZoneType.Exile || zone == ZoneType.Merged) {
              return !card.isFaceDown();
          }
-@@ -499,6 +715,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -499,6 +716,7 @@ public final class InteractiveSnapshotExtractor {
          dto.effectiveManaCost = null;
          dto.commanderTax = null;
          dto.madnessCost = null;
@@ -2765,7 +2825,7 @@ index 713e1ef..43dd19e 100644
      }
  
      private static Player playerForIndex(final Game game, final int viewer) {
-@@ -685,6 +902,22 @@ public final class InteractiveSnapshotExtractor {
+@@ -685,6 +903,22 @@ public final class InteractiveSnapshotExtractor {
          return dto;
      }
  
@@ -2788,7 +2848,7 @@ index 713e1ef..43dd19e 100644
      private static CardDto toCard(
              final Game game,
              final Card card,
-@@ -714,6 +947,11 @@ public final class InteractiveSnapshotExtractor {
+@@ -714,6 +948,11 @@ public final class InteractiveSnapshotExtractor {
              dto.toughness = String.valueOf(card.getNetToughness());
              dto.basePower = card.getBasePower();
              dto.baseToughness = card.getBaseToughness();
@@ -2800,7 +2860,7 @@ index 713e1ef..43dd19e 100644
          }
          if (card.isInPlay()) {
              if (card.getType().hasSubtype("Saga") && card.hasChapter()) {
-@@ -746,17 +984,65 @@ public final class InteractiveSnapshotExtractor {
+@@ -746,17 +985,65 @@ public final class InteractiveSnapshotExtractor {
          dto.isFaceDown = card.isFaceDown();
          dto.isBestowed = card.isBestowed();
          dto.phasedOut = card.isPhasedOut();
@@ -2867,7 +2927,7 @@ index 713e1ef..43dd19e 100644
          }
          final List<String> attachmentIds = new ArrayList<>();
          for (final Card attachment : card.getAttachedCards()) {
-@@ -798,10 +1084,78 @@ public final class InteractiveSnapshotExtractor {
+@@ -798,10 +1085,78 @@ public final class InteractiveSnapshotExtractor {
          }
          if (castable) {
              dto.effectiveManaCost = effectiveManaCost(card);
@@ -2946,7 +3006,7 @@ index 713e1ef..43dd19e 100644
      private static String normalizedOracle(final Card card) {
          return card.getOracleText().replace("\\n", "\n");
      }
-@@ -941,7 +1295,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -941,7 +1296,7 @@ public final class InteractiveSnapshotExtractor {
      // casts (which would flip the card), run on a copied cost, and swallow any
      // failure back to the printed cost. null = no reduction (UI keeps printed).
      private static String effectiveManaCost(final Card card) {
@@ -2955,7 +3015,7 @@ index 713e1ef..43dd19e 100644
              return null;
          }
          final SpellAbility sa = card.getFirstSpellAbility();
-@@ -953,13 +1307,16 @@ public final class InteractiveSnapshotExtractor {
+@@ -953,13 +1308,16 @@ public final class InteractiveSnapshotExtractor {
              if (sa.getActivatingPlayer() == null) {
                  sa.setActivatingPlayer(card.getController());
              }
@@ -2976,7 +3036,7 @@ index 713e1ef..43dd19e 100644
          } catch (final RuntimeException error) {
              return null;
          } finally {
-@@ -1078,12 +1435,14 @@ public final class InteractiveSnapshotExtractor {
+@@ -1078,12 +1436,14 @@ public final class InteractiveSnapshotExtractor {
              stackItem.put("identity", stackIdentity(name, source));
              stackItem.put("text", item.getStackDescription());
              putIfNotBlank(stackItem, "sourceAbilityText", sourceAbilityText(sa));
@@ -2991,7 +3051,7 @@ index 713e1ef..43dd19e 100644
              out.add(stackItem);
              index++;
          }
-@@ -1131,6 +1490,7 @@ public final class InteractiveSnapshotExtractor {
+@@ -1131,6 +1491,7 @@ public final class InteractiveSnapshotExtractor {
          stackItem.put("isDoubleFaced", source.isDoubleFaced() || source.isModal());
          stackItem.put("faceIndex", stackFaceIndex(source, castingAbility));
          stackItem.put("targets", stackTargets(game, castingAbility));
@@ -2999,7 +3059,7 @@ index 713e1ef..43dd19e 100644
          return stackItem;
      }
  
-@@ -1163,6 +1523,25 @@ public final class InteractiveSnapshotExtractor {
+@@ -1163,6 +1524,25 @@ public final class InteractiveSnapshotExtractor {
          }
      }
  
@@ -4022,7 +4082,7 @@ index fb82e6d..2358459 100644
              return null;
          }
 diff --git a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
-index 643e5de..c0da0e5 100644
+index 643e5de..f7a91a8 100644
 --- a/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 +++ b/forge-harness/src/main/java/forge/harness/host/ManaBrewInteractiveSession.java
 @@ -6,33 +6,51 @@ import forge.harness.common.ParityCardMap;
@@ -5214,7 +5274,7 @@ index 643e5de..c0da0e5 100644
          checkpointTurn = target.turn;
          checkpointPhase = target.phase;
          while (checkpoints.peekLast() != target) {
-@@ -2175,6 +2792,435 @@ public final class ManaBrewInteractiveSession {
+@@ -2175,6 +2792,436 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -5248,9 +5308,10 @@ index 643e5de..c0da0e5 100644
 +            }
 +        } catch (RuntimeException failure) {
 +            refused = failure;
++        } finally {
++            game.getTriggerHandler().setSuppressAllTriggers(false);
++            game.getStack().setResolving(false);
 +        }
-+        game.getTriggerHandler().setSuppressAllTriggers(false);
-+        game.getStack().setResolving(false);
 +        if (refused == null) {
 +            game.getStack().unfreezeStack();
 +            game.getAction().checkStateEffects(true);
@@ -5650,7 +5711,7 @@ index 643e5de..c0da0e5 100644
      private boolean gameDecided() {
          int remaining = 0;
          for (final Player player : game.getRegisteredPlayers()) {
-@@ -2207,10 +3253,14 @@ public final class ManaBrewInteractiveSession {
+@@ -2207,10 +3254,14 @@ public final class ManaBrewInteractiveSession {
              if (host == null) {
                  continue;
              }
@@ -5667,7 +5728,7 @@ index 643e5de..c0da0e5 100644
              final String cardId = SnapshotExtractor.javaCardId(host);
              final String id = "prompt-action-" + i;
              if (sa.isLandAbility() || sa.isSpell()) {
-@@ -2247,7 +3297,7 @@ public final class ManaBrewInteractiveSession {
+@@ -2247,7 +3298,7 @@ public final class ManaBrewInteractiveSession {
      private static PlayCardMode playCardMode(final SpellAbility sa) {
          final AlternativeCost alt = sa.getAlternativeCost();
          if (alt == null) {
@@ -5676,7 +5737,7 @@ index 643e5de..c0da0e5 100644
          }
          return new PlayCardMode_alternative(alternativeCostKind(alt));
      }
-@@ -2290,9 +3340,21 @@ public final class ManaBrewInteractiveSession {
+@@ -2290,9 +3341,21 @@ public final class ManaBrewInteractiveSession {
              final boolean castable,
              final int min,
              final int max
@@ -5699,7 +5760,7 @@ index 643e5de..c0da0e5 100644
      }
  
      private void publishCardChoicePrompt(
-@@ -2322,20 +3384,27 @@ public final class ManaBrewInteractiveSession {
+@@ -2322,20 +3385,27 @@ public final class ManaBrewInteractiveSession {
              final String sourceCardId,
              final String description,
              final boolean optionalDecline,
@@ -5730,7 +5791,7 @@ index 643e5de..c0da0e5 100644
      private void publishOptionPrompt(
              final String kind,
              final int playerId,
-@@ -2579,24 +3648,176 @@ public final class ManaBrewInteractiveSession {
+@@ -2579,24 +3649,176 @@ public final class ManaBrewInteractiveSession {
              final Combat combat,
              final List<Card> availableAttackers
      ) {
@@ -5913,7 +5974,7 @@ index 643e5de..c0da0e5 100644
      }
  
      private void publishBlockersPrompt(
-@@ -2604,7 +3825,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2604,7 +3826,8 @@ public final class ManaBrewInteractiveSession {
              final List<Card> attackers,
              final List<Card> availableBlockers,
              final Map<Card, List<Card>> validBlockersByAttacker,
@@ -5923,7 +5984,7 @@ index 643e5de..c0da0e5 100644
      ) {
          final Player defendingPlayer = game.getRegisteredPlayers().get(playerId);
          final List<BlockableAttackerDto> attackerOptions = new java.util.ArrayList<>();
-@@ -2627,7 +3849,17 @@ public final class ManaBrewInteractiveSession {
+@@ -2627,7 +3850,17 @@ public final class ManaBrewInteractiveSession {
              availableBlockerIds.add(SnapshotExtractor.javaCardId(blocker));
          }
          publishAgentPrompt("player-" + playerId, null,
@@ -5942,7 +6003,7 @@ index 643e5de..c0da0e5 100644
      }
  
      private void publishDamageAssignmentOrderPrompt(
-@@ -2918,7 +4150,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2918,7 +4151,8 @@ public final class ManaBrewInteractiveSession {
          }
      }
  
@@ -5952,7 +6013,7 @@ index 643e5de..c0da0e5 100644
          promptedPlayerIndex = parsePlayerSlot(decidingPlayerId);
          latestPromptJson = ManabrewProtocolAdapter.agentPrompt(
                  ++promptSeq,
-@@ -2928,6 +4161,25 @@ public final class ManaBrewInteractiveSession {
+@@ -2928,6 +4162,25 @@ public final class ManaBrewInteractiveSession {
                  input);
      }
  
@@ -5978,7 +6039,7 @@ index 643e5de..c0da0e5 100644
      private static int parsePlayerSlot(final String decidingPlayerId) {
          if (decidingPlayerId == null || !decidingPlayerId.startsWith("player-")) {
              return -1;
-@@ -2941,8 +4193,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2941,8 +4194,8 @@ public final class ManaBrewInteractiveSession {
  
      private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
  
@@ -5989,7 +6050,7 @@ index 643e5de..c0da0e5 100644
      }
  
      private static <T> T enumFromWire(final String wire, final Class<T> type) {
-@@ -2969,12 +4221,8 @@ public final class ManaBrewInteractiveSession {
+@@ -2969,12 +4222,8 @@ public final class ManaBrewInteractiveSession {
              }
              return source == null ? null : InteractiveSnapshotExtractor.cardDto(game, source, false);
          }
@@ -11182,10 +11243,10 @@ index 0000000..5461e72
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/BigTurnTimingTest.java b/forge-harness/src/test/java/forge/harness/host/BigTurnTimingTest.java
 new file mode 100644
-index 0000000..4e0fa6e
+index 0000000..42deb61
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/BigTurnTimingTest.java
-@@ -0,0 +1,188 @@
+@@ -0,0 +1,216 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -11229,13 +11290,35 @@ index 0000000..4e0fa6e
 +        final int[] sizes = args.length > 0 ? parse(args[0]) : new int[] {25, 50, 100, 200, 400};
 +        warmUp();
 +        for (final int n : sizes) {
-+            landfall(n);
++            check("landfall " + n + " Scute Swarms", () -> landfall(n));
 +        }
 +        for (final int n : sizes) {
-+            secondHarvest(n);
++            check("secondHarvest " + n + " Scute Swarms", () -> secondHarvest(n));
 +        }
-+        System.out.println("PASS BigTurnTimingTest");
-+        System.exit(0);
++        System.out.println(failed == 0 ? "PASS BigTurnTimingTest" : "FAIL BigTurnTimingTest: " + failed + " failed");
++        System.exit(failed == 0 ? 0 : 1);
++    }
++
++    private interface Check {
++        void run() throws Exception;
++    }
++
++    private static int failed;
++
++    private static void check(final String name, final Check check) {
++        try {
++            check.run();
++            System.out.println("ok " + name);
++        } catch (final Throwable failure) {
++            failed++;
++            System.out.println("FAIL " + name + ": " + failure);
++        }
++    }
++
++    private static void expect(final boolean condition, final String message) {
++        if (!condition) {
++            throw new AssertionError(message);
++        }
 +    }
 +
 +    private static int[] parse(final String list) {
@@ -11265,6 +11348,8 @@ index 0000000..4e0fa6e
 +        b.game.getStack().addAllTriggeredAbilitiesToStack();
 +        final double order = ms(t0);
 +        final int triggers = b.game.getStack().size();
++        expect(triggers == n, "an Island under " + n + " Scute Swarms put " + triggers + " landfall triggers on the stack");
++        final int tokensBefore = b.blue.getCardsIn(ZoneType.Battlefield).size();
 +        final int resolveCount = Math.min(triggers, 20);
 +        t0 = System.nanoTime();
 +        for (int i = 0; i < resolveCount; i++) {
@@ -11279,6 +11364,8 @@ index 0000000..4e0fa6e
 +                "time landfall n=%d triggers=%d putOnStackMs=%.1f resolveMsPerTrigger=%.1f actionsMs=%.1f->%.1f snapshotMs=%.1f->%.1f snapshotBytes=%d tokensNow=%d triggersFired=%d",
 +                n, triggers, order, perTrigger, actions, actionsAfter, snap, snapAfter, bytes,
 +                b.blue.getCardsIn(ZoneType.Battlefield).size(), b.triggersFired()));
++        expect(bytes > 0 && b.blue.getCardsIn(ZoneType.Battlefield).size() > tokensBefore,
++                resolveCount + " landfall triggers made no Scute Swarm (snapshot " + bytes + " bytes)");
 +    }
 +
 +    private static void secondHarvest(final int n) throws Exception {
@@ -11295,6 +11382,8 @@ index 0000000..4e0fa6e
 +        b.game.getStack().addAllTriggeredAbilitiesToStack();
 +        final double order = ms(t1);
 +        final int after = b.blue.getCardsIn(ZoneType.Battlefield).size();
++        final int doubled = Math.min(2 * n, Game.UNBOUNDED_TOKENS - n);
++        expect(after - before == doubled, "Second Harvest under " + n + " Scute Swarms and Adrix and Nev made " + (after - before) + " tokens, not " + doubled);
 +        System.out.println(String.format(
 +                "time secondHarvest n=%d resolveMs=%.1f perNewTokenMs=%.2f putOnStackMs=%.1f created=%d stack=%d triggersFired=%d cardsCreated=%d snapshotMs=%.1f",
 +                n, resolveMs, resolveMs / Math.max(1, after - before), order, after - before,
@@ -15159,10 +15248,10 @@ index 0000000..4dd0af7
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/EffectsViewTest.java b/forge-harness/src/test/java/forge/harness/host/EffectsViewTest.java
 new file mode 100644
-index 0000000..60c0a91
+index 0000000..d9b8a29
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/EffectsViewTest.java
-@@ -0,0 +1,427 @@
+@@ -0,0 +1,472 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonArray;
@@ -15222,6 +15311,8 @@ index 0000000..60c0a91
 +        check("pactUpkeepIsOnItsCastersTurn", EffectsViewTest::pactUpkeepIsOnItsCastersTurn);
 +        check("aHostInAHandIsNotNamedToAnotherSeat", EffectsViewTest::aHostInAHandIsNotNamedToAnotherSeat);
 +        check("aRememberedCardInAHandIsNotNamedToAnotherSeat", EffectsViewTest::aRememberedCardInAHandIsNotNamedToAnotherSeat);
++        check("anEffectFromAHandCardIsNotNamedToAnotherSeat", EffectsViewTest::anEffectFromAHandCardIsNotNamedToAnotherSeat);
++        check("anEffectFromALibraryCardSendsNoSourceIdOrDuration", EffectsViewTest::anEffectFromALibraryCardSendsNoSourceIdOrDuration);
 +        check("lifeGainedAndLostThisTurnAreSent", EffectsViewTest::lifeGainedAndLostThisTurnAreSent);
 +        System.out.println(failed == 0 ? "PASS EffectsViewTest" : "FAIL EffectsViewTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
@@ -15416,6 +15507,45 @@ index 0000000..60c0a91
 +        expect(owner.get("text").getAsString().startsWith("At the beginning of your next upkeep"), "its owner lost the text: " + owner);
 +    }
 +
++    private static void anEffectFromAHandCardIsNotNamedToAnotherSeat() throws Exception {
++        final Fixture f = new Fixture();
++        final Card protection = add("Teferi's Protection", f.white, ZoneType.Hand);
++        resolve(f, protection.getFirstSpellAbility(), f.white);
++        final JsonObject own = onlyEffect(f.player(0, 0));
++        expect(own.get("text").getAsString().contains("Your life total can't change.") && own.get("name").getAsString().contains("Teferi"),
++                "its owner lost the effect's name or text: " + own);
++        final JsonObject other = onlyEffect(f.player(1, 0));
++        expect("Effect".equals(other.get("name").getAsString()) && other.get("text").getAsString().isEmpty(),
++                "another seat is sent the hand card's effect: " + other);
++        expect(id(protection).equals(own.get("sourceCardId").getAsString())
++                        && "UntilYourNextTurn".equals(own.get("duration").getAsString()),
++                "its owner lost the source id or duration: " + own);
++        expect(!other.has("sourceCardId") && !other.has("duration") && !other.get("untilEndOfTurn").getAsBoolean(),
++                "another seat is sent the hand card's id or ability: " + other);
++        f.game.getAction().moveTo(ZoneType.Graveyard, protection, null, null);
++        final JsonObject shown = onlyEffect(f.player(1, 0));
++        expect(shown.get("text").getAsString().contains("Your life total can't change."),
++                "another seat is not sent the effect once its card is in a graveyard: " + shown);
++    }
++
++    private static void anEffectFromALibraryCardSendsNoSourceIdOrDuration() throws Exception {
++        final Fixture f = new Fixture();
++        final Card protection = add("Teferi's Protection", f.white, ZoneType.Hand);
++        resolve(f, protection.getFirstSpellAbility(), f.white);
++        final JsonObject inHand = onlyEffect(f.player(0, 0));
++        expect(id(protection).equals(inHand.get("sourceCardId").getAsString())
++                        && "UntilYourNextTurn".equals(inHand.get("duration").getAsString()),
++                "its owner is not sent the source id and duration while the card is in hand: " + inHand);
++        f.game.getAction().moveTo(ZoneType.Library, protection, null, null);
++        for (final int viewer : new int[] {0, 1}) {
++            final JsonObject effect = onlyEffect(f.player(viewer, 0));
++            expect("Effect".equals(effect.get("name").getAsString()) && effect.get("text").getAsString().isEmpty()
++                            && !effect.has("sourceCardId") && !effect.has("duration")
++                            && !effect.get("untilEndOfTurn").getAsBoolean(),
++                    "seat " + viewer + " is sent the library card's effect: " + effect);
++        }
++    }
++
 +    private static void aRememberedCardInAHandIsNotNamedToAnotherSeat() throws Exception {
 +        final Fixture f = new Fixture();
 +        final Card wisp = add("Flickerwisp", f.white, ZoneType.Battlefield);
@@ -15568,7 +15698,11 @@ index 0000000..60c0a91
 +        }
 +
 +        JsonObject player(final int index) {
-+            for (final JsonElement p : view().getAsJsonArray("players")) {
++            return player(0, index);
++        }
++
++        JsonObject player(final int viewer, final int index) {
++            for (final JsonElement p : view(viewer).getAsJsonArray("players")) {
 +                if (("player-" + index).equals(p.getAsJsonObject().get("id").getAsString())) {
 +                    return p.getAsJsonObject();
 +                }
@@ -18369,13 +18503,14 @@ index 0000000..d0ead3d
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/ManaSourcesTest.java b/forge-harness/src/test/java/forge/harness/host/ManaSourcesTest.java
 new file mode 100644
-index 0000000..e8bb9db
+index 0000000..9b9bbc8
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/ManaSourcesTest.java
-@@ -0,0 +1,414 @@
+@@ -0,0 +1,475 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
++import forge.card.MagicColor;
 +import forge.ai.LobbyPlayerAi;
 +import forge.deck.Deck;
 +import forge.game.Game;
@@ -18386,9 +18521,11 @@ index 0000000..e8bb9db
 +import forge.game.ability.AbilityFactory;
 +import forge.game.ability.AbilityUtils;
 +import forge.game.card.Card;
++import forge.game.mana.Mana;
 +import forge.game.phase.PhaseType;
 +import forge.game.player.Player;
 +import forge.game.player.RegisteredPlayer;
++import forge.game.spellability.AbilityManaPart;
 +import forge.game.spellability.SpellAbility;
 +import forge.game.staticability.StaticAbilityMode;
 +import forge.game.staticability.StaticSourceScope;
@@ -18428,7 +18565,9 @@ index 0000000..e8bb9db
 +        check("theSharedManaSourcesAreFreshCopiesPerQuestion", ManaSourcesTest::theSharedManaSourcesAreFreshCopiesPerQuestion);
 +        check("stackStaticsGiveTheSameActionsBothWays", ManaSourcesTest::stackStaticsGiveTheSameActionsBothWays);
 +        check("theStaticScopeRereadsTheBoardAfterAClear", ManaSourcesTest::theStaticScopeRereadsTheBoardAfterAClear);
-+        check("theHeldCheckOn500CluesIsUnderATenthOfTheUnsharedPath", ManaSourcesTest::theHeldCheckOn500CluesIsUnderATenthOfTheUnsharedPath);
++        check("theHeldCheckOn500CluesBuildsTheManaSourcesOnce", ManaSourcesTest::theHeldCheckOn500CluesBuildsTheManaSourcesOnce);
++        check("restrictedPoolManaPaysOnlyTheSpellsItMay", ManaSourcesTest::restrictedPoolManaPaysOnlyTheSpellsItMay);
++        check("restrictedPoolManaDoesNotPayAnAbilityThatSacrificesItsSource", ManaSourcesTest::restrictedPoolManaDoesNotPayAnAbilityThatSacrificesItsSource);
 +        ActionSpace.shareManaSources = true;
 +        System.out.println(failed == 0 ? "PASS ManaSourcesTest" : "FAIL ManaSourcesTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
@@ -18640,9 +18779,14 @@ index 0000000..e8bb9db
 +
 +    private static void sameBothWays(final String board, final Consumer<Fixture> setup) {
 +        for (final boolean lifeFallback : new boolean[] {false, true}) {
-+            ActionSpace.shareManaSources = false;
-+            final List<String> each = actions(setup, lifeFallback);
-+            ActionSpace.shareManaSources = true;
++            final List<String> each;
++            final boolean was = ActionSpace.shareManaSources;
++            try {
++                ActionSpace.shareManaSources = false;
++                each = actions(setup, lifeFallback);
++            } finally {
++                ActionSpace.shareManaSources = was;
++            }
 +            final List<String> shared = actions(setup, lifeFallback);
 +            expect(each.equals(shared), board + " board, life fallback " + lifeFallback + ": the actions differ\n each   " + each + "\n shared " + shared);
 +            expect(each.size() > 3, board + " board: only " + each);
@@ -18662,7 +18806,7 @@ index 0000000..e8bb9db
 +        return out;
 +    }
 +
-+    private static void theHeldCheckOn500CluesIsUnderATenthOfTheUnsharedPath() throws Exception {
++    private static void theHeldCheckOn500CluesBuildsTheManaSourcesOnce() throws Exception {
 +        final Fixture f = new Fixture(true);
 +        f.add("Mountain", f.white, ZoneType.Battlefield);
 +        f.add("Lightning Bolt", f.white, ZoneType.Hand);
@@ -18688,19 +18832,70 @@ index 0000000..e8bb9db
 +        }
 +        final Field stamp = ManaBrewInteractiveController.class.getDeclaredField("heldCheckStamp");
 +        stamp.setAccessible(true);
++        final long[] shared = heldCheckWork(c, stamp);
 +        final double median = heldCheckMedian(c, stamp, 25);
++        final long[] each;
 +        final double unshared;
 +        ActionSpace.shareManaSources = false;
 +        try {
++            each = heldCheckWork(c, stamp);
 +            unshared = heldCheckMedian(c, stamp, 7);
 +        } finally {
 +            ActionSpace.shareManaSources = true;
 +        }
 +        final double again = heldCheckMedian(c, stamp, 25);
 +        final double best = Math.min(median, again);
-+        System.out.println(String.format(java.util.Locale.ROOT, "metric held check, 500 Clues, new state: median %.1f ms (again %.1f ms), the unshared path %.1f ms, ratio %.2f",
-+                median, again, unshared, best / unshared));
-+        expect(best * 10 < unshared, "the held check on 500 Clues took a median " + best + " ms, not under a tenth of the unshared path's " + unshared + " ms in the same run");
++        System.out.println(String.format(java.util.Locale.ROOT, "metric held check, 500 Clues, new state: median %.1f ms (again %.1f ms), the unshared path %.1f ms, ratio %.2f; source lists built %d shared, %d unshared; static indexes %d shared, %d unshared",
++                median, again, unshared, best / unshared, shared[0], each[0], shared[1], each[1]));
++        expect(shared[0] >= 1 && shared[0] * 50 <= each[0], "the held check on 500 Clues built the mana sources " + shared[0] + " times shared and " + each[0] + " times unshared");
++        expect(shared[1] >= 1 && each[1] == 0, "the held check on 500 Clues built " + shared[1] + " static indexes shared and " + each[1] + " unshared");
++        expect(best * 2 < unshared, "the held check on 500 Clues took a median " + best + " ms, not under half the unshared path's " + unshared + " ms in the same run");
++    }
++
++    private static long[] heldCheckWork(final ManaBrewInteractiveController c, final Field stamp) throws Exception {
++        stamp.set(c, null);
++        final long builds = ActionSpace.getSourceBuilds();
++        final long indexed = StaticSourceScope.getIndexed();
++        c.heldResolutionsLeft();
++        return new long[] {ActionSpace.getSourceBuilds() - builds, StaticSourceScope.getIndexed() - indexed};
++    }
++
++    private static void restrictedPoolManaPaysOnlyTheSpellsItMay() {
++        final Fixture f = new Fixture();
++        final Card savant = f.add("Beastcaller Savant", f.white, ZoneType.Battlefield);
++        final AbilityManaPart part = savant.getManaAbilities().get(0).getManaPart();
++        savant.setTapped(true);
++        f.add("Azorius Signet", f.white, ZoneType.Battlefield);
++        f.hand(f.white, List.of("Lightning Bolt", "Raging Goblin"));
++        f.white.getManaPool().addMana(new Mana(MagicColor.RED, savant, part, f.white));
++        f.game.getAction().checkStaticAbilities();
++        final List<String> offered = new ArrayList<>();
++        for (final SpellAbility sa : ActionSpace.getPossibleActions(f.white, true, true)) {
++            offered.add(sa.getHostCard().getName());
++        }
++        expect(offered.contains("Raging Goblin"), "red mana for creature spells does not pay for Raging Goblin: " + offered);
++        expect(!offered.contains("Lightning Bolt"), "red mana for creature spells is counted for Lightning Bolt: " + offered);
++    }
++
++    private static void restrictedPoolManaDoesNotPayAnAbilityThatSacrificesItsSource() {
++        expect(!mindStoneDrawOffered(false), "creature-spell mana in the pool pays Mind Stone's sacrifice ability");
++        expect(mindStoneDrawOffered(true), "unrestricted mana in the pool does not pay Mind Stone's sacrifice ability");
++    }
++
++    private static boolean mindStoneDrawOffered(final boolean plainMana) {
++        final Fixture f = new Fixture();
++        final Card source = f.add(plainMana ? "Forest" : "Beastcaller Savant", f.white, ZoneType.Battlefield);
++        final AbilityManaPart part = source.getManaAbilities().get(0).getManaPart();
++        source.setTapped(true);
++        f.add("Mind Stone", f.white, ZoneType.Battlefield);
++        f.white.getManaPool().addMana(new Mana(MagicColor.GREEN, source, part, f.white));
++        f.game.getAction().checkStaticAbilities();
++        for (final SpellAbility sa : ActionSpace.getPossibleActions(f.white, true, true)) {
++            if ("Mind Stone".equals(sa.getHostCard().getName()) && !sa.isManaAbility()) {
++                return true;
++            }
++        }
++        return false;
 +    }
 +
 +    private static double heldCheckMedian(final ManaBrewInteractiveController c, final Field stamp, final int n) throws Exception {
@@ -18789,10 +18984,10 @@ index 0000000..e8bb9db
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java b/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java
 new file mode 100644
-index 0000000..f2e34a9
+index 0000000..6a09784
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/MayPlayVisibilityTest.java
-@@ -0,0 +1,316 @@
+@@ -0,0 +1,321 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonElement;
@@ -18899,7 +19094,7 @@ index 0000000..f2e34a9
 +        final Card top = f.add("Forest", f.p0, ZoneType.Library);
 +        f.settle();
 +        expect(mayPlay(f.card(0, "library", 0, top)), "Courser's land on top is not playable for its owner");
-+        expect(!mayPlay(f.card(1, "library", 0, top)), "Courser's land on top is playable for the opponent");
++        notPlayable(f.card(1, "library", 0, top), "Courser's land on top is playable for the opponent");
 +    }
 +
 +    private static void futureSightTopIsPlayableForItsOwnerOnly() {
@@ -18908,7 +19103,7 @@ index 0000000..f2e34a9
 +        final Card top = f.add("Grizzly Bears", f.p0, ZoneType.Library);
 +        f.settle();
 +        expect(mayPlay(f.card(0, "library", 0, top)), "Future Sight's top card is not playable for its owner");
-+        expect(!mayPlay(f.card(1, "library", 0, top)), "Future Sight's top card is playable for the opponent");
++        notPlayable(f.card(1, "library", 0, top), "Future Sight's top card is playable for the opponent");
 +    }
 +
 +    private static void revelationHandIsShownButNotPlayable() {
@@ -18942,7 +19137,7 @@ index 0000000..f2e34a9
 +        exiled.addMayLookAt(f.game.getNextTimestamp(), List.of(f.p0));
 +        exiled.setMayPlay(f.p0, false, null, false, false, firstStatic(source));
 +        expect(mayPlay(f.card(0, "exile", 1, exiled)), "an exiled card its caster may cast is not playable for the caster");
-+        expect(!mayPlay(f.card(1, "exile", 1, exiled)), "an exiled card another player may cast is playable for its owner");
++        notPlayable(f.card(1, "exile", 1, exiled), "an exiled card another player may cast is playable for its owner");
 +    }
 +
 +    private static void exiledCardWithOnlyALookIsNotPlayable() {
@@ -18950,7 +19145,7 @@ index 0000000..f2e34a9
 +        final Card exiled = f.add("Grizzly Bears", f.p1, ZoneType.Exile);
 +        f.settle();
 +        exiled.addMayLookAt(f.game.getNextTimestamp(), List.of(f.p0));
-+        expect(!mayPlay(f.card(0, "exile", 1, exiled)), "an exiled card the viewer may only look at is playable");
++        notPlayable(f.card(0, "exile", 1, exiled), "an exiled card the viewer may only look at is playable");
 +    }
 +
 +    private static void flashbackInOwnGraveyardIsPlayableForItsOwnerOnly() {
@@ -18958,7 +19153,7 @@ index 0000000..f2e34a9
 +        final Card spell = f.add("Think Twice", f.p0, ZoneType.Graveyard);
 +        f.settle();
 +        expect(mayPlay(f.card(0, "graveyard", 0, spell)), "a flashback card in its owner's graveyard is not playable");
-+        expect(!mayPlay(f.card(1, "graveyard", 0, spell)), "a flashback card is playable from the opponent's graveyard");
++        notPlayable(f.card(1, "graveyard", 0, spell), "a flashback card is playable from the opponent's graveyard");
 +    }
 +
 +    private static void unearthInOwnGraveyardIsPlayableForItsOwnerOnly() {
@@ -18966,7 +19161,7 @@ index 0000000..f2e34a9
 +        final Card zombie = f.add("Dregscape Zombie", f.p0, ZoneType.Graveyard);
 +        f.settle();
 +        expect(mayPlay(f.card(0, "graveyard", 0, zombie)), "an unearth card in its owner's graveyard is not playable");
-+        expect(!mayPlay(f.card(1, "graveyard", 0, zombie)), "an unearth card is playable from the opponent's graveyard");
++        notPlayable(f.card(1, "graveyard", 0, zombie), "an unearth card is playable from the opponent's graveyard");
 +    }
 +
 +    private static void foretoldCardInExileIsPlayableForItsOwnerOnly() {
@@ -18975,7 +19170,7 @@ index 0000000..f2e34a9
 +        spell.setForetold(true);
 +        f.settle();
 +        expect(mayPlay(f.card(0, "exile", 0, spell)), "a foretold card in its owner's exile is not playable");
-+        expect(!mayPlay(f.card(1, "exile", 0, spell)), "a foretold card is playable for the opponent");
++        notPlayable(f.card(1, "exile", 0, spell), "a foretold card is playable for the opponent");
 +    }
 +
 +    private static void mayhemCardDiscardedThisTurnIsPlayableForItsOwnerOnly() {
@@ -18984,14 +19179,14 @@ index 0000000..f2e34a9
 +        glider.setDiscarded(true);
 +        f.settle();
 +        expect(mayPlay(f.card(0, "graveyard", 0, glider)), "a mayhem card discarded this turn is not playable for its owner");
-+        expect(!mayPlay(f.card(1, "graveyard", 0, glider)), "a mayhem card is playable from the opponent's graveyard");
++        notPlayable(f.card(1, "graveyard", 0, glider), "a mayhem card is playable from the opponent's graveyard");
 +    }
 +
 +    private static void mayhemCardNotDiscardedIsNotPlayable() {
 +        final Fixture f = new Fixture();
 +        final Card glider = f.add("Rocket-Powered Goblin Glider", f.p0, ZoneType.Graveyard);
 +        f.settle();
-+        expect(!mayPlay(f.card(0, "graveyard", 0, glider)), "a mayhem card that was not discarded is playable");
++        notPlayable(f.card(0, "graveyard", 0, glider), "a mayhem card that was not discarded is playable");
 +    }
 +
 +    private static void mayhemCardDiscardedOnAnEarlierTurnIsNotPlayable() {
@@ -19000,7 +19195,7 @@ index 0000000..f2e34a9
 +        glider.setDiscarded(true);
 +        glider.setTurnInZone(f.game.getPhaseHandler().getTurn() - 1);
 +        f.settle();
-+        expect(!mayPlay(f.card(0, "graveyard", 0, glider)), "a mayhem card discarded on an earlier turn is playable");
++        notPlayable(f.card(0, "graveyard", 0, glider), "a mayhem card discarded on an earlier turn is playable");
 +    }
 +
 +    private static void harmonizeInOwnGraveyardIsPlayableForItsOwnerOnly() {
@@ -19008,7 +19203,7 @@ index 0000000..f2e34a9
 +        final Card spell = f.add("Channeled Dragonfire", f.p0, ZoneType.Graveyard);
 +        f.settle();
 +        expect(mayPlay(f.card(0, "graveyard", 0, spell)), "a harmonize card in its owner's graveyard is not playable");
-+        expect(!mayPlay(f.card(1, "graveyard", 0, spell)), "a harmonize card is playable from the opponent's graveyard");
++        notPlayable(f.card(1, "graveyard", 0, spell), "a harmonize card is playable from the opponent's graveyard");
 +    }
 +
 +    private static void beamMeUpInOwnGraveyardIsPlayableForItsOwnerOnly() {
@@ -19016,7 +19211,7 @@ index 0000000..f2e34a9
 +        final Card spell = f.add("Energize", f.p0, ZoneType.Graveyard);
 +        f.settle();
 +        expect(mayPlay(f.card(0, "graveyard", 0, spell)), "a beam me up card in its owner's graveyard is not playable");
-+        expect(!mayPlay(f.card(1, "graveyard", 0, spell)), "a beam me up card is playable from the opponent's graveyard");
++        notPlayable(f.card(1, "graveyard", 0, spell), "a beam me up card is playable from the opponent's graveyard");
 +    }
 +
 +    private static void plottedCardInExileIsPlayableForItsOwnerOnly() {
@@ -19025,14 +19220,14 @@ index 0000000..f2e34a9
 +        plotted.setPlotted(true);
 +        f.settle();
 +        expect(mayPlay(f.card(0, "exile", 0, plotted)), "a plotted card in its owner's exile is not playable");
-+        expect(!mayPlay(f.card(1, "exile", 0, plotted)), "a plotted card is playable for the opponent");
++        notPlayable(f.card(1, "exile", 0, plotted), "a plotted card is playable for the opponent");
 +    }
 +
 +    private static void unplottedCardInExileIsNotPlayable() {
 +        final Fixture f = new Fixture();
 +        final Card exiled = f.add("Slickshot Show-Off", f.p0, ZoneType.Exile);
 +        f.settle();
-+        expect(!mayPlay(f.card(0, "exile", 0, exiled)), "an exiled plot card that was never plotted is playable");
++        notPlayable(f.card(0, "exile", 0, exiled), "an exiled plot card that was never plotted is playable");
 +    }
 +
 +    private static StaticAbility firstStatic(final Card card) {
@@ -19040,6 +19235,11 @@ index 0000000..f2e34a9
 +            return sta;
 +        }
 +        throw new AssertionError(card + " has no static ability");
++    }
++
++    private static void notPlayable(final JsonObject card, final String message) {
++        expect(card != null, message + ": the card is not in the view, so the check proves nothing");
++        expect(!mayPlay(card), message + ": " + card);
 +    }
 +
 +    private static boolean mayPlay(final JsonObject card) {
@@ -20011,10 +20211,10 @@ index 0000000..cea5051
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/PassiveAiTest.java b/forge-harness/src/test/java/forge/harness/host/PassiveAiTest.java
 new file mode 100644
-index 0000000..4758982
+index 0000000..9d3911a
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/PassiveAiTest.java
-@@ -0,0 +1,265 @@
+@@ -0,0 +1,280 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -20068,6 +20268,7 @@ index 0000000..4758982
 +        check("thePassiveAiPlaysACyclingLandOnlyAsALand", PassiveAiTest::thePassiveAiPlaysACyclingLandOnlyAsALand);
 +        check("theAiStartsWithItsLeyline", PassiveAiTest::theAiStartsWithItsLeyline);
 +        check("thePassiveAiActivatesNothingFromItsOpeningHand", PassiveAiTest::thePassiveAiActivatesNothingFromItsOpeningHand);
++        check("theAiAttacksWhereThePassiveAiHolds", PassiveAiTest::theAiAttacksWhereThePassiveAiHolds);
 +        check("thePassiveAiDeclaresNoAttack", PassiveAiTest::thePassiveAiDeclaresNoAttack);
 +        System.out.println(failed == 0 ? "PASS PassiveAiTest" : "FAIL PassiveAiTest: " + failed + " failed");
 +        System.exit(failed == 0 ? 0 : 1);
@@ -20211,12 +20412,26 @@ index 0000000..4758982
 +                "the passive AI starts with a card from its opening hand: " + offered);
 +    }
 +
-+    private static void thePassiveAiDeclaresNoAttack() {
-+        final Fixture f = new Fixture(new PassiveLobbyPlayerAi("p1"));
++    private static Combat attackWithAHillGiant(final LobbyPlayerAi lobbyPlayer) {
++        final Fixture f = new Fixture(lobbyPlayer);
 +        f.add("Hill Giant", f.ai, ZoneType.Battlefield).setSickness(false);
 +        f.game.getPhaseHandler().devModeSet(PhaseType.COMBAT_DECLARE_ATTACKERS, f.ai);
 +        final Combat combat = new Combat(f.ai);
 +        f.ai.getController().declareAttackers(f.ai, combat);
++        return combat;
++    }
++
++    private static void theAiAttacksWhereThePassiveAiHolds() {
++        for (int attempt = 0; attempt < 10; attempt++) {
++            if (!attackWithAHillGiant(new LobbyPlayerAi("p1", null)).getAttackers().isEmpty()) {
++                return;
++            }
++        }
++        throw new AssertionError("the plain AI never attacked with its Hill Giant into an empty board in 10 tries, so the passive test proves nothing");
++    }
++
++    private static void thePassiveAiDeclaresNoAttack() {
++        final Combat combat = attackWithAHillGiant(new PassiveLobbyPlayerAi("p1"));
 +        expect(combat.getAttackers().isEmpty(), "the passive AI attacks with " + combat.getAttackers());
 +    }
 +
@@ -20732,10 +20947,10 @@ index 0000000..7020474
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/PlayerRulesTest.java b/forge-harness/src/test/java/forge/harness/host/PlayerRulesTest.java
 new file mode 100644
-index 0000000..2461701
+index 0000000..48f3a00
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/PlayerRulesTest.java
-@@ -0,0 +1,445 @@
+@@ -0,0 +1,449 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonObject;
@@ -20761,6 +20976,7 @@ index 0000000..2461701
 +import forge.game.zone.ZoneType;
 +import forge.gui.GuiBase;
 +import forge.harness.common.HeadlessGuiBase;
++import forge.harness.common.SnapshotExtractor;
 +import forge.item.IPaperCard;
 +import forge.localinstance.properties.ForgePreferences.FPref;
 +import forge.model.FModel;
@@ -20943,7 +21159,10 @@ index 0000000..2461701
 +        final Card perk = Perks.add(f.white, DRAW);
 +        expect("Juggernaut".equals(perk.getName()), "the perk card's name " + perk.getName());
 +        expect(perk.isImmutable() && f.white.getCardsIn(ZoneType.Command).contains(perk), "the perk is not an effect in White's command zone");
++        final Card commander = add("Grizzly Bears", f.white, ZoneType.Command);
 +        final String view = f.session.getSnapshotJson(0);
++        expect(view.contains("\"zone\":\"command\"") && view.contains("\"" + SnapshotExtractor.javaCardId(commander) + "\""),
++                "the view does not list White's command zone, so the perk check proves nothing: " + view.length());
 +        expect(!view.contains("Juggernaut") && !view.contains("additional card"), "the view shows the perk: " + view.length());
 +    }
 +
@@ -25400,10 +25619,10 @@ index 0000000..67831c4
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/SnapshotSpeedTest.java b/forge-harness/src/test/java/forge/harness/host/SnapshotSpeedTest.java
 new file mode 100644
-index 0000000..12aacb7
+index 0000000..949ce79
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/SnapshotSpeedTest.java
-@@ -0,0 +1,400 @@
+@@ -0,0 +1,406 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonElement;
@@ -25594,12 +25813,13 @@ index 0000000..12aacb7
 +        }
 +        long forge = Long.MAX_VALUE;
 +        long fast = Long.MAX_VALUE;
++        InteractiveSnapshotExtractor.SnapshotRound round = null;
 +        for (int run = 0; run < 3; run++) {
 +            long t = System.nanoTime();
 +            f.forgeFlags(creatures);
 +            forge = Math.min(forge, System.nanoTime() - t);
 +            t = System.nanoTime();
-+            f.newFlags(creatures);
++            round = f.newFlags(creatures);
 +            fast = Math.min(fast, System.nanoTime() - t);
 +        }
 +        long t = System.nanoTime();
@@ -25607,6 +25827,8 @@ index 0000000..12aacb7
 +        final long snapshot = System.nanoTime() - t;
 +        System.out.println("timing: " + creatures.size() + " creatures: Forge's per-creature scans " + forge / 1_000_000 + " ms, cached "
 +                + fast / 1_000_000 + " ms, one whole snapshot " + snapshot / 1_000_000 + " ms");
++        expect(round.staticScans() == 1 && round.computedFlags() == creatures.size(),
++                "one round over " + creatures.size() + " creatures scanned the statics " + round.staticScans() + " times and computed " + round.computedFlags() + " flags");
 +        expect(fast * 3 < forge, "the cached flags took " + fast / 1_000_000 + " ms against Forge's " + forge / 1_000_000 + " ms");
 +    }
 +
@@ -25627,8 +25849,10 @@ index 0000000..12aacb7
 +        long best = Long.MAX_VALUE;
 +        for (int run = 0; run < 5; run++) {
 +            final long t = System.nanoTime();
-+            f.newFlags(creatures);
++            final InteractiveSnapshotExtractor.SnapshotRound round = f.newFlags(creatures);
 +            best = Math.min(best, System.nanoTime() - t);
++            expect(round.staticScans() == 1 && round.computedFlags() == creatures.size(),
++                    creatures.size() + " creatures: the statics scanned " + round.staticScans() + " times, " + round.computedFlags() + " flags computed");
 +        }
 +        return best;
 +    }
@@ -25725,11 +25949,12 @@ index 0000000..12aacb7
 +            }
 +        }
 +
-+        void newFlags(final List<Card> cards) throws Exception {
++        InteractiveSnapshotExtractor.SnapshotRound newFlags(final List<Card> cards) throws Exception {
 +            final InteractiveSnapshotExtractor.SnapshotRound round = new InteractiveSnapshotExtractor.SnapshotRound();
 +            for (final Card c : cards) {
 +                flags(round, c);
 +            }
++            return round;
 +        }
 +
 +        Object flags(final InteractiveSnapshotExtractor.SnapshotRound round, final Card c) throws Exception {
@@ -25806,10 +26031,10 @@ index 0000000..12aacb7
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/SnapshotViewersTest.java b/forge-harness/src/test/java/forge/harness/host/SnapshotViewersTest.java
 new file mode 100644
-index 0000000..2bc20d6
+index 0000000..aa70e0f
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/SnapshotViewersTest.java
-@@ -0,0 +1,380 @@
+@@ -0,0 +1,389 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -25861,7 +26086,7 @@ index 0000000..2bc20d6
 +        CHECKS.put("bytes: the board changes between rounds, the next round sees the change", SnapshotViewersTest::nextRoundBytes);
 +        CHECKS.put("shared: in one round each battlefield card is built once, not once per viewer", SnapshotViewersTest::builtOncePerRound);
 +        CHECKS.put("shared: outside a round nothing is kept", SnapshotViewersTest::nothingKeptOutsideARound);
-+        CHECKS.put("timing: 10,000 tokens, the viewers after the first at least 3x faster than building each alone", SnapshotViewersTest::tenThousandTiming);
++        CHECKS.put("timing: 10,000 tokens, the viewers after the first build no card again and are at least 2x faster than building each alone", SnapshotViewersTest::tenThousandTiming);
 +        for (final Map.Entry<String, Check> e : CHECKS.entrySet()) {
 +            check(e.getKey(), e.getValue());
 +        }
@@ -26077,9 +26302,12 @@ index 0000000..2bc20d6
 +            alone(f);
 +            inRound(f);
 +        }
++        final int battlefield = f.game.getCardsIn(ZoneType.Battlefield).size();
 +        long aloneBest = Long.MAX_VALUE;
 +        long firstBest = Long.MAX_VALUE;
 +        long restBest = Long.MAX_VALUE;
++        long firstBuilt = -1;
++        long restBuilt = -1;
 +        for (int run = 0; run < 3; run++) {
 +            final boolean was = InteractiveSnapshotExtractor.shareCards;
 +            InteractiveSnapshotExtractor.shareCards = false;
@@ -26091,13 +26319,17 @@ index 0000000..2bc20d6
 +            InteractiveSnapshotExtractor.shareCards = true;
 +            f.session.beginSnapshotRound();
 +            try {
++                final long b0 = InteractiveSnapshotExtractor.sharedBuilds();
 +                t = System.nanoTime();
 +                f.session.getSnapshotJson(0);
 +                firstBest = Math.min(firstBest, System.nanoTime() - t);
++                final long b1 = InteractiveSnapshotExtractor.sharedBuilds();
 +                t = System.nanoTime();
 +                f.session.getSnapshotJson(1);
 +                f.session.getSnapshotJson(2);
 +                restBest = Math.min(restBest, (System.nanoTime() - t) / 2);
++                firstBuilt = b1 - b0;
++                restBuilt = InteractiveSnapshotExtractor.sharedBuilds() - b1;
 +            } finally {
 +                f.session.endSnapshotRound();
 +                InteractiveSnapshotExtractor.shareCards = was;
@@ -26105,7 +26337,9 @@ index 0000000..2bc20d6
 +        }
 +        System.out.println("timing: 10,000 tokens, one viewer's snapshot built alone " + aloneBest / 1_000_000 + " ms; in a round the first "
 +                + firstBest / 1_000_000 + " ms, each next " + restBest / 1_000_000 + " ms");
-+        expect(restBest * 3 <= aloneBest, "each next viewer took " + restBest / 1_000_000 + " ms against " + aloneBest / 1_000_000 + " ms alone");
++        expect(firstBuilt == battlefield && restBuilt == 0,
++                "10,000 tokens: the first viewer built " + firstBuilt + " of " + battlefield + " battlefield cards, the next two " + restBuilt);
++        expect(restBest * 2 <= aloneBest, "each next viewer took " + restBest / 1_000_000 + " ms against " + aloneBest / 1_000_000 + " ms alone");
 +    }
 +
 +    private static final class Fixture {
@@ -29607,10 +29841,10 @@ index 0000000..7db9dd6
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/TokenBatchTest.java b/forge-harness/src/test/java/forge/harness/host/TokenBatchTest.java
 new file mode 100644
-index 0000000..0d3cd37
+index 0000000..acfd65d
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/TokenBatchTest.java
-@@ -0,0 +1,408 @@
+@@ -0,0 +1,411 @@
 +package forge.harness.host;
 +
 +import forge.StaticData;
@@ -29665,7 +29899,7 @@ index 0000000..0d3cd37
 +        CHECKS.put("not batched: tokens made with counters each get them", TokenBatchTest::withCountersNotBatched);
 +        CHECKS.put("hold: the static checks are not held after the effect", TokenBatchTest::holdReleased);
 +        CHECKS.put("doubler: a doubled effect makes twice the tokens, batched", TokenBatchTest::doubledBatched);
-+        CHECKS.put("sanity: 400 tokens on an anthem board in under 15 s", TokenBatchTest::timingSanity);
++        CHECKS.put("sanity: 400 tokens on an anthem board batched, in under 60 s", TokenBatchTest::timingSanity);
 +        CHECKS.put("triggers: under a +3/+3 anthem each 1/1 token triggers Elemental Bond and Garruk's Uprising", TokenBatchTest::powerTriggers);
 +        CHECKS.put("exception: one thrown mid-batch is the one that comes out, the hold released", TokenBatchTest::exceptionReleases);
 +        CHECKS.put("exception: an effect inside a hold, throwing, leaves the hold on", TokenBatchTest::exceptionRestoresHold);
@@ -29942,10 +30176,13 @@ index 0000000..0d3cd37
 +    private static void timingSanity() {
 +        final Fixture f = new Fixture();
 +        f.anthems();
++        final long b0 = TokenEffectBase.getTokensBatched();
 +        final long t0 = System.nanoTime();
 +        f.make(400, "w_1_1_soldier", "");
 +        final double s = (System.nanoTime() - t0) / 1e9;
-+        expect(tokens(f.white).size() == 400 && s < 15, "400 tokens took " + s + " s");
++        final long batched = TokenEffectBase.getTokensBatched() - b0;
++        expect(tokens(f.white).size() == 400 && batched == 399, "400 tokens made: " + tokens(f.white).size() + " on the battlefield, " + batched + " of 399 batched");
++        expect(s < 60, "400 tokens took " + s + " s");
 +    }
 +
 +    private static final class Fixture {
@@ -30021,10 +30258,10 @@ index 0000000..0d3cd37
 +}
 diff --git a/forge-harness/src/test/java/forge/harness/host/TriggerBatchTest.java b/forge-harness/src/test/java/forge/harness/host/TriggerBatchTest.java
 new file mode 100644
-index 0000000..b604b48
+index 0000000..d8f7871
 --- /dev/null
 +++ b/forge-harness/src/test/java/forge/harness/host/TriggerBatchTest.java
-@@ -0,0 +1,818 @@
+@@ -0,0 +1,819 @@
 +package forge.harness.host;
 +
 +import com.google.gson.JsonArray;
@@ -30700,9 +30937,10 @@ index 0000000..b604b48
 +        };
 +        final Run one = resolve(board, false);
 +        final Run batch = resolve(board, true);
-+        System.out.println("TIME 300 prowess triggers: one by one " + one.nanos / 1_000_000 + " ms, batched " + batch.nanos / 1_000_000 + " ms");
++        System.out.println("TIME 300 prowess triggers: one by one " + one.nanos / 1_000_000 + " ms, batched " + batch.nanos / 1_000_000 + " ms, " + batch.merged + " resolved at once");
 +        expect(one.state.equals(batch.state), "batched differs:\n" + firstDifference(one.state, batch.state));
-+        expect(batch.nanos * 3 < one.nanos, "batched is not 3x faster");
++        expect(one.merged == 0 && batch.merged >= 299, "of 300 prowess triggers " + batch.merged + " were resolved at once batched, " + one.merged + " one by one");
++        expect(batch.nanos < one.nanos, "batched took " + batch.nanos / 1_000_000 + " ms, one by one " + one.nanos / 1_000_000 + " ms");
 +    }
 +
 +    private static long[] holdBoth(final Seated f, final long start) throws Exception {
@@ -31768,7 +32006,7 @@ index 0000000..8c12588
 +start options sideboard Commander	id=g variant=null life=20 seed=42 rec=true metrics=false archenemy=false rules=none poison=null cmdr=null first=null | A deck=[Forest/null/null/false] side=1 attr=0 cmd=[] ai=false bot=false planes=0 schemes=0 team=-1 life=null hand=null perks=[] cdl=null first=false open=[] | Z deck=[Forest/null/null/false] side=0 attr=0 cmd=[] ai=false bot=false planes=0 schemes=0 team=-1 life=null hand=null perks=[] cdl=null first=false open=[] || sharedLife=false sharedTurns=false lifeEvents=false poison=10 cmdr=21 starting=-1 | A team=-1 life=20 hand=7 | Z team=-1 life=20 hand=7
 diff --git a/forge-harness/src/test/resources/golden/snapshot_golden.txt b/forge-harness/src/test/resources/golden/snapshot_golden.txt
 new file mode 100644
-index 0000000..0e396b8
+index 0000000..f65e00d
 --- /dev/null
 +++ b/forge-harness/src/test/resources/golden/snapshot_golden.txt
 @@ -0,0 +1,70 @@
@@ -31798,9 +32036,9 @@ index 0000000..0e396b8
 +snapshot flags viewer -1	{"gameId":"golden-flags","turn":1,"step":"main1","combatAssignments":[],"activePlayerId":"player-0","priorityPlayerId":"player-0","players":[{"id":"player-0","name":"White","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]},{"id":"player-1","name":"Blue","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]},{"id":"player-2","name":"Red","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]}],"zones":[{"zone":"hand","ownerId":"player-0","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-0","cards":[],"count":0},{"zone":"exile","ownerId":"player-0","cards":[],"count":0},{"zone":"command","ownerId":"player-0","cards":[],"count":0},{"zone":"library","ownerId":"player-0","cards":[],"count":0},{"zone":"attractions","ownerId":"player-0","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-0","cards":[],"count":0},{"zone":"hand","ownerId":"player-1","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-1","cards":[],"count":0},{"zone":"exile","ownerId":"player-1","cards":[],"count":0},{"zone":"command","ownerId":"player-1","cards":[],"count":0},{"zone":"library","ownerId":"player-1","cards":[],"count":0},{"zone":"attractions","ownerId":"player-1","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-1","cards":[],"count":0},{"zone":"hand","ownerId":"player-2","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-2","cards":[],"count":0},{"zone":"exile","ownerId":"player-2","cards":[],"count":0},{"zone":"command","ownerId":"player-2","cards":[],"count":0},{"zone":"library","ownerId":"player-2","cards":[],"count":0},{"zone":"attractions","ownerId":"player-2","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-2","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-0","cards":[{"id":"engine-card-9","identity":{"name":"Grizzly Bears","setCode":"SLZ","cardNumber":"77","isToken":false},"color":"G","manaCost":"{1}{G}","cmc":2,"types":["Creature"],"subtypes":["Bear"],"supertypes":[],"power":"4","toughness":"4","basePower":2,"baseToughness":2,"classLevels":[],"sagaChapters":[],"text":"","choices":[],"controllerId":"player-0","ownerId":"player-0","tapped":false,"isCrewed":false,"isAttacking":false,"keywords":[],"counters":{"P1P1":2},"damage":0,"summoningSick":false,"isCopy":false,"isDoubleFaced":false,"isTransformed":false,"isFaceDown":false,"isBestowed":false,"phasedOut":false,"exerted":true,"isRingBearer":false,"attachmentIds":[],"mergedCardIds":[],"isMadnessExiled":false,"isPlotted":false,"isWarpExiled":false,"foil":false,"wouldDieInCombat":false,"returnsWhenHostLeaves":false,"printedPower":2,"printedToughness":2,"isForetold":false,"mayPlay":false,"skipsNextUntap":false,"monstrous":false,"saddled":false,"harnessed":false,"solved":false,"cantAttack":false,"cantBlock":false,"mustAttack":false,"unbounded":false,"visibility":"visible"},{"id":"engine-card-16","identity":{"name":"Hill Giant","setCode":"30A","cardNumber":"153","isToken":false},"color":"R","manaCost":"{3}{R}","cmc":4,"types":["Creature"],"subtypes":["Giant"],"supertypes":[],"power":"3","toughness":"3","basePower":3,"baseToughness":3,"classLevels":[],"sagaChapters":[],"text":"","choices":[],"controllerId":"player-0","ownerId":"player-0","tapped":false,"isCrewed":false,"isAttacking":false,"keywords":[],"counters":{},"damage":1,"summoningSick":false,"isCopy":false,"isDoubleFaced":false,"isTransformed":false,"isFaceDown":false,"isBestowed":false,"phasedOut":false,"exerted":false,"isRingBearer":false,"attachmentIds":[],"mergedCardIds":[],"isMadnessExiled":false,"isPlotted":false,"isWarpExiled":false,"foil":false,"wouldDieInCombat":false,"returnsWhenHostLeaves":false,"printedPower":3,"printedToughness":3,"isForetold":false,"mayPlay":false,"skipsNextUntap":false,"monstrous":false,"saddled":false,"harnessed":false,"solved":false,"cantAttack":false,"cantBlock":true,"mustAttack":false,"unbounded":false,"visibility":"visible"}],"count":2},{"zone":"battlefield","ownerId":"player-1","cards":[{"id":"engine-card-21","identity":{"name":"Llanowar Elves","setCode":"SLZ","cardNumber":"81","isToken":false},"color":"G","manaCost":"{G}","cmc":1,"types":["Creature"],"subtypes":["Elf","Druid"],"supertypes":[],"power":"1","toughness":"1","basePower":1,"baseToughness":1,"classLevels":[],"sagaChapters":[],"text":"{T}: Add {G}.","choices":[],"controllerId":"player-1","ownerId":"player-1","tapped":false,"isCrewed":false,"isAttacking":false,"keywords":[],"counters":{},"damage":0,"summoningSick":true,"isCopy":false,"isDoubleFaced":false,"isTransformed":false,"isFaceDown":false,"isBestowed":false,"phasedOut":false,"exerted":false,"isRingBearer":false,"attachmentIds":[],"mergedCardIds":[],"isMadnessExiled":false,"isPlotted":false,"isWarpExiled":false,"foil":false,"wouldDieInCombat":false,"returnsWhenHostLeaves":false,"printedPower":1,"printedToughness":1,"isForetold":false,"mayPlay":false,"skipsNextUntap":false,"monstrous":false,"saddled":false,"harnessed":false,"solved":false,"cantAttack":false,"cantBlock":false,"mustAttack":false,"unbounded":false,"visibility":"visible"},{"id":"engine-card-10","identity":{"name":"Wall of Wood","setCode":"30A","cardNumber":"221","isToken":false},"color":"G","manaCost":"{G}","cmc":1,"types":["Creature"],"subtypes":["Wall"],"supertypes":[],"power":"0","toughness":"3","basePower":0,"baseToughness":3,"classLevels":[],"sagaChapters":[],"text":"Defender (This creature can\\u0027t attack.)","choices":[],"controllerId":"player-1","ownerId":"player-1","tapped":false,"isCrewed":false,"isAttacking":false,"keywords":["Defender"],"counters":{},"damage":0,"summoningSick":false,"isCopy":false,"isDoubleFaced":false,"isTransformed":false,"isFaceDown":false,"isBestowed":false,"phasedOut":false,"exerted":false,"isRingBearer":false,"attachmentIds":[],"mergedCardIds":[],"isMadnessExiled":false,"isPlotted":false,"isWarpExiled":false,"foil":false,"wouldDieInCombat":false,"returnsWhenHostLeaves":false,"printedPower":0,"printedToughness":3,"isForetold":false,"mayPlay":false,"skipsNextUntap":false,"monstrous":false,"saddled":false,"harnessed":false,"solved":false,"cantAttack":true,"cantBlock":false,"mustAttack":false,"unbounded":false,"visibility":"visible"}],"count":2},{"zone":"battlefield","ownerId":"player-2","cards":[{"id":"engine-card-17","identity":{"name":"Serra Angel","setCode":"SLZ","cardNumber":"10","isToken":false},"color":"W","manaCost":"{3}{W}{W}","cmc":5,"types":["Creature"],"subtypes":["Angel"],"supertypes":[],"power":"4","toughness":"4","basePower":4,"baseToughness":4,"classLevels":[],"sagaChapters":[],"text":"Flying, vigilance","choices":[],"controllerId":"player-2","ownerId":"player-2","tapped":true,"isCrewed":false,"isAttacking":false,"keywords":["Flying","Vigilance"],"counters":{},"damage":0,"summoningSick":false,"isCopy":false,"isDoubleFaced":false,"isTransformed":false,"isFaceDown":false,"isBestowed":false,"phasedOut":false,"exerted":false,"isRingBearer":false,"attachmentIds":[],"mergedCardIds":[],"isMadnessExiled":false,"isPlotted":false,"isWarpExiled":false,"foil":false,"wouldDieInCombat":false,"returnsWhenHostLeaves":false,"printedPower":4,"printedToughness":4,"isForetold":false,"mayPlay":false,"skipsNextUntap":false,"monstrous":true,"saddled":false,"harnessed":false,"solved":false,"cantAttack":false,"cantBlock":false,"mustAttack":false,"unbounded":false,"visibility":"visible"},{"id":"engine-card-22","identity":{"name":"Grizzly Bears","setCode":"SLZ","cardNumber":"77","isToken":false},"color":"G","manaCost":"{1}{G}","cmc":2,"types":["Creature"],"subtypes":["Bear"],"supertypes":[],"power":"2","toughness":"2","basePower":2,"baseToughness":2,"classLevels":[],"sagaChapters":[],"text":"","choices":[],"controllerId":"player-2","ownerId":"player-2","tapped":false,"isCrewed":false,"isAttacking":false,"keywords":[],"counters":{},"damage":0,"summoningSick":false,"isCopy":false,"isDoubleFaced":false,"isTransformed":false,"isFaceDown":false,"isBestowed":false,"phasedOut":true,"exerted":false,"isRingBearer":false,"attachmentIds":[],"mergedCardIds":[],"isMadnessExiled":false,"isPlotted":false,"isWarpExiled":false,"foil":false,"wouldDieInCombat":false,"returnsWhenHostLeaves":false,"printedPower":2,"printedToughness":2,"isForetold":false,"mayPlay":false,"skipsNextUntap":false,"monstrous":false,"saddled":false,"harnessed":false,"solved":false,"cantAttack":false,"cantBlock":false,"mustAttack":false,"unbounded":false,"visibility":"visible"}],"count":2}],"stack":[],"gameOver":false,"dayTime":"neither","checkpoints":[],"snapshotRecording":false,"events":[]}
 +snapshot flags revision	0
 +snapshot effects viewer 0	{"gameId":"golden-effects","turn":1,"step":"main1","combatAssignments":[],"activePlayerId":"player-0","priorityPlayerId":"player-0","players":[{"id":"player-0","name":"White","status":"playing","isHuman":true,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[],"effects":[{"id":"effect-2","name":"Moment\\u0027s Peace\\u0027s Effect","text":"Prevent all combat damage this turn.","sourceCardId":"engine-card-9","emblem":false,"untilEndOfTurn":true},{"id":"effect-4","name":"Emblem — Gideon, Ally of Zendikar","text":"Creatures you control get +1/+1.","sourceCardId":"engine-card-21","emblem":true,"untilEndOfTurn":false,"duration":"Permanent"}]},{"id":"player-1","name":"Blue","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]},{"id":"player-2","name":"Red","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]}],"zones":[{"zone":"hand","ownerId":"player-0","cards":[{"id":"engine-card-9","identity":{"name":"Moment\\u0027s Peace","setCode":"PLST","cardNumber":"TD0-A80","isToken":false},"color":"G","manaCost":"{1}{G}","cmc":2,"types":["Instant"],"subtypes":[],"supertypes":[],"classLevels":[],"sagaChapters":[],"text":"Prevent all combat damage that would be dealt this turn.\\nFlashback {2}{G} (You may cast this card from your graveyard for its flashback cost. Then exile it.)","choices":[],"controllerId":"player-0","ownerId":"player-0","tapped":false,"isCrewed":false,"isAttacking":false,"keywords":["Flashback:2 G"],"counters":{},"damage":0,"summoningSick":true,"isCopy":false,"isDoubleFaced":false,"isTransformed":false,"isFaceDown":false,"isBestowed":false,"phasedOut":false,"exerted":false,"isRingBearer":false,"attachmentIds":[],"mergedCardIds":[],"flashbackCost":"2 G","isMadnessExiled":false,"isPlotted":false,"isWarpExiled":false,"foil":false,"wouldDieInCombat":false,"returnsWhenHostLeaves":false,"isForetold":false,"mayPlay":false,"skipsNextUntap":false,"monstrous":false,"saddled":false,"harnessed":false,"solved":false,"cantAttack":false,"cantBlock":false,"mustAttack":false,"unbounded":false,"visibility":"visible"}],"count":1},{"zone":"graveyard","ownerId":"player-0","cards":[],"count":0},{"zone":"exile","ownerId":"player-0","cards":[],"count":0},{"zone":"command","ownerId":"player-0","cards":[],"count":0},{"zone":"library","ownerId":"player-0","cards":[],"count":0},{"zone":"attractions","ownerId":"player-0","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-0","cards":[],"count":0},{"zone":"hand","ownerId":"player-1","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-1","cards":[],"count":0},{"zone":"exile","ownerId":"player-1","cards":[],"count":0},{"zone":"command","ownerId":"player-1","cards":[],"count":0},{"zone":"library","ownerId":"player-1","cards":[],"count":0},{"zone":"attractions","ownerId":"player-1","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-1","cards":[],"count":0},{"zone":"hand","ownerId":"player-2","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-2","cards":[],"count":0},{"zone":"exile","ownerId":"player-2","cards":[],"count":0},{"zone":"command","ownerId":"player-2","cards":[],"count":0},{"zone":"library","ownerId":"player-2","cards":[],"count":0},{"zone":"attractions","ownerId":"player-2","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-2","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-0","cards":[{"id":"engine-card-21","identity":{"name":"Gideon, Ally of Zendikar","setCode":"PIO","cardNumber":"14","isToken":false},"color":"W","manaCost":"{2}{W}{W}","cmc":4,"types":["Planeswalker"],"subtypes":["Gideon"],"supertypes":["Legendary"],"classLevels":[],"sagaChapters":[],"text":"[+1]: Until end of turn, Gideon, Ally of Zendikar becomes a 5/5 Human Soldier Ally creature with indestructible that\\u0027s still a planeswalker. Prevent all damage that would be dealt to him this turn.\\n[0]: Create a 2/2 white Knight Ally creature token.\\n[-4]: You get an emblem with \\"Creatures you control get +1/+1.\\"","choices":[],"controllerId":"player-0","ownerId":"player-0","tapped":false,"isCrewed":false,"isAttacking":false,"keywords":[],"counters":{},"damage":0,"summoningSick":false,"isCopy":false,"isDoubleFaced":false,"isTransformed":false,"isFaceDown":false,"isBestowed":false,"phasedOut":false,"exerted":false,"isRingBearer":false,"attachmentIds":[],"mergedCardIds":[],"isMadnessExiled":false,"isPlotted":false,"isWarpExiled":false,"foil":false,"wouldDieInCombat":false,"returnsWhenHostLeaves":false,"isForetold":false,"mayPlay":false,"skipsNextUntap":false,"monstrous":false,"saddled":false,"harnessed":false,"solved":false,"cantAttack":false,"cantBlock":false,"mustAttack":false,"unbounded":false,"visibility":"visible"}],"count":1},{"zone":"battlefield","ownerId":"player-1","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-2","cards":[],"count":0}],"stack":[],"gameOver":false,"dayTime":"neither","checkpoints":[],"snapshotRecording":false,"events":[{"id":"event-1","seq":1,"cardId":"engine-card-16","to":"Command","ownerId":"player-0"},{"id":"event-2","seq":2,"cardId":"engine-card-10","to":"Command","ownerId":"player-0"}]}
-+snapshot effects viewer 1	{"gameId":"golden-effects","turn":1,"step":"main1","combatAssignments":[],"activePlayerId":"player-0","priorityPlayerId":"player-0","players":[{"id":"player-0","name":"White","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[],"effects":[{"id":"effect-2","name":"Moment\\u0027s Peace\\u0027s Effect","text":"Prevent all combat damage this turn.","sourceCardId":"engine-card-9","emblem":false,"untilEndOfTurn":true},{"id":"effect-4","name":"Emblem — Gideon, Ally of Zendikar","text":"Creatures you control get +1/+1.","sourceCardId":"engine-card-21","emblem":true,"untilEndOfTurn":false,"duration":"Permanent"}]},{"id":"player-1","name":"Blue","status":"playing","isHuman":true,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]},{"id":"player-2","name":"Red","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]}],"zones":[{"zone":"hand","ownerId":"player-0","cards":[],"count":1},{"zone":"graveyard","ownerId":"player-0","cards":[],"count":0},{"zone":"exile","ownerId":"player-0","cards":[],"count":0},{"zone":"command","ownerId":"player-0","cards":[],"count":0},{"zone":"library","ownerId":"player-0","cards":[],"count":0},{"zone":"attractions","ownerId":"player-0","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-0","cards":[],"count":0},{"zone":"hand","ownerId":"player-1","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-1","cards":[],"count":0},{"zone":"exile","ownerId":"player-1","cards":[],"count":0},{"zone":"command","ownerId":"player-1","cards":[],"count":0},{"zone":"library","ownerId":"player-1","cards":[],"count":0},{"zone":"attractions","ownerId":"player-1","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-1","cards":[],"count":0},{"zone":"hand","ownerId":"player-2","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-2","cards":[],"count":0},{"zone":"exile","ownerId":"player-2","cards":[],"count":0},{"zone":"command","ownerId":"player-2","cards":[],"count":0},{"zone":"library","ownerId":"player-2","cards":[],"count":0},{"zone":"attractions","ownerId":"player-2","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-2","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-0","cards":[{"id":"engine-card-21","identity":{"name":"Gideon, Ally of Zendikar","setCode":"PIO","cardNumber":"14","isToken":false},"color":"W","manaCost":"{2}{W}{W}","cmc":4,"types":["Planeswalker"],"subtypes":["Gideon"],"supertypes":["Legendary"],"classLevels":[],"sagaChapters":[],"text":"[+1]: Until end of turn, Gideon, Ally of Zendikar becomes a 5/5 Human Soldier Ally creature with indestructible that\\u0027s still a planeswalker. Prevent all damage that would be dealt to him this turn.\\n[0]: Create a 2/2 white Knight Ally creature token.\\n[-4]: You get an emblem with \\"Creatures you control get +1/+1.\\"","choices":[],"controllerId":"player-0","ownerId":"player-0","tapped":false,"isCrewed":false,"isAttacking":false,"keywords":[],"counters":{},"damage":0,"summoningSick":false,"isCopy":false,"isDoubleFaced":false,"isTransformed":false,"isFaceDown":false,"isBestowed":false,"phasedOut":false,"exerted":false,"isRingBearer":false,"attachmentIds":[],"mergedCardIds":[],"isMadnessExiled":false,"isPlotted":false,"isWarpExiled":false,"foil":false,"wouldDieInCombat":false,"returnsWhenHostLeaves":false,"isForetold":false,"mayPlay":false,"skipsNextUntap":false,"monstrous":false,"saddled":false,"harnessed":false,"solved":false,"cantAttack":false,"cantBlock":false,"mustAttack":false,"unbounded":false,"visibility":"visible"}],"count":1},{"zone":"battlefield","ownerId":"player-1","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-2","cards":[],"count":0}],"stack":[],"gameOver":false,"dayTime":"neither","checkpoints":[],"snapshotRecording":false,"events":[{"id":"event-1","seq":1,"cardId":"engine-card-16","to":"Command","ownerId":"player-0"},{"id":"event-2","seq":2,"cardId":"engine-card-10","to":"Command","ownerId":"player-0"}]}
-+snapshot effects viewer 2	{"gameId":"golden-effects","turn":1,"step":"main1","combatAssignments":[],"activePlayerId":"player-0","priorityPlayerId":"player-0","players":[{"id":"player-0","name":"White","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[],"effects":[{"id":"effect-2","name":"Moment\\u0027s Peace\\u0027s Effect","text":"Prevent all combat damage this turn.","sourceCardId":"engine-card-9","emblem":false,"untilEndOfTurn":true},{"id":"effect-4","name":"Emblem — Gideon, Ally of Zendikar","text":"Creatures you control get +1/+1.","sourceCardId":"engine-card-21","emblem":true,"untilEndOfTurn":false,"duration":"Permanent"}]},{"id":"player-1","name":"Blue","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]},{"id":"player-2","name":"Red","status":"playing","isHuman":true,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]}],"zones":[{"zone":"hand","ownerId":"player-0","cards":[],"count":1},{"zone":"graveyard","ownerId":"player-0","cards":[],"count":0},{"zone":"exile","ownerId":"player-0","cards":[],"count":0},{"zone":"command","ownerId":"player-0","cards":[],"count":0},{"zone":"library","ownerId":"player-0","cards":[],"count":0},{"zone":"attractions","ownerId":"player-0","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-0","cards":[],"count":0},{"zone":"hand","ownerId":"player-1","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-1","cards":[],"count":0},{"zone":"exile","ownerId":"player-1","cards":[],"count":0},{"zone":"command","ownerId":"player-1","cards":[],"count":0},{"zone":"library","ownerId":"player-1","cards":[],"count":0},{"zone":"attractions","ownerId":"player-1","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-1","cards":[],"count":0},{"zone":"hand","ownerId":"player-2","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-2","cards":[],"count":0},{"zone":"exile","ownerId":"player-2","cards":[],"count":0},{"zone":"command","ownerId":"player-2","cards":[],"count":0},{"zone":"library","ownerId":"player-2","cards":[],"count":0},{"zone":"attractions","ownerId":"player-2","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-2","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-0","cards":[{"id":"engine-card-21","identity":{"name":"Gideon, Ally of Zendikar","setCode":"PIO","cardNumber":"14","isToken":false},"color":"W","manaCost":"{2}{W}{W}","cmc":4,"types":["Planeswalker"],"subtypes":["Gideon"],"supertypes":["Legendary"],"classLevels":[],"sagaChapters":[],"text":"[+1]: Until end of turn, Gideon, Ally of Zendikar becomes a 5/5 Human Soldier Ally creature with indestructible that\\u0027s still a planeswalker. Prevent all damage that would be dealt to him this turn.\\n[0]: Create a 2/2 white Knight Ally creature token.\\n[-4]: You get an emblem with \\"Creatures you control get +1/+1.\\"","choices":[],"controllerId":"player-0","ownerId":"player-0","tapped":false,"isCrewed":false,"isAttacking":false,"keywords":[],"counters":{},"damage":0,"summoningSick":false,"isCopy":false,"isDoubleFaced":false,"isTransformed":false,"isFaceDown":false,"isBestowed":false,"phasedOut":false,"exerted":false,"isRingBearer":false,"attachmentIds":[],"mergedCardIds":[],"isMadnessExiled":false,"isPlotted":false,"isWarpExiled":false,"foil":false,"wouldDieInCombat":false,"returnsWhenHostLeaves":false,"isForetold":false,"mayPlay":false,"skipsNextUntap":false,"monstrous":false,"saddled":false,"harnessed":false,"solved":false,"cantAttack":false,"cantBlock":false,"mustAttack":false,"unbounded":false,"visibility":"visible"}],"count":1},{"zone":"battlefield","ownerId":"player-1","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-2","cards":[],"count":0}],"stack":[],"gameOver":false,"dayTime":"neither","checkpoints":[],"snapshotRecording":false,"events":[{"id":"event-1","seq":1,"cardId":"engine-card-16","to":"Command","ownerId":"player-0"},{"id":"event-2","seq":2,"cardId":"engine-card-10","to":"Command","ownerId":"player-0"}]}
-+snapshot effects viewer -1	{"gameId":"golden-effects","turn":1,"step":"main1","combatAssignments":[],"activePlayerId":"player-0","priorityPlayerId":"player-0","players":[{"id":"player-0","name":"White","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[],"effects":[{"id":"effect-2","name":"Moment\\u0027s Peace\\u0027s Effect","text":"Prevent all combat damage this turn.","sourceCardId":"engine-card-9","emblem":false,"untilEndOfTurn":true},{"id":"effect-4","name":"Emblem — Gideon, Ally of Zendikar","text":"Creatures you control get +1/+1.","sourceCardId":"engine-card-21","emblem":true,"untilEndOfTurn":false,"duration":"Permanent"}]},{"id":"player-1","name":"Blue","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]},{"id":"player-2","name":"Red","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]}],"zones":[{"zone":"hand","ownerId":"player-0","cards":[],"count":1},{"zone":"graveyard","ownerId":"player-0","cards":[],"count":0},{"zone":"exile","ownerId":"player-0","cards":[],"count":0},{"zone":"command","ownerId":"player-0","cards":[],"count":0},{"zone":"library","ownerId":"player-0","cards":[],"count":0},{"zone":"attractions","ownerId":"player-0","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-0","cards":[],"count":0},{"zone":"hand","ownerId":"player-1","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-1","cards":[],"count":0},{"zone":"exile","ownerId":"player-1","cards":[],"count":0},{"zone":"command","ownerId":"player-1","cards":[],"count":0},{"zone":"library","ownerId":"player-1","cards":[],"count":0},{"zone":"attractions","ownerId":"player-1","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-1","cards":[],"count":0},{"zone":"hand","ownerId":"player-2","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-2","cards":[],"count":0},{"zone":"exile","ownerId":"player-2","cards":[],"count":0},{"zone":"command","ownerId":"player-2","cards":[],"count":0},{"zone":"library","ownerId":"player-2","cards":[],"count":0},{"zone":"attractions","ownerId":"player-2","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-2","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-0","cards":[{"id":"engine-card-21","identity":{"name":"Gideon, Ally of Zendikar","setCode":"PIO","cardNumber":"14","isToken":false},"color":"W","manaCost":"{2}{W}{W}","cmc":4,"types":["Planeswalker"],"subtypes":["Gideon"],"supertypes":["Legendary"],"classLevels":[],"sagaChapters":[],"text":"[+1]: Until end of turn, Gideon, Ally of Zendikar becomes a 5/5 Human Soldier Ally creature with indestructible that\\u0027s still a planeswalker. Prevent all damage that would be dealt to him this turn.\\n[0]: Create a 2/2 white Knight Ally creature token.\\n[-4]: You get an emblem with \\"Creatures you control get +1/+1.\\"","choices":[],"controllerId":"player-0","ownerId":"player-0","tapped":false,"isCrewed":false,"isAttacking":false,"keywords":[],"counters":{},"damage":0,"summoningSick":false,"isCopy":false,"isDoubleFaced":false,"isTransformed":false,"isFaceDown":false,"isBestowed":false,"phasedOut":false,"exerted":false,"isRingBearer":false,"attachmentIds":[],"mergedCardIds":[],"isMadnessExiled":false,"isPlotted":false,"isWarpExiled":false,"foil":false,"wouldDieInCombat":false,"returnsWhenHostLeaves":false,"isForetold":false,"mayPlay":false,"skipsNextUntap":false,"monstrous":false,"saddled":false,"harnessed":false,"solved":false,"cantAttack":false,"cantBlock":false,"mustAttack":false,"unbounded":false,"visibility":"visible"}],"count":1},{"zone":"battlefield","ownerId":"player-1","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-2","cards":[],"count":0}],"stack":[],"gameOver":false,"dayTime":"neither","checkpoints":[],"snapshotRecording":false,"events":[{"id":"event-1","seq":1,"cardId":"engine-card-16","to":"Command","ownerId":"player-0"},{"id":"event-2","seq":2,"cardId":"engine-card-10","to":"Command","ownerId":"player-0"}]}
++snapshot effects viewer 1	{"gameId":"golden-effects","turn":1,"step":"main1","combatAssignments":[],"activePlayerId":"player-0","priorityPlayerId":"player-0","players":[{"id":"player-0","name":"White","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[],"effects":[{"id":"effect-2","name":"Effect","text":"","emblem":false,"untilEndOfTurn":false},{"id":"effect-4","name":"Emblem — Gideon, Ally of Zendikar","text":"Creatures you control get +1/+1.","sourceCardId":"engine-card-21","emblem":true,"untilEndOfTurn":false,"duration":"Permanent"}]},{"id":"player-1","name":"Blue","status":"playing","isHuman":true,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]},{"id":"player-2","name":"Red","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]}],"zones":[{"zone":"hand","ownerId":"player-0","cards":[],"count":1},{"zone":"graveyard","ownerId":"player-0","cards":[],"count":0},{"zone":"exile","ownerId":"player-0","cards":[],"count":0},{"zone":"command","ownerId":"player-0","cards":[],"count":0},{"zone":"library","ownerId":"player-0","cards":[],"count":0},{"zone":"attractions","ownerId":"player-0","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-0","cards":[],"count":0},{"zone":"hand","ownerId":"player-1","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-1","cards":[],"count":0},{"zone":"exile","ownerId":"player-1","cards":[],"count":0},{"zone":"command","ownerId":"player-1","cards":[],"count":0},{"zone":"library","ownerId":"player-1","cards":[],"count":0},{"zone":"attractions","ownerId":"player-1","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-1","cards":[],"count":0},{"zone":"hand","ownerId":"player-2","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-2","cards":[],"count":0},{"zone":"exile","ownerId":"player-2","cards":[],"count":0},{"zone":"command","ownerId":"player-2","cards":[],"count":0},{"zone":"library","ownerId":"player-2","cards":[],"count":0},{"zone":"attractions","ownerId":"player-2","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-2","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-0","cards":[{"id":"engine-card-21","identity":{"name":"Gideon, Ally of Zendikar","setCode":"PIO","cardNumber":"14","isToken":false},"color":"W","manaCost":"{2}{W}{W}","cmc":4,"types":["Planeswalker"],"subtypes":["Gideon"],"supertypes":["Legendary"],"classLevels":[],"sagaChapters":[],"text":"[+1]: Until end of turn, Gideon, Ally of Zendikar becomes a 5/5 Human Soldier Ally creature with indestructible that\\u0027s still a planeswalker. Prevent all damage that would be dealt to him this turn.\\n[0]: Create a 2/2 white Knight Ally creature token.\\n[-4]: You get an emblem with \\"Creatures you control get +1/+1.\\"","choices":[],"controllerId":"player-0","ownerId":"player-0","tapped":false,"isCrewed":false,"isAttacking":false,"keywords":[],"counters":{},"damage":0,"summoningSick":false,"isCopy":false,"isDoubleFaced":false,"isTransformed":false,"isFaceDown":false,"isBestowed":false,"phasedOut":false,"exerted":false,"isRingBearer":false,"attachmentIds":[],"mergedCardIds":[],"isMadnessExiled":false,"isPlotted":false,"isWarpExiled":false,"foil":false,"wouldDieInCombat":false,"returnsWhenHostLeaves":false,"isForetold":false,"mayPlay":false,"skipsNextUntap":false,"monstrous":false,"saddled":false,"harnessed":false,"solved":false,"cantAttack":false,"cantBlock":false,"mustAttack":false,"unbounded":false,"visibility":"visible"}],"count":1},{"zone":"battlefield","ownerId":"player-1","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-2","cards":[],"count":0}],"stack":[],"gameOver":false,"dayTime":"neither","checkpoints":[],"snapshotRecording":false,"events":[{"id":"event-1","seq":1,"cardId":"engine-card-16","to":"Command","ownerId":"player-0"},{"id":"event-2","seq":2,"cardId":"engine-card-10","to":"Command","ownerId":"player-0"}]}
++snapshot effects viewer 2	{"gameId":"golden-effects","turn":1,"step":"main1","combatAssignments":[],"activePlayerId":"player-0","priorityPlayerId":"player-0","players":[{"id":"player-0","name":"White","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[],"effects":[{"id":"effect-2","name":"Effect","text":"","emblem":false,"untilEndOfTurn":false},{"id":"effect-4","name":"Emblem — Gideon, Ally of Zendikar","text":"Creatures you control get +1/+1.","sourceCardId":"engine-card-21","emblem":true,"untilEndOfTurn":false,"duration":"Permanent"}]},{"id":"player-1","name":"Blue","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]},{"id":"player-2","name":"Red","status":"playing","isHuman":true,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]}],"zones":[{"zone":"hand","ownerId":"player-0","cards":[],"count":1},{"zone":"graveyard","ownerId":"player-0","cards":[],"count":0},{"zone":"exile","ownerId":"player-0","cards":[],"count":0},{"zone":"command","ownerId":"player-0","cards":[],"count":0},{"zone":"library","ownerId":"player-0","cards":[],"count":0},{"zone":"attractions","ownerId":"player-0","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-0","cards":[],"count":0},{"zone":"hand","ownerId":"player-1","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-1","cards":[],"count":0},{"zone":"exile","ownerId":"player-1","cards":[],"count":0},{"zone":"command","ownerId":"player-1","cards":[],"count":0},{"zone":"library","ownerId":"player-1","cards":[],"count":0},{"zone":"attractions","ownerId":"player-1","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-1","cards":[],"count":0},{"zone":"hand","ownerId":"player-2","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-2","cards":[],"count":0},{"zone":"exile","ownerId":"player-2","cards":[],"count":0},{"zone":"command","ownerId":"player-2","cards":[],"count":0},{"zone":"library","ownerId":"player-2","cards":[],"count":0},{"zone":"attractions","ownerId":"player-2","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-2","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-0","cards":[{"id":"engine-card-21","identity":{"name":"Gideon, Ally of Zendikar","setCode":"PIO","cardNumber":"14","isToken":false},"color":"W","manaCost":"{2}{W}{W}","cmc":4,"types":["Planeswalker"],"subtypes":["Gideon"],"supertypes":["Legendary"],"classLevels":[],"sagaChapters":[],"text":"[+1]: Until end of turn, Gideon, Ally of Zendikar becomes a 5/5 Human Soldier Ally creature with indestructible that\\u0027s still a planeswalker. Prevent all damage that would be dealt to him this turn.\\n[0]: Create a 2/2 white Knight Ally creature token.\\n[-4]: You get an emblem with \\"Creatures you control get +1/+1.\\"","choices":[],"controllerId":"player-0","ownerId":"player-0","tapped":false,"isCrewed":false,"isAttacking":false,"keywords":[],"counters":{},"damage":0,"summoningSick":false,"isCopy":false,"isDoubleFaced":false,"isTransformed":false,"isFaceDown":false,"isBestowed":false,"phasedOut":false,"exerted":false,"isRingBearer":false,"attachmentIds":[],"mergedCardIds":[],"isMadnessExiled":false,"isPlotted":false,"isWarpExiled":false,"foil":false,"wouldDieInCombat":false,"returnsWhenHostLeaves":false,"isForetold":false,"mayPlay":false,"skipsNextUntap":false,"monstrous":false,"saddled":false,"harnessed":false,"solved":false,"cantAttack":false,"cantBlock":false,"mustAttack":false,"unbounded":false,"visibility":"visible"}],"count":1},{"zone":"battlefield","ownerId":"player-1","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-2","cards":[],"count":0}],"stack":[],"gameOver":false,"dayTime":"neither","checkpoints":[],"snapshotRecording":false,"events":[{"id":"event-1","seq":1,"cardId":"engine-card-16","to":"Command","ownerId":"player-0"},{"id":"event-2","seq":2,"cardId":"engine-card-10","to":"Command","ownerId":"player-0"}]}
++snapshot effects viewer -1	{"gameId":"golden-effects","turn":1,"step":"main1","combatAssignments":[],"activePlayerId":"player-0","priorityPlayerId":"player-0","players":[{"id":"player-0","name":"White","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[],"effects":[{"id":"effect-2","name":"Effect","text":"","emblem":false,"untilEndOfTurn":false},{"id":"effect-4","name":"Emblem — Gideon, Ally of Zendikar","text":"Creatures you control get +1/+1.","sourceCardId":"engine-card-21","emblem":true,"untilEndOfTurn":false,"duration":"Permanent"}]},{"id":"player-1","name":"Blue","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]},{"id":"player-2","name":"Red","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]}],"zones":[{"zone":"hand","ownerId":"player-0","cards":[],"count":1},{"zone":"graveyard","ownerId":"player-0","cards":[],"count":0},{"zone":"exile","ownerId":"player-0","cards":[],"count":0},{"zone":"command","ownerId":"player-0","cards":[],"count":0},{"zone":"library","ownerId":"player-0","cards":[],"count":0},{"zone":"attractions","ownerId":"player-0","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-0","cards":[],"count":0},{"zone":"hand","ownerId":"player-1","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-1","cards":[],"count":0},{"zone":"exile","ownerId":"player-1","cards":[],"count":0},{"zone":"command","ownerId":"player-1","cards":[],"count":0},{"zone":"library","ownerId":"player-1","cards":[],"count":0},{"zone":"attractions","ownerId":"player-1","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-1","cards":[],"count":0},{"zone":"hand","ownerId":"player-2","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-2","cards":[],"count":0},{"zone":"exile","ownerId":"player-2","cards":[],"count":0},{"zone":"command","ownerId":"player-2","cards":[],"count":0},{"zone":"library","ownerId":"player-2","cards":[],"count":0},{"zone":"attractions","ownerId":"player-2","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-2","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-0","cards":[{"id":"engine-card-21","identity":{"name":"Gideon, Ally of Zendikar","setCode":"PIO","cardNumber":"14","isToken":false},"color":"W","manaCost":"{2}{W}{W}","cmc":4,"types":["Planeswalker"],"subtypes":["Gideon"],"supertypes":["Legendary"],"classLevels":[],"sagaChapters":[],"text":"[+1]: Until end of turn, Gideon, Ally of Zendikar becomes a 5/5 Human Soldier Ally creature with indestructible that\\u0027s still a planeswalker. Prevent all damage that would be dealt to him this turn.\\n[0]: Create a 2/2 white Knight Ally creature token.\\n[-4]: You get an emblem with \\"Creatures you control get +1/+1.\\"","choices":[],"controllerId":"player-0","ownerId":"player-0","tapped":false,"isCrewed":false,"isAttacking":false,"keywords":[],"counters":{},"damage":0,"summoningSick":false,"isCopy":false,"isDoubleFaced":false,"isTransformed":false,"isFaceDown":false,"isBestowed":false,"phasedOut":false,"exerted":false,"isRingBearer":false,"attachmentIds":[],"mergedCardIds":[],"isMadnessExiled":false,"isPlotted":false,"isWarpExiled":false,"foil":false,"wouldDieInCombat":false,"returnsWhenHostLeaves":false,"isForetold":false,"mayPlay":false,"skipsNextUntap":false,"monstrous":false,"saddled":false,"harnessed":false,"solved":false,"cantAttack":false,"cantBlock":false,"mustAttack":false,"unbounded":false,"visibility":"visible"}],"count":1},{"zone":"battlefield","ownerId":"player-1","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-2","cards":[],"count":0}],"stack":[],"gameOver":false,"dayTime":"neither","checkpoints":[],"snapshotRecording":false,"events":[{"id":"event-1","seq":1,"cardId":"engine-card-16","to":"Command","ownerId":"player-0"},{"id":"event-2","seq":2,"cardId":"engine-card-10","to":"Command","ownerId":"player-0"}]}
 +snapshot effects revision	0
 +snapshot stack viewer 0	{"gameId":"golden-stack","turn":1,"step":"main1","combatAssignments":[],"activePlayerId":"player-0","priorityPlayerId":"player-0","players":[{"id":"player-0","name":"White","status":"playing","isHuman":true,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[],"spellsCastThisTurn":1},{"id":"player-1","name":"Blue","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]},{"id":"player-2","name":"Red","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]}],"zones":[{"zone":"hand","ownerId":"player-0","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-0","cards":[],"count":0},{"zone":"exile","ownerId":"player-0","cards":[],"count":0},{"zone":"command","ownerId":"player-0","cards":[],"count":0},{"zone":"library","ownerId":"player-0","cards":[],"count":0},{"zone":"attractions","ownerId":"player-0","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-0","cards":[],"count":0},{"zone":"hand","ownerId":"player-1","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-1","cards":[],"count":0},{"zone":"exile","ownerId":"player-1","cards":[],"count":0},{"zone":"command","ownerId":"player-1","cards":[],"count":0},{"zone":"library","ownerId":"player-1","cards":[],"count":0},{"zone":"attractions","ownerId":"player-1","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-1","cards":[],"count":0},{"zone":"hand","ownerId":"player-2","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-2","cards":[],"count":0},{"zone":"exile","ownerId":"player-2","cards":[],"count":0},{"zone":"command","ownerId":"player-2","cards":[],"count":0},{"zone":"library","ownerId":"player-2","cards":[],"count":0},{"zone":"attractions","ownerId":"player-2","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-2","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-0","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-1","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-2","cards":[],"count":0}],"stack":[{"id":"engine-stack-1","sourceId":"engine-card-9","controllerId":"player-0","ownerId":"player-0","identity":{"name":"Moment\\u0027s Peace","setCode":"PLST","cardNumber":"TD0-A80","isToken":false},"text":"Moment\\u0027s Peace (1) - White prevents all combat damage this turn.","sourceAbilityText":"Prevent all combat damage that would be dealt this turn. (without paying its mana cost)","isTrigger":false,"isPermanentSpell":false,"isCasting":false,"isDoubleFaced":false,"faceIndex":0,"targets":[]}],"gameOver":false,"dayTime":"neither","checkpoints":[],"snapshotRecording":false,"events":[],"stateFix":{"fixId":1,"applied":true},"stormCount":1}
 +snapshot stack viewer 1	{"gameId":"golden-stack","turn":1,"step":"main1","combatAssignments":[],"activePlayerId":"player-0","priorityPlayerId":"player-0","players":[{"id":"player-0","name":"White","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[],"spellsCastThisTurn":1},{"id":"player-1","name":"Blue","status":"playing","isHuman":true,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]},{"id":"player-2","name":"Red","status":"playing","isHuman":false,"life":20,"maxHandSize":7,"unlimitedHandSize":false,"landsPlayedThisTurn":0,"maxLandPlaysPerTurn":1,"unlimitedLandPlays":false,"cardsDrawnThisTurn":0,"damagePrevention":0,"isExtraTurn":false,"extraTurnCount":0,"playerKeywords":[],"commanderCasts":{},"counters":{},"manaPool":{"W":0,"U":0,"B":0,"R":0,"G":0,"C":0},"commanderDamage":{},"hasCityBlessing":false,"ringLevel":0,"speed":0,"hasEnduringStory":false,"completedDungeons":[]}],"zones":[{"zone":"hand","ownerId":"player-0","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-0","cards":[],"count":0},{"zone":"exile","ownerId":"player-0","cards":[],"count":0},{"zone":"command","ownerId":"player-0","cards":[],"count":0},{"zone":"library","ownerId":"player-0","cards":[],"count":0},{"zone":"attractions","ownerId":"player-0","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-0","cards":[],"count":0},{"zone":"hand","ownerId":"player-1","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-1","cards":[],"count":0},{"zone":"exile","ownerId":"player-1","cards":[],"count":0},{"zone":"command","ownerId":"player-1","cards":[],"count":0},{"zone":"library","ownerId":"player-1","cards":[],"count":0},{"zone":"attractions","ownerId":"player-1","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-1","cards":[],"count":0},{"zone":"hand","ownerId":"player-2","cards":[],"count":0},{"zone":"graveyard","ownerId":"player-2","cards":[],"count":0},{"zone":"exile","ownerId":"player-2","cards":[],"count":0},{"zone":"command","ownerId":"player-2","cards":[],"count":0},{"zone":"library","ownerId":"player-2","cards":[],"count":0},{"zone":"attractions","ownerId":"player-2","cards":[],"count":0},{"zone":"junkyard","ownerId":"player-2","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-0","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-1","cards":[],"count":0},{"zone":"battlefield","ownerId":"player-2","cards":[],"count":0}],"stack":[{"id":"engine-stack-1","sourceId":"engine-card-9","controllerId":"player-0","ownerId":"player-0","identity":{"name":"Moment\\u0027s Peace","setCode":"PLST","cardNumber":"TD0-A80","isToken":false},"text":"Moment\\u0027s Peace (1) - White prevents all combat damage this turn.","sourceAbilityText":"Prevent all combat damage that would be dealt this turn. (without paying its mana cost)","isTrigger":false,"isPermanentSpell":false,"isCasting":false,"isDoubleFaced":false,"faceIndex":0,"targets":[]}],"gameOver":false,"dayTime":"neither","checkpoints":[],"snapshotRecording":false,"events":[],"stateFix":{"fixId":1,"applied":true},"stormCount":1}
@@ -32916,14 +33154,14 @@ index a1bcdce..d66cb7f 100644
  
  #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 diff --git a/manabrew-rs/crates/manabrew-relay-protocol/src/lib.rs b/manabrew-rs/crates/manabrew-relay-protocol/src/lib.rs
-index 9cac313..c094f63 100644
+index 9cac313..4076da6 100644
 --- a/manabrew-rs/crates/manabrew-relay-protocol/src/lib.rs
 +++ b/manabrew-rs/crates/manabrew-relay-protocol/src/lib.rs
 @@ -265,6 +265,9 @@ pub enum ClientMessage {
          reconnect_timeout_s: Option<u32>,
          #[serde(default)]
          table_style: Option<String>,
-+        /// The engine build the hosting node runs (its image's tag), so a client can tell it from the one it expects.
++        /// The engine build the hosting node runs (engine/engine-build-id.sh's hash of the pins and the patches, never the image tag), so a client can tell it from the one it expects.
 +        #[serde(default)]
 +        engine_build: Option<String>,
      },
@@ -32942,7 +33180,7 @@ index 9cac313..c094f63 100644
      pub draft_config: Option<DraftConfig>,
      #[serde(default, skip_serializing_if = "Option::is_none")]
      pub sealed_config: Option<SealedConfig>,
-+    /// The engine build the hosting node runs (its image's tag); none from a node or relay older than the field.
++    /// The engine build the hosting node runs (the engine-build-id.sh hash, not the image tag); none from a node or relay older than the field.
 +    #[serde(default, skip_serializing_if = "Option::is_none")]
 +    pub engine_build: Option<String>,
  }
@@ -32990,7 +33228,7 @@ index 1f6d1c7..f698ca2 100644
                      info!(
                          "[game] game started in room {} | order: {:?}",
 diff --git a/manabrew-rs/crates/manabrew-server/src/lobby.rs b/manabrew-rs/crates/manabrew-server/src/lobby.rs
-index 8994409..b42535b 100644
+index 8994409..20eb7e4 100644
 --- a/manabrew-rs/crates/manabrew-server/src/lobby.rs
 +++ b/manabrew-rs/crates/manabrew-server/src/lobby.rs
 @@ -33,6 +33,7 @@ pub fn create_room_sync(
@@ -33035,7 +33273,7 @@ index 8994409..b42535b 100644
  ) -> Result<StartedGame, ServerError> {
      let room_id = {
          state
-@@ -706,8 +709,18 @@ pub fn start_game_sync(
+@@ -706,8 +709,22 @@ pub fn start_game_sync(
              | GameFormat::Sealed => 20,
              GameFormat::Any => unreachable!("Any resolved to concrete format above"),
          };
@@ -33051,6 +33289,10 @@ index 8994409..b42535b 100644
 +            if wanted == current {
 +                player_order = order;
 +                player_decks.sort_by_key(|deck| player_order.iter().position(|name| name == &deck.username));
++            } else {
++                tracing::warn!(
++                    "seat_order {wanted:?} is not the room's players {current:?}; starting in join order"
++                );
 +            }
 +        }
          let game_id = uuid::Uuid::new_v4().to_string();
@@ -33215,14 +33457,14 @@ index 1ba3f30..50c9169 100644
  ENV SELF_HOSTED_NODE_SHARED_ISOLATE=1
  ENV LD_LIBRARY_PATH=/build/forge-harness/native/build
 diff --git a/manabrew-rs/crates/self-hosted-node/src/config.rs b/manabrew-rs/crates/self-hosted-node/src/config.rs
-index 0a5ba0d..5f89742 100644
+index 0a5ba0d..84c2dcf 100644
 --- a/manabrew-rs/crates/self-hosted-node/src/config.rs
 +++ b/manabrew-rs/crates/self-hosted-node/src/config.rs
 @@ -40,6 +40,8 @@ pub struct Config {
      pub bot_local_answers: bool,
      pub reconnect_timeout_s: Option<u32>,
      pub table_style: Option<String>,
-+    /// The engine build this node runs (SELF_HOSTED_NODE_ENGINE_BUILD, the image's tag), told to the relay with the room.
++    /// The engine build this node runs (SELF_HOSTED_NODE_ENGINE_BUILD: engine-build-id.sh's hash of the pins and the patches, never the image tag), told to the relay with the room.
 +    pub engine_build: Option<String>,
      pub host_deck: DeckSelection,
      pub bot_deck: DeckSelection,

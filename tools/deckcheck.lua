@@ -271,7 +271,7 @@ function deckcheckReadTag(notes)
   return nil
 end
 
--- the label next to the commander: "Bracket 3 · Threat 54 (32-51)" (the bracket's range; "Threat 54/96", out of the max,
+-- the label next to the commander: "Bracket 3 | Threat 54 (32-51)" (the bracket's range; "Threat 54/96", out of the max,
 -- when there is no bracket), one half when the other is missing, or nil
 -- Each bracket's Threat Index range, from DeckCheck's "How the Threat Index works" (updated 2026-10).
 -- A gate or a card can raise a deck's bracket, so its score may sit outside its bracket's range.
@@ -295,5 +295,6 @@ function deckcheckLabel(info)
     end
   end
   if #parts == 0 then return nil end
-  return table.concat(parts, " \194\183 ")
+  -- (ASCII only: real TTS reads a Lua string a byte to a letter, so a UTF-8 middle dot showed as "Â·", live 2026-11-28)
+  return table.concat(parts, " | ")
 end

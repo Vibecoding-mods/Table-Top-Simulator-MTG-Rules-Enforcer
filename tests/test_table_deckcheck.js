@@ -18,7 +18,7 @@ const save = process.env.TABLE_SAVE ? JSON.parse(fs.readFileSync(process.env.TAB
 const FIX = JSON.parse(fs.readFileSync(path.join(__dirname, "golden", "fixtures", "deckcheck-deck.json"), "utf8"));
 let failed = 0, passed = 0;
 const ok = (name, cond, why) => { if (cond) { passed++; console.log(`ok   ${name}`); } else { failed++; console.log(`FAIL ${name}${why !== undefined ? `: ${String(why).slice(0, 600)}` : ""}`); } };
-const DOT = "·";
+const DOT = "|";
 const API = "https://deckcheck.co/api/external/deck?deck_id=";
 
 // ───────── 1. the Card Importer ─────────
@@ -103,7 +103,7 @@ const deckOn = (color, gm) => `local z = data["${color}"].libraryZone.getPositio
 // with its local x mirrored), "|" between, or "none"
 const LABELS = 'local out = {} for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do local mat = data[c].playmat ' +
   'for _, b in ipairs(mat.getButtons() or {}) do if b.click_function == "engineDeckCheckNoop" then local w = mat.positionToWorld(Vector(-b.position.x, b.position.y, b.position.z)) ' +
-  'out[#out + 1] = c .. ": " .. tostring(b.label) .. string.format("@%.2f,%.2f", w.x, w.z) end end end return #out == 0 and "none" or table.concat(out, " | ")';
+  'out[#out + 1] = c .. ": " .. tostring(b.label) .. string.format("@%.2f,%.2f", w.x, w.z) end end end return #out == 0 and "none" or table.concat(out, " ;; ")';
 const SPOTS = 'local out = {} for _, c in ipairs({ "White", "Red", "Yellow", "Blue" }) do ' +
   `local a = getObjectFromGUID(({ White = "${tax("White")[0]}", Red = "${tax("Red")[0]}", Yellow = "${tax("Yellow")[0]}", Blue = "${tax("Blue")[0]}" })[c]).getPosition() ` +
   `local b = getObjectFromGUID(({ White = "${tax("White")[1]}", Red = "${tax("Red")[1]}", Yellow = "${tax("Yellow")[1]}", Blue = "${tax("Blue")[1]}" })[c]).getPosition() ` +
@@ -151,7 +151,7 @@ const r = simulate({ save, seated: ["White", "Red", "Yellow", "Blue"], host: "Bl
   q(LABELS, "engine off again"),
 ] });
 ok("label: the script ran", !r.errors.length, r.errors.slice(0, 3).join(" | "));
-const parse = (s) => Object.fromEntries(String(s).split(" | ").filter((x) => x !== "none").map((x) => { const [c, rest] = x.split(": "); const [label, at] = rest.split("@"); return [c, { label, at: at.split(",").map(Number) }]; }));
+const parse = (s) => Object.fromEntries(String(s).split(" ;; ").filter((x) => x !== "none").map((x) => { const [c, rest] = x.split(": "); const [label, at] = rest.split("@"); return [c, { label, at: at.split(",").map(Number) }]; }));
 ok("label: none with engine mode off", valueOf(r, "engine off") === "none", valueOf(r, "engine off"));
 const on = parse(valueOf(r, "engine on"));
 ok("label: White's DeckCheck deck shows its bracket and threat", on.White && on.White.label === `Bracket 3 ${DOT} Threat 54 (32-51)`, valueOf(r, "engine on"));

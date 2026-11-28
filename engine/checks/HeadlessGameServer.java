@@ -75,10 +75,16 @@ public final class HeadlessGameServer {
                     default:
                         out.println(reply("error", "unknown command " + cmd));
                 }
-            } catch (final RuntimeException error) {
+            } catch (final Throwable error) {
+                // (an Error too, a StackOverflowError from a card script or an OutOfMemoryError: the driver gets a
+                // reply instead of waiting out its own timeout; after a VirtualMachineError the JVM is not trusted)
                 final java.io.StringWriter trace = new java.io.StringWriter();
                 error.printStackTrace(new java.io.PrintWriter(trace));
                 out.println(reply("error", trace.toString()));
+                if (error instanceof VirtualMachineError) {
+                    out.flush();
+                    System.exit(3);
+                }
             }
         }
         System.exit(0);

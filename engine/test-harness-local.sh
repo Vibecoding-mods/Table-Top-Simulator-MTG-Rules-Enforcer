@@ -8,7 +8,8 @@
 #   ENGINE_WORK_DIR  the patched Manabrew tree, Forge at <tree>/forge (default: ~/engine). Made when missing: both
 #                    pinned commits fetched with core.autocrlf false, the patches applied, then committed locally
 #                    ("patched") so later edits can be diffed.
-#   REBUILD=1        rebuild the protocol classes and the harness jar even when the jar exists.
+#   REBUILD=1        rebuild the protocol classes and the harness jar even when the jar exists (needed after an
+#                    edit to Forge or to the protocol; harness main sources are compiled fresh on every run).
 # Needs git, Rust stable (cargo), Node, a JDK (17 or newer) and Maven 3.9. Lines start with ok, FAIL or PASS.
 # Exit status: 0 when every class passed.
 # Notes from the first cloud run (2026-11):
@@ -18,8 +19,9 @@
 #   put back after the build, so the stripped pom never shows up in a patch.
 # - The generated protocol classes go into forge-harness/src/main/java/forge/harness/protocol, which
 #   forge-harness/.gitignore ignores, so they stay out of the patches.
-# - The tests compile against the jar alone (it already holds the harness main classes); edited Forge files are
-#   compiled over it by tools/l2-mutate.js --local.
+# - The harness main sources are compiled fresh on every run and put ahead of the jar, as harness-tests.sh does, so an
+#   edit under forge-harness/src/main/java is tested without REBUILD (the jar's own copies were the stale ones before,
+#   2026-11-27); edited Forge files are compiled over it by tools/l2-mutate.js --local.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 work="${ENGINE_WORK_DIR:-$HOME/engine}"
@@ -75,7 +77,11 @@ fi
 tests="$(mktemp -d)"
 trap 'rm -rf "$tests"' EXIT
 cd "$work"
-javac -nowarn -encoding UTF-8 -proc:none -d "$tests" -cp "$jar" $(find forge-harness/src/test/java -name '*.java')
+mkdir -p "$tests/main" "$tests/test"
+find forge-harness/src/main/java -name '*.java' > "$tests/main.txt"
+javac -nowarn -encoding UTF-8 -proc:none -d "$tests/main" -cp "$jar" @"$tests/main.txt"
+find forge-harness/src/test/java -name '*.java' > "$tests/test.txt"
+javac -nowarn -encoding UTF-8 -proc:none -d "$tests/test" -cp "$tests/main:$jar" @"$tests/test.txt"
 if [ "${1:-}" = --all ]; then
   set -- $(cd forge-harness/src/test/java/forge/harness && find . -name '*.java' | sed 's#^\./##; s#\.java$##; s#^host/##; s#/#.#g' | sort)
 fi
@@ -84,7 +90,7 @@ failed=""
 for c in "$@"; do
   echo "=== $c"
   case "$c" in *.*) cls="forge.harness.$c" ;; *) cls="forge.harness.host.$c" ;; esac
-  if timeout 900 java -cp "$tests:$jar" "$cls" > "$tests/$c.out" 2>&1; then echo "exit=0"; else echo "exit=$?"; failed="$failed $c"; fi
+  if timeout 900 java -cp "$tests/test:$tests/main:$jar" "$cls" > "$tests/$c.out" 2>&1; then echo "exit=0"; else echo "exit=$?"; failed="$failed $c"; fi
   grep -E '^(ok|FAIL|PASS) ' "$tests/$c.out" || tail -15 "$tests/$c.out"
 done
 if [ -n "$failed" ]; then echo "FAILED:$failed"; exit 1; fi

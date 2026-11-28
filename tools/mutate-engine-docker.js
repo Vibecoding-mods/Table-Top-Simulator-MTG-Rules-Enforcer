@@ -2,7 +2,7 @@
 // one piece off in a COPY of one file (the trees are never written), the image compiles only that copy over the patched
 // build (engine/checks/mutate-in-image.sh) and runs the test class, and the named check must fail.
 //   node tools/mutate-engine-docker.js --harness <manabrew tree> --forge <forge tree> [--proto <generated protocol dir>]
-//        [--image mtg-harness-test:l2-ai] [--set tie|tokens|runaway|held|watchdog|golden|all] [--only <label regex>]
+//        [--image mtg-harness-test:l2-ai] [--set tie|tokens|runaway|held|watchdog|golden|sweep|review|all] [--only <label regex>]
 // Heavy: run it through tmp/slot.js's queue (it does so itself when MTG_SLOT is set to slot.js's path).
 require("./restore-on-interrupt"); // (a mutated source file is put back on exit or Ctrl+C)
 const fs = require("fs");
@@ -132,6 +132,39 @@ SETS.golden = [
   ["clearing a held pass keeps the exhaust", "mb", H + "ManaBrewInteractiveController.java", "        clearPassUntil();\n        clearExhaust();\n    }", "        clearPassUntil();\n    }", "HeldPassResponseTest", "clearingTheHoldForgetsTheActions"],
   ["an ended exhaust keeps its actions", "mb", H + "ManaBrewInteractiveController.java", "        exhaustStackIds = null;\n        heldActionIds = null;\n    }\n\n    void clearHeldPass", "        exhaustStackIds = null;\n    }\n\n    void clearHeldPass", "HeldPassResponseTest", "clearingTheHoldForgetsTheActions"],
   ["a held exhaust forgets the actions it was offered", "mb", H + "ManaBrewInteractiveController.java", "heldActionIds = choice.exhaustStack() ? responseIds(all) : null;", "heldActionIds = null;", "HeldPassResponseTest", "aNewInstantEndsTheHold"],
+];
+
+// The 2026-11-27 sweep's test repairs (engine1135): each check that could pass by absence, print PASS with no
+// assertion or flake on a wall-clock ratio, broken here through the code it watches.
+SETS.sweep = [
+  ["the passive AI attacks like the plain one", "mb", H + "PassiveLobbyPlayerAi.java", "            if (!CombatUtil.validateAttackers(combat)) {", "            if (true) {", "PassiveAiTest", "thePassiveAiDeclaresNoAttack"],
+  ["the command zone is not sent", "mb", X, "zones.add(visibleZone(\"command\", ownerId,", "zones.add(visibleZone(\"commandZone\", ownerId,", "PlayerRulesTest", "perksAreHiddenFromTheCommandZoneAndEffects"],
+  ["graveyards are not sent", "mb", X, "zones.add(visibleZone(\"graveyard\", ownerId,", "zones.add(visibleZone(\"graveyardZone\", ownerId,", "MayPlayVisibilityTest", "mayhemCardNotDiscardedIsNotPlayable"],
+  ["exile is not sent", "mb", X, "            zones.add(zoneWithVisibility(\"exile\", ownerId,", "            zones.add(zoneWithVisibility(\"exileZone\", ownerId,", "MayPlayVisibilityTest", "unplottedCardInExileIsNotPlayable"],
+  ["clues: the battlefield memo always rebuilt", "mb", "forge-harness/src/main/java/forge/harness/common/ActionSpace.java", "        return memo == null ? buildBattlefieldSources(player) : memo.computeIfAbsent(player, ActionSpace::buildBattlefieldSources);", "        return buildBattlefieldSources(player);", "ManaSourcesTest", "theHeldCheckOn500CluesBuildsTheManaSourcesOnce"],
+  ["clues: no static scope", "mb", "forge-harness/src/main/java/forge/harness/common/ActionSpace.java", "        final boolean ownsStatics = shareManaSources && StaticSourceScope.begin();", "        final boolean ownsStatics = false;", "ManaSourcesTest", "theHeldCheckOn500CluesBuildsTheManaSourcesOnce"],
+  ["restricted pool mana counted for any spell", "mb", "forge-harness/src/main/java/forge/harness/common/ActionSpace.java", "                if (mana.getColor() == type && mana.meetsManaRestrictions(sa)) {", "                if (mana.getColor() == type) {", "ManaSourcesTest", "restrictedPoolManaPaysOnlyTheSpellsItMay"],
+  ["the combat statics scanned per creature", "mb", X, "            if (statics == null || statics.game() != game) {", "            if (true) {", "SnapshotSpeedTest", "timing: 1,000 tokens' flags at least 3x faster than Forge's per-creature scans"],
+  ["the combat statics scanned per creature (sizes)", "mb", X, "            if (statics == null || statics.game() != game) {", "            if (true) {", "SnapshotSpeedTest", "timing: 3,000 tokens' flags take under 7x the time of 1,000 (linear, not quadratic)"],
+  ["every viewer of a round builds the cards again", "mb", X, "        if (known == null || !known[0].equals(choices)) {", "        if (true) {", "SnapshotViewersTest", "timing: 10,000 tokens, the viewers after the first build no card again and are at least 2x faster than building each alone"],
+  ["nothing is batchable", "forge", G + "zone/StackMerge.java", "        if (!(sa instanceof WrappedAbility wrapped) || wrapped.getDecider() != null", "        if (true || !(sa instanceof WrappedAbility wrapped) || wrapped.getDecider() != null", "TriggerBatchTest", "batchingIsFaster"],
+  ["no token is batched", "forge", G + "ability/effects/TokenEffectBase.java", " && cellAmount > 1 && !game.getAction().isHoldingStaticAbilities();", " && cellAmount > 100000 && !game.getAction().isHoldingStaticAbilities();", "TokenBatchTest", "sanity: 400 tokens on an anthem board batched, in under 60 s"],
+  ["an effect makes half its tokens", "forge", G + "ability/effects/TokenEffectBase.java", "            int cellAmount = Math.min(c.getValue(), room);", "            int cellAmount = Math.min(c.getValue(), room) / 2;", "BigTurnTimingTest", "secondHarvest 25 Scute Swarms"],
+  ["a hand card's effect named to every seat", "mb", H + "EffectsView.java", "            final boolean hidden = !card.isEmblem() && !sourceCard.isImmutable() && !shown.test(sourceCard);", "            final boolean hidden = false;", "EffectsViewTest", "anEffectFromAHandCardIsNotNamedToAnotherSeat"],
+];
+
+// The engine1135 review's three follow-ups: restricted pool mana on the reserved-sacrifice path, and a hidden-source
+// effect's id and ability left out (EffectsView), each broken here.
+const AS = "forge-harness/src/main/java/forge/harness/common/ActionSpace.java";
+const EV = H + "EffectsView.java";
+const EV_ID = ["            if (!hidden) {\n                effect.put(\"sourceCardId\"", "            if (true) {\n                effect.put(\"sourceCardId\""];
+const EV_SA = ["            final SpellAbility source = hidden ? null : card.getEffectSourceAbility();", "            final SpellAbility source = card.getEffectSourceAbility();"];
+SETS.review = [
+  ["restricted pool mana counted on the reserved-sacrifice path", "mb", AS, "            if (mana.meetsManaRestrictions(sa)) {", "            if (true) {", "ManaSourcesTest", "restrictedPoolManaDoesNotPayAnAbilityThatSacrificesItsSource"],
+  ["a hand card's effect sends its source id", "mb", EV, ...EV_ID, "EffectsViewTest", "anEffectFromAHandCardIsNotNamedToAnotherSeat"],
+  ["a library card's effect sends its source id", "mb", EV, ...EV_ID, "EffectsViewTest", "anEffectFromALibraryCardSendsNoSourceIdOrDuration"],
+  ["a hand card's effect sends its ability's duration", "mb", EV, ...EV_SA, "EffectsViewTest", "anEffectFromAHandCardIsNotNamedToAnotherSeat"],
+  ["a library card's effect sends its ability's duration", "mb", EV, ...EV_SA, "EffectsViewTest", "anEffectFromALibraryCardSendsNoSourceIdOrDuration"],
 ];
 
 // the cloud's tie-offer break-its (tools/mutate-tie-offer-engine.js needs a local JDK), read from that file as they are

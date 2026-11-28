@@ -104,7 +104,7 @@ anyone into your server's games.
 2. **Bring your deck** the usual way, with the table's Card Importer: the deck on your library spot, your commander
    on your command zone. A [DeckCheck](https://deckcheck.co) link works too (`Importer deck
    https://deckcheck.co/app/deckview/...`, a public or unlisted deck): once the engine is on and before the game
-   starts, the deck's bracket and threat level show beside your command zone, e.g. `Bracket 3 · Threat 45 (32-51)`
+   starts, the deck's bracket and threat level show beside your command zone, e.g. `Bracket 3 | Threat 45 (32-51)`
    (the score and that bracket's usual range). Not affiliated with DeckCheck.
 3. Anyone seated turns the engine on with the middle tile (**Engine: on**), or types `mtg engine on`.
 4. Press **READY?** on your playmat. It checks every card against the engine:

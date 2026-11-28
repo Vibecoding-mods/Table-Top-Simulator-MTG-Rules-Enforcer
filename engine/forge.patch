@@ -6328,10 +6328,10 @@ index 91d34317..c4c32924 100644
          return i;
 diff --git a/forge-game/src/main/java/forge/game/staticability/StaticSourceScope.java b/forge-game/src/main/java/forge/game/staticability/StaticSourceScope.java
 new file mode 100644
-index 00000000..6a5138ad
+index 00000000..0112b564
 --- /dev/null
 +++ b/forge-game/src/main/java/forge/game/staticability/StaticSourceScope.java
-@@ -0,0 +1,142 @@
+@@ -0,0 +1,149 @@
 +package forge.game.staticability;
 +
 +import java.util.ArrayList;
@@ -6339,6 +6339,7 @@ index 00000000..6a5138ad
 +import java.util.HashMap;
 +import java.util.List;
 +import java.util.Map;
++import java.util.concurrent.atomic.AtomicLong;
 +
 +import forge.game.Game;
 +import forge.game.card.Card;
@@ -6351,6 +6352,7 @@ index 00000000..6a5138ad
 +// ability's host) is always read live. Without a scope the lists are built as before.
 +public final class StaticSourceScope {
 +    private static final ThreadLocal<Map<String, Sources>> SCOPE = new ThreadLocal<>();
++    private static final AtomicLong INDEXED = new AtomicLong();
 +
 +    private record Sources(List<Card> all, Map<Card, Integer> at, List<Card> having) {
 +    }
@@ -6372,6 +6374,10 @@ index 00000000..6a5138ad
 +        if (scope != null) {
 +            scope.clear();
 +        }
++    }
++
++    public static long getIndexed() {
++        return INDEXED.get();
 +    }
 +
 +    public static void end() {
@@ -6450,6 +6456,7 @@ index 00000000..6a5138ad
 +    }
 +
 +    private static Sources index(final List<Card> all, final StaticAbilityMode[] modes) {
++        INDEXED.incrementAndGet();
 +        final List<Card> list = new ArrayList<>(all);
 +        final Map<Card, Integer> at = new HashMap<>();
 +        final List<Card> having = new ArrayList<>();
@@ -14140,7 +14147,7 @@ index f0e17c71..b0fdc5e7 100644
 +1 copy @Nicky Barkla
 +8 copy @Nicky Barkla
 diff --git a/forge-gui/res/editions/Star Trek.txt b/forge-gui/res/editions/Star Trek.txt
-index 15c33d56..20bc5130 100644
+index 15c33d56..6f093640 100644
 --- a/forge-gui/res/editions/Star Trek.txt	
 +++ b/forge-gui/res/editions/Star Trek.txt	
 @@ -4,94 +4,412 @@ Date=2026-11-13
@@ -14833,7 +14840,7 @@ index 15c33d56..20bc5130 100644
 +1 The Holodeck|TRK|[346]
 +1 Quark, Humble Proprietor|TRK|[347]
 +1 Constable Odo|TRK|[348]
-+1 Dominion Infiltration |TRK|[349]
++1 Dominion Infiltration|TRK|[349]
 +1 Quark's Bar|TRK|[350]
 +1 Nog, Ambitious Cadet|TRK|[351]
 +1 Jadzia Dax, Living Legacy|TRK|[352]
@@ -14841,11 +14848,11 @@ index 15c33d56..20bc5130 100644
 +1 Mirror Universe Intrusion|TRK|[354]
 +1 Kirk, Commanding Officer|TRK|[355]
 +1 Sulu, Space Swashbuckler|TRK|[356]
-+1 Transporter Malfunction |TRK|[357]
++1 Transporter Malfunction|TRK|[357]
 +1 Nyota Uhura, Communications|TRK|[358]
 +1 Lieutenant Commander Data|TRK|[359]
 +1 Locutus, the One Who Speaks|TRK|[360]
-+1 Infinite Diversity |TRK|[361]
++1 Infinite Diversity|TRK|[361]
 +1 Death Is Irrelevant|TRK|[362]
 +
 +[classic enterprise cards]
@@ -14872,7 +14879,7 @@ index 15c33d56..20bc5130 100644
 +1 Genesis Device|TRK|[422]
 +1 Live Long and Prosper|TRK|[423]
 +1 Mirror Universe Intrusion|TRK|[424]
-+1 Sarek, Federation Ambassador |TRK|[425]
++1 Sarek, Federation Ambassador|TRK|[425]
 +
 +[LCARS cards]
 +1 Captain Jean-Luc Picard|TRK|[363]
@@ -14886,15 +14893,15 @@ index 15c33d56..20bc5130 100644
 +1 Lieutenant Commander Data|TRK|[371]
 +1 Lt. Cmdr. Geordi La Forge|TRK|[372]
 +1 Seven of Nine, Unassimilated|TRK|[373]
-+1 Wesley Crusher, Starfleet Cadet |TRK|[374]
++1 Wesley Crusher, Starfleet Cadet|TRK|[374]
 +1 Death Is Irrelevant|TRK|[375]
 +1 Organic Avulsion Unit|TRK|[376]
 +1 Overflow Submatrix|TRK|[377]
 +1 Resistance Is Futile|TRK|[378]
 +1 Sela, Tal Shiar Paradox|TRK|[379]
-+1 Dominion Infiltration |TRK|[380]
-+1 Encounter the Unknown |TRK|[381]
-+1 Infinite Diversity |TRK|[382]
++1 Dominion Infiltration|TRK|[380]
++1 Encounter the Unknown|TRK|[381]
++1 Infinite Diversity|TRK|[382]
 +1 Q, Stacking the Deck|TRK|[383]
 +1 Tasha Yar, Out of Time|TRK|[384]
 +1 Will Riker, First in the Field|TRK|[385]

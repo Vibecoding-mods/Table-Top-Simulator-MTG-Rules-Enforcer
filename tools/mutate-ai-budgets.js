@@ -20,7 +20,7 @@ const AA = AI + "AiAttackController.java", AC = AI + "AiController.java", CU = A
 const M = AI + "ComputerUtilMana.java", GM = "forge/forge-game/src/main/java/forge/game/Game.java";
 const AS = "forge-harness/src/main/java/forge/harness/common/ActionSpace.java";
 const BB = "BigBoardFixesTest", MS = "ManaSourcesTest";
-const CLUES = "theHeldCheckOn500CluesIsUnderATenthOfTheUnsharedPath";
+const CLUES = "theHeldCheckOn500CluesBuildsTheManaSourcesOnce";
 // [label, file (in the tree), from, to, test class, check that must fail]
 const MUTATIONS = [
   ["defender: no cheap choice past the deadline", AA, "            if (AiController.evalDeadlinePassed(ai)) {\n                return lowestLife(opponents);\n            }\n            final int life", "            final int life", BB, "attack: past the deadline the defender is the lowest-life opponent, with no combat prediction"],

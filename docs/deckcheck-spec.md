@@ -59,7 +59,7 @@ commanders first). DeckCheck goes the same way:
 ### Bracket and threat level next to the commander (TTS, later)
 
 - Engine mode is on and no game is running: for each seat whose deck carries a DeckCheck tag, a small label sits
-  next to the commander zone: `Bracket 3 · Threat 54 (32-51)`, the score and its bracket's range (DeckCheck, updated 2026-10: 1 = 0-15, 2 = 16-31, 3 = 32-51, 4 = 52-67, 5 = 68-96). A gate can raise a bracket, so the score may sit outside the range shown.
+  next to the commander zone: `Bracket 3 | Threat 54 (32-51)`, the score and its bracket's range (DeckCheck, updated 2026-10: 1 = 0-15, 2 = 16-31, 3 = 32-51, 4 = 52-67, 5 = 68-96). A gate can raise a bracket, so the score may sit outside the range shown.
 - The label is hidden when the game starts, and shown again after the game ends and before the next one.
 - No tag (any other source): no label. We don't estimate brackets ourselves.
 - In 2HG and team modes, each player's own deck shows its own label.
@@ -75,7 +75,7 @@ commanders first). DeckCheck goes the same way:
    - `deckcheckError(status, body)`: the plain-words chat message for each error status;
    - `deckcheckTag(info)` and `deckcheckReadTag(notes)`: write and read the GM-notes line; reading tolerates other
      lines and a missing tag;
-   - `deckcheckLabel(info)`: `Bracket 3 · Threat 54 (32-51)`, or `Bracket 3` / `Threat 54/96` when one is missing, or
+   - `deckcheckLabel(info)`: `Bracket 3 | Threat 54 (32-51)`, or `Bracket 3` / `Threat 54/96` when one is missing, or
      nil.
 2. **`tests/test_deckcheck.js`**: drives the Lua through the existing headless runner (`tests/lua/`), on a
    hand-made fixture `tests/golden/fixtures/deckcheck-deck.json` with the documented shape (made-up deck, real
@@ -107,7 +107,7 @@ Live shape: **confirmed 2026-11-15.**
   - `setName` is null;
   - `prices` uses the short keys `ck`, `cm`, `mp` and `usd`.
 
-  `deckcheckEntries` read 1 commander and 90 entries (100 cards), with the label "Bracket 3 · Threat 45 (32-51)".
+  `deckcheckEntries` read 1 commander and 90 entries (100 cards), with the label "Bracket 3 | Threat 45 (32-51)".
 
 ### TTS part
 

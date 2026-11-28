@@ -7706,7 +7706,9 @@ const EFFECT_DURATIONS = { UntilYourNextTurn: "until your next turn", UntilYourN
 function effectMark(e, shown) {
   const name = String(e.name || "").trim();
   const text = String(e.text || "").trim();
-  const open = !e.sourceCardId || shown.has(e.sourceCardId);
+  // (engine1135 hides a hidden source's effect itself: "Effect", no text, no sourceCardId, no duration; that is closed too)
+  const engineHid = !e.emblem && !e.sourceCardId && !text && name === "Effect";
+  const open = !engineHid && (!e.sourceCardId || shown.has(e.sourceCardId));
   const base = name.replace(/'s Effect$/i, "").replace(/ Effect$/i, "").trim() || "Effect";
   const dur = e.untilEndOfTurn ? "this turn" : EFFECT_DURATIONS[e.duration] || "";
   const skip = /^Skip your next (?:(\w+) )?turns?\b/i.exec(text);
